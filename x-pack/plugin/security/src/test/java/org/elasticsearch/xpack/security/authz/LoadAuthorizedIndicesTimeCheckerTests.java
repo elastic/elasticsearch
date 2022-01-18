@@ -43,9 +43,9 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
 
     public void testResolveThresholdSettings() {
         final Settings settings = Settings.builder()
-            .put("xpack.security.authz.timer.threshold.debug", TimeValue.timeValueSeconds(1))
-            .put("xpack.security.authz.timer.threshold.info", TimeValue.timeValueMinutes(2))
-            .put("xpack.security.authz.timer.threshold.warn", TimeValue.timeValueHours(3))
+            .put("xpack.security.authz.timer.indices.threshold.debug", TimeValue.timeValueSeconds(1))
+            .put("xpack.security.authz.timer.indices.threshold.info", TimeValue.timeValueMinutes(2))
+            .put("xpack.security.authz.timer.indices.threshold.warn", TimeValue.timeValueHours(3))
             .build();
         final LoadAuthorizedIndicesTimeChecker.Factory factory = buildFactory(settings);
         final LoadAuthorizedIndicesTimeChecker.Thresholds thresholds = factory.getThresholds();
@@ -61,11 +61,11 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
         final boolean invalidDebugVsInfo = randomBoolean();
         final Settings.Builder builder = Settings.builder();
         if (invalidDebugVsInfo) {
-            builder.put("xpack.security.authz.timer.threshold.debug", TimeValue.timeValueMillis(60))
-                .put("xpack.security.authz.timer.threshold.info", TimeValue.timeValueMillis(50));
+            builder.put("xpack.security.authz.timer.indices.threshold.debug", TimeValue.timeValueMillis(60))
+                .put("xpack.security.authz.timer.indices.threshold.info", TimeValue.timeValueMillis(50));
         } else {
-            builder.put("xpack.security.authz.timer.threshold.info", TimeValue.timeValueMillis(50))
-                .put("xpack.security.authz.timer.threshold.warn", TimeValue.timeValueMillis(40));
+            builder.put("xpack.security.authz.timer.indices.threshold.info", TimeValue.timeValueMillis(50))
+                .put("xpack.security.authz.timer.indices.threshold.warn", TimeValue.timeValueMillis(40));
         }
         final Settings settings = builder.build();
         final SettingsException exception = expectThrows(SettingsException.class, () -> buildFactory(settings));
@@ -73,16 +73,16 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
             assertThat(
                 exception,
                 throwableWithMessage(
-                    "Setting [xpack.security.authz.timer.threshold.info] (50ms)"
-                        + " cannot be less than the setting [xpack.security.authz.timer.threshold.debug] (60ms)"
+                    "Setting [xpack.security.authz.timer.indices.threshold.info] (50ms)"
+                        + " cannot be less than the setting [xpack.security.authz.timer.indices.threshold.debug] (60ms)"
                 )
             );
         } else {
             assertThat(
                 exception,
                 throwableWithMessage(
-                    "Setting [xpack.security.authz.timer.threshold.warn] (40ms)"
-                        + " cannot be less than the setting [xpack.security.authz.timer.threshold.info] (50ms)"
+                    "Setting [xpack.security.authz.timer.indices.threshold.warn] (40ms)"
+                        + " cannot be less than the setting [xpack.security.authz.timer.indices.threshold.info] (50ms)"
                 )
             );
         }
@@ -91,29 +91,31 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
     public void testResolveDisabledLogging() {
         final Settings settings = randomBoolean()
             ? Settings.EMPTY
-            : Settings.builder().put("xpack.security.authz.timer.enabled", false).build();
+            : Settings.builder().put("xpack.security.authz.timer.indices.enabled", false).build();
         final LoadAuthorizedIndicesTimeChecker.Factory factory = buildFactory(settings);
         assertThat(factory.newTimer(null), Matchers.is(LoadAuthorizedIndicesTimeChecker.NO_OP_CONSUMER));
     }
 
     public void testResolveEnabledLogging() {
-        final Settings settings = Settings.builder().put("xpack.security.authz.timer.enabled", true).build();
+        final Settings settings = Settings.builder().put("xpack.security.authz.timer.indices.enabled", true).build();
         final LoadAuthorizedIndicesTimeChecker.Factory factory = buildFactory(settings);
         assertThat(factory.newTimer(null), Matchers.instanceOf(LoadAuthorizedIndicesTimeChecker.class));
     }
 
     public void testDynamicallyEnableLogging() throws Exception {
-        Settings settings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("xpack.security.authz.timer.enabled", false).build();
+        Settings settings = randomBoolean()
+            ? Settings.EMPTY
+            : Settings.builder().put("xpack.security.authz.timer.indices.enabled", false).build();
         final LoadAuthorizedIndicesTimeChecker.Factory factory = buildFactory(settings);
 
         assertThat(factory.newTimer(null), Matchers.is(LoadAuthorizedIndicesTimeChecker.NO_OP_CONSUMER));
 
-        settings = Settings.builder().put("xpack.security.authz.timer.enabled", true).build();
+        settings = Settings.builder().put("xpack.security.authz.timer.indices.enabled", true).build();
         clusterSettings.applySettings(settings);
 
         assertThat(factory.newTimer(null), Matchers.instanceOf(LoadAuthorizedIndicesTimeChecker.class));
 
-        settings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("xpack.security.authz.timer.enabled", false).build();
+        settings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("xpack.security.authz.timer.indices.enabled", false).build();
         clusterSettings.applySettings(settings);
 
         assertThat(factory.newTimer(null), Matchers.is(LoadAuthorizedIndicesTimeChecker.NO_OP_CONSUMER));

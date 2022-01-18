@@ -41,10 +41,6 @@ class LoadAuthorizedIndicesTimeChecker implements Consumer<Collection<String>> {
 
     @Override
     public void accept(Collection<String> indices) {
-        done(indices);
-    }
-
-    private void done(Collection<String> indices) {
         final long end = System.nanoTime();
         final long millis = TimeUnit.NANOSECONDS.toMillis(end - startNanos);
         final Level level = thresholds.getLogLevel(millis);
@@ -71,23 +67,23 @@ class LoadAuthorizedIndicesTimeChecker implements Consumer<Collection<String>> {
     }
 
     static final Setting<Boolean> LOGGING_ENABLED_SETTING = Setting.boolSetting(
-        "xpack.security.authz.timer.enabled",
+        "xpack.security.authz.timer.indices.enabled",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
     static final Setting<TimeValue> DEBUG_THRESHOLD_SETTING = Setting.timeSetting(
-        "xpack.security.authz.timer.threshold.debug",
+        "xpack.security.authz.timer.indices.threshold.debug",
         TimeValue.timeValueMillis(20),
         Setting.Property.NodeScope
     );
     static final Setting<TimeValue> INFO_THRESHOLD_SETTING = Setting.timeSetting(
-        "xpack.security.authz.timer.threshold.info",
+        "xpack.security.authz.timer.indices.threshold.info",
         TimeValue.timeValueMillis(100),
         Setting.Property.NodeScope
     );
     static final Setting<TimeValue> WARN_THRESHOLD_SETTING = Setting.timeSetting(
-        "xpack.security.authz.timer.threshold.warn",
+        "xpack.security.authz.timer.indices.threshold.warn",
         TimeValue.timeValueMillis(200),
         Setting.Property.NodeScope
     );

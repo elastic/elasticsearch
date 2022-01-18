@@ -271,24 +271,8 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return map -> {
-            final Set<String> monitoringTemplateNames = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-                .map(MonitoringTemplateUtils::templateName)
-                .collect(Collectors.toSet());
-
-            map.entrySet().removeIf(entry -> {
-                String templateName = entry.getKey();
-                if (monitoringTemplateNames.contains(templateName) || templateName.startsWith("apm-6.")) {
-                    ImmutableOpenMap<String, CompressedXContent> mappings = entry.getValue().getMappings();
-                    if (mappings != null && mappings.get("doc") != null) {
-                        // this is either an old APM mapping that still uses the `doc` type so let's remove it as the later 7.x APM versions
-                        // would've installed an APM template (versioned) that doesn't contain any type, or similarly, a monitoring template
-                        // that wasn't updated (probably because the LocalExporter is disabled)
-                        logger.info("removing typed legacy template [{}]", templateName);
-                        return true;
-                    }
-                }
-                return false;
-            });
+            final Set<String> monitoringTemplateNames = getMonitoringTemplateNames();
+            map.entrySet().removeIf(entry -> isMonitoringOrApmTypedTemplate(monitoringTemplateNames, entry));
 
             // this template was not migrated to typeless due to the possibility of the old /_monitoring/bulk API being used
             // see {@link org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils#OLD_TEMPLATE_VERSION}
@@ -298,5 +282,24 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
             return map;
         };
 
+    }
+
+    static Set<String> getMonitoringTemplateNames() {
+        return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS).map(MonitoringTemplateUtils::templateName).collect(Collectors.toSet());
+    }
+
+    static boolean isMonitoringOrApmTypedTemplate(Set<String> monitoringTemplateNames, Map.Entry<String, IndexTemplateMetadata> entry) {
+        String templateName = entry.getKey();
+        if (monitoringTemplateNames.contains(templateName) || templateName.startsWith("apm-6.")) {
+            ImmutableOpenMap<String, CompressedXContent> mappings = entry.getValue().getMappings();
+            if (mappings != null && mappings.get("doc") != null) {
+                // this is either an old APM mapping that still uses the `doc` type so let's remove it as the later 7.x APM versions
+                // would've installed an APM template (versioned) that doesn't contain any type, or similarly, a monitoring template
+                // that wasn't updated (probably because the LocalExporter is disabled)
+                logger.info("removing legacy template [{}]", templateName);
+                return true;
+            }
+        }
+        return false;
     }
 }

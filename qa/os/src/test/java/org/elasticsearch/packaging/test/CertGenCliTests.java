@@ -9,6 +9,7 @@
 package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -96,33 +97,33 @@ public class CertGenCliTests extends PackagingTestCase {
         final String keyPath = escapePath(installation.config("certs/mynode/mynode.key"));
         final String certPath = escapePath(installation.config("certs/mynode/mynode.crt"));
         final String caCertPath = escapePath(installation.config("certs/ca/ca.crt"));
-
+        final Settings settings = Settings.builder().loadFromPath(installation.config("elasticsearch.yml")).build();
         // Replace possibly auto-configured TLS settings with ones pointing to the material generated with certgen
         // (we do disable auto-configuration above but for packaged installations TLS auto-config happens on installation time and is
         // not affected by this setting
-        final List<String> newTlsConfig = List.of(
-            "node.name: mynode",
-            "xpack.security.transport.ssl.key: " + keyPath,
-            "xpack.security.transport.ssl.certificate: " + certPath,
-            "xpack.security.transport.ssl.certificate_authorities: [\"" + caCertPath + "\"]",
-            "xpack.security.http.ssl.key: " + keyPath,
-            "xpack.security.http.ssl.certificate: " + certPath,
-            "xpack.security.http.ssl.certificate_authorities: [\"" + caCertPath + "\"]",
-            "xpack.security.transport.ssl.enabled: true",
-            "xpack.security.http.ssl.enabled: true"
-        );
-        List<String> existingConfig = Files.readAllLines(installation.config("elasticsearch.yml"));
-        List<String> newConfig = existingConfig.stream()
-            .filter(l -> l.startsWith("node.name:") == false)
-            .filter(l -> l.startsWith("xpack.security.transport.ssl.") == false)
-            .filter(l -> l.startsWith("xpack.security.http.ssl.") == false)
-            .filter(l -> l.startsWith("xpack.security.enabled") == false)
-            .filter(l -> l.startsWith("http.host") == false)
-            .filter(l -> l.startsWith("cluster.initial_master_nodes") == false)
-            .collect(Collectors.toList());
-        newConfig.addAll(newTlsConfig);
+        final Settings newSettings = Settings.builder()
+            .put(
+                settings.filter(k -> k.startsWith("xpack.security") == false)
+                    .filter(k -> k.equals("node.name") == false)
+                    .filter(k -> k.equals("http.host") == false)
+                    .filter(k -> k.equals("cluster.initial_master_nodes") == false)
 
-        Files.write(installation.config("elasticsearch.yml"), newConfig, TRUNCATE_EXISTING);
+            )
+            .put("node.name", "mynode")
+            .put("xpack.security.transport.ssl.key", keyPath)
+            .put("xpack.security.transport.ssl.certificate", certPath)
+            .put("xpack.security.transport.ssl.certificate_authorities", caCertPath)
+            .put("xpack.security.http.ssl.key", keyPath)
+            .put("xpack.security.http.ssl.certificate", certPath)
+            .putList("xpack.security.http.ssl.certificate_authorities", caCertPath)
+            .put("xpack.security.transport.ssl.enabled", true)
+            .put("xpack.security.http.ssl.enabled", true)
+            .build();
+        Files.write(
+            installation.config("elasticsearch.yml"),
+            newSettings.keySet().stream().map(k -> k + ": " + newSettings.get(k)).collect(Collectors.toList()),
+            TRUNCATE_EXISTING
+        );
 
         assertWhileRunning(() -> {
             final String password = setElasticPassword();

@@ -18,8 +18,8 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -163,7 +163,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         InternalScriptedMetric aggregation = createTestInstance();
         return (InternalScriptedMetric) aggregation.reduce(
             singletonList(aggregation),
-            ReduceContext.forFinalReduction(null, mockScriptService(), null, PipelineTree.EMPTY, () -> false)
+            new AggregationReduceContext.ForFinal(null, mockScriptService(), null, PipelineTree.EMPTY, () -> false)
         );
     }
 
@@ -190,9 +190,8 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             } else {
                 assertEquals(expected, actual);
             }
-        } else if (expected instanceof GeoPoint) {
+        } else if (expected instanceof GeoPoint point) {
             assertTrue(actual instanceof Map);
-            GeoPoint point = (GeoPoint) expected;
             @SuppressWarnings("unchecked")
             Map<String, Object> pointMap = (Map<String, Object>) actual;
             assertEquals(point.getLat(), pointMap.get("lat"));
@@ -233,30 +232,23 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         Script reduceScript = instance.reduceScript;
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                aggregationsList = randomValueOtherThan(aggregationsList, this::randomAggregations);
-                break;
-            case 2:
-                reduceScript = new Script(
-                    ScriptType.INLINE,
-                    MockScriptEngine.NAME,
-                    REDUCE_SCRIPT_NAME + "-mutated",
-                    Collections.emptyMap()
-                );
-                break;
-            case 3:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> aggregationsList = randomValueOtherThan(aggregationsList, this::randomAggregations);
+            case 2 -> reduceScript = new Script(
+                ScriptType.INLINE,
+                MockScriptEngine.NAME,
+                REDUCE_SCRIPT_NAME + "-mutated",
+                Collections.emptyMap()
+            );
+            case 3 -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalScriptedMetric(name, aggregationsList, reduceScript, metadata);
     }

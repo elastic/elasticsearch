@@ -19,10 +19,11 @@ import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeReques
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -288,7 +289,12 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         assertThat(actualAliasNames, containsInAnyOrder(aliasNames.toArray()));
 
         IndicesStatsResponse indexStats = client().admin().indices().prepareStats(imd.getIndex().getName()).setDocs(true).get();
-        assertThat(indexStats.getIndex(imd.getIndex().getName()).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
+        assertNotNull(indexStats);
+        final IndexStats thisIndexStats = indexStats.getIndex(imd.getIndex().getName());
+        assertNotNull(thisIndexStats);
+        assertNotNull(thisIndexStats.getTotal());
+        assertNotNull(thisIndexStats.getTotal().getDocs());
+        assertThat(thisIndexStats.getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
     }
 
     public void createSystemIndexForDescriptor(SystemIndexDescriptor descriptor) throws InterruptedException {
@@ -299,19 +305,21 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         String indexName = Optional.ofNullable(descriptor.getPrimaryIndex()).orElse(descriptor.getIndexPattern().replace("*", "old"));
         CreateIndexRequestBuilder createRequest = prepareCreate(indexName);
         createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
-        if (descriptor.getSettings() != null) {
-            createRequest.setSettings(
-                Settings.builder()
-                    .put("index.version.created", Version.CURRENT)
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                    .build()
-            );
-        } else {
+        if (SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {
+            // unmanaged
             createRequest.setSettings(
                 createSimpleSettings(
                     NEEDS_UPGRADE_VERSION,
                     descriptor.isInternal() ? INTERNAL_UNMANAGED_FLAG_VALUE : EXTERNAL_UNMANAGED_FLAG_VALUE
                 )
+            );
+        } else {
+            // managed
+            createRequest.setSettings(
+                Settings.builder()
+                    .put("index.version.created", Version.CURRENT)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                    .build()
             );
         }
         if (descriptor.getMappings() == null) {

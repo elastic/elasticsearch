@@ -93,21 +93,11 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
         }
 
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexMetadata.getIndex());
-        Result result;
-        switch (this.color) {
-            case GREEN:
-                result = waitForGreen(indexRoutingTable);
-                break;
-            case YELLOW:
-                result = waitForYellow(indexRoutingTable);
-                break;
-            case RED:
-                result = waitForRed(indexRoutingTable);
-                break;
-            default:
-                result = new Result(false, new Info("no index color match"));
-                break;
-        }
+        Result result = switch (this.color) {
+            case GREEN -> waitForGreen(indexRoutingTable);
+            case YELLOW -> waitForYellow(indexRoutingTable);
+            case RED -> waitForRed(indexRoutingTable);
+        };
         return result;
     }
 

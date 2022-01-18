@@ -34,6 +34,9 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 
 /**
  * Create index action.
@@ -90,7 +93,8 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index(), resolvedAt);
 
         final SystemIndexDescriptor mainDescriptor = systemIndices.findMatchingDescriptor(indexName);
-        final boolean isSystemIndex = mainDescriptor != null && mainDescriptor.isAutomaticallyManaged();
+        final boolean isSystemIndex = mainDescriptor != null;
+        final boolean isManagedSystemIndex = isSystemIndex && mainDescriptor.isAutomaticallyManaged();
         if (mainDescriptor != null && mainDescriptor.isNetNew()) {
             final SystemIndexAccessLevel systemIndexAccessLevel = systemIndices.getSystemIndexAccessLevel(threadPool.getThreadContext());
             if (systemIndexAccessLevel != SystemIndexAccessLevel.ALL) {
@@ -107,13 +111,26 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             }
         }
 
+        if (isSystemIndex) {
+            if (Objects.isNull(request.settings())) {
+                request.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
+            } else if (false == request.settings().hasValue(SETTING_INDEX_HIDDEN)) {
+                request.settings(Settings.builder().put(request.settings()).put(SETTING_INDEX_HIDDEN, true).build());
+            } else if (Boolean.FALSE.toString().equalsIgnoreCase(request.settings().get(SETTING_INDEX_HIDDEN))) {
+                final String message = "Cannot create system index [" + indexName + "] with [index.hidden] set to 'false'";
+                logger.warn(message);
+                listener.onFailure(new IllegalStateException(message));
+                return;
+            }
+        }
+
         final CreateIndexClusterStateUpdateRequest updateRequest;
 
         // Requests that a cluster generates itself are permitted to create a system index with
         // different mappings, settings etc. This is so that rolling upgrade scenarios still work.
         // We check this via the request's origin. Eventually, `SystemIndexManager` will reconfigure
         // the index to the latest settings.
-        if (isSystemIndex && Strings.isNullOrEmpty(request.origin())) {
+        if (isManagedSystemIndex && Strings.isNullOrEmpty(request.origin())) {
             final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
                 state.nodes().getSmallestNonClientNodeVersion()
             );
@@ -140,11 +157,16 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         String indexName,
         long nameResolvedAt
     ) {
+        Set<Alias> aliases = request.aliases().stream().peek(alias -> {
+            if (systemIndices.isSystemName(alias.name())) {
+                alias.isHidden(true);
+            }
+        }).collect(Collectors.toSet());
         return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .settings(request.settings())
             .mappings(request.mappings())
-            .aliases(request.aliases())
+            .aliases(aliases)
             .nameResolvedInstant(nameResolvedAt)
             .waitForActiveShards(request.waitForActiveShards());
     }
@@ -160,9 +182,10 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         if (descriptor.getAliasName() == null) {
             aliases = Set.of();
         } else {
-            aliases = Set.of(new Alias(descriptor.getAliasName()));
+            aliases = Set.of(new Alias(descriptor.getAliasName()).isHidden(true));
         }
 
+        // Here, we override the user's requested index with the descriptor's primary index
         final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
             cause,
             descriptor.getPrimaryIndex(),

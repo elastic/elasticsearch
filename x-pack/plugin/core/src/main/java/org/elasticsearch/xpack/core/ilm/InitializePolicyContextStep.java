@@ -10,13 +10,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Initializes the {@link LifecycleExecutionState} for an index. This should be the first Step called on an index.
@@ -42,7 +43,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
         LifecycleExecutionState lifecycleState;
         try {
-            lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+            lifecycleState = indexMetadata.getLifecycleExecutionState();
             if (lifecycleState.getLifecycleDate() != null) {
                 return clusterState;
             }

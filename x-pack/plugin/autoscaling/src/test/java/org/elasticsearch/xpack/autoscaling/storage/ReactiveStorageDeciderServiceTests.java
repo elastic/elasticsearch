@@ -233,7 +233,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .shardRoutingTable(indexMetadata.getIndex().getName(), shardId);
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
-            new RoutingNodes(initialClusterState, false),
+            initialClusterState.mutableRoutingNodes(),
             initialClusterState,
             null,
             null,

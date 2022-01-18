@@ -247,8 +247,7 @@ public class SamlObjectHandler {
                 return "<null>";
             }
             byte[] encoded;
-            if (c instanceof X509Credential) {
-                X509Credential x = (X509Credential) c;
+            if (c instanceof X509Credential x) {
                 try {
                     encoded = x.getEntityCertificate().getEncoded();
                 } catch (CertificateEncodingException e) {

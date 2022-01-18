@@ -76,7 +76,9 @@ public class SqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
         logger.trace("Preparing search");
         // We might perform field caps on the same thread if it is local client, so we cannot use the standard mechanism
         Future<SqlQueryResponse> future = executorService.submit(
-            () -> client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, id)).execute(SqlQueryAction.INSTANCE, request).get()
+            () -> client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, id))
+                .execute(SqlQueryAction.INSTANCE, request)
+                .get()
         );
         logger.trace("Waiting for block to be established");
         if (cancelDuringSearch) {

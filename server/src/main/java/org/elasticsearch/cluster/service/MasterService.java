@@ -152,10 +152,7 @@ public class MasterService extends AbstractLifecycleComponent {
             threadPool.generic()
                 .execute(
                     () -> tasks.forEach(
-                        task -> ((UpdateTask) task).listener.onFailure(
-                            task.source,
-                            new ProcessClusterEventTimeoutException(timeout, task.source)
-                        )
+                        task -> ((UpdateTask) task).listener.onFailure(new ProcessClusterEventTimeoutException(timeout, task.source))
                     )
                 );
         }
@@ -431,17 +428,17 @@ public class MasterService extends AbstractLifecycleComponent {
     /**
      * Submits a cluster state update task; unlike {@link #submitStateUpdateTask(String, Object, ClusterStateTaskConfig,
      * ClusterStateTaskExecutor, ClusterStateTaskListener)}, submitted updates will not be batched.
-     *
-     * @param source     the source of the cluster state update task
+     *  @param source     the source of the cluster state update task
      * @param updateTask the full context for the cluster state update
-     *                   task
+     * @param executor
      *
      */
-    public <T extends ClusterStateTaskConfig & ClusterStateTaskExecutor<T> & ClusterStateTaskListener> void submitStateUpdateTask(
+    public <T extends ClusterStateTaskConfig & ClusterStateTaskListener> void submitStateUpdateTask(
         String source,
-        T updateTask
+        T updateTask,
+        ClusterStateTaskExecutor<T> executor
     ) {
-        submitStateUpdateTask(source, updateTask, updateTask, updateTask, updateTask);
+        submitStateUpdateTask(source, updateTask, updateTask, executor, updateTask);
     }
 
     /**
@@ -498,7 +495,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         void publishingFailed(FailedToCommitClusterStateException t) {
-            nonFailedTasks.forEach(task -> task.listener.onFailure(task.source(), t));
+            nonFailedTasks.forEach(task -> task.listener.onFailure(t));
         }
 
         void processedDifferentClusterState(ClusterState previousClusterState, ClusterState newClusterState) {
@@ -535,7 +532,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 assert executionResults.containsKey(updateTask.task) : "missing " + updateTask;
                 final ClusterStateTaskExecutor.TaskResult taskResult = executionResults.get(updateTask.task);
                 if (taskResult.isSuccess() == false) {
-                    updateTask.listener.onFailure(updateTask.source(), taskResult.getFailure());
+                    updateTask.listener.onFailure(taskResult.getFailure());
                 }
             }
         }
@@ -606,24 +603,21 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
+        public void onFailure(Exception e) {
             try (ThreadContext.StoredContext ignore = context.get()) {
-                listener.onFailure(source, e);
+                listener.onFailure(e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.error(() -> new ParameterizedMessage("exception thrown by listener notifying of failure from [{}]", source), inner);
+                logger.error("exception thrown by listener notifying of failure", inner);
             }
         }
 
         @Override
-        public void onNoLongerMaster(String source) {
+        public void onNoLongerMaster() {
             try (ThreadContext.StoredContext ignore = context.get()) {
-                listener.onNoLongerMaster(source);
+                listener.onNoLongerMaster();
             } catch (Exception e) {
-                logger.error(
-                    () -> new ParameterizedMessage("exception thrown by listener while notifying no longer master from [{}]", source),
-                    e
-                );
+                logger.error("exception thrown by listener while notifying no longer master", e);
             }
         }
 
@@ -897,7 +891,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         void onNoLongerMaster() {
-            updateTasks.forEach(task -> task.listener.onNoLongerMaster(task.source()));
+            updateTasks.forEach(task -> task.listener.onNoLongerMaster());
         }
     }
 

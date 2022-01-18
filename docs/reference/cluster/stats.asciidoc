@@ -1477,6 +1477,39 @@ The API returns the following response:
           ...
         }
       },
+      "indexing_pressure": {
+        "memory": {
+            "current": {
+                 "combined_coordinating_and_primary": "0b",
+                 "combined_coordinating_and_primary_in_bytes": 0,
+                 "coordinating": "0b",
+                 "coordinating_in_bytes": 0,
+                 "primary": "0b",
+                 "primary_in_bytes": 0,
+                 "replica": "0b",
+                 "replica_in_bytes": 0,
+                 "all": "0b",
+                 "all_in_bytes": 0
+            },
+            "total": {
+                "combined_coordinating_and_primary": "0b",
+                "combined_coordinating_and_primary_in_bytes": 0,
+                "coordinating": "0b",
+                "coordinating_in_bytes": 0,
+                "primary": "0b",
+                "primary_in_bytes": 0,
+                "replica": "0b",
+                "replica_in_bytes": 0,
+                "all": "0b",
+                "all_in_bytes": 0,
+                "coordinating_rejections": 0,
+                "primary_rejections": 0,
+                "replica_rejections": 0
+            },
+            "limit" : "0b",
+            "limit_in_bytes": 0
+        }
+      },
       "network_types": {
         ...
       },

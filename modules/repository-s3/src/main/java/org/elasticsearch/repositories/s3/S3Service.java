@@ -304,6 +304,10 @@ class S3Service implements Closeable {
             String roleArn = System.getenv(AWS_ROLE_ARN_ENV_VAR);
             String roleSessionName = System.getenv(AWS_ROLE_SESSION_NAME_ENV_VAR);
             if (roleArn == null || roleSessionName == null) {
+                LOGGER.warn(
+                    "Unable to use a web identity token for authentication. The AWS_WEB_IDENTITY_TOKEN_FILE environment "
+                        + "variable is set, but either AWS_ROLE_ARN or AWS_ROLE_SESSION_NAME are missing"
+                );
                 return;
             }
             AWSSecurityTokenServiceClientBuilder stsClientBuilder = AWSSecurityTokenServiceClient.builder();

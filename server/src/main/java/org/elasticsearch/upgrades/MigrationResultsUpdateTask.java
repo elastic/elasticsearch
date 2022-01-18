@@ -78,7 +78,7 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void onFailure(String source, Exception clusterStateUpdateException) {
+    public void onFailure(Exception clusterStateUpdateException) {
         if (status.succeeded()) {
             logger.warn(
                 new ParameterizedMessage("failed to update cluster state after successful migration of feature [{}]", featureName),

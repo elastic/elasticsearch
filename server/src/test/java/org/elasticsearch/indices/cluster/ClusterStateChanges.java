@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -19,7 +20,6 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -124,7 +124,6 @@ public class ClusterStateChanges {
     private final ShardStateAction.ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
 
     // transport actions
-    private final TransportCloseIndexAction transportCloseIndexAction;
     private final TransportOpenIndexAction transportOpenIndexAction;
     private final TransportDeleteIndexAction transportDeleteIndexAction;
     private final TransportUpdateSettingsAction transportUpdateSettingsAction;
@@ -264,17 +263,6 @@ public class ClusterStateChanges {
             new IndexSettingProviders(Set.of())
         );
 
-        transportCloseIndexAction = new TransportCloseIndexAction(
-            SETTINGS,
-            transportService,
-            clusterService,
-            threadPool,
-            indexStateService,
-            clusterSettings,
-            actionFilters,
-            indexNameExpressionResolver,
-            destructiveOperations
-        );
         transportOpenIndexAction = new TransportOpenIndexAction(
             transportService,
             clusterService,
@@ -320,8 +308,8 @@ public class ClusterStateChanges {
             EmptySystemIndices.INSTANCE
         );
 
-        nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
-        joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, (s, p, r) -> {});
+        nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService);
+        joinTaskExecutor = new JoinTaskExecutor(allocationService, (s, p, r) -> {});
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {
@@ -364,7 +352,15 @@ public class ClusterStateChanges {
         return runTasks(
             joinTaskExecutor,
             clusterState,
-            nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason")).collect(Collectors.toList())
+            nodes.stream()
+                .map(
+                    node -> new JoinTaskExecutor.Task(
+                        node,
+                        "dummy reason",
+                        ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
+                    )
+                )
+                .collect(Collectors.toList())
         );
     }
 
@@ -372,7 +368,17 @@ public class ClusterStateChanges {
         List<JoinTaskExecutor.Task> joinNodes = new ArrayList<>();
         joinNodes.add(JoinTaskExecutor.newBecomeMasterTask());
         joinNodes.add(JoinTaskExecutor.newFinishElectionTask());
-        joinNodes.addAll(nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason")).collect(Collectors.toList()));
+        joinNodes.addAll(
+            nodes.stream()
+                .map(
+                    node -> new JoinTaskExecutor.Task(
+                        node,
+                        "dummy reason",
+                        ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
+                    )
+                )
+                .collect(Collectors.toList())
+        );
 
         return runTasks(joinTaskExecutor, clusterState, joinNodes);
     }
@@ -381,7 +387,7 @@ public class ClusterStateChanges {
         return runTasks(
             nodeRemovalExecutor,
             clusterState,
-            nodes.stream().map(n -> new NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason")).collect(Collectors.toList())
+            nodes.stream().map(n -> new NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason", () -> {})).collect(Collectors.toList())
         );
     }
 

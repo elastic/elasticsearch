@@ -74,7 +74,8 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -1279,14 +1280,15 @@ public class TransportReplicationActionTests extends ESTestCase {
         AtomicBoolean throwException = new AtomicBoolean(true);
         final ReplicationTask task = maybeTask();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        final Transport transport = new MockNioTransport(
+        final Transport transport = new Netty4Transport(
             Settings.EMPTY,
             Version.CURRENT,
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             namedWriteableRegistry,
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(Settings.EMPTY)
         );
         transportService = new MockTransportService(
             Settings.EMPTY,

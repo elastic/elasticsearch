@@ -107,11 +107,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         Setting.Property.NodeScope
     );
 
+    private final boolean ignoreDeserializationErrors;
+
     protected final Settings settings;
     protected final ThreadPool threadPool;
     protected final Recycler<BytesRef> recycler;
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettingsSet;
+    protected final boolean rstOnClose;
     private final Version version;
     private final CircuitBreakerService circuitBreakerService;
 
@@ -151,10 +154,20 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.networkService = networkService;
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
 
-        this.recycler = createRecycler(settings, pageCacheRecycler);
-        this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, recycler, outboundHandlingTimeTracker);
+        this.rstOnClose = TransportSettings.RST_ON_CLOSE.get(settings);
 
-        final boolean ignoreDeserializationErrors = IGNORE_DESERIALIZATION_ERRORS_SETTING.get(settings);
+        this.recycler = createRecycler(settings, pageCacheRecycler);
+        this.outboundHandler = new OutboundHandler(
+            nodeName,
+            version,
+            statsTracker,
+            threadPool,
+            recycler,
+            outboundHandlingTimeTracker,
+            rstOnClose
+        );
+
+        ignoreDeserializationErrors = IGNORE_DESERIALIZATION_ERRORS_SETTING.get(settings);
 
         this.handshaker = new TransportHandshaker(
             version,
@@ -212,6 +225,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public void setSlowLogThreshold(TimeValue slowLogThreshold) {
         inboundHandler.setSlowLogThreshold(slowLogThreshold);
         outboundHandler.setSlowLogThreshold(slowLogThreshold);
+    }
+
+    /**
+     * Only used in tests, see {@link #IGNORE_DESERIALIZATION_ERRORS_SETTING}.
+     */
+    public boolean ignoreDeserializationErrors() {
+        return ignoreDeserializationErrors;
     }
 
     public final class NodeChannels extends CloseableConnection {
@@ -669,7 +689,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 return;
             }
 
-            final Level closeConnectionExceptionLevel = NetworkExceptionHelper.getCloseConnectionExceptionLevel(e);
+            final Level closeConnectionExceptionLevel = NetworkExceptionHelper.getCloseConnectionExceptionLevel(
+                e,
+                outboundHandler.rstOnClose()
+            );
             if (closeConnectionExceptionLevel != Level.OFF) {
                 if (closeConnectionExceptionLevel == Level.INFO && logger.isDebugEnabled() == false) {
                     logger.info(

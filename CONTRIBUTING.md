@@ -699,8 +699,13 @@ by logs at `ERROR` level for this reason.
 
 Therefore you should try and avoid logging at `ERROR` level unless the error
 really does indicate that Elasticsearch is now running in a degraded state from
-which it will not recover. Errors like this should be very rare. When in doubt,
-prefer `WARN`.
+which it will not recover. For instance, the `FsHealthService` uses `ERROR`
+logs to record that the data path failed some basic health checks and hence the
+node cannot continue to operate as a member of the cluster:
+
+    logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
+
+Errors like this should be very rare. When in doubt, prefer `WARN` to `ERROR`.
 
 ### Creating A Distribution
 

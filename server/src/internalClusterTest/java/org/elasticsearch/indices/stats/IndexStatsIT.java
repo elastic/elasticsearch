@@ -1191,7 +1191,6 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertEquals(total, shardTotal);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82619")
     public void testFilterCacheStats() throws Exception {
         Settings settings = Settings.builder()
             .put(indexSettings())

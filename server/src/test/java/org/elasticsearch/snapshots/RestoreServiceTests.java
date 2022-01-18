@@ -8,6 +8,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -24,7 +25,6 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,6 +36,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -178,8 +180,46 @@ public class RestoreServiceTests extends ESTestCase {
         when(repositoriesService.getRepositories()).thenReturn(repositories);
         RestoreService.refreshRepositoryUuids(true, repositoriesService, listener);
         assertNull(listener.get(0L, TimeUnit.SECONDS));
-        assertThat(pendingRefreshes, Matchers.empty());
+        assertThat(pendingRefreshes, empty());
         finalAssertions.forEach(Runnable::run);
     }
 
+    public void testNotAllowToRestoreGlobalStateFromSnapshotWithoutOne() {
+
+        var request = new RestoreSnapshotRequest().includeGlobalState(true);
+        var repository = new RepositoryMetadata("name", "type", Settings.EMPTY);
+        var snapshot = new Snapshot("repository", new SnapshotId("name", "uuid"));
+
+        var snapshotInfo = createSnapshotInfo(snapshot, Boolean.FALSE);
+
+        var exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> RestoreService.validateSnapshotRestorable(request, repository, snapshotInfo)
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo("[name:name/uuid] cannot restore global state since the snapshot was created without global state")
+        );
+    }
+
+    private static SnapshotInfo createSnapshotInfo(Snapshot snapshot, Boolean includeGlobalState) {
+        var shards = randomIntBetween(0, 100);
+        return new SnapshotInfo(
+            snapshot,
+            List.of(),
+            List.of(),
+            List.of(),
+            randomAlphaOfLengthBetween(10, 100),
+            Version.CURRENT,
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            shards,
+            shards,
+            List.of(),
+            includeGlobalState,
+            Map.of(),
+            SnapshotState.SUCCESS,
+            Map.of()
+        );
+    }
 }

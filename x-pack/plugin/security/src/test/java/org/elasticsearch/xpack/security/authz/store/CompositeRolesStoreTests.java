@@ -457,7 +457,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
             }
         }
-        if (getSuperuserRole) {
+        if (numberOfTimesToCall > 0 && getSuperuserRole) {
             verify(nativePrivilegeStore).getPrivileges(eq(Set.of("*")), eq(Set.of("*")), anyActionListener());
             // We can't verify the contents of the Set here because the set is mutated inside the method
             verify(reservedRolesStore, times(2)).accept(anySet(), anyActionListener());

@@ -71,10 +71,11 @@ public class QueryParserHelperTests extends MapperServiceTestCase {
             SearchExecutionContext context = createSearchExecutionContext(mapperService, new IndexSearcher(ir));
 
             // field1 and field2 are present in the index, so they get resolved; field3 is in the mappings but
-            // not in the actual index, so it is ignored
+            // not in the actual index, so it is ignored; field4 is slow but still gets resolved because the
+            // wildcard request is partial
             {
                 Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context, Map.of("field*", 1.0f));
-                assertThat(resolvedFields.keySet(), containsInAnyOrder("field1", "field2"));
+                assertThat(resolvedFields.keySet(), containsInAnyOrder("field1", "field2", "field4"));
                 assertFalse(resolvedFields.containsKey("field3"));
             }
 

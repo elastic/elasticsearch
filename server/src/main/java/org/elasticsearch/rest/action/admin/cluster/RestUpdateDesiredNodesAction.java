@@ -8,9 +8,13 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -18,16 +22,29 @@ import java.util.List;
 public class RestUpdateDesiredNodesAction extends BaseRestHandler {
     @Override
     public String getName() {
-        return null;
+        return "update_desired_nodes";
     }
 
     @Override
     public List<Route> routes() {
-        return null;
+        return List.of(new Route(RestRequest.Method.PUT, "_cluster/desired_nodes/{history_id}/{version}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        return null;
+        final String historyId = request.param("history_id");
+        final int version = request.paramAsInt("version", -1);
+
+        final UpdateDesiredNodesRequest updateDesiredNodesRequest;
+        try (XContentParser parser = request.contentParser()) {
+            updateDesiredNodesRequest = UpdateDesiredNodesRequest.fromXContent(historyId, version, parser);
+        }
+
+        updateDesiredNodesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateDesiredNodesRequest.masterNodeTimeout()));
+        return restChannel -> client.execute(
+            UpdateDesiredNodesAction.INSTANCE,
+            updateDesiredNodesRequest,
+            new RestToXContentListener<>(restChannel)
+        );
     }
 }

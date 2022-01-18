@@ -12,14 +12,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -71,9 +69,8 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
                 ESIntegTestCase.TestSeedPlugin.class,
                 MockHttpTransport.TestPlugin.class,
                 MockTransportService.TestPlugin.class,
-                MockNioTransportPlugin.class,
                 InternalSettingsPlugin.class,
-                MockRepository.Plugin.class
+                getTestTransportPlugin()
             ),
             Function.identity()
         );

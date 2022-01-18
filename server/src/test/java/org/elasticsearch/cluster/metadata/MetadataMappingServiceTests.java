@@ -8,8 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -21,6 +21,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -42,8 +43,8 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
             { "properties": { "field": { "type": "text" }}}""");
         request.indices(new Index[] { indexService.index() });
-        final ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result = mappingService.putMappingExecutor
-            .execute(clusterService.state(), Collections.singletonList(request));
+        final ClusterStateTaskExecutor.ClusterTasksResult<MetadataMappingService.PutMappingClusterStateUpdateTask> result =
+            mappingService.putMappingExecutor.execute(clusterService.state(), singleTask(request));
         // the task completed successfully
         assertThat(result.executionResults.size(), equalTo(1));
         assertTrue(result.executionResults.values().iterator().next().isSuccess());
@@ -57,22 +58,25 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testClusterStateIsNotChangedWithIdenticalMappings() throws Exception {
-        createIndex("test", client().admin().indices().prepareCreate("test"));
+        final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));
 
         final MetadataMappingService mappingService = getInstanceFromNode(MetadataMappingService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
-            { "properties" { "field": { "type": "text" }}}""");
-        ClusterState result = mappingService.putMappingExecutor.execute(
+            { "properties": { "field": { "type": "text" }}}""").indices(new Index[] { indexService.index() });
+        ClusterStateTaskExecutor.ClusterTasksResult<?> result = mappingService.putMappingExecutor.execute(
             clusterService.state(),
-            Collections.singletonList(request)
-        ).resultingState;
+            singleTask(request)
+        );
+        assertTrue(result.executionResults.values().stream().noneMatch(res -> res.isSuccess() == false));
 
-        assertFalse(result != clusterService.state());
+        ClusterStateTaskExecutor.ClusterTasksResult<?> result2 = mappingService.putMappingExecutor.execute(
+            result.resultingState,
+            singleTask(request)
+        );
+        assertTrue(result.executionResults.values().stream().noneMatch(res -> res.isSuccess() == false));
 
-        ClusterState result2 = mappingService.putMappingExecutor.execute(result, Collections.singletonList(request)).resultingState;
-
-        assertSame(result, result2);
+        assertSame(result2.resultingState, result.resultingState);
     }
 
     public void testMappingVersion() throws Exception {
@@ -83,8 +87,8 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
             { "properties": { "field": { "type": "text" }}}""");
         request.indices(new Index[] { indexService.index() });
-        final ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result = mappingService.putMappingExecutor
-            .execute(clusterService.state(), Collections.singletonList(request));
+        final ClusterStateTaskExecutor.ClusterTasksResult<MetadataMappingService.PutMappingClusterStateUpdateTask> result =
+            mappingService.putMappingExecutor.execute(clusterService.state(), singleTask(request));
         assertThat(result.executionResults.size(), equalTo(1));
         assertTrue(result.executionResults.values().iterator().next().isSuccess());
         assertThat(result.resultingState.metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion));
@@ -97,11 +101,20 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("{ \"properties\": {}}");
         request.indices(new Index[] { indexService.index() });
-        final ClusterStateTaskExecutor.ClusterTasksResult<PutMappingClusterStateUpdateRequest> result = mappingService.putMappingExecutor
-            .execute(clusterService.state(), Collections.singletonList(request));
+        final ClusterStateTaskExecutor.ClusterTasksResult<MetadataMappingService.PutMappingClusterStateUpdateTask> result =
+            mappingService.putMappingExecutor.execute(clusterService.state(), singleTask(request));
         assertThat(result.executionResults.size(), equalTo(1));
         assertTrue(result.executionResults.values().iterator().next().isSuccess());
         assertThat(result.resultingState.metadata().index("test").getMappingVersion(), equalTo(previousVersion));
+    }
+
+    private static List<MetadataMappingService.PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {
+        return Collections.singletonList(
+            new MetadataMappingService.PutMappingClusterStateUpdateTask(
+                request,
+                ActionListener.wrap(() -> { throw new AssertionError("task should not complete publication"); })
+            )
+        );
     }
 
 }

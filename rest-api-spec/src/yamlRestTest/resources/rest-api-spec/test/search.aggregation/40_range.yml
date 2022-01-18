@@ -17,6 +17,18 @@ setup:
                   type: half_float
 
   - do:
+      indices.create:
+        index: date_range_test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              date:
+                type: date
+                format: strict_date_time||strict_date
+
+  - do:
       cluster.health:
         wait_for_status: yellow
 
@@ -35,6 +47,22 @@ setup:
          - {"index": {}}
          - {}
 
+  - do:
+      bulk:
+        index: date_range_test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "date": "2021-05-01T07:10:00Z" }
+          - { "index": { } }
+          - { "date": "2021-05-02T08:34:00Z" }
+          - { "index": { } }
+          - { "date": "2021-05-03T08:36:00Z" }
+          - { "index": { } }
+          - { "date": "2021-05-04T09:05:00Z" }
+          - { "index": { } }
+          - { "date": "2021-05-06T09:22:00Z" }
+
 ---
 "Float Endpoint Exclusive":
   - skip:
@@ -42,6 +70,7 @@ setup:
       reason:  Bug fixed in 7.16.0
   - do:
       search:
+        index: test
         body:
           size: 0
           aggs:
@@ -70,6 +99,7 @@ setup:
       reason:  Bug fixed in 7.16.0
   - do:
       search:
+        index: test
         body:
           size: 0
           aggs:
@@ -92,9 +122,88 @@ setup:
   - match: { aggregations.double_range.buckets.1.doc_count: 2 }
 
 ---
-"Double range":
+"Float range":
+  - skip:
+      version: " - 7.16.99"
+      reason: Bug fixed in 8.1.0 and backported to 7.17.0
   - do:
       search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            float_range:
+              range:
+                field: "float"
+                ranges:
+                  -
+                    to: 6.0
+                  -
+                    from: 6.0
+                    to: 10.6
+                  -
+                    from: 10.6
+
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.float_range.buckets: 3 }
+  - match: { aggregations.float_range.buckets.0.key: "*-6.0" }
+  - is_false: aggregations.float_range.buckets.0.from
+  - match: { aggregations.float_range.buckets.0.to: 6.0 }
+  - match: { aggregations.float_range.buckets.0.doc_count: 3 }
+  - match: { aggregations.float_range.buckets.1.key: "6.0-10.6" }
+  - match: { aggregations.float_range.buckets.1.from: 6.0 }
+  - match: { aggregations.float_range.buckets.1.to: 10.6 }
+  - match: { aggregations.float_range.buckets.1.doc_count: 0 }
+  - match: { aggregations.float_range.buckets.2.key: "10.6-*" }
+  - match: { aggregations.float_range.buckets.2.from: 10.6 }
+  - is_false:  aggregations.float_range.buckets.2.to
+  - match: { aggregations.float_range.buckets.2.doc_count: 0 }
+
+---
+"Double range":
+  - skip:
+      version: " - 7.16.99"
+      reason: Bug fixed in 8.1.0 and backported to 7.17.0
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            float_range:
+              range:
+                field: "double"
+                ranges:
+                  -
+                    to: 6.0
+                  -
+                    from: 6.0
+                    to: 10.6
+                  -
+                    from: 10.6
+
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.float_range.buckets: 3 }
+  - match: { aggregations.float_range.buckets.0.key: "*-6.0" }
+  - is_false: aggregations.float_range.buckets.0.from
+  - match: { aggregations.float_range.buckets.0.to: 6.0 }
+  - match: { aggregations.float_range.buckets.0.doc_count: 0 }
+  - match: { aggregations.float_range.buckets.1.key: "6.0-10.6" }
+  - match: { aggregations.float_range.buckets.1.from: 6.0 }
+  - match: { aggregations.float_range.buckets.1.to: 10.6 }
+  - match: { aggregations.float_range.buckets.1.doc_count: 0 }
+  - match: { aggregations.float_range.buckets.2.key: "10.6-*" }
+  - match: { aggregations.float_range.buckets.2.from: 10.6 }
+  - is_false:  aggregations.float_range.buckets.2.to
+  - match: { aggregations.float_range.buckets.2.doc_count: 3 }
+
+---
+"Double range no decimal":
+  - do:
+      search:
+        index: test
         body:
           size: 0
           aggs:
@@ -130,6 +239,7 @@ setup:
 "Double range with missing value":
   - do:
       search:
+        index: test
         body:
           size: 0
           aggs:
@@ -166,6 +276,7 @@ setup:
 "Null to and from":
   - do:
       search:
+        index: test
         body:
           size: 0
           aggs:
@@ -203,6 +314,7 @@ setup:
 "Range agg on long field":
   - do:
       search:
+        index: test
         body:
           size: 0
           aggs:
@@ -238,6 +350,7 @@ setup:
 "Double range default keyed response":
   - do:
       search:
+        index: test
         body:
           size: 0
           aggs:
@@ -269,3 +382,30 @@ setup:
   - match: { aggregations.double_range.buckets.last.from: 150.0 }
   - is_false:  aggregations.double_range.buckets.last.to
   - match: { aggregations.double_range.buckets.last.doc_count: 0 }
+
+---
+"Range aggregation on date field":
+  - skip:
+      version: " - 8.0.99"
+      reason: Fixed in 8.1.0
+
+  - do:
+      search:
+        index: date_range_test
+        body:
+          size: 0
+          aggs:
+            date_range:
+              range:
+                field: date
+                ranges:
+                  { from: 2021-05-01T00:00:00Z, to: 2021-05-05T00:00:00Z }
+
+  - match: { hits.total.value: 5 }
+  - length: { aggregations.date_range.buckets: 1 }
+  - match: { aggregations.date_range.buckets.0.doc_count: 4 }
+  - match: { aggregations.date_range.buckets.0.key: "2021-05-01T00:00:00.000Z-2021-05-05T00:00:00.000Z" }
+  - match: { aggregations.date_range.buckets.0.from: 1619827200000 }
+  - match: { aggregations.date_range.buckets.0.from_as_string: "2021-05-01T00:00:00.000Z" }
+  - match: { aggregations.date_range.buckets.0.to: 1620172800000 }
+  - match: { aggregations.date_range.buckets.0.to_as_string: "2021-05-05T00:00:00.000Z" }

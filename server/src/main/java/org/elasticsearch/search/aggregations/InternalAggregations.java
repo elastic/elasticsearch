@@ -80,14 +80,14 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * Get value to use when sorting by a descendant of the aggregation containing this.
      */
     public double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
-        InternalAggregation aggregation = get(head.name);
+        InternalAggregation aggregation = get(head.name());
         if (aggregation == null) {
-            throw new IllegalArgumentException("Cannot find aggregation named [" + head.name + "]");
+            throw new IllegalArgumentException("Cannot find aggregation named [" + head.name() + "]");
         }
         if (tail.hasNext()) {
             return aggregation.sortValue(tail.next(), tail);
         }
-        return aggregation.sortValue(head.key);
+        return aggregation.sortValue(head.key());
     }
 
     /**

@@ -316,12 +316,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
+        public void onFailure(Exception e) {
             listener.onFailure(e);
         }
 
         @Override
-        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             // Now assuming we have a new state and the name of the rolled over index, we need to wait for the
             // configured number of active shards, as well as return the names of the indices that were rolled/created
             if (clusterStateProcessed) {

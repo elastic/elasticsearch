@@ -328,7 +328,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         }
 
                         @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             handler.accept(null);
                         }
                     }, ClusterStateTaskExecutor.unbatched());

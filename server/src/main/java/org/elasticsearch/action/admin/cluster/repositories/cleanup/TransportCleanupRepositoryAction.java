@@ -113,7 +113,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                         }
 
                         @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             logger.debug("Removed repository cleanup task [{}] from cluster state", repositoryCleanupInProgress);
                         }
 
@@ -224,7 +224,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                     }
 
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         startedCleanup = true;
                         logger.debug("Initialized repository cleanup in cluster state for [{}][{}]", repositoryName, repositoryStateId);
                         threadPool.executor(ThreadPool.Names.SNAPSHOT)
@@ -280,7 +280,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                 }
 
                                 @Override
-                                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                                     if (failure == null) {
                                         logger.info(
                                             "Done with repository cleanup on [{}][{}] with result [{}]",

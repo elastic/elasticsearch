@@ -164,7 +164,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                 }
 
                 @Override
-                public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
+                public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
                     listener.onResponse(new UpdateInternalOrPrivateAction.Response());
                 }
 

@@ -331,9 +331,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 if (source.rescores() != null && source.rescores().isEmpty() == false) {
                     validationException = addValidationError("using [rescore] is not allowed in a scroll context", validationException);
                 }
-                if (source.joinFields() != null && source.joinFields().isEmpty() == false) {
-                    validationException = addValidationError("[join_fields] are not allowed in a scroll context", validationException);
-                }
             }
             if (requestCache != null && requestCache) {
                 validationException = addValidationError("[request_cache] cannot be used in a scroll context", validationException);

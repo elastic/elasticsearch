@@ -157,10 +157,15 @@ The `runtime` section can be any of these data types:
 * `ip`
 * `keyword`
 * `long`
+* `lookup`
 // end::runtime-data-types[]
 
 Runtime fields with a `type` of `date` can accept the
 <<mapping-date-format,`format`>> parameter exactly as the `date` field type.
+
+Runtime fields with a `type` of `lookup` allows retrieving fields from
+related indices. See <<lookup-runtime-fields, `retrieve fields from related indices`>>.
+
 
 If <<dynamic-field-mapping,dynamic field mapping>> is enabled where the
 `dynamic` parameter is set to `runtime`, new fields are automatically added to

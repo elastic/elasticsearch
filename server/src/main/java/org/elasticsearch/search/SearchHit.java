@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
@@ -86,8 +85,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     private Map<String, DocumentField> documentFields;
     private final Map<String, DocumentField> metaFields;
-    // used by internal APIs only to hold the temporary join hits that are fetched on data nodes (field ord -> join hits)
-    private Map<Integer, List<JoinHit>> joinHits = Collections.emptyMap();
 
     private Map<String, HighlightField> highlightFields = null;
 
@@ -207,9 +204,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         } else {
             innerHits = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
-            joinHits = in.readMap(StreamInput::readVInt, is -> is.readList(JoinHit::new));
-        }
     }
 
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
@@ -295,9 +289,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 out.writeString(entry.getKey());
                 entry.getValue().writeTo(out);
             }
-        }
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
-            out.writeMap(joinHits, StreamOutput::writeVInt, StreamOutput::writeList);
         }
     }
 
@@ -987,8 +978,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             && Objects.equals(shard, other.shard)
             && Objects.equals(innerHits, other.innerHits)
             && Objects.equals(index, other.index)
-            && Objects.equals(clusterAlias, other.clusterAlias)
-            && Objects.equals(joinHits, other.joinHits);
+            && Objects.equals(clusterAlias, other.clusterAlias);
     }
 
     @Override
@@ -1008,8 +998,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             shard,
             innerHits,
             index,
-            clusterAlias,
-            joinHits
+            clusterAlias
         );
     }
 
@@ -1132,99 +1121,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         @Override
         public int hashCode() {
             return Objects.hash(field, offset, child);
-        }
-    }
-
-    /**
-     * Add a join hit for the given join field ordinal
-     */
-    void addJoinHit(int fieldOrd, JoinHit joinHit) {
-        if (joinHits.isEmpty()) {
-            joinHits = new HashMap<>();
-        }
-        joinHits.computeIfAbsent(fieldOrd, k -> new ArrayList<>()).add(joinHit);
-    }
-
-    /**
-     * Returns the associated join hits for the given join field ordinal.
-     */
-    List<JoinHit> getJoinHits(int fieldOrd) {
-        return joinHits.getOrDefault(fieldOrd, Collections.emptyList());
-    }
-
-    /**
-     * Merge join hits to regular fetch fields
-     */
-    void mergeJoinHitsToFields() {
-        if (joinHits.isEmpty()) {
-            return;
-        }
-        if (documentFields.isEmpty()) {
-            documentFields = new HashMap<>();
-        }
-        for (List<JoinHit> hits : joinHits.values()) {
-            for (JoinHit hit : hits) {
-                documentFields.compute(hit.fieldName, (fieldName, curr) -> {
-                    final Map<String, List<Object>> joinFields = new HashMap<>(hit.fields);
-                    joinFields.put(Fields._ID, List.of(hit.id));
-                    if (curr == null) {
-                        return new DocumentField(fieldName, List.of(joinFields));
-                    } else {
-                        return new DocumentField(fieldName, CollectionUtils.appendToCopy(curr.getValues(), joinFields));
-                    }
-                });
-            }
-        }
-        joinHits.clear();
-    }
-
-    /**
-     * Holds a temporary join hit that is retrieved from another index.
-     */
-    static final class JoinHit implements Writeable {
-        private final String fieldName;
-        private final String id;
-        private final Map<String, List<Object>> fields;
-
-        JoinHit(String fieldName, String id, Map<String, List<Object>> fields) {
-            this.fieldName = fieldName;
-            this.id = id;
-            this.fields = Objects.requireNonNull(fields);
-        }
-
-        JoinHit(StreamInput in) throws IOException {
-            this.fieldName = in.readString();
-            this.id = in.readString();
-            this.fields = in.readMapOfLists(StreamInput::readString, StreamInput::readGenericValue);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(fieldName);
-            out.writeString(id);
-            out.writeMapOfLists(fields, StreamOutput::writeString, StreamOutput::writeGenericValue);
-        }
-
-        String getId() {
-            return id;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            JoinHit joinHit = (JoinHit) o;
-            return fieldName.equals(joinHit.fieldName) && id.equals(joinHit.id) && fields.equals(joinHit.fields);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(fieldName, id, fields);
-        }
-
-        @Override
-        public String toString() {
-            return "JoinHit{" + "fieldName='" + fieldName + '\'' + ", id='" + id + '\'' + ", fields=" + fields + '}';
         }
     }
 

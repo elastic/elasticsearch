@@ -289,10 +289,11 @@ However, when the `fields` pattern targets the nested `user` field directly, no
 values will be returned because the pattern doesn't match any leaf fields.
 
 [discrete]
-[[join-retrieval]]
+[[lookup-runtime-fields]]
 ==== Retrieve fields from related indices
 
-The `fields` parameter can also be used to retrieve fields from related indices.
+The `fields` parameter can also be used to retrieve fields from related indices
+via <<runtime, runtime fields>> defined in the index mapping or the search request.
 
 [source,console]
 ----
@@ -316,28 +317,29 @@ PUT logs/_doc/2?refresh
 
 POST logs/_search
 {
-  "fields": [
-    "message",
-    {
-      "name": "location", <1>
-      "type": "lookup", <2>
-      "index": "ip_location", <3>
-      "key": "ip", <4>
-      "fields": ["country", "cit*"] <5>
+  "runtime_mappings": {
+    "location": {
+        "type": "lookup", <1>
+        "lookup_index": "ip_location", <2>
+        "id_field": "ip", <3>
+        "lookup_fields": ["country", "cit*"] <4>
     }
+  },
+  "fields": [
+    "ip",
+    "message",
+    "location"
   ],
   "_source": false
 }
 ----
-
-<1> The name of the field. The response of this field is returned under this name.
-<2> The type of the field. Here the `lookup` type means join fields are retrieved using the <<docs-get,GET API>>
-<3> The external index that join fields are retrieved from
-<4> The key field whose values are used as `_id` in the <<docs-get,GET API>>
-<5> An optional list of fields to retrieve from the external index.
+<1> A runtime with a type of `lookup` that retrieves fields from the lookup index using the <<docs-get,GET API>>
+<2> An index where the lookup fields are retrieved from
+<3> A field on the searching index whose values are the `_id` of the documents on the lookup index
+<4> An optional list of fields to retrieve from the lookup index
 
 The above search returns the country and city from the `ip_location` index
-for each ip address of the returning hits.
+for each ip address of the returned search hits.
 
 [source,console-result]
 ----
@@ -362,25 +364,15 @@ for each ip address of the returning hits.
         "_id": "1",
         "_score": 1.0,
         "fields": {
-          "ip": [
-            "192.168.1.1"
-          ],
+          "ip": [ "192.168.1.1" ],
           "location": [
             {
-              "_id": [
-                "192.168.1.1"
-              ],
-              "city": [
-                "Montreal"
-              ],
-              "country": [
-                "Canada"
-              ]
+              "_id": ["192.168.1.1"],
+              "city": [ "Montreal" ],
+              "country": [ "Canada" ]
             }
           ],
-          "message": [
-            "the first message"
-          ]
+          "message": [ "the first message" ]
         }
       },
       {
@@ -388,22 +380,18 @@ for each ip address of the returning hits.
         "_id": "2",
         "_score": 1.0,
         "fields": {
-          "ip": [
-            "192.168.1.2"
-          ],
+          "ip": [ "192.168.1.2" ],
           "location": [
             {
-              "_id": [
-                "192.168.1.2"
-              ],
-              "_failure": [
-                "id [192.168.1.2] on index [ip_location] doesn't exist"
-              ]
+              "_id": ["192.168.1.2"],
+              "_failure": [{
+                  "type": "resource_not_found_exception",
+                  "reason": "id [192.168.1.2] on index [ip_location] doesn't exist",
+                  "status": "NOT_FOUND"
+              }]
             }
           ],
-          "message": [
-            "the second message"
-          ]
+          "message": [ "the second message" ]
         }
       }
     ]
@@ -412,10 +400,10 @@ for each ip address of the returning hits.
 ----
 // TESTRESPONSE[s/"took": 3/"took": $body.took/]
 
-The `fields` response of join fields is similar to the response of nested fields.
-Values inside `join` fields are grouped to maintain the independence
-of each join document from the external index. If there is any error during
-the lookup, the error is returned under the `_failure` field of a join document.
+The response of lookup fields is similar to the response of nested fields.
+Values inside `lookup` fields are grouped to maintain the independence
+of each document from the lookup index. If there is any error during
+the lookup, the error is returned under the `_failure` field.
 
 [discrete]
 [[retrieve-unmapped-fields]]

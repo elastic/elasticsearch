@@ -51,13 +51,13 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.search.LookupJoinFieldsPhase;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.FetchLookupFieldsPhase;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
@@ -95,7 +95,6 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
-import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_CRITICAL_READ;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_READ;
@@ -132,7 +131,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final CircuitBreaker circuitBreaker;
     private final ExecutorSelector executorSelector;
-    private final LookupJoinFieldsPhase lookupJoinFieldsPhase;
+    private final FetchLookupFieldsPhase fetchLookupFieldsPhase;
     private final int defaultPreFilterShardSize;
 
     @Inject
@@ -162,7 +161,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.executorSelector = executorSelector;
         this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(clusterService.getSettings());
-        this.lookupJoinFieldsPhase = new LookupJoinFieldsPhase(transportService);
+        this.fetchLookupFieldsPhase = new FetchLookupFieldsPhase(transportService, searchService::isAllowExpensiveQueries);
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -286,17 +285,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        if (searchRequest.source() != null
-            && searchRequest.source().joinFields() != null
-            && searchService.isAllowExpensiveQueries() == false) {
-            throw new IllegalArgumentException("query with join fields require [" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] enabled");
-        }
         listener = listener.delegateFailure((innerListener, resp) -> {
-            lookupJoinFieldsPhase.lookupJoinFields(
+            fetchLookupFieldsPhase.fetchLookupFields(
                 searchRequest.getLocalClusterAlias(),
                 task,
                 resp.getHits(),
-                searchRequest.source(),
                 false,
                 true,
                 true,

@@ -898,18 +898,6 @@ public abstract class StreamOutput extends OutputStream {
         writeOptionalArray((out, value) -> value.writeTo(out), array);
     }
 
-    /**
-     * Same as {@link #writeCollection(Collection)} but the provided collection may be null.
-     */
-    public <T extends Writeable> void writeOptionalCollection(Collection<T> ts) throws IOException {
-        if (ts == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writeCollection(ts);
-        }
-    }
-
     public void writeOptionalWriteable(@Nullable Writeable writeable) throws IOException {
         if (writeable != null) {
             writeBoolean(true);

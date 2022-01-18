@@ -10,10 +10,12 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.LookupRuntimeFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedValueFetcher;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -32,6 +34,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * A helper class to {@link FetchFieldsPhase} that's initialized with a list of field patterns to fetch.
@@ -65,6 +69,7 @@ public class FieldFetcher {
         // We won't formally guarantee this but but its good for readability of the response
         Map<String, FieldContext> fieldContexts = new LinkedHashMap<>();
         List<String> unmappedFetchPattern = new ArrayList<>();
+        List<LookupRuntimeFieldType> lookupFields = new ArrayList<>();
 
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
             String fieldPattern = fieldAndFormat.field;
@@ -75,6 +80,10 @@ public class FieldFetcher {
 
             for (String field : context.getMatchingFieldNames(fieldPattern)) {
                 MappedFieldType ft = context.getFieldType(field);
+                if (ft instanceof LookupRuntimeFieldType lookupField) {
+                    lookupFields.add(lookupField);
+                    continue;
+                }
                 // we want to skip metadata fields if we have a wildcard pattern
                 if (context.isMetadataField(field) && isWildcardPattern) {
                     continue;
@@ -147,21 +156,46 @@ public class FieldFetcher {
                 AUTOMATON_MAX_DETERMINIZED_STATES
             );
         }
-        return new FieldFetcher(fieldContexts, unmappedFieldsFetchAutomaton, unmappedConcreteFields);
+        List<LookupFieldAndIdFetcher> lookupFieldAndIdFetchers = lookupFields.stream().map(ft -> {
+            final ValueFetcher idFetcher;
+            if (fieldContexts.containsKey(ft.getIdField())) {
+                idFetcher = null; // already fetched
+            } else {
+                if (context.isFieldMapped(ft.getIdField())) {
+                    idFetcher = context.getFieldType(ft.getIdField()).valueFetcher(context, null);
+                } else {
+                    idFetcher = null;
+                }
+            }
+            return new LookupFieldAndIdFetcher(ft, idFetcher);
+        }).toList();
+        return new FieldFetcher(
+            fieldContexts,
+            unmappedFieldsFetchAutomaton,
+            unmappedConcreteFields,
+            lookupFieldAndIdFetchers,
+            context.allowExpensiveQueries()
+        );
     }
 
     private final Map<String, FieldContext> fieldContexts;
     private final CharacterRunAutomaton unmappedFieldsFetchAutomaton;
     private final List<String> unmappedConcreteFields;
+    private final List<LookupFieldAndIdFetcher> lookupFieldAndIdFetchers;
+    private final boolean allowExpensiveQueries;
 
     private FieldFetcher(
         Map<String, FieldContext> fieldContexts,
         @Nullable CharacterRunAutomaton unmappedFieldsFetchAutomaton,
-        @Nullable List<String> unmappedConcreteFields
+        @Nullable List<String> unmappedConcreteFields,
+        List<LookupFieldAndIdFetcher> lookupFieldAndIdFetchers,
+        boolean allowExpensiveQueries
     ) {
         this.fieldContexts = fieldContexts;
         this.unmappedFieldsFetchAutomaton = unmappedFieldsFetchAutomaton;
         this.unmappedConcreteFields = unmappedConcreteFields;
+        this.lookupFieldAndIdFetchers = lookupFieldAndIdFetchers;
+        this.allowExpensiveQueries = allowExpensiveQueries;
     }
 
     public Map<String, DocumentField> fetch(SourceLookup sourceLookup) throws IOException {
@@ -177,7 +211,43 @@ public class FieldFetcher {
             }
         }
         collectUnmapped(documentFields, sourceLookup.source(), "", 0);
+        collectLookupFields(documentFields, sourceLookup);
         return documentFields;
+    }
+
+    private void collectLookupFields(Map<String, DocumentField> documentFields, SourceLookup sourceLookup) throws IOException {
+        for (LookupFieldAndIdFetcher lookupFieldAndIdFetcher : lookupFieldAndIdFetchers) {
+            final LookupRuntimeFieldType ft = lookupFieldAndIdFetcher.field;
+            final List<Object> idValues;
+            if (lookupFieldAndIdFetcher.idFetcher != null) {
+                idValues = lookupFieldAndIdFetcher.idFetcher.fetchValues(sourceLookup, new ArrayList<>());
+            } else {
+                final DocumentField idDocField = documentFields.get(ft.getIdField());
+                if (idDocField != null) {
+                    idValues = idDocField.getValues();
+                } else {
+                    idValues = null;
+                }
+            }
+            if (idValues != null && idValues.isEmpty() == false) {
+                final List<LookupField> lookupFields = idValues.stream()
+                    .map(id -> new LookupField(ft.getLookupIndex(), id.toString(), ft.getLookupFields()))
+                    .toList();
+                if (allowExpensiveQueries == false) {
+                    final ElasticsearchException failure = new ElasticsearchException(
+                        "cannot be executed against lookup fields while [" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] is set to [false]."
+                    );
+                    lookupFields.forEach(field -> field.setFailure(failure));
+                }
+                documentFields.compute(ft.name(), (name, curr) -> {
+                    if (curr == null) {
+                        return new DocumentField(name, List.of(), List.of(), lookupFields);
+                    } else {
+                        return new DocumentField(name, curr.getValues(), curr.getIgnoredValues(), lookupFields);
+                    }
+                });
+            }
+        }
     }
 
     private void collectUnmapped(Map<String, DocumentField> documentFields, Map<String, Object> source, String parentPath, int lastState) {
@@ -298,4 +368,6 @@ public class FieldFetcher {
             this.valueFetcher = valueFetcher;
         }
     }
+
+    private record LookupFieldAndIdFetcher(LookupRuntimeFieldType field, ValueFetcher idFetcher) {}
 }

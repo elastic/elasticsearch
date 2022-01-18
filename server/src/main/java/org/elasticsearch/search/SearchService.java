@@ -88,6 +88,7 @@ import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchLookupFieldsPhase;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -266,7 +267,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final AtomicInteger openScrollContexts = new AtomicInteger();
     private final String sessionId = UUIDs.randomBase64UUID();
-    private final LookupJoinFieldsPhase lookupJoinFieldsPhase;
+    private final FetchLookupFieldsPhase fetchLookupFieldsPhase;
 
     public SearchService(
         ClusterService clusterService,
@@ -282,7 +283,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Settings settings = clusterService.getSettings();
         this.threadPool = transportService.getThreadPool();
         this.clusterService = clusterService;
-        this.lookupJoinFieldsPhase = new LookupJoinFieldsPhase(transportService);
+        this.fetchLookupFieldsPhase = new FetchLookupFieldsPhase(transportService, indicesService::isAllowExpensiveQueries);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.responseCollectorService = responseCollectorService;
@@ -486,7 +487,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return;
                 }
             }
-            ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task), wrapLookupJoinFields(request, task, l));
+            ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task), tryFetchLookupFields(request, task, l));
         }));
     }
 
@@ -732,30 +733,29 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * This is an optimization that tries to resolved join fields using only the local node after the search hits
-     * are available to reduce the number of network messages.
+     * This is an optimization that tries to fetch lookup fields using only the local node after the search hits
+     * are available to reduce internode messages.
      */
-    private <R extends SearchPhaseResult> ActionListener<R> wrapLookupJoinFields(
-        ShardSearchRequest shardSearchRequest,
-        SearchShardTask searchShardTask,
-        ActionListener<R> outListener
+    private <R extends SearchPhaseResult> ActionListener<R> tryFetchLookupFields(
+        ShardSearchRequest searchRequest,
+        SearchShardTask searchTask,
+        ActionListener<R> listener
     ) {
-        return outListener.delegateFailure((listener, queryResults) -> {
+        return listener.delegateFailure((innerListener, queryResults) -> {
             final FetchSearchResult fetchResult = queryResults.fetchResult();
             if (fetchResult == null) {
-                listener.onResponse(queryResults);
+                innerListener.onResponse(queryResults);
                 return;
             }
-            lookupJoinFieldsPhase.lookupJoinFields(
-                shardSearchRequest.getClusterAlias(),
-                searchShardTask,
+            fetchLookupFieldsPhase.fetchLookupFields(
+                searchRequest.getClusterAlias(),
+                searchTask,
                 fetchResult.hits(),
-                shardSearchRequest.source(),
                 true,
                 false,
                 false,
-                // ignore errors as we will look up join fields again on the coordinating node
-                ActionListener.wrap(() -> listener.onResponse(queryResults))
+                // ignore errors as we will resolve the lookup fields again on the coordinating node
+                ActionListener.wrap(() -> innerListener.onResponse(queryResults))
             );
         });
     }
@@ -813,7 +813,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
-        listener = wrapLookupJoinFields(shardSearchRequest, task, listener);
+        listener = tryFetchLookupFields(shardSearchRequest, task, listener);
         listener = wrapFailureListener(listener, readerContext, markAsUsed);
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             try (SearchContext searchContext = createContext(readerContext, shardSearchRequest, task, false)) {

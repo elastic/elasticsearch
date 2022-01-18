@@ -42,24 +42,24 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
     private static final ParseField FORMAT_FIELD = new ParseField("format");
     private static final ParseField INCLUDE_UNMAPPED_FIELD = new ParseField("include_unmapped");
 
-    private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER = registerXContentParser(
-        new ConstructingObjectParser<>("fetch_field_and_format", a -> new FieldAndFormat((String) a[0], (String) a[1], (Boolean) a[2]))
+    private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER = new ConstructingObjectParser<>(
+        "fetch_field_and_format",
+        a -> new FieldAndFormat((String) a[0], (String) a[1], (Boolean) a[2])
     );
 
-    public static <V> ConstructingObjectParser<V, Void> registerXContentParser(ConstructingObjectParser<V, Void> parser) {
-        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), FIELD_FIELD);
-        parser.declareStringOrNull(
+    static {
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_FIELD);
+        PARSER.declareStringOrNull(
             ConstructingObjectParser.optionalConstructorArg(),
             FORMAT_FIELD.forRestApiVersion(onOrAfter(RestApiVersion.V_8))
         );
-        parser.declareField(
+        PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
             ignoreUseFieldMappingStringParser(),
             FORMAT_FIELD.forRestApiVersion(equalTo(RestApiVersion.V_7)),
             ObjectParser.ValueType.STRING_OR_NULL
         );
-        parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), INCLUDE_UNMAPPED_FIELD);
-        return parser;
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), INCLUDE_UNMAPPED_FIELD);
     }
 
     private static CheckedFunction<XContentParser, String, IOException> ignoreUseFieldMappingStringParser() {

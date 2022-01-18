@@ -280,3 +280,189 @@ The search request returns the following response:
 }
 ----
 // TESTRESPONSE[s/"took" : 5/"took": $body.took/]
+
+[[must-not-clauses-and-nested-queries]]
+===== `must_not` clauses and `nested` queries
+
+If a `nested` query matches one or more nested objects in a document, it returns
+the document as a hit. This applies even if other nested objects in the document
+don't match the query. Keep this in mind when using a `nested` query that
+contains an inner <<query-dsl-bool-query,`must_not` clause>>.
+
+TIP: Use the <<inner-hits,`inner_hits`>> parameter to see which nested objects
+matched a `nested` query.
+
+For example, the following search uses an outer `nested` query with an inner
+`must_not` clause.
+
+[source,console]
+----
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "comments": {
+        "type": "nested"
+      }
+    }
+  }
+}
+
+PUT my-index/_doc/1?refresh
+{
+  "comments": [
+    {
+      "author": "kimchy"
+    }
+  ]
+}
+
+PUT my-index/_doc/2?refresh
+{
+  "comments": [
+    {
+      "author": "kimchy"
+    },
+    {
+      "author": "nik9000"
+    }
+  ]
+}
+
+PUT my-index/_doc/3?refresh
+{
+  "comments": [
+    {
+      "author": "nik9000"
+    }
+  ]
+}
+
+POST my-index/_search
+{
+  "query": {
+    "nested": {
+      "path": "comments",
+      "query": {
+        "bool": {
+          "must_not": [
+            {
+              "term": {
+                "comments.author": "nik9000"
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+----
+// TEST[s/_search/_search?filter_path=hits.hits/]
+
+The search returns:
+
+[source,console]
+----
+{
+  ...
+  "hits" : {
+    ...
+    "hits" : [
+      {
+        "_index" : "my-index",
+        "_type": "_doc",
+        "_id" : "1",
+        "_score" : 0.0,
+        "_source" : {
+          "comments" : [
+            {
+              "author" : "kimchy"
+            }
+          ]
+        }
+      },
+      {
+        "_index" : "my-index",
+        "_type": "_doc",
+        "_id" : "2",
+        "_score" : 0.0,
+        "_source" : {
+          "comments" : [
+            {
+              "author" : "kimchy"              <1>
+            },
+            {
+              "author" : "nik9000"             <2>
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\.//]
+
+<1> This nested object matches the query. As a result, the search returns the
+object's parent document as a hit.
+
+<2> This nested object doesn't match the query. Since another nested object in
+the same document does match the query, the search still returns the parent
+document as a hit.
+
+To exclude documents with any nested objects that match the `nested` query,
+use an outer `must_not` clause.
+
+[source,console]
+----
+POST my-index/_search
+{
+  "query": {
+    "bool": {
+      "must_not": [
+        {
+          "nested": {
+            "path": "comments",
+            "query": {
+              "term": {
+                "comments.author": "nik9000"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+----
+// TEST[continued]
+// TEST[s/_search/_search?filter_path=hits.hits/]
+
+The search returns:
+
+[source,console]
+----
+{
+  ...
+  "hits" : {
+    ...
+    "hits" : [
+      {
+        "_index" : "my-index",
+        "_type": "_doc",
+        "_id" : "1",
+        "_score" : 0.0,
+        "_source" : {
+          "comments" : [
+            {
+              "author" : "kimchy"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\.//]

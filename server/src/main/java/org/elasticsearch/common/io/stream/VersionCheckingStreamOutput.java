@@ -71,7 +71,7 @@ public class VersionCheckingStreamOutput extends StreamOutput {
                     + namedWriteable.getClass().getName()
                     + "] was released in version "
                     + namedWriteable.getFirstReleasedVersion()
-                    + " so it cannot be serialized to a node with version "
+                    + " so it cannot be sent to a node with version "
                     + getVersion()
             );
         }

@@ -169,12 +169,12 @@ public class RestSearchActionTests extends RestActionTestCase {
 
             Exception ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
             assertEquals(
-                "request [POST /some_index/_search] not serializable to previous minor and 'check_ccs_compatibility' enabled.",
+                "parts of request [POST /some_index/_search] are not compatible in version '8.0.0 and the check_ccs_compatibility' is enabled.",
                 ex.getMessage()
             );
             assertEquals(
                 "NamedWritable [org.elasticsearch.rest.action.search.RestSearchActionTests$NewlyReleasedQueryBuilder] was released"
-                    + " in version 8.1.0 which is after current OutputStream version 8.0.0",
+                    + " in version 8.1.0 so it cannot be sent to a node with version 8.0.0",
                 ex.getCause().getMessage()
             );
         }

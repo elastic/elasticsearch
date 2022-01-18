@@ -132,7 +132,7 @@ public final class QueryParserHelper {
                 // Ignore metadata fields
                 continue;
             }
-            if (acceptMetadataField == false && fieldType.isIndexed() == false)  {
+            if (acceptMetadataField == false && fieldType.isIndexed() == false) {
                 // Don't include runtime fields or doc-value-only fields when expanding '*'
                 continue;
             }

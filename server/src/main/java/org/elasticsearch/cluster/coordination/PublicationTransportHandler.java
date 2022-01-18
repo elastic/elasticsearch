@@ -346,7 +346,11 @@ public class PublicationTransportHandler {
                 logger.trace("handling cluster state version [{}] locally on [{}]", newState.version(), destination);
                 transportService.getThreadPool()
                     .generic()
-                    .execute(ActionRunnable.supply(listener, () -> handlePublishRequest.apply(publishRequest)));
+                    .execute(
+                        transportService.getThreadPool()
+                            .getThreadContext()
+                            .preserveContext(ActionRunnable.supply(listener, () -> handlePublishRequest.apply(publishRequest)))
+                    );
             } else if (sendFullVersion || previousState.nodes().nodeExists(destination) == false) {
                 logger.trace("sending full cluster state version [{}] to [{}]", newState.version(), destination);
                 sendFullClusterState(destination, listener);

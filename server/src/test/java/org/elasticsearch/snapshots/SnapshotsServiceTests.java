@@ -9,6 +9,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -431,11 +432,23 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     private static SnapshotsService.ShardSnapshotUpdate successUpdate(Snapshot snapshot, ShardId shardId, String nodeId) {
-        return new SnapshotsService.ShardSnapshotUpdate(snapshot, shardId, null, successfulShardStatus(nodeId), null);
+        return new SnapshotsService.ShardSnapshotUpdate(
+            snapshot,
+            shardId,
+            null,
+            successfulShardStatus(nodeId),
+            ActionListener.wrap(() -> fail("should not complete publication"))
+        );
     }
 
     private static SnapshotsService.ShardSnapshotUpdate successUpdate(Snapshot snapshot, RepositoryShardId shardId, String nodeId) {
-        return new SnapshotsService.ShardSnapshotUpdate(snapshot, null, shardId, successfulShardStatus(nodeId), null);
+        return new SnapshotsService.ShardSnapshotUpdate(
+            snapshot,
+            null,
+            shardId,
+            successfulShardStatus(nodeId),
+            ActionListener.wrap(() -> fail("should not complete publication"))
+        );
     }
 
     private static ClusterState stateWithUnassignedIndices(String... indexNames) {

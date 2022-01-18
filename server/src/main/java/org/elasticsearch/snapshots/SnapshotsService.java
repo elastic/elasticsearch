@@ -3298,6 +3298,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             ShardSnapshotStatus updatedState,
             ActionListener<ClusterState> listener
         ) {
+            assert shardId != null ^ repoShardId != null;
             this.snapshot = snapshot;
             this.shardId = shardId;
             this.repoShardId = repoShardId;
@@ -3361,16 +3362,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         ShardSnapshotStatus updatedState,
         ActionListener<Void> listener
     ) {
-        var update = new ShardSnapshotUpdate(snapshot, shardId, repoShardId, updatedState, new ActionListener<>() {
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-
-            @Override
-            public void onResponse(ClusterState newState) {
+        var update = new ShardSnapshotUpdate(
+            snapshot,
+            shardId,
+            repoShardId,
+            updatedState,
+            listener.delegateFailure((delegate, newState) -> {
                 try {
-                    listener.onResponse(null);
+                    delegate.onResponse(null);
                 } finally {
                     // Maybe this state update completed the snapshot. If we are not already ending it because of a concurrent
                     // state update we check if its state is completed and end it if it is.
@@ -3384,8 +3383,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                     startExecutableClones(snapshotsInProgress, snapshot.getRepository());
                 }
-            }
-        });
+            })
+        );
         logger.trace("received updated snapshot restore state [{}]", update);
         clusterService.submitStateUpdateTask(
             "update snapshot state",

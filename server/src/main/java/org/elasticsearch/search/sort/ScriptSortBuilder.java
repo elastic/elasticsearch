@@ -385,6 +385,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         return NAME;
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
+
     public enum ScriptSortType implements Writeable {
         /** script sort for a string value **/
         STRING,

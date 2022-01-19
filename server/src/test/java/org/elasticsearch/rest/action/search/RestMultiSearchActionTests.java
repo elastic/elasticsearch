@@ -74,12 +74,6 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
         assertCriticalWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
 
-    private Map<String, List<String>> headersWith(String accept, List<String> value) {
-        Map<String, List<String>> headers = new HashMap<>();
-        headers.put(accept, value);
-        return headers;
-    }
-
     public void testCCSCheckCompatibilityFlag() throws IOException {
         Map<String, String> params = new HashMap<>();
         params.put(CCSVersionCheckHelper.CCS_VERSION_CHECK_FLAG, "true");

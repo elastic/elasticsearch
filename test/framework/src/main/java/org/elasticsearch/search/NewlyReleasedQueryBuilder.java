@@ -38,7 +38,7 @@ public class NewlyReleasedQueryBuilder extends DummyQueryBuilder {
     }
 
     @Override
-    public Version getFirstReleasedVersion() {
+    public Version getMinimalSupportedVersion() {
         return Version.CURRENT;
     }
 }

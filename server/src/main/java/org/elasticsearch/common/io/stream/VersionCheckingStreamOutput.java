@@ -52,25 +52,27 @@ public class VersionCheckingStreamOutput extends StreamOutput {
 
     @Override
     public void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
-        checkVersionCompatibility(namedWriteable);
+        if (namedWriteable instanceof VersionedNamedWriteable vnw) {
+            checkVersionCompatibility(vnw);
+        }
         super.writeNamedWriteable(namedWriteable);
     }
 
     @Override
     public void writeOptionalNamedWriteable(@Nullable NamedWriteable namedWriteable) throws IOException {
-        if (namedWriteable != null) {
-            checkVersionCompatibility(namedWriteable);
+        if (namedWriteable != null && namedWriteable instanceof VersionedNamedWriteable vnw) {
+            checkVersionCompatibility(vnw);
         }
         super.writeOptionalNamedWriteable(namedWriteable);
     }
 
-    private void checkVersionCompatibility(NamedWriteable namedWriteable) {
-        if (namedWriteable.getFirstReleasedVersion().after(getVersion())) {
+    private void checkVersionCompatibility(VersionedNamedWriteable namedWriteable) {
+        if (namedWriteable.getMinimalSupportedVersion().after(getVersion())) {
             throw new IllegalArgumentException(
                 "NamedWritable ["
                     + namedWriteable.getClass().getName()
                     + "] was released in version "
-                    + namedWriteable.getFirstReleasedVersion()
+                    + namedWriteable.getMinimalSupportedVersion()
                     + " and was not supported in version "
                     + getVersion()
             );

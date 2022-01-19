@@ -11,12 +11,13 @@ package org.elasticsearch.common.io.stream;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
 public class VersionCheckingStreamOutputTests extends ESTestCase {
 
-    private static class DummyNamedWriteable implements NamedWriteable {
+    private static class DummyNamedWriteable implements VersionedNamedWriteable {
 
         @Override
         public String getWriteableName() {
@@ -24,16 +25,17 @@ public class VersionCheckingStreamOutputTests extends ESTestCase {
         }
 
         @Override
-        public Version getFirstReleasedVersion() {
-            return Version.V_8_1_0;
-        }
+        public void writeTo(StreamOutput out) throws IOException {}
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {}
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
+        }
     }
 
     public void testCheckVersionCompatibility() throws IOException {
-        try (VersionCheckingStreamOutput out = new VersionCheckingStreamOutput(Version.V_8_0_0)) {
+        Version streamVersion = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        try (VersionCheckingStreamOutput out = new VersionCheckingStreamOutput(streamVersion)) {
             out.writeNamedWriteable(QueryBuilders.matchAllQuery());
 
             IllegalArgumentException e = expectThrows(
@@ -42,7 +44,8 @@ public class VersionCheckingStreamOutputTests extends ESTestCase {
             );
             assertEquals(
                 "NamedWritable [org.elasticsearch.common.io.stream.VersionCheckingStreamOutputTests$DummyNamedWriteable] was released in "
-                    + "version 8.1.0 and was not supported in version 8.0.0",
+                    + "version 8.1.0 and was not supported in version "
+                    + streamVersion,
                 e.getMessage()
             );
         }

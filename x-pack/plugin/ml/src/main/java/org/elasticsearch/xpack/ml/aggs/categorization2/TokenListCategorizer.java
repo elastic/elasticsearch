@@ -15,7 +15,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xpack.ml.aggs.categorization2.TokenListCategory.TokenAndWeight;
 
@@ -328,7 +328,7 @@ public class TokenListCategorizer implements Accountable {
     public InternalCategorizationAggregation.Bucket[] toOrderedBuckets(
         int size,
         long minNumMatches,
-        InternalAggregation.ReduceContext reduceContext
+        AggregationReduceContext reduceContext
     ) {
         return categoriesByNumMatches.stream()
             .limit(size)

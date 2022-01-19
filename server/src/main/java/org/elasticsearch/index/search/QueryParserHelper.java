@@ -111,7 +111,7 @@ public final class QueryParserHelper {
             }
 
             MappedFieldType fieldType = context.getFieldType(fieldName);
-            if (allField && (fieldType.name().startsWith("_") || fieldType.isIndexed())) {
+            if (allField && (fieldType.name().startsWith("_") || fieldType.isIndexed() == false)) {
                 // Ignore metadata fields, runtime fields and doc-value-only fields
                 continue;
             }

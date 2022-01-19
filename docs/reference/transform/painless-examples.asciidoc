@@ -619,7 +619,7 @@ The API call results in a similar response:
 {
   "num_pages_viewed" : 2.0,
   "session_details" : {
-    "duration" : 131374,
+    "duration" : 131,
     "first_referrer" : "https://www.bing.com/",
     "entry_page" : "http://www.leroymerlin.fr/v3/p/produits/materiaux-menuiserie/porte-coulissante-porte-interieure-escalier-et-rambarde/barriere-de-securite-l1308218463",
     "first_time" : "2017-01-10T21:22:52.982Z",
@@ -632,7 +632,7 @@ The API call results in a similar response:
 {
   "num_pages_viewed" : 10.0,
   "session_details" : {
-    "duration" : 343112,
+    "duration" : 343,
     "first_referrer" : "https://www.google.fr/",
     "entry_page" : "http://www.leroymerlin.fr/",
     "first_time" : "2017-01-10T16:57:39.937Z",

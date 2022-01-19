@@ -18,7 +18,7 @@
  *
  * This project is based on a modification of https://github.com/uber/h3 which is licensed under the Apache 2.0 License.
  *
- * Copyright 2017-2021 Uber Technologies, Inc.
+ * Copyright 2016-2017 Uber Technologies, Inc.
  */
 package org.elasticsearch.h3;
 

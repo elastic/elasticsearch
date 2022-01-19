@@ -504,7 +504,8 @@ public class PersistedClusterStateService {
 
         final Map<String, String> userData = reader.getIndexCommit().getUserData();
         logger.trace("loaded metadata [{}] from [{}]", userData, reader.directory());
-        assert userData.size() == COMMIT_DATA_SIZE : userData;
+        assert (userData.size() == COMMIT_DATA_SIZE)
+            || ((userData.size() == COMMIT_DATA_SIZE - 1) && (userData.containsKey(OLDEST_INDEX_VERSION_KEY) == false)) : userData;
         assert userData.get(CURRENT_TERM_KEY) != null;
         assert userData.get(LAST_ACCEPTED_VERSION_KEY) != null;
         assert userData.get(NODE_ID_KEY) != null;

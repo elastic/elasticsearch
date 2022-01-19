@@ -273,6 +273,7 @@ public class ShardStateAction {
         }, changePredicate);
     }
 
+    // TODO: Make this a TransportMasterNodeAction and remove duplication of master failover retrying from upstream code
     private static class ShardFailedTransportHandler implements TransportRequestHandler<FailedShardEntry> {
         private final ClusterService clusterService;
         private final ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
@@ -594,6 +595,7 @@ public class ShardStateAction {
         );
     }
 
+    // TODO: Make this a TransportMasterNodeAction and remove duplication of master failover retrying from upstream code
     private static class ShardStartedTransportHandler implements TransportRequestHandler<StartedShardEntry> {
         private final ClusterService clusterService;
         private final ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
@@ -614,15 +616,63 @@ public class ShardStateAction {
                 request,
                 ClusterStateTaskConfig.build(Priority.URGENT),
                 shardStartedClusterStateTaskExecutor,
-                e -> {
-                    if (e instanceof FailedToCommitClusterStateException || e instanceof NotMasterException) {
-                        logger.debug(new ParameterizedMessage("failure during [shard-started {}]", request), e);
-                    } else {
-                        logger.error(new ParameterizedMessage("unexpected failure during [shard-started {}]", request), e);
+                new ClusterStateTaskListener() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error(
+                            () -> new ParameterizedMessage("{} unexpected failure while starting shard [{}]", request.shardId, request),
+                            e
+                        );
+                        try {
+                            channel.sendResponse(e);
+                        } catch (Exception channelException) {
+                            channelException.addSuppressed(e);
+                            logger.warn(
+                                () -> new ParameterizedMessage(
+                                    "{} failed to send failure [{}] while starting shard [{}]",
+                                    request.shardId,
+                                    e,
+                                    request
+                                ),
+                                channelException
+                            );
+                        }
+                    }
+
+                    @Override
+                    public void onNoLongerMaster() {
+                        logger.error("{} no longer master while starting shard [{}]", request.shardId, request);
+                        try {
+                            channel.sendResponse(new NotMasterException("shard-started"));
+                        } catch (Exception channelException) {
+                            logger.warn(
+                                () -> new ParameterizedMessage(
+                                    "{} failed to send no longer master while starting shard [{}]",
+                                    request.shardId,
+                                    request
+                                ),
+                                channelException
+                            );
+                        }
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                        try {
+                            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                        } catch (Exception channelException) {
+                            logger.warn(
+                                () -> new ParameterizedMessage(
+                                    "{} failed to send response while starting shard [{}]",
+                                    request.shardId,
+                                    request
+                                ),
+                                channelException
+                            );
+                        }
                     }
                 }
             );
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
 

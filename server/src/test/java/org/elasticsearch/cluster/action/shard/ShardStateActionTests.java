@@ -173,8 +173,8 @@ public class ShardStateActionTests extends ESTestCase {
         assertThat(capturedRequests[0].request(), is(instanceOf(ShardStateAction.FailedShardEntry.class)));
         ShardStateAction.FailedShardEntry shardEntry = (ShardStateAction.FailedShardEntry) capturedRequests[0].request();
         // for the right shard
-        assertEquals(shardEntry.shardId, shardRouting.shardId());
-        assertEquals(shardEntry.allocationId, shardRouting.allocationId().getId());
+        assertEquals(shardEntry.getShardId(), shardRouting.shardId());
+        assertEquals(shardEntry.getAllocationId(), shardRouting.allocationId().getId());
         // sent to the master
         assertEquals(clusterService.state().nodes().getMasterNode().getId(), capturedRequests[0].node().getId());
 
@@ -555,18 +555,18 @@ public class ShardStateActionTests extends ESTestCase {
         try (StreamInput in = serialize(failedShardEntry, version).streamInput()) {
             in.setVersion(version);
             final FailedShardEntry deserialized = new FailedShardEntry(in);
-            assertThat(deserialized.shardId, equalTo(shardId));
-            assertThat(deserialized.allocationId, equalTo(allocationId));
-            assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
-            assertThat(deserialized.message, equalTo(message));
+            assertThat(deserialized.getShardId(), equalTo(shardId));
+            assertThat(deserialized.getAllocationId(), equalTo(allocationId));
+            assertThat(deserialized.getPrimaryTerm(), equalTo(primaryTerm));
+            assertThat(deserialized.getMessage(), equalTo(message));
             if (failure != null) {
-                assertThat(deserialized.failure, notNullValue());
-                assertThat(deserialized.failure.getClass(), equalTo(failure.getClass()));
-                assertThat(deserialized.failure.getMessage(), equalTo(failure.getMessage()));
+                assertThat(deserialized.getFailure(), notNullValue());
+                assertThat(deserialized.getFailure().getClass(), equalTo(failure.getClass()));
+                assertThat(deserialized.getFailure().getMessage(), equalTo(failure.getMessage()));
             } else {
-                assertThat(deserialized.failure, nullValue());
+                assertThat(deserialized.getFailure(), nullValue());
             }
-            assertThat(deserialized.markAsStale, equalTo(markAsStale));
+            assertThat(deserialized.isMarkAsStale(), equalTo(markAsStale));
             assertEquals(failedShardEntry, deserialized);
         }
     }

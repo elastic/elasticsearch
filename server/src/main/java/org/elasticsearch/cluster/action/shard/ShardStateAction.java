@@ -289,12 +289,15 @@ public class ShardStateAction {
 
         @Override
         public void messageReceived(FailedShardEntry request, TransportChannel channel, Task task) throws Exception {
-            logger.debug(() -> new ParameterizedMessage("{} received shard failed for {}", request.shardId, request), request.failure);
+            logger.debug(
+                () -> new ParameterizedMessage("{} received shard failed for {}", request.getShardId(), request),
+                request.getFailure()
+            );
             var update = new FailedShardUpdateTask(request, new ClusterStateTaskListener() {
                 @Override
                 public void onFailure(Exception e) {
                     logger.error(
-                        () -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", request.shardId, request),
+                        () -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", request.getShardId(), request),
                         e
                     );
                     try {
@@ -304,7 +307,7 @@ public class ShardStateAction {
                         logger.warn(
                             () -> new ParameterizedMessage(
                                 "{} failed to send failure [{}] while failing shard [{}]",
-                                request.shardId,
+                                request.getShardId(),
                                 e,
                                 request
                             ),
@@ -315,14 +318,14 @@ public class ShardStateAction {
 
                 @Override
                 public void onNoLongerMaster() {
-                    logger.error("{} no longer master while failing shard [{}]", request.shardId, request);
+                    logger.error("{} no longer master while failing shard [{}]", request.getShardId(), request);
                     try {
                         channel.sendResponse(new NotMasterException(TASK_SOURCE));
                     } catch (Exception channelException) {
                         logger.warn(
                             () -> new ParameterizedMessage(
                                 "{} failed to send no longer master while failing shard [{}]",
-                                request.shardId,
+                                request.getShardId(),
                                 request
                             ),
                             channelException
@@ -336,7 +339,11 @@ public class ShardStateAction {
                         channel.sendResponse(TransportResponse.Empty.INSTANCE);
                     } catch (Exception channelException) {
                         logger.warn(
-                            () -> new ParameterizedMessage("{} failed to send response while failing shard [{}]", request.shardId, request),
+                            () -> new ParameterizedMessage(
+                                "{} failed to send response while failing shard [{}]",
+                                request.getShardId(),
+                                request
+                            ),
                             channelException
                         );
                     }
@@ -370,10 +377,15 @@ public class ShardStateAction {
             List<StaleShard> staleShardsToBeApplied = new ArrayList<>();
 
             for (FailedShardUpdateTask task : tasks) {
-                IndexMetadata indexMetadata = currentState.metadata().index(task.shardId.getIndex());
+                IndexMetadata indexMetadata = currentState.metadata().index(task.getShardId().getIndex());
                 if (indexMetadata == null) {
                     // tasks that correspond to non-existent indices are marked as successful
-                    logger.debug("{} ignoring shard failed task [{}] (unknown index {})", task.shardId, task, task.shardId.getIndex());
+                    logger.debug(
+                        "{} ignoring shard failed task [{}] (unknown index {})",
+                        task.getShardId(),
+                        task,
+                        task.getShardId().getIndex()
+                    );
                     batchResultBuilder.success(task);
                 } else {
                     // The primary term is 0 if the shard failed itself. It is > 0 if a write was done on a primary but was failed to be
@@ -384,29 +396,29 @@ public class ShardStateAction {
                     // We check here that the primary to which the write happened was not already failed in an earlier cluster state update.
                     // This prevents situations where a new primary has already been selected and replication failures from an old stale
                     // primary unnecessarily fail currently active shards.
-                    if (task.primaryTerm > 0) {
-                        long currentPrimaryTerm = indexMetadata.primaryTerm(task.shardId.id());
-                        if (currentPrimaryTerm != task.primaryTerm) {
-                            assert currentPrimaryTerm > task.primaryTerm
+                    if (task.getPrimaryTerm() > 0) {
+                        long currentPrimaryTerm = indexMetadata.primaryTerm(task.getShardId().id());
+                        if (currentPrimaryTerm != task.getPrimaryTerm()) {
+                            assert currentPrimaryTerm > task.getPrimaryTerm()
                                 : "received a primary term with a higher term than in the "
                                     + "current cluster state (received ["
-                                    + task.primaryTerm
+                                    + task.getPrimaryTerm()
                                     + "] but current is ["
                                     + currentPrimaryTerm
                                     + "])";
                             logger.debug(
                                 "{} failing shard failed task [{}] (primary term {} does not match current term {})",
-                                task.shardId,
+                                task.getShardId(),
                                 task,
-                                task.primaryTerm,
-                                indexMetadata.primaryTerm(task.shardId.id())
+                                task.getPrimaryTerm(),
+                                indexMetadata.primaryTerm(task.getShardId().id())
                             );
                             batchResultBuilder.failure(
                                 task,
                                 new NoLongerPrimaryShardException(
-                                    task.shardId,
+                                    task.getShardId(),
                                     "primary term ["
-                                        + task.primaryTerm
+                                        + task.getPrimaryTerm()
                                         + "] did not match current primary term ["
                                         + currentPrimaryTerm
                                         + "]"
@@ -416,26 +428,31 @@ public class ShardStateAction {
                         }
                     }
 
-                    ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.shardId, task.allocationId);
+                    ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.getShardId(), task.getAllocationId());
                     if (matched == null) {
-                        Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(task.shardId.id());
+                        Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(task.getShardId().id());
                         // mark shard copies without routing entries that are in in-sync allocations set only as stale if the reason why
                         // they were failed is because a write made it into the primary but not to this copy (which corresponds to
                         // the check "primaryTerm > 0").
-                        if (task.primaryTerm > 0 && inSyncAllocationIds.contains(task.allocationId)) {
-                            logger.debug("{} marking shard {} as stale (shard failed task: [{}])", task.shardId, task.allocationId, task);
+                        if (task.getPrimaryTerm() > 0 && inSyncAllocationIds.contains(task.getAllocationId())) {
+                            logger.debug(
+                                "{} marking shard {} as stale (shard failed task: [{}])",
+                                task.getShardId(),
+                                task.getAllocationId(),
+                                task
+                            );
                             tasksToBeApplied.add(task);
-                            staleShardsToBeApplied.add(new StaleShard(task.shardId, task.allocationId));
+                            staleShardsToBeApplied.add(new StaleShard(task.getShardId(), task.getAllocationId()));
                         } else {
                             // tasks that correspond to non-existent shards are marked as successful
-                            logger.debug("{} ignoring shard failed task [{}] (shard does not exist anymore)", task.shardId, task);
+                            logger.debug("{} ignoring shard failed task [{}] (shard does not exist anymore)", task.getShardId(), task);
                             batchResultBuilder.success(task);
                         }
                     } else {
                         // failing a shard also possibly marks it as stale (see IndexMetadataUpdater)
-                        logger.debug("{} failing shard {} (shard failed task: [{}])", task.shardId, matched, task);
+                        logger.debug("{} failing shard {} (shard failed task: [{}])", task.getShardId(), matched, task);
                         tasksToBeApplied.add(task);
-                        failedShardsToBeApplied.add(new FailedShard(matched, task.message, task.failure, task.markAsStale));
+                        failedShardsToBeApplied.add(new FailedShard(matched, task.getMessage(), task.getFailure(), task.isMarkAsStale()));
                     }
                 }
             }
@@ -482,13 +499,13 @@ public class ShardStateAction {
     }
 
     public static class FailedShardEntry extends TransportRequest {
-        final ShardId shardId;
-        final String allocationId;
-        final long primaryTerm;
-        final String message;
+        private final ShardId shardId;
+        private final String allocationId;
+        private final long primaryTerm;
+        private final String message;
         @Nullable
-        final Exception failure;
-        final boolean markAsStale;
+        private final Exception failure;
+        private final boolean markAsStale;
 
         FailedShardEntry(StreamInput in) throws IOException {
             super(in);
@@ -522,6 +539,22 @@ public class ShardStateAction {
 
         public String getAllocationId() {
             return allocationId;
+        }
+
+        public long getPrimaryTerm() {
+            return primaryTerm;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public Exception getFailure() {
+            return failure;
+        }
+
+        public boolean isMarkAsStale() {
+            return markAsStale;
         }
 
         @Override
@@ -568,43 +601,37 @@ public class ShardStateAction {
     }
 
     public static class FailedShardUpdateTask implements ClusterStateTaskListener {
-        final ShardId shardId;
-        final String allocationId;
-        final long primaryTerm;
-        final String message;
-        @Nullable
-        final Exception failure;
-        final boolean markAsStale;
-        final ClusterStateTaskListener listener;
 
-        public FailedShardUpdateTask(
-            ShardId shardId,
-            String allocationId,
-            long primaryTerm,
-            String message,
-            Exception failure,
-            boolean markAsStale,
-            ClusterStateTaskListener listener
-        ) {
-            this.shardId = shardId;
-            this.allocationId = allocationId;
-            this.primaryTerm = primaryTerm;
-            this.message = message;
-            this.failure = failure;
-            this.markAsStale = markAsStale;
+        private final FailedShardEntry entry;
+        private final ClusterStateTaskListener listener;
+
+        public FailedShardUpdateTask(FailedShardEntry entry, ClusterStateTaskListener listener) {
+            this.entry = entry;
             this.listener = listener;
         }
 
-        public FailedShardUpdateTask(FailedShardEntry entry, ClusterStateTaskListener listener) {
-            this(entry.shardId, entry.allocationId, entry.primaryTerm, entry.message, entry.failure, entry.markAsStale, listener);
-        }
-
         public ShardId getShardId() {
-            return shardId;
+            return entry.getShardId();
         }
 
         public String getAllocationId() {
-            return allocationId;
+            return entry.getAllocationId();
+        }
+
+        public long getPrimaryTerm() {
+            return entry.getPrimaryTerm();
+        }
+
+        public String getMessage() {
+            return entry.getMessage();
+        }
+
+        public Exception getFailure() {
+            return entry.getFailure();
+        }
+
+        public boolean isMarkAsStale() {
+            return entry.isMarkAsStale();
         }
 
         @Override
@@ -620,6 +647,24 @@ public class ShardStateAction {
         @Override
         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             listener.clusterStateProcessed(oldState, newState);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FailedShardUpdateTask that = (FailedShardUpdateTask) o;
+            return entry.equals(that.entry);
+        }
+
+        @Override
+        public int hashCode() {
+            return entry.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return entry.toString();
         }
     }
 

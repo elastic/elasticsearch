@@ -145,15 +145,19 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         List<FailedShardUpdateTask> failingTasks = createExistingShards(currentState, reason);
         List<FailedShardUpdateTask> tasks = new ArrayList<>();
         for (FailedShardUpdateTask failingTask : failingTasks) {
-            long primaryTerm = currentState.metadata().index(failingTask.shardId.getIndex()).primaryTerm(failingTask.shardId.id());
+            long primaryTerm = currentState.metadata()
+                .index(failingTask.getShardId().getIndex())
+                .primaryTerm(failingTask.getShardId().id());
             tasks.add(
                 new FailedShardUpdateTask(
-                    failingTask.shardId,
-                    failingTask.allocationId,
-                    randomIntBetween(1, (int) primaryTerm - 1),
-                    failingTask.message,
-                    failingTask.failure,
-                    randomBoolean(),
+                    new ShardStateAction.FailedShardEntry(
+                        failingTask.getShardId(),
+                        failingTask.getAllocationId(),
+                        randomIntBetween(1, (int) primaryTerm - 1),
+                        failingTask.getMessage(),
+                        failingTask.getFailure(),
+                        randomBoolean()
+                    ),
                     null
                 )
             );
@@ -164,11 +168,11 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                     task,
                     ClusterStateTaskExecutor.TaskResult.failure(
                         new ShardStateAction.NoLongerPrimaryShardException(
-                            task.shardId,
+                            task.getShardId(),
                             "primary term ["
-                                + task.primaryTerm
+                                + task.getPrimaryTerm()
                                 + "] did not match current primary term ["
-                                + currentState.metadata().index(task.shardId.getIndex()).primaryTerm(task.shardId.id())
+                                + currentState.metadata().index(task.getShardId().getIndex()).primaryTerm(task.getShardId().id())
                                 + "]"
                         )
                     )
@@ -188,12 +192,14 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         final Set<String> oldInSync = clusterState.metadata().index(INDEX).inSyncAllocationIds(0);
         {
             FailedShardUpdateTask failShardOnly = new FailedShardUpdateTask(
-                shardRoutingTable.shardId(),
-                randomFrom(oldInSync),
-                primaryTerm,
-                "dummy",
-                null,
-                false,
+                new ShardStateAction.FailedShardEntry(
+                    shardRoutingTable.shardId(),
+                    randomFrom(oldInSync),
+                    primaryTerm,
+                    "dummy",
+                    null,
+                    false
+                ),
                 null
             );
             ClusterState appliedState = executor.execute(clusterState, List.of(failShardOnly)).resultingState;
@@ -203,12 +209,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         {
             final String failedAllocationId = randomFrom(oldInSync);
             FailedShardUpdateTask failAndMarkAsStale = new FailedShardUpdateTask(
-                shardRoutingTable.shardId(),
-                failedAllocationId,
-                primaryTerm,
-                "dummy",
-                null,
-                true,
+                new ShardStateAction.FailedShardEntry(shardRoutingTable.shardId(), failedAllocationId, primaryTerm, "dummy", null, true),
                 null
             );
             ClusterState appliedState = executor.execute(clusterState, List.of(failAndMarkAsStale)).resultingState;
@@ -261,12 +262,14 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         for (FailedShardUpdateTask existingShard : existingShards) {
             shardsWithMismatchedAllocationIds.add(
                 new FailedShardUpdateTask(
-                    existingShard.shardId,
-                    UUIDs.randomBase64UUID(),
-                    0L,
-                    existingShard.message,
-                    existingShard.failure,
-                    randomBoolean(),
+                    new ShardStateAction.FailedShardEntry(
+                        existingShard.getShardId(),
+                        UUIDs.randomBase64UUID(),
+                        0L,
+                        existingShard.getMessage(),
+                        existingShard.getFailure(),
+                        randomBoolean()
+                    ),
                     null
                 )
             );
@@ -276,12 +279,14 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         nonExistentShards.forEach(
             shard -> tasks.add(
                 new FailedShardUpdateTask(
-                    shard.shardId(),
-                    shard.allocationId().getId(),
-                    0L,
-                    reason,
-                    new CorruptIndexException("simulated", nonExistentIndexUUID),
-                    randomBoolean(),
+                    new ShardStateAction.FailedShardEntry(
+                        shard.shardId(),
+                        shard.allocationId().getId(),
+                        0L,
+                        reason,
+                        new CorruptIndexException("simulated", nonExistentIndexUUID),
+                        randomBoolean()
+                    ),
                     null
                 )
             )
@@ -367,12 +372,14 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         return shards.stream()
             .map(
                 shard -> new FailedShardUpdateTask(
-                    shard.shardId(),
-                    shard.allocationId().getId(),
-                    randomBoolean() ? 0L : currentState.metadata().getIndexSafe(shard.index()).primaryTerm(shard.id()),
-                    message,
-                    new CorruptIndexException("simulated", indexUUID),
-                    randomBoolean(),
+                    new ShardStateAction.FailedShardEntry(
+                        shard.shardId(),
+                        shard.allocationId().getId(),
+                        randomBoolean() ? 0L : currentState.metadata().getIndexSafe(shard.index()).primaryTerm(shard.id()),
+                        message,
+                        new CorruptIndexException("simulated", indexUUID),
+                        randomBoolean()
+                    ),
                     null
                 )
             )

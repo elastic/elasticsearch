@@ -395,12 +395,14 @@ public class ClusterStateChanges {
         List<FailedShardUpdateTask> entries = failedShards.stream()
             .map(
                 failedShard -> new FailedShardUpdateTask(
-                    failedShard.getRoutingEntry().shardId(),
-                    failedShard.getRoutingEntry().allocationId().getId(),
-                    0L,
-                    failedShard.getMessage(),
-                    failedShard.getFailure(),
-                    failedShard.markAsStale(),
+                    new ShardStateAction.FailedShardEntry(
+                        failedShard.getRoutingEntry().shardId(),
+                        failedShard.getRoutingEntry().allocationId().getId(),
+                        0L,
+                        failedShard.getMessage(),
+                        failedShard.getFailure(),
+                        failedShard.markAsStale()
+                    ),
                     null
                 )
             )

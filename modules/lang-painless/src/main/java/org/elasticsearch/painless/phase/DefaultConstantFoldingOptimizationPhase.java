@@ -8,9 +8,9 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Utility;
 import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BooleanNode;
@@ -71,8 +71,11 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDName;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * This optimization pass will perform the specified operation on two leafs nodes if they are both
@@ -1106,6 +1109,8 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
         Object receiver
     ) {
         Object[] args = new Object[irInvokeCallMemberNode.getArgumentNodes().size()];
+
+        List<Tuple<Integer,String>> argumentsShouldBeConstants  = new ArrayList<>();
         for (int i = 0; i < irInvokeCallMemberNode.getArgumentNodes().size(); i++) {
             ExpressionNode argNode = irInvokeCallMemberNode.getArgumentNodes().get(i);
             IRDConstant constantDecoration = argNode.getDecoration(IRDConstant.class);
@@ -1114,17 +1119,23 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
                 String argumentName = argNode instanceof CastNode
                     ? ((CastNode) argNode).getChildNode().getDecoration(IRDName.class).getValue()
                     : "";
-                throw irInvokeCallMemberNode
-                    .getLocation()
-                    .createError(new IllegalArgumentException(String.format(
-                        Locale.ROOT,
-                        "All arguments of the [%s] method must be constants, but the [%s] argument [%s] is not",
-                        javaMethod.getName(),
-                        Utility.toOrdinal(i+1),
-                        argumentName
-                    )));
+                argumentsShouldBeConstants.add(Tuple.tuple(i, argumentName));
+            } else {
+                args[i] = constantDecoration.getValue();
             }
-            args[i] = constantDecoration.getValue();
+        }
+        if (argumentsShouldBeConstants.size() > 0 ){
+            throw irInvokeCallMemberNode
+                .getLocation()
+                .createError(new IllegalArgumentException(String.format(
+                    Locale.ROOT,
+                    "All arguments of the [%s] method must be constants, but the following arguments are not: %s",
+                    javaMethod.getName(),
+                    argumentsShouldBeConstants
+                     .stream()
+                     .map(pair -> "argument [" + (pair.v1()+1) +"]"+ (pair.v2().isEmpty() ? "" : " named [" + pair.v2() + "]"))
+                     .collect(Collectors.joining(", "))
+                )));
         }
         Object result;
         try {

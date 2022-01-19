@@ -177,7 +177,7 @@ docker run -e ENROLLMENT_TOKEN="<token>" --name es02 --net elastic -it {docker-i
 ----
 
 endif::[]
-+
+
 {es} is now configured to join the existing cluster.
 --
 

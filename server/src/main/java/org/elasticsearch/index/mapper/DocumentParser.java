@@ -17,7 +17,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -26,9 +25,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.DotExpandingXContentParser;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -48,19 +47,19 @@ import java.util.function.Function;
  */
 public final class DocumentParser {
 
-    private final NamedXContentRegistry xContentRegistry;
+    private final XContentParserConfiguration parserConfiguration;
     private final Function<DateFormatter, MappingParserContext> dateParserContext;
     private final IndexSettings indexSettings;
     private final IndexAnalyzers indexAnalyzers;
 
     DocumentParser(
-        NamedXContentRegistry xContentRegistry,
+        XContentParserConfiguration parserConfiguration,
         Function<DateFormatter, MappingParserContext> dateParserContext,
         IndexSettings indexSettings,
         IndexAnalyzers indexAnalyzers
     ) {
-        this.xContentRegistry = xContentRegistry;
         this.dateParserContext = dateParserContext;
+        this.parserConfiguration = parserConfiguration;
         this.indexSettings = indexSettings;
         this.indexAnalyzers = indexAnalyzers;
     }
@@ -76,14 +75,7 @@ public final class DocumentParser {
     public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws MapperParsingException {
         final InternalDocumentParserContext context;
         final XContentType xContentType = source.getXContentType();
-        try (
-            XContentParser parser = XContentHelper.createParser(
-                xContentRegistry,
-                LoggingDeprecationHandler.INSTANCE,
-                source.source(),
-                xContentType
-            )
-        ) {
+        try (XContentParser parser = XContentHelper.createParser(parserConfiguration, source.source(), xContentType)) {
             context = new InternalDocumentParserContext(mappingLookup, indexSettings, indexAnalyzers, dateParserContext, source, parser);
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();

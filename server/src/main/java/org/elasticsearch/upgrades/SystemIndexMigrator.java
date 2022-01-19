@@ -598,12 +598,12 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(newState);
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 logger.error("failed to clear migration results when starting new migration", e);
                 listener.onFailure(e);
             }

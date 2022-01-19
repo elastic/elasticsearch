@@ -99,13 +99,13 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 logger.error(new ParameterizedMessage("failed to put shutdown for node [{}]", request.getNodeId()), e);
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 if (SingleNodeShutdownMetadata.Type.REMOVE.equals(request.getType())
                     || SingleNodeShutdownMetadata.Type.REPLACE.equals(request.getType())) {
                     clusterService.getRerouteService()

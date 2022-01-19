@@ -74,7 +74,8 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -448,7 +449,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             .get(primaryNodeId);
         assertThat(capturedRequests, notNullValue());
         assertThat(capturedRequests.size(), equalTo(1));
-        assertThat(capturedRequests.get(0).action, equalTo("internal:testAction[p]"));
+        assertThat(capturedRequests.get(0).action(), equalTo("internal:testAction[p]"));
         assertIndexShardCounter(0);
     }
 
@@ -543,7 +544,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             .get(primaryNodeId);
         assertThat(capturedRequests, notNullValue());
         assertThat(capturedRequests.size(), equalTo(1));
-        assertThat(capturedRequests.get(0).action, equalTo("internal:testAction[p]"));
+        assertThat(capturedRequests.get(0).action(), equalTo("internal:testAction[p]"));
         assertIndexShardCounter(0);
     }
 
@@ -637,19 +638,19 @@ public class TransportReplicationActionTests extends ESTestCase {
         reroutePhase.run();
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests, arrayWithSize(1));
-        assertThat(capturedRequests[0].action, equalTo("internal:testAction[p]"));
+        assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
         assertPhase(task, "waiting_on_primary");
         assertFalse(request.isRetrySet.get());
-        transport.handleRemoteError(capturedRequests[0].requestId, randomRetryPrimaryException(shardId));
+        transport.handleRemoteError(capturedRequests[0].requestId(), randomRetryPrimaryException(shardId));
 
         if (timeout) {
             // we always try at least one more time on timeout
             assertThat(listener.isDone(), equalTo(false));
             capturedRequests = transport.getCapturedRequestsAndClear();
             assertThat(capturedRequests, arrayWithSize(1));
-            assertThat(capturedRequests[0].action, equalTo("internal:testAction[p]"));
+            assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
             assertPhase(task, "waiting_on_primary");
-            transport.handleRemoteError(capturedRequests[0].requestId, randomRetryPrimaryException(shardId));
+            transport.handleRemoteError(capturedRequests[0].requestId(), randomRetryPrimaryException(shardId));
             assertListenerThrows("must throw index not found exception", listener, ElasticsearchException.class);
             assertPhase(task, "failed");
         } else {
@@ -658,7 +659,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             setState(clusterService, clusterService.state());
             capturedRequests = transport.getCapturedRequestsAndClear();
             assertThat(capturedRequests, arrayWithSize(1));
-            assertThat(capturedRequests[0].action, equalTo("internal:testAction[p]"));
+            assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
         }
     }
 
@@ -694,10 +695,10 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(capturedRequests, notNullValue());
         assertThat(capturedRequests.size(), equalTo(1));
         if (clusterService.state().nodes().getLocalNodeId().equals(primaryNodeId)) {
-            assertThat(capturedRequests.get(0).action, equalTo("internal:testAction[p]"));
+            assertThat(capturedRequests.get(0).action(), equalTo("internal:testAction[p]"));
             assertPhase(task, "waiting_on_primary");
         } else {
-            assertThat(capturedRequests.get(0).action, equalTo("internal:testAction"));
+            assertThat(capturedRequests.get(0).action(), equalTo("internal:testAction"));
             assertPhase(task, "rerouted");
         }
         assertFalse(request.isRetrySet.get());
@@ -753,15 +754,15 @@ public class TransportReplicationActionTests extends ESTestCase {
             assertThat(requests.size(), equalTo(1));
             assertThat(
                 "primary request was not delegated to relocation target",
-                requests.get(0).action,
+                requests.get(0).action(),
                 equalTo("internal:testAction2[p]")
             );
             @SuppressWarnings("unchecked")
             final TransportReplicationAction.ConcreteShardRequest<Request> concreteShardRequest =
-                (TransportReplicationAction.ConcreteShardRequest<Request>) requests.get(0).request;
+                (TransportReplicationAction.ConcreteShardRequest<Request>) requests.get(0).request();
             assertThat("primary term not properly set on primary delegation", concreteShardRequest.getPrimaryTerm(), equalTo(primaryTerm));
             assertPhase(task, "primary_delegation");
-            transport.handleResponse(requests.get(0).requestId, new TestResponse());
+            transport.handleResponse(requests.get(0).requestId(), new TestResponse());
             assertTrue(listener.isDone());
             listener.get();
             assertPhase(task, "finished");
@@ -876,15 +877,15 @@ public class TransportReplicationActionTests extends ESTestCase {
                 randomLong(),
                 randomLong()
             );
-            transport.handleResponse(captures[0].requestId, response);
+            transport.handleResponse(captures[0].requestId(), response);
             assertTrue(listener.isDone());
             assertThat(listener.get(), equalTo(response));
         } else if (randomBoolean()) {
-            transport.handleRemoteError(captures[0].requestId, new ElasticsearchException("simulated"));
+            transport.handleRemoteError(captures[0].requestId(), new ElasticsearchException("simulated"));
             assertTrue(listener.isDone());
             assertListenerThrows("listener should reflect remote error", listener, ElasticsearchException.class);
         } else {
-            transport.handleError(captures[0].requestId, new TransportException("simulated"));
+            transport.handleError(captures[0].requestId(), new TransportException("simulated"));
             assertTrue(listener.isDone());
             assertListenerThrows("listener should reflect remote error", listener, TransportException.class);
         }
@@ -962,7 +963,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(requestsToReplicas, arrayWithSize(1));
         @SuppressWarnings("unchecked")
         TransportReplicationAction.ConcreteShardRequest<Request> shardRequest = (TransportReplicationAction.ConcreteShardRequest<
-            Request>) requestsToReplicas[0].request;
+            Request>) requestsToReplicas[0].request();
         assertThat(shardRequest.getPrimaryTerm(), equalTo(primaryTerm));
     }
 
@@ -1253,17 +1254,17 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(capturedRequests, notNullValue());
         assertThat(capturedRequests.size(), equalTo(1));
         final CapturingTransport.CapturedRequest capturedRequest = capturedRequests.get(0);
-        assertThat(capturedRequest.action, equalTo("internal:testActionWithExceptions[r]"));
-        assertThat(capturedRequest.request, instanceOf(TransportReplicationAction.ConcreteReplicaRequest.class));
+        assertThat(capturedRequest.action(), equalTo("internal:testActionWithExceptions[r]"));
+        assertThat(capturedRequest.request(), instanceOf(TransportReplicationAction.ConcreteReplicaRequest.class));
         assertThat(
-            ((TransportReplicationAction.ConcreteReplicaRequest) capturedRequest.request).getGlobalCheckpoint(),
+            ((TransportReplicationAction.ConcreteReplicaRequest) capturedRequest.request()).getGlobalCheckpoint(),
             equalTo(checkpoint)
         );
         assertThat(
-            ((TransportReplicationAction.ConcreteReplicaRequest) capturedRequest.request).getMaxSeqNoOfUpdatesOrDeletes(),
+            ((TransportReplicationAction.ConcreteReplicaRequest) capturedRequest.request()).getMaxSeqNoOfUpdatesOrDeletes(),
             equalTo(maxSeqNoOfUpdatesOrDeletes)
         );
-        assertConcreteShardRequest(capturedRequest.request, request, replica.allocationId());
+        assertConcreteShardRequest(capturedRequest.request(), request, replica.allocationId());
     }
 
     public void testRetryOnReplicaWithRealTransport() throws Exception {
@@ -1279,14 +1280,15 @@ public class TransportReplicationActionTests extends ESTestCase {
         AtomicBoolean throwException = new AtomicBoolean(true);
         final ReplicationTask task = maybeTask();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        final Transport transport = new MockNioTransport(
+        final Transport transport = new Netty4Transport(
             Settings.EMPTY,
             Version.CURRENT,
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             namedWriteableRegistry,
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(Settings.EMPTY)
         );
         transportService = new MockTransportService(
             Settings.EMPTY,

@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -94,12 +93,12 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             }
 
             @Override
-            public void onFailure(final String source, final Exception e) {
+            public void onFailure(final Exception e) {
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
+            public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
                 final IndexMetadata indexMetadata = oldState.metadata().index(request.getFollowerIndex());
                 final Map<String, String> ccrCustomMetadata = indexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
                 final String remoteClusterName = ccrCustomMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
@@ -270,7 +269,6 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
         // Remove ccr custom metadata
         newIndexMetadata.removeCustom(Ccr.CCR_CUSTOM_METADATA_KEY);
 
-        Metadata newMetadata = Metadata.builder(current.metadata()).put(newIndexMetadata).build();
-        return ClusterState.builder(current).metadata(newMetadata).build();
+        return current.copyAndUpdateMetadata(metadata -> metadata.put(newIndexMetadata));
     }
 }

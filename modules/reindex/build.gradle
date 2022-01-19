@@ -40,8 +40,6 @@ testClusters.configureEach {
 dependencies {
   api project(":client:rest")
   api project(":libs:elasticsearch-ssl-config")
-  // for http - testing reindex from remote
-  testImplementation project(':modules:transport-netty4')
   // for parent/child testing
   testImplementation project(':modules:parent-join')
 }

@@ -449,7 +449,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
     void updateStateWithStats(SnapshotLifecycleStats newStats) {
         clusterService.submitStateUpdateTask(
-            "update_slm_stats",
+            UpdateSnapshotLifecycleStatsTask.TASK_SOURCE,
             new UpdateSnapshotLifecycleStatsTask(newStats),
             ClusterStateTaskExecutor.unbatched()
         );

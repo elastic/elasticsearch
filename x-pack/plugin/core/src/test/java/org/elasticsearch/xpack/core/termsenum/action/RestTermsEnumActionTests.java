@@ -22,8 +22,8 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.CCSVersionCheckHelper;
-import org.elasticsearch.rest.action.search.FailBeforeVersionQueryBuilder;
-import org.elasticsearch.rest.action.search.NewlyReleasedQueryBuilder;
+import org.elasticsearch.search.FailBeforeVersionQueryBuilder;
+import org.elasticsearch.search.NewlyReleasedQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -238,7 +238,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
                 ex.getMessage()
             );
             assertEquals(
-                "NamedWritable [org.elasticsearch.rest.action.search.NewlyReleasedQueryBuilder] was released in "
+                "NamedWritable [org.elasticsearch.search.NewlyReleasedQueryBuilder] was released in "
                     + "version 8.1.0 and was not supported in version 8.0.0",
                 ex.getCause().getMessage()
             );

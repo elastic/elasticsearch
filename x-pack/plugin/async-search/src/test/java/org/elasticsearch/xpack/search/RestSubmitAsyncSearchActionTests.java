@@ -176,7 +176,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
                 ex.getMessage()
             );
             assertEquals(
-                "NamedWritable [org.elasticsearch.rest.action.search.NewlyReleasedQueryBuilder] was released in "
+                "NamedWritable [org.elasticsearch.search.NewlyReleasedQueryBuilder] was released in "
                     + "version 8.1.0 and was not supported in version 8.0.0",
                 ex.getCause().getMessage()
             );

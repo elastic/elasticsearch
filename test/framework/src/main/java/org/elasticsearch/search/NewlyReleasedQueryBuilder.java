@@ -6,11 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.rest.action.search;
+package org.elasticsearch.search;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.query.plugin.DummyQueryBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;

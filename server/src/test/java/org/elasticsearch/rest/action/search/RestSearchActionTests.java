@@ -13,6 +13,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.FailBeforeVersionQueryBuilder;
+import org.elasticsearch.search.NewlyReleasedQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -174,7 +176,7 @@ public class RestSearchActionTests extends RestActionTestCase {
                 ex.getMessage()
             );
             assertEquals(
-                "NamedWritable [org.elasticsearch.rest.action.search.NewlyReleasedQueryBuilder] was released in "
+                "NamedWritable [org.elasticsearch.search.NewlyReleasedQueryBuilder] was released in "
                     + "version 8.1.0 and was not supported in version 8.0.0",
                 ex.getCause().getMessage()
             );

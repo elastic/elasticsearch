@@ -93,7 +93,7 @@ public class RestFieldCapabilitiesActionTests extends RestActionTestCase {
                 ex.getMessage()
             );
             assertEquals(
-                "NamedWritable [org.elasticsearch.rest.action.search.NewlyReleasedQueryBuilder] was released in "
+                "NamedWritable [org.elasticsearch.search.NewlyReleasedQueryBuilder] was released in "
                     + "version 8.1.0 and was not supported in version 8.0.0",
                 ex.getCause().getMessage()
             );
@@ -101,9 +101,9 @@ public class RestFieldCapabilitiesActionTests extends RestActionTestCase {
 
         // this shouldn't fail without the flag enabled
         params = new HashMap<>();
+        params.put("fields", "*");
         if (randomBoolean()) {
             params.put("check_ccs_compatibility", "false");
-            params.put("fields", "*");
         }
         {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)

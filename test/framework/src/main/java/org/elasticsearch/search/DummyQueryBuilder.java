@@ -6,14 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.query.plugin;
+package org.elasticsearch.search;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.plugin.DummyQueryParserPlugin.DummyQuery;
+import org.elasticsearch.search.DummyQueryParserPlugin.DummyQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 

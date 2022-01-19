@@ -150,7 +150,7 @@ public class RateLimitingFilterTests extends ESTestCase {
 
     public void testMessagesXOpaqueIsIgnoredWhenDisabled() {
         RateLimitingFilter filter = new RateLimitingFilter();
-        filter.setUseXOpaqueId(false);
+        filter.setUseXOpaqueIdEnabled(false);
         filter.start();
 
         // Should NOT be rate-limited because it's not in the cache
@@ -167,6 +167,20 @@ public class RateLimitingFilterTests extends ESTestCase {
 
         // Should NOT be rate-limited because "key 1" it not in the cache
         message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 1", "opaque-id 1", "productName", "msg 0");
+        assertThat(filter.filter(message), equalTo(Result.ACCEPT));
+    }
+
+    public void testXOpaqueIdNotBeingUsedFromKibanaOriginatingRequests() {
+        RateLimitingFilter filter = new RateLimitingFilter();
+        filter.setUseXOpaqueIdEnabled(true);
+        filter.start();
+
+        // Should NOT be rate-limited because it's not in the cache
+        Message message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 0", "opaque-id 0", "kibana", "msg 0");
+        assertThat(filter.filter(message), equalTo(Result.ACCEPT));
+
+        // Should NOT be rate-limited even though the x-opaque-id is unique because it originates from kibana
+        message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 0", "opaque-id 1", "kibana", "msg 0");
         assertThat(filter.filter(message), equalTo(Result.ACCEPT));
     }
 }

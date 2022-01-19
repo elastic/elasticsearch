@@ -4,7 +4,6 @@
       "actions": {
         "rollover": {
           "max_primary_shard_size": "10gb",
-          "max_docs": 100000,
           "max_age": "30d"
         }
       }

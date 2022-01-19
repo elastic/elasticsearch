@@ -12,13 +12,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.search.RestSearchActionTests;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.mockito.Mockito;
 
 import java.nio.charset.StandardCharsets;
@@ -31,13 +29,13 @@ public class RestMultiSearchTemplateActionTests extends RestActionTestCase {
     private RestMultiSearchTemplateAction action;
     private static NamedXContentRegistry xContentRegistry;
 
-    /**
-     * setup for the whole base test class
-     */
-    @BeforeClass
-    public static void init() {
-        xContentRegistry = new NamedXContentRegistry(RestSearchActionTests.initCCSFlagTestQuerybuilders());
-    }
+//    /**
+//     * setup for the whole base test class
+//     */
+//    @BeforeClass
+//    public static void init() {
+//        xContentRegistry = new NamedXContentRegistry(RestSearchActionTests.initCCSFlagTestQuerybuilders());
+//    }
 
     @Before
     public void setUpAction() {

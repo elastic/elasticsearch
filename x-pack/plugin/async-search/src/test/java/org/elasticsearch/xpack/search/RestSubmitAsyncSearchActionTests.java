@@ -8,14 +8,20 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.CCSVersionCheckHelper;
-import org.elasticsearch.rest.action.search.RestSearchActionTests;
+import org.elasticsearch.search.FailBeforeVersionQueryBuilder;
+import org.elasticsearch.search.NewlyReleasedQueryBuilder;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
@@ -24,9 +30,11 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -40,7 +48,25 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
      */
     @BeforeClass
     public static void init() {
-        xContentRegistry = new NamedXContentRegistry(RestSearchActionTests.initCCSFlagTestQuerybuilders());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
+        List<org.elasticsearch.xcontent.NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(
+                QueryBuilder.class,
+                new ParseField(FailBeforeVersionQueryBuilder.NAME),
+                FailBeforeVersionQueryBuilder::fromXContent,
+                RestApiVersion.onOrAfter(RestApiVersion.current())
+            )
+        );
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(
+                QueryBuilder.class,
+                new ParseField(NewlyReleasedQueryBuilder.NAME),
+                NewlyReleasedQueryBuilder::fromXContent,
+                RestApiVersion.onOrAfter(RestApiVersion.current())
+            )
+        );
+        xContentRegistry = new NamedXContentRegistry(namedXContents);
     }
 
     @Before
@@ -53,7 +79,6 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
      * Check that the appropriate defaults are set on the {@link SubmitAsyncSearchRequest} if
      * no parameters are specified on the rest request itself.
      */
-    @SuppressWarnings("unchecked")
     public void testRequestParameterDefaults() throws IOException {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {

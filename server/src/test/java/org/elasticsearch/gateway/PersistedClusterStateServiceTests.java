@@ -1473,7 +1473,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         final Version[] indexVersions = new Version[] { oldVersion, Version.CURRENT, Version.fromId(Version.CURRENT.id + 1) };
         int lastIndexNum = randomIntBetween(9, 50);
         Metadata.Builder b = Metadata.builder();
-        for (int k = 0; k < indexVersions.length; k++) {
+        for (Version indexVersion : indexVersions) {
             String indexUUID = UUIDs.randomBase64UUID(random());
             IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
                 .settings(settings(indexVersions[k]).put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))

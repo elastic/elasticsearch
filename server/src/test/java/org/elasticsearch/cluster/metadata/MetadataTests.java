@@ -897,11 +897,11 @@ public class MetadataTests extends ESTestCase {
         assertEquals("[index.version.created] is not present in the index settings for index with UUID [null]", ex.getMessage());
     }
 
-    private Metadata.Builder buildIndicesWithVersions(Version[] indexVersions) {
+    private Metadata.Builder buildIndicesWithVersions(Version... indexVersions) {
 
         int lastIndexNum = randomIntBetween(9, 50);
         Metadata.Builder b = Metadata.builder();
-        for (int k = 0; k < indexVersions.length; k++) {
+        for (Version indexVersion : indexVersions) {
             IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
                 .settings(settings(indexVersions[k]))
                 .numberOfShards(1)

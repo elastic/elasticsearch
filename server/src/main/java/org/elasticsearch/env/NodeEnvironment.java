@@ -511,7 +511,7 @@ public final class NodeEnvironment implements Closeable {
                     + "] exist, while the minimum compatible index version is ["
                     + Version.CURRENT.minimumIndexCompatibilityVersion()
                     + "]. "
-                    + "Upgrade your older indices by booting version ["
+                    + "Upgrade your older indices by reindexing them in version ["
                     + Version.CURRENT.minimumCompatibilityVersion()
                     + "] first."
             );

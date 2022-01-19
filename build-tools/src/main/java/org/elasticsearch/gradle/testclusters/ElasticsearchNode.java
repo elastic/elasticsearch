@@ -128,7 +128,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private final ExecOperations execOperations;
-    private FileOperations fileOperations;
+    private final FileOperations fileOperations;
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path workingDir;
 

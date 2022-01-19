@@ -234,19 +234,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         text = FeatureUtils.truncateToNumValidBytes(text, MAX_STRING_SIZE_IN_BYTES);
         final String finalText = text;
         if (finalText.isEmpty() || finalText.isBlank()) {
-            fields.put(
-                destField,
-                Collections.singletonList(
-                    new StringLengthAndEmbedding(
-                        0,
-                        concatEmbeddings(
-                            FEATURE_EXTRACTORS.stream()
-                                .map((featureExtractor) -> featureExtractor.extractFeatures(finalText))
-                                .collect(Collectors.toList())
-                        )
-                    )
-                )
-            );
+            fields.put(destField, List.of());
             return;
         }
         List<StringLengthAndEmbedding> embeddings = new ArrayList<>();

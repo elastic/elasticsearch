@@ -40,6 +40,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
@@ -389,7 +390,11 @@ public final class NodeEnvironment implements Closeable {
             throw new IllegalStateException(message, e);
         }
 
-        checkForIndexCompatibility(logger, legacyNodeLock.getNodePaths());
+        try {
+            checkForIndexCompatibility(logger, legacyNodeLock.getNodePaths());
+        } finally {
+            legacyNodeLock.close();
+        }
 
         // move contents from legacy path to new path
         assert nodeLock.getNodePaths().length == legacyNodeLock.getNodePaths().length;
@@ -484,9 +489,17 @@ public final class NodeEnvironment implements Closeable {
         final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
         NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(paths);
 
-        // We are upgrading the cluster, but we didn't find any previous metadata. Possibly corrupted state.
+        metadata.verifyUpgradeToCurrentVersion();
+
+        // We are upgrading the cluster, but we didn't find any previous metadata. Corrupted state or incompatible version.
         if (metadata == null) {
-            return;
+            throw new CorruptStateException(
+                "Format version is not supported. Upgrading to ["
+                    + Version.CURRENT
+                    + "] is only supported from version ["
+                    + Version.CURRENT.minimumCompatibilityVersion()
+                    + "]."
+            );
         }
 
         logger.info("oldest index version recorded in NodeMetadata {}", metadata.oldestIndexVersion());
@@ -586,7 +599,8 @@ public final class NodeEnvironment implements Closeable {
             final NodeMetadata legacyMetadata = NodeMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths);
             if (legacyMetadata == null) {
                 assert nodeIds.isEmpty() : nodeIds;
-                // If we couldn't find legacy metadata, we set the latest index version to this version
+                // If we couldn't find legacy metadata, we set the latest index version to this version. This happens
+                // when we are starting a new node and there are no indices to worry about.
                 metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, Version.CURRENT);
             } else {
                 assert nodeIds.equals(Collections.singleton(legacyMetadata.nodeId())) : nodeIds + " doesn't match " + legacyMetadata;

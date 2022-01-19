@@ -107,7 +107,7 @@ public final class NodeMetadata {
         return oldestIndexVersion;
     }
 
-    public NodeMetadata upgradeToCurrentVersion() {
+    public void verifyUpgradeToCurrentVersion() {
         assert (nodeVersion.equals(Version.V_EMPTY) == false) || (Version.CURRENT.major <= Version.V_7_0_0.major + 1)
             : "version is required in the node metadata from v9 onwards";
 
@@ -129,6 +129,10 @@ public final class NodeMetadata {
                 "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Version.CURRENT + "]"
             );
         }
+    }
+
+    public NodeMetadata upgradeToCurrentVersion() {
+        verifyUpgradeToCurrentVersion();
 
         return nodeVersion.equals(Version.CURRENT) ? this : new NodeMetadata(nodeId, Version.CURRENT, nodeVersion, oldestIndexVersion);
     }

@@ -12,7 +12,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
@@ -52,6 +51,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.env.NodeEnvironment.checkForIndexCompatibility;
+import static org.elasticsearch.env.NodeMetadata.NODE_VERSION_KEY;
 import static org.elasticsearch.env.NodeMetadata.OLDEST_INDEX_VERSION_KEY;
 import static org.elasticsearch.gateway.PersistedClusterStateService.METADATA_DIRECTORY_NAME;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
@@ -585,7 +585,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             checkForIndexCompatibility(logger, env.nodePaths());
 
             // Simulate empty old index version, attempting to upgrade before 7.17
-            removeOldestIndexVersion(env.nodeDataPaths());
+            removeOldestIndexVersion(oldIndexVersion, env.nodeDataPaths());
 
             ex = expectThrows(
                 IllegalStateException.class,
@@ -593,8 +593,8 @@ public class NodeEnvironmentTests extends ESTestCase {
                 () -> checkForIndexCompatibility(logger, env.nodePaths())
             );
 
-            assertThat(ex.getMessage(), startsWith("cannot upgrade node because incompatible indices created with version"));
-            assertThat(ex.getMessage(), containsString("[" + Version.V_EMPTY + "] exist"));
+            assertThat(ex.getMessage(), startsWith("cannot upgrade a node from version [" + oldIndexVersion + "] directly"));
+            assertThat(ex.getMessage(), containsString("upgrade to version [" + Version.CURRENT.minimumCompatibilityVersion()));
         }
     }
 
@@ -685,12 +685,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             if (Files.exists(indexPath)) {
                 try (DirectoryReader reader = DirectoryReader.open(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
                     final Map<String, String> userData = reader.getIndexCommit().getUserData();
-
                     final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
-                    indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-                    indexWriterConfig.setCommitOnClose(false);
-                    indexWriterConfig.setRAMBufferSizeMB(1.0);
-                    indexWriterConfig.setMergeScheduler(new SerialMergeScheduler());
 
                     try (
                         IndexWriter indexWriter = new IndexWriter(
@@ -699,6 +694,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                         )
                     ) {
                         final Map<String, String> commitData = new HashMap<>(userData);
+                        commitData.put(NODE_VERSION_KEY, Integer.toString(Version.CURRENT.minimumCompatibilityVersion().id));
                         commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldVersion.id));
                         indexWriter.setLiveCommitData(commitData.entrySet());
                         indexWriter.commit();
@@ -708,18 +704,13 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
-    private static void removeOldestIndexVersion(Path... dataPaths) throws IOException {
+    private static void removeOldestIndexVersion(Version oldVersion, Path... dataPaths) throws IOException {
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
                 try (DirectoryReader reader = DirectoryReader.open(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
                     final Map<String, String> userData = reader.getIndexCommit().getUserData();
-
                     final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
-                    indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.APPEND);
-                    indexWriterConfig.setCommitOnClose(false);
-                    indexWriterConfig.setRAMBufferSizeMB(1.0);
-                    indexWriterConfig.setMergeScheduler(new SerialMergeScheduler());
 
                     try (
                         IndexWriter indexWriter = new IndexWriter(
@@ -728,6 +719,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                         )
                     ) {
                         final Map<String, String> commitData = new HashMap<>(userData);
+                        commitData.put(NODE_VERSION_KEY, Integer.toString(oldVersion.id));
                         commitData.remove(OLDEST_INDEX_VERSION_KEY);
                         indexWriter.setLiveCommitData(commitData.entrySet());
                         indexWriter.commit();

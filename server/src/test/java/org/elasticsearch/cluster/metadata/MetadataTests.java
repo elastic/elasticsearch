@@ -899,7 +899,6 @@ public class MetadataTests extends ESTestCase {
 
     private Metadata.Builder buildIndicesWithVersions(Version[] indexVersions) {
 
-        final List<Index> indices = new ArrayList<>();
         int lastIndexNum = randomIntBetween(9, 50);
         Metadata.Builder b = Metadata.builder();
         for (int k = 0; k < indexVersions.length; k++) {
@@ -909,7 +908,6 @@ public class MetadataTests extends ESTestCase {
                 .numberOfReplicas(1)
                 .build();
             b.put(im, false);
-            indices.add(im.getIndex());
             lastIndexNum = randomIntBetween(lastIndexNum + 1, lastIndexNum + 50);
         }
 

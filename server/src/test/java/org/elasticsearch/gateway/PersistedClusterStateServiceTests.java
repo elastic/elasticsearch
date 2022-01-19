@@ -546,7 +546,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         writeState(writer, newTerm, newState, clusterState);
                     } else {
-                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion().id);
+                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion());
                     }
                 }).getMessage(), containsString("simulated"));
                 assertFalse(writer.isOpen());
@@ -597,7 +597,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         writeState(writer, newTerm, newState, clusterState);
                     } else {
-                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion().id);
+                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion());
                     }
                 }).getMessage(), containsString("simulated"));
                 assertFalse(writer.isOpen());
@@ -1471,7 +1471,6 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         Version oldVersion = Version.fromId(Version.CURRENT.minimumIndexCompatibilityVersion().id - 1);
 
         final Version[] indexVersions = new Version[] { oldVersion, Version.CURRENT, Version.fromId(Version.CURRENT.id + 1) };
-        final List<Index> indices = new ArrayList<>();
         int lastIndexNum = randomIntBetween(9, 50);
         Metadata.Builder b = Metadata.builder();
         for (int k = 0; k < indexVersions.length; k++) {
@@ -1482,7 +1481,6 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 .numberOfReplicas(1)
                 .build();
             b.put(im, false);
-            indices.add(im.getIndex());
             lastIndexNum = randomIntBetween(lastIndexNum + 1, lastIndexNum + 50);
         }
 

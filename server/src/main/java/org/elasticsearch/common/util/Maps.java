@@ -98,7 +98,8 @@ public class Maps {
         Collections.emptyMap().getClass(),
         Collections.unmodifiableMap(new HashMap<>()).getClass(),
         Map.of().getClass(),
-        Map.of("a", "b").getClass()
+        Map.of("a", "b").getClass(),
+        Map.of("a", "b", "c", "d").getClass()
     );
 
     private static <K, V> boolean checkIsImmutableMap(final Map<K, V> map, final K key, final V value) {

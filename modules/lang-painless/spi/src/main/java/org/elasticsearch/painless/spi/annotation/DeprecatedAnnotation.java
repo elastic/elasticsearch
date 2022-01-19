@@ -8,17 +8,6 @@
 
 package org.elasticsearch.painless.spi.annotation;
 
-public class DeprecatedAnnotation {
-
+public record DeprecatedAnnotation(String message) {
     public static final String NAME = "deprecated";
-
-    private final String message;
-
-    public DeprecatedAnnotation(String message) {
-        this.message = message;
-    }
-
-    public String getMessage() {
-        return message;
-    }
 }

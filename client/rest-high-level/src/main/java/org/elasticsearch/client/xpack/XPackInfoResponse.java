@@ -8,6 +8,7 @@
 package org.elasticsearch.client.xpack;
 
 import org.elasticsearch.client.license.LicenseStatus;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
@@ -16,7 +17,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -276,7 +276,7 @@ public class XPackInfoResponse {
         private final Map<String, FeatureSet> featureSets;
 
         public FeatureSetsInfo(Set<FeatureSet> featureSets) {
-            Map<String, FeatureSet> map = new HashMap<>(featureSets.size());
+            Map<String, FeatureSet> map = Maps.newMapWithExpectedSize(featureSets.size());
             for (FeatureSet featureSet : featureSets) {
                 map.put(featureSet.name, featureSet);
             }

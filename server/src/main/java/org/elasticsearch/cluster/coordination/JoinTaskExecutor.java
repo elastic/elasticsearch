@@ -7,11 +7,13 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -37,19 +39,21 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
 
 public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecutor.Task> {
 
-    private final AllocationService allocationService;
+    private static final Logger logger = LogManager.getLogger(JoinTaskExecutor.class);
 
-    private final Logger logger;
+    private final AllocationService allocationService;
     private final RerouteService rerouteService;
 
-    public static class Task {
+    public static class Task implements ClusterStateTaskListener {
 
         private final DiscoveryNode node;
         private final String reason;
+        private final ActionListener<Void> listener;
 
-        public Task(DiscoveryNode node, String reason) {
+        public Task(DiscoveryNode node, String reason, ActionListener<Void> listener) {
             this.node = node;
             this.reason = reason;
+            this.listener = listener;
         }
 
         public DiscoveryNode node() {
@@ -82,11 +86,21 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         private static final String BECOME_MASTER_TASK_REASON = "_BECOME_MASTER_TASK_";
         private static final String FINISH_ELECTION_TASK_REASON = "_FINISH_ELECTION_";
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            listener.onResponse(null);
+        }
+
     }
 
-    public JoinTaskExecutor(AllocationService allocationService, Logger logger, RerouteService rerouteService) {
+    public JoinTaskExecutor(AllocationService allocationService, RerouteService rerouteService) {
         this.allocationService = allocationService;
-        this.logger = logger;
         this.rerouteService = rerouteService;
     }
 
@@ -253,7 +267,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     }
 
     public static Task newBecomeMasterTask() {
-        return new Task(null, Task.BECOME_MASTER_TASK_REASON);
+        return new Task(null, Task.BECOME_MASTER_TASK_REASON, ActionListener.wrap(() -> {}));
     }
 
     /**
@@ -261,7 +275,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      * it may be used in combination with {@link JoinTaskExecutor#newBecomeMasterTask()}
      */
     public static Task newFinishElectionTask() {
-        return new Task(null, Task.FINISH_ELECTION_TASK_REASON);
+        return new Task(null, Task.FINISH_ELECTION_TASK_REASON, ActionListener.wrap(() -> {}));
     }
 
     /**

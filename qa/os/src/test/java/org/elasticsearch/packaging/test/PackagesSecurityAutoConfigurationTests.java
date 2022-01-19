@@ -126,7 +126,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         // We cannot run two packaged installations simultaneously here so that we can test that the second node enrolls successfully
         // We trigger with an invalid enrollment token, to verify that we removed the existing auto-configuration
         Shell.Result result = installation.executables().nodeReconfigureTool.run("--enrollment-token thisisinvalid", "y", true);
-        assertThat(result.exitCode, equalTo(ExitCodes.DATA_ERROR)); // invalid enrollment token
+        assertThat(result.exitCode(), equalTo(ExitCodes.DATA_ERROR)); // invalid enrollment token
         verifySecurityNotAutoConfigured(installation);
     }
 
@@ -139,7 +139,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         verifySecurityAutoConfigured(installation);
         assertNotNull(installation.getElasticPassword());
         Shell.Result result = installation.executables().nodeReconfigureTool.run("", null, true);
-        assertThat(result.exitCode, equalTo(ExitCodes.USAGE)); // missing enrollment token
+        assertThat(result.exitCode(), equalTo(ExitCodes.USAGE)); // missing enrollment token
         // we fail on command invocation so we don't even try to remove autoconfiguration
         verifySecurityAutoConfigured(installation);
     }
@@ -159,7 +159,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         // Move instead of delete because Files.deleteIfExists bails on non empty dirs
         Files.move(installation.config(autoConfigDirName.get()), installation.config("temp-autoconf-dir"));
         Shell.Result result = installation.executables().nodeReconfigureTool.run("--enrollment-token a-token", "y", true);
-        assertThat(result.exitCode, equalTo(ExitCodes.USAGE)); //
+        assertThat(result.exitCode(), equalTo(ExitCodes.USAGE)); //
     }
 
     public void test71ReconfigureFailsWhenKeyStorePasswordWrong() throws Exception {
@@ -171,14 +171,14 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         verifySecurityAutoConfigured(installation);
         assertNotNull(installation.getElasticPassword());
         Shell.Result changePassword = installation.executables().keystoreTool.run("passwd", "some-password\nsome-password\n");
-        assertThat(changePassword.exitCode, equalTo(0));
+        assertThat(changePassword.exitCode(), equalTo(0));
         Shell.Result result = installation.executables().nodeReconfigureTool.run(
             "--enrollment-token a-token",
             "y" + "\n" + "some-wrong-password",
             true
         );
-        assertThat(result.exitCode, equalTo(ExitCodes.IO_ERROR)); //
-        assertThat(result.stderr, containsString("Error was: Provided keystore password was incorrect"));
+        assertThat(result.exitCode(), equalTo(ExitCodes.IO_ERROR)); //
+        assertThat(result.stderr(), containsString("Error was: Provided keystore password was incorrect"));
     }
 
     public void test71ReconfigureFailsWhenKeyStoreDoesNotContainExpectedSettings() throws Exception {
@@ -192,11 +192,11 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         Shell.Result removeSetting = installation.executables().keystoreTool.run(
             "remove xpack.security.transport.ssl.keystore.secure_password"
         );
-        assertThat(removeSetting.exitCode, equalTo(0));
+        assertThat(removeSetting.exitCode(), equalTo(0));
         Shell.Result result = installation.executables().nodeReconfigureTool.run("--enrollment-token a-token", "y", true);
-        assertThat(result.exitCode, equalTo(ExitCodes.IO_ERROR));
+        assertThat(result.exitCode(), equalTo(ExitCodes.IO_ERROR));
         assertThat(
-            result.stderr,
+            result.stderr(),
             containsString(
                 "elasticsearch.keystore did not contain expected setting [xpack.security.transport.ssl.keystore.secure_password]."
             )
@@ -216,8 +216,8 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         Files.write(yml, List.of(), TRUNCATE_EXISTING);
 
         Shell.Result result = installation.executables().nodeReconfigureTool.run("--enrollment-token a-token", "y", true);
-        assertThat(result.exitCode, equalTo(ExitCodes.USAGE)); //
-        assertThat(result.stderr, containsString("Expected configuration is missing from elasticsearch.yml."));
+        assertThat(result.exitCode(), equalTo(ExitCodes.USAGE)); //
+        assertThat(result.stderr(), containsString("Expected configuration is missing from elasticsearch.yml."));
     }
 
     public void test72ReconfigureRetainsUserSettings() throws Exception {
@@ -242,7 +242,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         // We cannot run two packaged installations simultaneously here so that we can test that the second node enrolls successfully
         // We trigger with an invalid enrollment token, to verify that we removed the existing auto-configuration
         Shell.Result result = installation.executables().nodeReconfigureTool.run("--enrollment-token thisisinvalid", "y", true);
-        assertThat(result.exitCode, equalTo(ExitCodes.DATA_ERROR)); // invalid enrollment token
+        assertThat(result.exitCode(), equalTo(ExitCodes.DATA_ERROR)); // invalid enrollment token
         verifySecurityNotAutoConfigured(installation);
         // Check that user configuration , both inside and outside the autocofiguration stanza, was retained
         Path editedYml = installation.config("elasticsearch.yml");

@@ -55,7 +55,9 @@ import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
@@ -86,6 +88,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -107,7 +110,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        FIELD_TYPES = new MappedFieldType[8];
+        FIELD_TYPES = new MappedFieldType[9];
         FIELD_TYPES[0] = new KeywordFieldMapper.KeywordFieldType("keyword");
         FIELD_TYPES[1] = new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG);
         FIELD_TYPES[2] = new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE);
@@ -116,6 +119,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         FIELD_TYPES[5] = new KeywordFieldMapper.KeywordFieldType("terms");
         FIELD_TYPES[6] = new IpFieldMapper.IpFieldType("ip");
         FIELD_TYPES[7] = new GeoPointFieldMapper.GeoPointFieldType("geo_point");
+        FIELD_TYPES[8] = TimeSeriesIdFieldMapper.FIELD_TYPE;
 
         objectMappers = new ArrayList<>();
     }
@@ -2676,6 +2680,114 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         });
     }
 
+    public void testWithTsid() throws Exception {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(
+            Arrays.asList(
+                createDocument("_tsid", createTsid(Map.of("dim1", "foo", "dim2", 200))),
+                createDocument("_tsid", createTsid(Map.of("dim1", "foo", "dim2", 100))),
+                createDocument("_tsid", createTsid(Map.of("dim1", "foo", "dim2", 100L))),
+                createDocument("_tsid", createTsid(Map.of("dim1", "bar", "dim2", 100L))),
+                createDocument("_tsid", createTsid(Map.of("dim1", "bar", "dim2", 200L)))
+            )
+        );
+
+        testSearchCase(
+            List.of(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("_tsid")),
+            dataset,
+            () -> new CompositeAggregationBuilder("name", Collections.singletonList(new TermsValuesSourceBuilder("tsid").field("_tsid"))),
+            (result) -> {
+                assertEquals(4, result.getBuckets().size());
+                assertEquals("{tsid={dim1=foo, dim2=200}}", result.afterKey().toString());
+
+                assertEquals("{tsid={dim1=bar, dim2=100}}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{tsid={dim1=bar, dim2=200}}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{tsid={dim1=foo, dim2=100}}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(2).getDocCount());
+                assertEquals("{tsid={dim1=foo, dim2=200}}", result.getBuckets().get(3).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(3).getDocCount());
+            }
+        );
+
+        testSearchCase(List.of(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("_tsid")), dataset, () -> {
+            TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("tsid").field("_tsid");
+            return new CompositeAggregationBuilder("name", Collections.singletonList(terms)).aggregateAfter(
+                Collections.singletonMap("tsid", createTsid(Map.of("dim1", "bar", "dim2", 200)))
+            );
+        }, (result) -> {
+            assertEquals(2, result.getBuckets().size());
+            assertEquals("{tsid={dim1=foo, dim2=200}}", result.afterKey().toString());
+            assertEquals("{tsid={dim1=foo, dim2=100}}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(0).getDocCount());
+            assertEquals("{tsid={dim1=foo, dim2=200}}", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(1).getDocCount());
+        });
+    }
+
+    public void testWithTsidAndDateHistogram() throws IOException {
+        final List<Map<String, List<Object>>> dataset = new ArrayList<>();
+        dataset.addAll(
+            Arrays.asList(
+                createDocument("date", asLong("2021-10-20T03:08:45"), "_tsid", createTsid(Map.of("dim1", "foo", "dim2", 200))),
+                createDocument("date", asLong("2021-09-20T09:00:34"), "_tsid", createTsid(Map.of("dim1", "foo", "dim2", 200))),
+                createDocument("date", asLong("2021-09-20T11:34:00"), "_tsid", createTsid(Map.of("dim1", "foo", "dim2", 100))),
+                createDocument("date", asLong("2021-10-20T06:09:24"), "_tsid", createTsid(Map.of("dim1", "foo", "dim2", 100))),
+                createDocument("date", asLong("2021-10-20T06:09:24"), "_tsid", createTsid(Map.of("dim1", "foo", "dim2", 200))),
+                createDocument("long", 4L)
+            )
+        );
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("_tsid")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("tsid").field("_tsid"),
+                    new DateHistogramValuesSourceBuilder("date_histo").field("date").fixedInterval(DateHistogramInterval.days(1))
+                )
+            ),
+            (result) -> {
+                assertEquals(4, result.getBuckets().size());
+                assertEquals("{tsid={dim1=foo, dim2=200}, date_histo=1634688000000}", result.afterKey().toString());
+
+                assertEquals("{tsid={dim1=foo, dim2=100}, date_histo=1632096000000}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{tsid={dim1=foo, dim2=100}, date_histo=1634688000000}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(1).getDocCount());
+                assertEquals("{tsid={dim1=foo, dim2=200}, date_histo=1632096000000}", result.getBuckets().get(2).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(2).getDocCount());
+                assertEquals("{tsid={dim1=foo, dim2=200}, date_histo=1634688000000}", result.getBuckets().get(3).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(3).getDocCount());
+            }
+        );
+
+        testSearchCase(
+            Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("_tsid")),
+            dataset,
+            () -> new CompositeAggregationBuilder(
+                "name",
+                Arrays.asList(
+                    new TermsValuesSourceBuilder("tsid").field("_tsid"),
+                    new DateHistogramValuesSourceBuilder("date_histo").field("date").fixedInterval(DateHistogramInterval.days(1))
+                )
+            ).aggregateAfter(createAfterKey("tsid", createTsid(Map.of("dim1", "foo", "dim2", 100)), "date_histo", 1634688000000L)),
+            (result) -> {
+                assertEquals(2, result.getBuckets().size());
+                assertEquals("{tsid={dim1=foo, dim2=200}, date_histo=1634688000000}", result.afterKey().toString());
+                assertEquals("{tsid={dim1=foo, dim2=200}, date_histo=1632096000000}", result.getBuckets().get(0).getKeyAsString());
+                assertEquals(1L, result.getBuckets().get(0).getDocCount());
+                assertEquals("{tsid={dim1=foo, dim2=200}, date_histo=1634688000000}", result.getBuckets().get(1).getKeyAsString());
+                assertEquals(2L, result.getBuckets().get(1).getDocCount());
+            }
+        );
+    }
+
+    private BytesRef createTsid(Map<String, Object> dimensions) {
+        return DocValueFormat.TIME_SERIES_ID.parseBytesRef(new TreeMap<>(dimensions));
+    }
+
     public void testEarlyTermination() throws Exception {
         final List<Map<String, List<Object>>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -2894,21 +3006,21 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         for (Map.Entry<String, List<Object>> entry : keys.entrySet()) {
             final String name = entry.getKey();
             for (Object value : entry.getValue()) {
-                if (value instanceof Integer) {
-                    doc.add(new SortedNumericDocValuesField(name, (int) value));
-                    doc.add(new IntPoint(name, (int) value));
-                } else if (value instanceof Long) {
-                    doc.add(new SortedNumericDocValuesField(name, (long) value));
-                    doc.add(new LongPoint(name, (long) value));
-                } else if (value instanceof Double) {
-                    doc.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong((double) value)));
-                    doc.add(new DoublePoint(name, (double) value));
-                } else if (value instanceof String) {
-                    doc.add(new SortedSetDocValuesField(name, new BytesRef((String) value)));
-                    doc.add(new StringField(name, new BytesRef((String) value), Field.Store.NO));
-                } else if (value instanceof InetAddress) {
-                    doc.add(new SortedSetDocValuesField(name, new BytesRef(InetAddressPoint.encode((InetAddress) value))));
-                    doc.add(new InetAddressPoint(name, (InetAddress) value));
+                if (value instanceof Integer i) {
+                    doc.add(new SortedNumericDocValuesField(name, i));
+                    doc.add(new IntPoint(name, i));
+                } else if (value instanceof Long l) {
+                    doc.add(new SortedNumericDocValuesField(name, l));
+                    doc.add(new LongPoint(name, l));
+                } else if (value instanceof Double d) {
+                    doc.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(d)));
+                    doc.add(new DoublePoint(name, d));
+                } else if (value instanceof String str) {
+                    doc.add(new SortedSetDocValuesField(name, new BytesRef(str)));
+                    doc.add(new StringField(name, new BytesRef(str), Field.Store.NO));
+                } else if (value instanceof InetAddress ip) {
+                    doc.add(new SortedSetDocValuesField(name, new BytesRef(InetAddressPoint.encode(ip))));
+                    doc.add(new InetAddressPoint(name, ip));
                 } else if (value instanceof GeoPoint point) {
                     doc.add(
                         new SortedNumericDocValuesField(
@@ -2917,6 +3029,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                         )
                     );
                     doc.add(new LatLonPoint(name, point.lat(), point.lon()));
+                } else if (value instanceof BytesRef b && TimeSeriesIdFieldMapper.NAME.equals(name)) {
+                    doc.add(new SortedSetDocValuesField(name, b));
                 } else {
                     throw new AssertionError("invalid object: " + value.getClass().getSimpleName());
                 }

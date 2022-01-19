@@ -9,10 +9,10 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.index.IndexFileNames;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -128,7 +128,7 @@ public enum LuceneFilesExtensions {
 
     private static final Map<String, LuceneFilesExtensions> extensions;
     static {
-        final Map<String, LuceneFilesExtensions> map = new HashMap<>(values().length);
+        final Map<String, LuceneFilesExtensions> map = Maps.newMapWithExpectedSize(values().length);
         for (LuceneFilesExtensions extension : values()) {
             map.put(extension.extension, extension);
         }

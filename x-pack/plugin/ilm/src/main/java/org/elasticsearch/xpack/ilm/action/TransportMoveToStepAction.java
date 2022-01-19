@@ -141,7 +141,7 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     IndexMetadata newIndexMetadata = newState.metadata().index(indexMetadata.getIndex());
                     if (newIndexMetadata == null) {
                         // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.

@@ -401,22 +401,7 @@ public class LinearizabilityChecker {
         RESPONSE
     }
 
-    public static class Event {
-        public final EventType type;
-        public final Object value;
-        public final int id;
-
-        public Event(EventType type, Object value, int id) {
-            this.type = type;
-            this.value = value;
-            this.id = id;
-        }
-
-        @Override
-        public String toString() {
-            return "Event{" + "type=" + type + ", value=" + value + ", id=" + id + '}';
-        }
-    }
+    public record Event(EventType type, Object value, int id) {}
 
     static class Entry {
         final Event event;

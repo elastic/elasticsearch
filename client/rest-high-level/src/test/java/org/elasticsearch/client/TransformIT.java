@@ -34,6 +34,7 @@ import org.elasticsearch.client.transform.StopTransformResponse;
 import org.elasticsearch.client.transform.UpdateTransformRequest;
 import org.elasticsearch.client.transform.UpdateTransformResponse;
 import org.elasticsearch.client.transform.transforms.DestConfig;
+import org.elasticsearch.client.transform.transforms.SettingsConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
@@ -66,6 +67,7 @@ import java.util.Optional;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -353,6 +355,30 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         assertExpectedPreview(preview);
     }
 
+    @SuppressWarnings("unchecked")
+    public void testPreviewWithoutMappingDeduction() throws IOException {
+        String sourceIndex = "transform-source";
+        createIndex(sourceIndex);
+        indexData(sourceIndex);
+
+        TransformConfig transform = validTransformConfigBuilder("test-preview", sourceIndex, null).setSettings(
+            SettingsConfig.builder().setDeduceMappings(false).build()
+        ).build();
+
+        TransformClient client = highLevelClient().transform();
+        PreviewTransformResponse preview = execute(
+            new PreviewTransformRequest(transform),
+            client::previewTransform,
+            client::previewTransformAsync
+        );
+
+        assertExpectedPreviewDocs(preview.getDocs());
+
+        assertThat(preview.getMappings(), hasKey("properties"));
+        Map<String, Object> fields = (Map<String, Object>) preview.getMappings().get("properties");
+        assertThat(fields, anEmptyMap());
+    }
+
     public void testPreviewById() throws IOException {
         String sourceIndex = "transform-source";
         createIndex(sourceIndex);
@@ -371,9 +397,13 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         assertExpectedPreview(preview);
     }
 
-    @SuppressWarnings("unchecked")
     private static void assertExpectedPreview(PreviewTransformResponse preview) {
-        List<Map<String, Object>> docs = preview.getDocs();
+        assertExpectedPreviewDocs(preview.getDocs());
+        assertExpectedPreviewMappings(preview.getMappings());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertExpectedPreviewDocs(List<Map<String, Object>> docs) {
         assertThat(docs, hasSize(2));
         Optional<Map<String, Object>> theresa = docs.stream().filter(doc -> "theresa".equals(doc.get("reviewer"))).findFirst();
         assertTrue(theresa.isPresent());
@@ -382,8 +412,10 @@ public class TransformIT extends ESRestHighLevelClientTestCase {
         Optional<Map<String, Object>> michel = docs.stream().filter(doc -> "michel".equals(doc.get("reviewer"))).findFirst();
         assertTrue(michel.isPresent());
         assertEquals(3.6d, (double) michel.get().get("avg_rating"), 0.1d);
+    }
 
-        Map<String, Object> mappings = preview.getMappings();
+    @SuppressWarnings("unchecked")
+    private static void assertExpectedPreviewMappings(Map<String, Object> mappings) {
         assertThat(mappings, hasKey("properties"));
         Map<String, Object> fields = (Map<String, Object>) mappings.get("properties");
         assertThat(fields.get("reviewer"), equalTo(Map.of("type", "keyword")));

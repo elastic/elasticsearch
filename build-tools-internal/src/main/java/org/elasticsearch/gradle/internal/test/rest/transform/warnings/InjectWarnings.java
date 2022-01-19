@@ -76,7 +76,7 @@ public class InjectWarnings extends FeatureInjector implements RestTestTransform
 
     @Override
     public boolean shouldApply(RestTestContext testContext) {
-        return testName.equals(testContext.getTestName());
+        return testName.equals(testContext.testName());
     }
 
     @Input

@@ -902,7 +902,7 @@ public class MetadataTests extends ESTestCase {
         final List<Index> indices = new ArrayList<>();
         int lastIndexNum = randomIntBetween(9, 50);
         Metadata.Builder b = Metadata.builder();
-        for (int k = 0; k < indexVersions.length; k++) {
+        for (Version indexVersion : indexVersions) {
             IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
                 .settings(settings(indexVersions[k]))
                 .numberOfShards(1)

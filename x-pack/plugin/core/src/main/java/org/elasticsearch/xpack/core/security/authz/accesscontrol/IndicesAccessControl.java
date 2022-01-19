@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -95,12 +96,21 @@ public class IndicesAccessControl {
     }
 
     public List<String> getIndicesWithFieldOrDocumentLevelSecurity() {
+        return getIndexNames(iac -> iac.fieldPermissions.hasFieldLevelSecurity() || iac.documentPermissions.hasDocumentLevelPermissions());
+    }
+
+    public List<String> getIndicesWithFieldLevelSecurity() {
+        return getIndexNames(iac -> iac.fieldPermissions.hasFieldLevelSecurity());
+    }
+
+    public List<String> getIndicesWithDocumentLevelSecurity() {
+        return getIndexNames(iac -> iac.documentPermissions.hasDocumentLevelPermissions());
+    }
+
+    private List<String> getIndexNames(Predicate<IndexAccessControl> predicate) {
         return indexPermissions.entrySet()
             .stream()
-            .filter(
-                entry -> entry.getValue().fieldPermissions.hasFieldLevelSecurity()
-                    || entry.getValue().documentPermissions.hasDocumentLevelPermissions()
-            )
+            .filter(entry -> predicate.test(entry.getValue()))
             .map(Map.Entry::getKey)
             .collect(Collectors.toUnmodifiableList());
     }

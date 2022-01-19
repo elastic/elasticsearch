@@ -653,16 +653,16 @@ public final class Settings implements ToXContentFragment {
                     "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
                         + "column number: [{}]",
                     e,
-                    parser.getTokenLocation().lineNumber,
-                    parser.getTokenLocation().columnNumber
+                    parser.getTokenLocation().lineNumber(),
+                    parser.getTokenLocation().columnNumber()
                 );
             }
             if (lastToken != null) {
                 throw new ElasticsearchParseException(
                     "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
                         + "column number: [{}]",
-                    parser.getTokenLocation().lineNumber,
-                    parser.getTokenLocation().columnNumber
+                    parser.getTokenLocation().lineNumber(),
+                    parser.getTokenLocation().columnNumber()
                 );
             }
         }
@@ -720,8 +720,8 @@ public final class Settings implements ToXContentFragment {
             throw new ElasticsearchParseException(
                 "null-valued setting found for key [{}] found at line number [{}], column number [{}]",
                 key,
-                parser.getTokenLocation().lineNumber,
-                parser.getTokenLocation().columnNumber
+                parser.getTokenLocation().lineNumber(),
+                parser.getTokenLocation().columnNumber()
             );
         }
     }

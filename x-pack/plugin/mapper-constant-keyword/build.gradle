@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
@@ -16,3 +18,8 @@ dependencies {
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("internalClusterTest").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+}

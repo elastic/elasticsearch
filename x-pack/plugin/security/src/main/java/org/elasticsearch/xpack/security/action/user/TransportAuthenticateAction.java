@@ -55,7 +55,8 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
             final User user = authentication.getUser();
             final boolean shouldAddAnonymousRoleNames = anonymousUser.enabled()
                 && false == anonymousUser.equals(user)
-                && authentication.getAuthenticationType() != Authentication.AuthenticationType.API_KEY;
+                && false == authentication.isApiKey()
+                && false == authentication.isServiceAccount();
             if (shouldAddAnonymousRoleNames) {
                 final String[] allRoleNames = Stream.concat(Stream.of(user.roles()), Stream.of(anonymousUser.roles()))
                     .toArray(String[]::new);

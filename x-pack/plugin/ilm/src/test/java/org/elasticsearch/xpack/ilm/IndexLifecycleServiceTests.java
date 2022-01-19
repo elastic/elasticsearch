@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -36,7 +37,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStep;
 import org.elasticsearch.xpack.core.ilm.GenerateUniqueIndexNameStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -65,9 +65,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static java.time.Clock.systemUTC;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.xpack.core.ilm.AbstractStepTestCase.randomStepKey;
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -222,7 +222,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             changedOperationMode.set(true);
             return null;
-        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update"), any(OperationModeUpdateTask.class));
+        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update"), any(OperationModeUpdateTask.class), any());
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, true);
         assertNull(changedOperationMode.get());
@@ -283,7 +283,11 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             changedOperationMode.set(true);
             return null;
         }).when(clusterService)
-            .submitStateUpdateTask(eq("ilm_operation_mode_update[stopped]"), eq(OperationModeUpdateTask.ilmMode(OperationMode.STOPPED)));
+            .submitStateUpdateTask(
+                eq("ilm_operation_mode_update[stopped]"),
+                eq(OperationModeUpdateTask.ilmMode(OperationMode.STOPPED)),
+                any()
+            );
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, true);
         assertTrue(changedOperationMode.get());
@@ -341,7 +345,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             assertThat(task.getILMOperationMode(), equalTo(OperationMode.STOPPED));
             moveToMaintenance.set(true);
             return null;
-        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update[stopped]"), any(OperationModeUpdateTask.class));
+        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update[stopped]"), any(OperationModeUpdateTask.class), any());
 
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, randomBoolean());

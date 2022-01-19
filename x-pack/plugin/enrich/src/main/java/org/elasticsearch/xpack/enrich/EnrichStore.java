@@ -11,6 +11,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -195,14 +196,14 @@ public final class EnrichStore {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 handler.accept(null);
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 handler.accept(e);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 }

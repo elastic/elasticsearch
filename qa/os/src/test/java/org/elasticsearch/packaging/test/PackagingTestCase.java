@@ -19,6 +19,7 @@ import org.apache.http.client.fluent.Request;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Tuple;
@@ -88,7 +89,6 @@ import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeFalse;
@@ -128,10 +128,10 @@ public abstract class PackagingTestCase extends Assert {
     static {
         Shell initShell = new Shell();
         if (Platforms.WINDOWS) {
-            systemJavaHome = initShell.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+            systemJavaHome = initShell.run("$Env:SYSTEM_JAVA_HOME").stdout().trim();
         } else {
             assert Platforms.LINUX || Platforms.DARWIN;
-            systemJavaHome = initShell.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+            systemJavaHome = initShell.run("echo $SYSTEM_JAVA_HOME").stdout().trim();
         }
     }
 
@@ -232,26 +232,19 @@ public abstract class PackagingTestCase extends Assert {
 
     protected static void install() throws Exception {
         switch (distribution.packaging) {
-            case TAR:
-            case ZIP:
+            case TAR, ZIP -> {
                 installation = Archives.installArchive(sh, distribution);
                 Archives.verifyArchiveInstallation(installation, distribution);
-                break;
-            case DEB:
-            case RPM:
+            }
+            case DEB, RPM -> {
                 installation = Packages.installPackage(sh, distribution);
                 Packages.verifyPackageInstallation(installation, distribution, sh);
-                break;
-            case DOCKER:
-            case DOCKER_UBI:
-            case DOCKER_IRON_BANK:
-            case DOCKER_CLOUD:
-            case DOCKER_CLOUD_ESS:
+            }
+            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS -> {
                 installation = Docker.runContainer(distribution);
                 Docker.verifyContainerInstallation(installation);
-                break;
-            default:
-                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+            }
+            default -> throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
 
         // the purpose of the packaging tests are not to all test auto heap, so we explicitly set heap size to 1g
@@ -362,25 +355,12 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
-        assertThat("Startup command should succeed. Stderr: [" + result + "]", result.exitCode, equalTo(0));
+        assertThat("Startup command should succeed. Stderr: [" + result + "]", result.exitCode(), equalTo(0));
         switch (distribution.packaging) {
-            case TAR:
-            case ZIP:
-                Archives.assertElasticsearchStarted(installation);
-                break;
-            case DEB:
-            case RPM:
-                Packages.assertElasticsearchStarted(sh, installation);
-                break;
-            case DOCKER:
-            case DOCKER_UBI:
-            case DOCKER_IRON_BANK:
-            case DOCKER_CLOUD:
-            case DOCKER_CLOUD_ESS:
-                Docker.waitForElasticsearchToStart();
-                break;
-            default:
-                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+            case TAR, ZIP -> Archives.assertElasticsearchStarted(installation);
+            case DEB, RPM -> Packages.assertElasticsearchStarted(sh, installation);
+            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS -> Docker.waitForElasticsearchToStart();
+            default -> throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
     }
 
@@ -405,7 +385,7 @@ public abstract class PackagingTestCase extends Assert {
             if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
                 String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
                 logger.info("elasticsearch process ({}) failed to start", pid);
-                if (sh.run("jps").stdout.contains(pid)) {
+                if (sh.run("jps").stdout().contains(pid)) {
                     logger.info("Dumping jstack of elasticsearch process ({}) ", pid);
                     sh.runIgnoreExitCode("jstack " + pid);
                 }
@@ -433,15 +413,15 @@ public abstract class PackagingTestCase extends Assert {
         } else if (distribution().isPackage() && Platforms.isSystemd()) {
 
             // For systemd, retrieve the error from journalctl
-            assertThat(result.stderr, containsString("Job for elasticsearch.service failed"));
+            assertThat(result.stderr(), containsString("Job for elasticsearch.service failed"));
             Shell.Result error = journaldWrapper.getLogs();
-            assertThat(error.stdout, anyOf(stringMatchers));
+            assertThat(error.stdout(), anyOf(stringMatchers));
 
         } else if (Platforms.WINDOWS && Files.exists(Archives.getPowershellErrorPath(installation))) {
 
             // In Windows, we have written our stdout and stderr to files in order to run
             // in the background
-            String wrapperPid = result.stdout.trim();
+            String wrapperPid = result.stdout().trim();
             sh.runIgnoreExitCode("Wait-Process -Timeout " + Archives.ES_STARTUP_SLEEP_TIME_SECONDS + " -Id " + wrapperPid);
             sh.runIgnoreExitCode(
                 "Get-EventSubscriber | "
@@ -453,7 +433,7 @@ public abstract class PackagingTestCase extends Assert {
         } else {
 
             // Otherwise, error should be on shell stderr
-            assertThat(result.stderr, anyOf(stringMatchers));
+            assertThat(result.stderr(), anyOf(stringMatchers));
         }
     }
 
@@ -651,14 +631,14 @@ public abstract class PackagingTestCase extends Assert {
     public void verifySecurityAutoConfigured(Installation es) throws Exception {
         Optional<String> autoConfigDirName = getAutoConfigDirName(es);
         assertThat(autoConfigDirName.isPresent(), Matchers.is(true));
-        final List<String> configLines;
+        final Settings settings;
         if (es.distribution.isArchive()) {
             // We chown the installation on Windows to Administrators so that we can auto-configure it.
             String owner = Platforms.WINDOWS ? "BUILTIN\\Administrators" : "elasticsearch";
             assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, owner, owner, p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
                 .forEach(file -> assertThat(es.config(autoConfigDirName.get()).resolve(file), FileMatcher.file(File, owner, owner, p660)));
-            configLines = Files.readAllLines(es.config("elasticsearch.yml"));
+            settings = Settings.builder().loadFromPath(es.config("elasticsearch.yml")).build();
         } else if (es.distribution.isDocker()) {
             assertThat(es.config(autoConfigDirName.get()), DockerFileMatcher.file(Directory, "elasticsearch", "root", p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
@@ -670,7 +650,7 @@ public abstract class PackagingTestCase extends Assert {
                 );
             Path localTempDir = createTempDir("docker-config");
             copyFromContainer(es.config("elasticsearch.yml"), localTempDir.resolve("docker_elasticsearch.yml"));
-            configLines = Files.readAllLines(localTempDir.resolve("docker_elasticsearch.yml"));
+            settings = Settings.builder().loadFromPath(localTempDir.resolve("docker_elasticsearch.yml")).build();
             rm(localTempDir.resolve("docker_elasticsearch.yml"));
             rm(localTempDir);
         } else {
@@ -683,20 +663,21 @@ public abstract class PackagingTestCase extends Assert {
                         FileMatcher.file(File, "root", "elasticsearch", p660)
                     )
                 );
-            assertThat(sh.run(es.executables().keystoreTool + " list").stdout, Matchers.containsString("autoconfiguration.password_hash"));
-            configLines = Files.readAllLines(es.config("elasticsearch.yml"));
+            assertThat(
+                sh.run(es.executables().keystoreTool + " list").stdout(),
+                Matchers.containsString("autoconfiguration.password_hash")
+            );
+            settings = Settings.builder().loadFromPath(es.config("elasticsearch.yml")).build();
         }
-        assertThat(configLines, hasItem("xpack.security.enabled: true"));
-        assertThat(configLines, hasItem("xpack.security.http.ssl.enabled: true"));
-        assertThat(configLines, hasItem("xpack.security.transport.ssl.enabled: true"));
+        assertThat(settings.get("xpack.security.enabled"), equalTo("true"));
+        assertThat(settings.get("xpack.security.enrollment.enabled"), equalTo("true"));
+        assertThat(settings.get("xpack.security.transport.ssl.enabled"), equalTo("true"));
+        assertThat(settings.get("xpack.security.transport.ssl.verification_mode"), equalTo("certificate"));
+        assertThat(settings.get("xpack.security.http.ssl.enabled"), equalTo("true"));
+        assertThat(settings.get("xpack.security.enabled"), equalTo("true"));
 
-        assertThat(configLines, hasItem("xpack.security.enrollment.enabled: true"));
-        assertThat(configLines, hasItem("xpack.security.transport.ssl.verification_mode: certificate"));
-        assertThat(configLines, hasItem("xpack.security.transport.ssl.keystore.path: certs/transport.p12"));
-        assertThat(configLines, hasItem("xpack.security.transport.ssl.truststore.path: certs/transport.p12"));
-        assertThat(configLines, hasItem("xpack.security.http.ssl.keystore.path: certs/http.p12"));
         if (es.distribution.isDocker() == false) {
-            assertThat(configLines, hasItem("http.host: [_local_, _site_]"));
+            assertThat(settings.get("http.host"), equalTo("[_local_, _site_]"));
         }
     }
 
@@ -710,13 +691,16 @@ public abstract class PackagingTestCase extends Assert {
         if (es.distribution.isPackage()) {
             if (Files.exists(es.config("elasticsearch.keystore"))) {
                 assertThat(
-                    sh.run(es.executables().keystoreTool + " list").stdout,
+                    sh.run(es.executables().keystoreTool + " list").stdout(),
                     not(Matchers.containsString("autoconfiguration.password_hash"))
                 );
             }
         }
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
-        assertThat(configLines, not(contains(containsString("automatically generated in order to configure Security"))));
+        assertThat(
+            configLines,
+            not(contains(containsString("#----------------------- BEGIN SECURITY AUTO CONFIGURATION -----------------------")))
+        );
         Path caCert = ServerUtils.getCaCert(installation);
         if (caCert != null) {
             assertThat(caCert.toString(), Matchers.not(Matchers.containsString("certs")));
@@ -730,8 +714,8 @@ public abstract class PackagingTestCase extends Assert {
         } else {
             lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
         }
-        assertNotNull(lsResult.stdout);
-        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("certs")).findFirst();
+        assertNotNull(lsResult.stdout());
+        return Arrays.stream(lsResult.stdout().split("\n")).filter(f -> f.contains("certs")).findFirst();
     }
 
 }

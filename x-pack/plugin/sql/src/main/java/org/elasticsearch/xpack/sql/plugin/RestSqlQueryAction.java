@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -31,7 +32,14 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, Protocol.SQL_QUERY_REST_ENDPOINT), new Route(POST, Protocol.SQL_QUERY_REST_ENDPOINT));
+        return List.of(
+            Route.builder(GET, Protocol.SQL_QUERY_REST_ENDPOINT)
+                .replaces(GET, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, Protocol.SQL_QUERY_REST_ENDPOINT)
+                .replaces(POST, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, RestApiVersion.V_7)
+                .build()
+        );
     }
 
     public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {

@@ -3000,19 +3000,12 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
         } else if (type instanceof DateFieldMapper.DateFieldType) {
             return new SortedNumericSortField(type.name(), SortField.Type.LONG, false);
         } else if (type instanceof NumberFieldMapper.NumberFieldType) {
-            switch (type.typeName()) {
-                case "byte":
-                case "short":
-                case "integer":
-                    return new SortedNumericSortField(type.name(), SortField.Type.INT, false);
-                case "long":
-                    return new SortedNumericSortField(type.name(), SortField.Type.LONG, false);
-                case "float":
-                case "double":
-                    return new SortedNumericSortField(type.name(), SortField.Type.DOUBLE, false);
-                default:
-                    return null;
-            }
+            return switch (type.typeName()) {
+                case "byte", "short", "integer" -> new SortedNumericSortField(type.name(), SortField.Type.INT, false);
+                case "long" -> new SortedNumericSortField(type.name(), SortField.Type.LONG, false);
+                case "float", "double" -> new SortedNumericSortField(type.name(), SortField.Type.DOUBLE, false);
+                default -> null;
+            };
         }
         return null;
     }

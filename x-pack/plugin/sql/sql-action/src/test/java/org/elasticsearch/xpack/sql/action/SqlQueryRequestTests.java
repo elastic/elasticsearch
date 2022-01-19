@@ -6,66 +6,46 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
-import static org.elasticsearch.xpack.sql.action.Protocol.BINARY_FORMAT_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.CATALOG_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.CLIENT_ID_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.COLUMNAR_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.CURSOR_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.FETCH_SIZE_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.FILTER_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.INDEX_INCLUDE_FROZEN_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.KEEP_ALIVE_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.KEEP_ON_COMPLETION_NAME;
 import static org.elasticsearch.xpack.sql.action.Protocol.MIN_KEEP_ALIVE;
-import static org.elasticsearch.xpack.sql.action.Protocol.MODE_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.PAGE_TIMEOUT_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.PARAMS_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.PARAMS_TYPE_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.PARAMS_VALUE_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.QUERY_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.REQUEST_TIMEOUT_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.RUNTIME_MAPPINGS_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.TIME_ZONE_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.VERSION_NAME;
-import static org.elasticsearch.xpack.sql.action.Protocol.WAIT_FOR_COMPLETION_TIMEOUT_NAME;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilter;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 
-public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQueryRequest> {
+public class SqlQueryRequestTests extends AbstractSerializingTestCase<TestSqlQueryRequest> {
 
     public RequestInfo requestInfo;
 
     @Before
     public void setup() {
         requestInfo = new RequestInfo(randomFrom(Mode.values()), randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20)));
+    }
+
+    @Override
+    protected TestSqlQueryRequest createXContextTestInstance(XContentType xContentType) {
+        SqlTestUtils.assumeXContentJsonOrCbor(xContentType);
+        return super.createXContextTestInstance(xContentType);
     }
 
     @Override
@@ -81,8 +61,8 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
     }
 
     @Override
-    protected SqlQueryRequest createTestInstance() {
-        return new SqlQueryRequest(
+    protected TestSqlQueryRequest createTestInstance() {
+        return new TestSqlQueryRequest(
             randomAlphaOfLength(10),
             randomParameters(),
             SqlTestUtils.randomFilterOrNull(random()),
@@ -104,12 +84,17 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
     }
 
     @Override
-    protected Writeable.Reader<SqlQueryRequest> instanceReader() {
-        return SqlQueryRequest::new;
+    protected Writeable.Reader<TestSqlQueryRequest> instanceReader() {
+        return TestSqlQueryRequest::new;
     }
 
     @Override
-    protected SqlQueryRequest mutateInstance(SqlQueryRequest instance) {
+    protected TestSqlQueryRequest doParseInstance(XContentParser parser) {
+        return SqlTestUtils.clone(TestSqlQueryRequest.fromXContent(parser), instanceReader(), getNamedWriteableRegistry());
+    }
+
+    @Override
+    protected TestSqlQueryRequest mutateInstance(TestSqlQueryRequest instance) {
         @SuppressWarnings("unchecked")
         Consumer<SqlQueryRequest> mutator = randomFrom(
             request -> mutateRequestInfo(instance, request),
@@ -131,7 +116,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
             request -> request.keepOnCompletion(randomValueOtherThan(request.keepOnCompletion(), ESTestCase::randomBoolean)),
             request -> request.keepAlive(randomValueOtherThan(request.keepAlive(), () -> randomTVGreaterThan(MIN_KEEP_ALIVE)))
         );
-        SqlQueryRequest newRequest = new SqlQueryRequest(
+        TestSqlQueryRequest newRequest = new TestSqlQueryRequest(
             instance.query(),
             instance.params(),
             instance.filter(),
@@ -169,17 +154,6 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         }
 
         return newRequest;
-    }
-
-    public void testFromXContent() throws IOException {
-        xContentTester(this::createParser, this::createTestInstance, SqlQueryRequestTests::toXContent, this::doParseInstance)
-            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
-            .supportsUnknownFields(false)
-            .shuffleFieldsExceptions(Strings.EMPTY_ARRAY)
-            .randomFieldsExcludeFilter(field -> false)
-            .assertEqualsConsumer(this::assertEqualInstances)
-            .assertToXContentEquivalence(true)
-            .test();
     }
 
     public void testTimeZoneNullException() {
@@ -224,91 +198,5 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
             }
             return Collections.unmodifiableList(arr);
         }
-    }
-
-    private SqlQueryRequest doParseInstance(XContentParser parser) {
-        return SqlQueryRequest.fromXContent(parser);
-    }
-
-    /**
-     * This is needed because {@link SqlQueryRequest#toXContent(XContentBuilder, ToXContent.Params)}
-     * is not serializing {@link SqlTypedParamValue} according to the request's {@link Mode} and it shouldn't, in fact.
-     * For testing purposes, different serializing methods for {@link SqlTypedParamValue} are necessary so that
-     * {@link SqlQueryRequest#fromXContent(XContentParser)} populates {@link SqlTypedParamValue#hasExplicitType()}
-     * properly.
-     */
-    private static void toXContent(SqlQueryRequest request, XContentBuilder builder) throws IOException {
-        builder.startObject();
-        if (request.query() != null) {
-            builder.field(QUERY_NAME, request.query());
-        }
-        builder.field(MODE_NAME, request.mode().toString());
-        if (request.clientId() != null) {
-            builder.field(CLIENT_ID_NAME, request.clientId());
-        }
-        if (request.version() != null) {
-            builder.field(VERSION_NAME, request.version().toString());
-        }
-        if (request.params() != null && request.params().isEmpty() == false) {
-            builder.startArray(PARAMS_NAME);
-            for (SqlTypedParamValue val : request.params()) {
-                if (Mode.isDriver(request.mode())) {
-                    builder.startObject();
-                    builder.field(PARAMS_TYPE_NAME, val.type);
-                    builder.field(PARAMS_VALUE_NAME, val.value);
-                    builder.endObject();
-                } else {
-                    builder.value(val.value);
-                }
-            }
-            builder.endArray();
-        }
-        if (request.zoneId() != null) {
-            builder.field(TIME_ZONE_NAME, request.zoneId().getId());
-        }
-        if (request.catalog() != null) {
-            builder.field(CATALOG_NAME, request.catalog());
-        }
-        if (request.fetchSize() != Protocol.FETCH_SIZE) {
-            builder.field(FETCH_SIZE_NAME, request.fetchSize());
-        }
-        if (request.requestTimeout() != Protocol.REQUEST_TIMEOUT) {
-            builder.field(REQUEST_TIMEOUT_NAME, request.requestTimeout().getStringRep());
-        }
-        if (request.pageTimeout() != Protocol.PAGE_TIMEOUT) {
-            builder.field(PAGE_TIMEOUT_NAME, request.pageTimeout().getStringRep());
-        }
-        if (request.filter() != null) {
-            builder.field(FILTER_NAME);
-            request.filter().toXContent(builder, ToXContent.EMPTY_PARAMS);
-        }
-        if (request.columnar() != null) {
-            builder.field(COLUMNAR_NAME, request.columnar());
-        }
-        if (request.fieldMultiValueLeniency()) {
-            builder.field(FIELD_MULTI_VALUE_LENIENCY_NAME, request.fieldMultiValueLeniency());
-        }
-        if (request.indexIncludeFrozen()) {
-            builder.field(INDEX_INCLUDE_FROZEN_NAME, request.indexIncludeFrozen());
-        }
-        if (request.binaryCommunication() != null) {
-            builder.field(BINARY_FORMAT_NAME, request.binaryCommunication());
-        }
-        if (request.cursor() != null) {
-            builder.field(CURSOR_NAME, request.cursor());
-        }
-        if (request.runtimeMappings() != null) {
-            builder.field(RUNTIME_MAPPINGS_NAME, request.runtimeMappings());
-        }
-        if (request.waitForCompletionTimeout() != null) {
-            builder.field(WAIT_FOR_COMPLETION_TIMEOUT_NAME, request.waitForCompletionTimeout().getStringRep());
-        }
-        if (request.keepOnCompletion()) {
-            builder.field(KEEP_ON_COMPLETION_NAME, request.keepOnCompletion());
-        }
-        if (request.keepAlive() != null) {
-            builder.field(KEEP_ALIVE_NAME, request.keepAlive().getStringRep());
-        }
-        builder.endObject();
     }
 }

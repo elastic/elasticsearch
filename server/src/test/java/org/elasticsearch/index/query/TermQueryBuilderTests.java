@@ -17,6 +17,7 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -32,13 +33,13 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         String fieldName = null;
         Object value;
         switch (randomIntBetween(0, 3)) {
-            case 0:
+            case 0 -> {
                 if (randomBoolean()) {
                     fieldName = BOOLEAN_FIELD_NAME;
                 }
                 value = randomBoolean();
-                break;
-            case 1:
+            }
+            case 1 -> {
                 if (randomBoolean()) {
                     fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
                 }
@@ -49,21 +50,20 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                     JsonStringEncoder encoder = JsonStringEncoder.getInstance();
                     value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
                 }
-                break;
-            case 2:
+            }
+            case 2 -> {
                 if (randomBoolean()) {
                     fieldName = INT_FIELD_NAME;
                 }
                 value = randomInt(10000);
-                break;
-            case 3:
+            }
+            case 3 -> {
                 if (randomBoolean()) {
                     fieldName = DOUBLE_FIELD_NAME;
                 }
                 value = randomDouble();
-                break;
-            default:
-                throw new UnsupportedOperationException();
+            }
+            default -> throw new UnsupportedOperationException();
         }
 
         if (fieldName == null) {
@@ -106,9 +106,9 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
 
     private Query termQuery(MappedFieldType mapper, Object value, boolean caseInsensitive) {
         if (caseInsensitive) {
-            return mapper.termQueryCaseInsensitive(value, null);
+            return mapper.termQueryCaseInsensitive(value, FieldTypeTestCase.MOCK_CONTEXT);
         }
-        return mapper.termQuery(value, null);
+        return mapper.termQuery(value, FieldTypeTestCase.MOCK_CONTEXT);
     }
 
     public void testTermArray() throws IOException {

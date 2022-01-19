@@ -929,14 +929,12 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         ElasticsearchException suppressed;
 
         switch (randomIntBetween(0, 6)) {
-            case 0: // Simple elasticsearch exception without cause
+            case 0 -> { // Simple elasticsearch exception without cause
                 failure = new NoNodeAvailableException("A");
-
                 expected = new ElasticsearchException("Elasticsearch exception [type=no_node_available_exception, reason=A]");
                 expected.addSuppressed(new ElasticsearchException("Elasticsearch exception [type=no_node_available_exception, reason=A]"));
-                break;
-
-            case 1: // Simple elasticsearch exception with headers (other metadata of type number are not parsed)
+            }
+            case 1 -> { // Simple elasticsearch exception with headers (other metadata of type number are not parsed)
                 failure = new ParsingException(3, 2, "B", null);
                 ((ElasticsearchException) failure).addHeader("header_name", "0", "1");
                 expected = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=B]");
@@ -944,13 +942,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 suppressed = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=B]");
                 suppressed.addHeader("header_name", "0", "1");
                 expected.addSuppressed(suppressed);
-                break;
-
-            case 2: // Elasticsearch exception with a cause, headers and parsable metadata
+            }
+            case 2 -> { // Elasticsearch exception with a cause, headers and parsable metadata
                 failureCause = new NullPointerException("var is null");
                 failure = new ScriptException("C", failureCause, singletonList("stack"), "test", "painless");
                 ((ElasticsearchException) failure).addHeader("script_name", "my_script");
-
                 expectedCause = new ElasticsearchException("Elasticsearch exception [type=null_pointer_exception, reason=var is null]");
                 expected = new ElasticsearchException("Elasticsearch exception [type=script_exception, reason=C]", expectedCause);
                 expected.addHeader("script_name", "my_script");
@@ -963,20 +959,16 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 suppressed.addMetadata("es.script", "test");
                 suppressed.addMetadata("es.script_stack", "stack");
                 expected.addSuppressed(suppressed);
-                break;
-
-            case 3: // JDK exception without cause
+            }
+            case 3 -> { // JDK exception without cause
                 failure = new IllegalStateException("D");
-
                 expected = new ElasticsearchException("Elasticsearch exception [type=illegal_state_exception, reason=D]");
                 suppressed = new ElasticsearchException("Elasticsearch exception [type=illegal_state_exception, reason=D]");
                 expected.addSuppressed(suppressed);
-                break;
-
-            case 4: // JDK exception with cause
+            }
+            case 4 -> { // JDK exception with cause
                 failureCause = new RoutingMissingException("idx", "id");
                 failure = new RuntimeException("E", failureCause);
-
                 expectedCause = new ElasticsearchException(
                     "Elasticsearch exception [type=routing_missing_exception, " + "reason=routing is required for [idx]/[id]]"
                 );
@@ -985,18 +977,15 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 expected = new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=E]", expectedCause);
                 suppressed = new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=E]");
                 expected.addSuppressed(suppressed);
-                break;
-
-            case 5: // Wrapped exception with cause
+            }
+            case 5 -> { // Wrapped exception with cause
                 failureCause = new FileAlreadyExistsException("File exists");
                 failure = new BroadcastShardOperationFailedException(new ShardId("_index", "_uuid", 5), "F", failureCause);
-
                 expected = new ElasticsearchException("Elasticsearch exception [type=file_already_exists_exception, reason=File exists]");
                 suppressed = new ElasticsearchException("Elasticsearch exception [type=file_already_exists_exception, reason=File exists]");
                 expected.addSuppressed(suppressed);
-                break;
-
-            case 6: // SearchPhaseExecutionException with cause and multiple failures
+            }
+            case 6 -> { // SearchPhaseExecutionException with cause and multiple failures
                 DiscoveryNode node = new DiscoveryNode("node_g", buildNewFakeTransportAddress(), Version.CURRENT);
                 failureCause = new NodeClosedException(node);
                 failureCause = new NoShardAvailableActionException(new ShardId("_index_g", "_uuid_g", 6), "node_g", failureCause);
@@ -1014,7 +1003,6 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                         null
                     ) };
                 failure = new SearchPhaseExecutionException("phase_g", "G", failureCause, shardFailures);
-
                 expectedCause = new ElasticsearchException(
                     "Elasticsearch exception [type=node_closed_exception, " + "reason=node closed " + node + "]"
                 );
@@ -1025,13 +1013,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 expectedCause.addMetadata("es.index", "_index_g");
                 expectedCause.addMetadata("es.index_uuid", "_uuid_g");
                 expectedCause.addMetadata("es.shard", "6");
-
                 expected = new ElasticsearchException(
                     "Elasticsearch exception [type=search_phase_execution_exception, " + "reason=G]",
                     expectedCause
                 );
                 expected.addMetadata("es.phase", "phase_g");
-
                 expected.addSuppressed(new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=Parsing g]"));
                 expected.addSuppressed(
                     new ElasticsearchException("Elasticsearch exception [type=repository_exception, " + "reason=[repository_g] Repo]")
@@ -1041,9 +1027,8 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                         "Elasticsearch exception [type=search_context_missing_exception, " + "reason=No search context found for id [0]]"
                     )
                 );
-                break;
-            default:
-                throw new UnsupportedOperationException("Failed to generate randomized failure");
+            }
+            default -> throw new UnsupportedOperationException("Failed to generate randomized failure");
         }
 
         Exception finalFailure = failure;
@@ -1127,28 +1112,28 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         int type = randomIntBetween(0, 5);
         switch (type) {
-            case 0:
+            case 0 -> {
                 actual = new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
                 expected = new ElasticsearchException(
                     "Elasticsearch exception [type=cluster_block_exception, " + "reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]"
                 );
-                break;
-            case 1: // Simple elasticsearch exception with headers (other metadata of type number are not parsed)
+            }
+            case 1 -> { // Simple elasticsearch exception with headers (other metadata of type number are not parsed)
                 actual = new ParsingException(3, 2, "Unknown identifier", null);
                 expected = new ElasticsearchException("Elasticsearch exception [type=parsing_exception, reason=Unknown identifier]");
-                break;
-            case 2:
+            }
+            case 2 -> {
                 actual = new SearchParseException(SHARD_TARGET, "Parse failure", new XContentLocation(12, 98));
                 expected = new ElasticsearchException("Elasticsearch exception [type=search_parse_exception, reason=Parse failure]");
-                break;
-            case 3:
+            }
+            case 3 -> {
                 actual = new IllegalArgumentException("Closed resource", new RuntimeException("Resource"));
                 expected = new ElasticsearchException(
                     "Elasticsearch exception [type=illegal_argument_exception, reason=Closed resource]",
                     new ElasticsearchException("Elasticsearch exception [type=runtime_exception, reason=Resource]")
                 );
-                break;
-            case 4:
+            }
+            case 4 -> {
                 actual = new SearchPhaseExecutionException(
                     "search",
                     "all shards failed",
@@ -1162,21 +1147,19 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     "Elasticsearch exception [type=search_phase_execution_exception, " + "reason=all shards failed]"
                 );
                 expected.addMetadata("es.phase", "search");
-                break;
-            case 5:
+            }
+            case 5 -> {
                 actual = new ElasticsearchException(
                     "Parsing failed",
                     new ParsingException(9, 42, "Wrong state", new NullPointerException("Unexpected null value"))
                 );
-
                 ElasticsearchException expectedCause = new ElasticsearchException(
                     "Elasticsearch exception [type=parsing_exception, " + "reason=Wrong state]",
                     new ElasticsearchException("Elasticsearch exception [type=null_pointer_exception, " + "reason=Unexpected null value]")
                 );
                 expected = new ElasticsearchException("Elasticsearch exception [type=exception, reason=Parsing failed]", expectedCause);
-                break;
-            default:
-                throw new UnsupportedOperationException("No randomized exceptions generated for type [" + type + "]");
+            }
+            default -> throw new UnsupportedOperationException("No randomized exceptions generated for type [" + type + "]");
         }
 
         if (actual instanceof ElasticsearchException actualException) {

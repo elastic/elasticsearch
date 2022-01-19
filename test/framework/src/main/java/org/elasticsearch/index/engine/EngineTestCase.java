@@ -960,20 +960,11 @@ public abstract class EngineTestCase extends ESTestCase {
         final boolean incrementTermWhenIntroducingSeqNo = randomBoolean();
         for (int i = 0; i < numOfOps; i++) {
             final Engine.Operation op;
-            final long version;
-            switch (versionType) {
-                case INTERNAL:
-                    version = forReplica ? i : Versions.MATCH_ANY;
-                    break;
-                case EXTERNAL:
-                    version = i;
-                    break;
-                case EXTERNAL_GTE:
-                    version = randomBoolean() ? Math.max(i - 1, 0) : i;
-                    break;
-                default:
-                    throw new UnsupportedOperationException("unknown version type: " + versionType);
-            }
+            final long version = switch (versionType) {
+                case INTERNAL -> forReplica ? i : Versions.MATCH_ANY;
+                case EXTERNAL -> i;
+                case EXTERNAL_GTE -> randomBoolean() ? Math.max(i - 1, 0) : i;
+            };
             if (randomBoolean()) {
                 op = new Engine.Index(
                     id,
@@ -1038,47 +1029,40 @@ public abstract class EngineTestCase extends ESTestCase {
             for (int copy = 0; copy < copies; copy++) {
                 final ParsedDocument doc = isNestedDoc ? nestedParsedDocFactory.apply(id, nestedValues) : createParsedDoc(id, null);
                 switch (opType) {
-                    case INDEX:
-                        operations.add(
-                            new Engine.Index(
-                                EngineTestCase.newUid(doc),
-                                doc,
-                                seqNo,
-                                primaryTerm.get(),
-                                i,
-                                null,
-                                randomFrom(REPLICA, PEER_RECOVERY),
-                                startTime,
-                                -1,
-                                true,
-                                SequenceNumbers.UNASSIGNED_SEQ_NO,
-                                0
-                            )
-                        );
-                        break;
-                    case DELETE:
-                        operations.add(
-                            new Engine.Delete(
-                                doc.id(),
-                                EngineTestCase.newUid(doc),
-                                seqNo,
-                                primaryTerm.get(),
-                                i,
-                                null,
-                                randomFrom(REPLICA, PEER_RECOVERY),
-                                startTime,
-                                SequenceNumbers.UNASSIGNED_SEQ_NO,
-                                0
-                            )
-                        );
-                        break;
-                    case NO_OP:
-                        operations.add(
-                            new Engine.NoOp(seqNo, primaryTerm.get(), randomFrom(REPLICA, PEER_RECOVERY), startTime, "test-" + i)
-                        );
-                        break;
-                    default:
-                        throw new IllegalStateException("Unknown operation type [" + opType + "]");
+                    case INDEX -> operations.add(
+                        new Engine.Index(
+                            EngineTestCase.newUid(doc),
+                            doc,
+                            seqNo,
+                            primaryTerm.get(),
+                            i,
+                            null,
+                            randomFrom(REPLICA, PEER_RECOVERY),
+                            startTime,
+                            -1,
+                            true,
+                            SequenceNumbers.UNASSIGNED_SEQ_NO,
+                            0
+                        )
+                    );
+                    case DELETE -> operations.add(
+                        new Engine.Delete(
+                            doc.id(),
+                            EngineTestCase.newUid(doc),
+                            seqNo,
+                            primaryTerm.get(),
+                            i,
+                            null,
+                            randomFrom(REPLICA, PEER_RECOVERY),
+                            startTime,
+                            SequenceNumbers.UNASSIGNED_SEQ_NO,
+                            0
+                        )
+                    );
+                    case NO_OP -> operations.add(
+                        new Engine.NoOp(seqNo, primaryTerm.get(), randomFrom(REPLICA, PEER_RECOVERY), startTime, "test-" + i)
+                    );
+                    default -> throw new IllegalStateException("Unknown operation type [" + opType + "]");
                 }
             }
             seqNo++;
@@ -1098,8 +1082,7 @@ public abstract class EngineTestCase extends ESTestCase {
     ) throws IOException {
         final Engine.Operation lastOp = ops.get(ops.size() - 1);
         final String lastFieldValue;
-        if (lastOp instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOp;
+        if (lastOp instanceof Engine.Index index) {
             lastFieldValue = index.docs().get(0).get("value");
         } else {
             // delete
@@ -1212,20 +1195,11 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static Engine.Result applyOperation(Engine engine, Engine.Operation operation) throws IOException {
-        final Engine.Result result;
-        switch (operation.operationType()) {
-            case INDEX:
-                result = engine.index((Engine.Index) operation);
-                break;
-            case DELETE:
-                result = engine.delete((Engine.Delete) operation);
-                break;
-            case NO_OP:
-                result = engine.noOp((Engine.NoOp) operation);
-                break;
-            default:
-                throw new IllegalStateException("No operation defined for [" + operation + "]");
-        }
+        final Engine.Result result = switch (operation.operationType()) {
+            case INDEX -> engine.index((Engine.Index) operation);
+            case DELETE -> engine.delete((Engine.Delete) operation);
+            case NO_OP -> engine.noOp((Engine.NoOp) operation);
+        };
         return result;
     }
 
@@ -1268,9 +1242,9 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             }
             docs.sort(
-                Comparator.comparingLong(DocIdSeqNoAndSource::getSeqNo)
-                    .thenComparingLong(DocIdSeqNoAndSource::getPrimaryTerm)
-                    .thenComparing((DocIdSeqNoAndSource::getId))
+                Comparator.comparingLong(DocIdSeqNoAndSource::seqNo)
+                    .thenComparingLong(DocIdSeqNoAndSource::primaryTerm)
+                    .thenComparing((DocIdSeqNoAndSource::id))
             );
             return docs;
         }
@@ -1607,11 +1581,9 @@ public abstract class EngineTestCase extends ESTestCase {
             return ((LazySoftDeletesDirectoryReaderWrapper.LazySoftDeletesFilterLeafReader) reader).getLiveDocs();
         } else if (reader instanceof LazySoftDeletesDirectoryReaderWrapper.LazySoftDeletesFilterCodecReader) {
             return ((LazySoftDeletesDirectoryReaderWrapper.LazySoftDeletesFilterCodecReader) reader).getLiveDocs();
-        } else if (reader instanceof FilterLeafReader) {
-            final FilterLeafReader fReader = (FilterLeafReader) reader;
+        } else if (reader instanceof final FilterLeafReader fReader) {
             return lazyBits(FilterLeafReader.unwrap(fReader));
-        } else if (reader instanceof FilterCodecReader) {
-            final FilterCodecReader fReader = (FilterCodecReader) reader;
+        } else if (reader instanceof final FilterCodecReader fReader) {
             return lazyBits(FilterCodecReader.unwrap(fReader));
         } else if (reader instanceof SegmentReader) {
             return null;

@@ -182,7 +182,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final IndexShard indexShard = indexService.getShard(shardId.getId());
         final UpdateHelper.Result result = updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis);
         switch (result.getResponseResult()) {
-            case CREATED:
+            case CREATED -> {
                 IndexRequest upsertRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
@@ -220,9 +220,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     update.setForcedRefresh(response.forcedRefresh());
                     listener.onResponse(update);
                 }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))));
-
-                break;
-            case UPDATED:
+            }
+            case UPDATED -> {
                 IndexRequest indexRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
@@ -251,8 +250,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     update.setForcedRefresh(response.forcedRefresh());
                     listener.onResponse(update);
                 }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))));
-                break;
-            case DELETED:
+            }
+            case DELETED -> {
                 DeleteRequest deleteRequest = result.action();
                 client.bulk(toSingleItemBulkRequest(deleteRequest), wrapBulkResponse(ActionListener.<DeleteResponse>wrap(response -> {
                     UpdateResponse update = new UpdateResponse(
@@ -279,8 +278,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     update.setForcedRefresh(response.forcedRefresh());
                     listener.onResponse(update);
                 }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount))));
-                break;
-            case NOOP:
+            }
+            case NOOP -> {
                 UpdateResponse update = result.action();
                 IndexService indexServiceOrNull = indicesService.indexService(shardId.getIndex());
                 if (indexServiceOrNull != null) {
@@ -290,9 +289,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     }
                 }
                 listener.onResponse(update);
-                break;
-            default:
-                throw new IllegalStateException("Illegal result " + result.getResponseResult());
+            }
+            default -> throw new IllegalStateException("Illegal result " + result.getResponseResult());
         }
     }
 

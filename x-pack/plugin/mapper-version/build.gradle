@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 evaluationDependsOn(xpackModule('core'))
 
 
@@ -19,4 +21,10 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('analytics'))
+}
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("test").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
 }

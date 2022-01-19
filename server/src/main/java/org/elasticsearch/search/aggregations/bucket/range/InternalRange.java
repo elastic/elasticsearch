@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -36,7 +37,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         protected final transient boolean keyed;
         protected final transient DocValueFormat format;
         protected final double from;
+        protected final double originalFrom;
         protected final double to;
+        protected final double originalTo;
         private final long docCount;
         private final InternalAggregations aggregations;
         private final String key;
@@ -44,7 +47,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         public Bucket(
             String key,
             double from,
+            double originalFrom,
             double to,
+            double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed,
@@ -52,9 +57,11 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         ) {
             this.keyed = keyed;
             this.format = format;
-            this.key = key != null ? key : generateKey(from, to, format);
+            this.key = key != null ? key : generateKey(originalFrom, originalTo, format);
             this.from = from;
+            this.originalFrom = originalFrom;
             this.to = to;
+            this.originalTo = originalTo;
             this.docCount = docCount;
             this.aggregations = aggregations;
         }
@@ -74,9 +81,17 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return from;
         }
 
+        public Double getOriginalFrom() {
+            return originalFrom;
+        }
+
         @Override
         public Object getTo() {
             return to;
+        }
+
+        public Double getOriginalTo() {
+            return originalTo;
         }
 
         public boolean getKeyed() {
@@ -89,19 +104,19 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @Override
         public String getFromAsString() {
-            if (Double.isInfinite(from)) {
+            if (Double.isInfinite(originalFrom)) {
                 return null;
             } else {
-                return format.format(from).toString();
+                return format.format(originalFrom).toString();
             }
         }
 
         @Override
         public String getToAsString() {
-            if (Double.isInfinite(to)) {
+            if (Double.isInfinite(originalTo)) {
                 return null;
             } else {
-                return format.format(to).toString();
+                return format.format(originalTo).toString();
             }
         }
 
@@ -128,16 +143,16 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 builder.startObject();
                 builder.field(CommonFields.KEY.getPreferredName(), key);
             }
-            if (Double.isInfinite(from) == false) {
-                builder.field(CommonFields.FROM.getPreferredName(), from);
+            if (Double.isInfinite(originalFrom) == false) {
+                builder.field(CommonFields.FROM.getPreferredName(), originalFrom);
                 if (format != DocValueFormat.RAW) {
-                    builder.field(CommonFields.FROM_AS_STRING.getPreferredName(), format.format(from));
+                    builder.field(CommonFields.FROM_AS_STRING.getPreferredName(), format.format(originalFrom));
                 }
             }
-            if (Double.isInfinite(to) == false) {
-                builder.field(CommonFields.TO.getPreferredName(), to);
+            if (Double.isInfinite(originalTo) == false) {
+                builder.field(CommonFields.TO.getPreferredName(), originalTo);
                 if (format != DocValueFormat.RAW) {
-                    builder.field(CommonFields.TO_AS_STRING.getPreferredName(), format.format(to));
+                    builder.field(CommonFields.TO_AS_STRING.getPreferredName(), format.format(originalTo));
                 }
             }
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
@@ -157,7 +172,13 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(key);
             out.writeDouble(from);
+            if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
+                out.writeOptionalDouble(originalFrom);
+            }
             out.writeDouble(to);
+            if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
+                out.writeOptionalDouble(originalTo);
+            }
             out.writeVLong(docCount);
             aggregations.writeTo(out);
         }
@@ -202,13 +223,15 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         public B createBucket(
             String key,
             double from,
+            double originalFrom,
             double to,
+            double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed,
             DocValueFormat format
         ) {
-            return (B) new Bucket(key, from, to, docCount, aggregations, keyed, format);
+            return (B) new Bucket(key, from, originalFrom, to, originalTo, docCount, aggregations, keyed, format);
         }
 
         @SuppressWarnings("unchecked")
@@ -221,7 +244,9 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return (B) new Bucket(
                 prototype.getKey(),
                 prototype.from,
+                prototype.originalFrom,
                 prototype.to,
+                prototype.originalTo,
                 prototype.getDocCount(),
                 aggregations,
                 prototype.keyed,
@@ -252,12 +277,19 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         List<B> ranges = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             String key = in.readString();
+            double from = in.readDouble();
+            Double originalFrom = in.getVersion().onOrAfter(Version.V_7_17_0) ? in.readOptionalDouble() : Double.valueOf(from);
+            double to = in.readDouble();
+            Double originalTo = in.getVersion().onOrAfter(Version.V_7_17_0) ? in.readOptionalDouble() : Double.valueOf(to);
+            long docCount = in.readVLong();
             ranges.add(
                 getFactory().createBucket(
                     key,
-                    in.readDouble(),
-                    in.readDouble(),
-                    in.readVLong(),
+                    from,
+                    originalFrom,
+                    to,
+                    originalTo,
+                    docCount,
                     InternalAggregations.readFrom(in),
                     keyed,
                     format
@@ -338,7 +370,17 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
         final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
         Bucket prototype = buckets.get(0);
-        return getFactory().createBucket(prototype.key, prototype.from, prototype.to, docCount, aggs, keyed, format);
+        return getFactory().createBucket(
+            prototype.key,
+            prototype.from,
+            prototype.originalFrom,
+            prototype.to,
+            prototype.originalTo,
+            docCount,
+            aggs,
+            keyed,
+            format
+        );
     }
 
     @Override

@@ -336,21 +336,15 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     private static NumericType resolveNumericType(String value) {
-        switch (value) {
-            case "long":
-                return NumericType.LONG;
-            case "double":
-                return NumericType.DOUBLE;
-            case "date":
-                return NumericType.DATE;
-            case "date_nanos":
-                return NumericType.DATE_NANOSECONDS;
-
-            default:
-                throw new IllegalArgumentException(
-                    "invalid value for [numeric_type], " + "must be [long, double, date, date_nanos], got " + value
-                );
-        }
+        return switch (value) {
+            case "long" -> NumericType.LONG;
+            case "double" -> NumericType.DOUBLE;
+            case "date" -> NumericType.DATE;
+            case "date_nanos" -> NumericType.DATE_NANOSECONDS;
+            default -> throw new IllegalArgumentException(
+                "invalid value for [numeric_type], " + "must be [long, double, date, date_nanos], got " + value
+            );
+        };
     }
 
     @Override
@@ -425,7 +419,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             // unmapped
             return false;
         }
-        if (fieldType.isSearchable() == false) {
+        if (fieldType.isIndexed() == false) {
             return false;
         }
         DocValueFormat docValueFormat = bottomSortValues.getSortValueFormats()[0];
@@ -580,7 +574,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         IndexReader reader = context.getIndexReader();
         MappedFieldType fieldType = context.getFieldType(sortField.getField());
-        if (reader == null || (fieldType == null || fieldType.isSearchable() == false)) {
+        if (reader == null || (fieldType == null || fieldType.isIndexed() == false)) {
             return null;
         }
         switch (IndexSortConfig.getSortFieldType(sortField)) {
@@ -617,18 +611,13 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (fieldType instanceof NumberFieldType numberFieldType) {
             Number minPoint = numberFieldType.parsePoint(minPackedValue);
             Number maxPoint = numberFieldType.parsePoint(PointValues.getMaxPackedValue(reader, fieldName));
-            switch (IndexSortConfig.getSortFieldType(sortField)) {
-                case LONG:
-                    return new MinAndMax<>(minPoint.longValue(), maxPoint.longValue());
-                case INT:
-                    return new MinAndMax<>(minPoint.intValue(), maxPoint.intValue());
-                case DOUBLE:
-                    return new MinAndMax<>(minPoint.doubleValue(), maxPoint.doubleValue());
-                case FLOAT:
-                    return new MinAndMax<>(minPoint.floatValue(), maxPoint.floatValue());
-                default:
-                    return null;
-            }
+            return switch (IndexSortConfig.getSortFieldType(sortField)) {
+                case LONG -> new MinAndMax<>(minPoint.longValue(), maxPoint.longValue());
+                case INT -> new MinAndMax<>(minPoint.intValue(), maxPoint.intValue());
+                case DOUBLE -> new MinAndMax<>(minPoint.doubleValue(), maxPoint.doubleValue());
+                case FLOAT -> new MinAndMax<>(minPoint.floatValue(), maxPoint.floatValue());
+                default -> null;
+            };
         } else if (fieldType instanceof DateFieldType dateFieldType) {
             Function<byte[], Long> dateConverter = createDateConverter(sortBuilder, dateFieldType);
             Long min = dateConverter.apply(minPackedValue);

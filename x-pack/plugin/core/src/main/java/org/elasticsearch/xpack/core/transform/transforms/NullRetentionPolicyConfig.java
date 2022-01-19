@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.transform.transforms;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -30,6 +31,7 @@ import java.util.function.Consumer;
  */
 public class NullRetentionPolicyConfig implements RetentionPolicyConfig {
 
+    public static final ParseField NAME = new ParseField("null_retention_policy");
     public static final NullRetentionPolicyConfig INSTANCE = new NullRetentionPolicyConfig();
 
     private NullRetentionPolicyConfig() {}
@@ -45,17 +47,15 @@ public class NullRetentionPolicyConfig implements RetentionPolicyConfig {
     }
 
     @Override
-    public void writeTo(final StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         throw new UnsupportedOperationException();
     }
 
     @Override
     public String getWriteableName() {
-        throw new UnsupportedOperationException();
+        return NAME.getPreferredName();
     }
+
+    @Override
+    public void writeTo(final StreamOutput out) throws IOException {}
 }

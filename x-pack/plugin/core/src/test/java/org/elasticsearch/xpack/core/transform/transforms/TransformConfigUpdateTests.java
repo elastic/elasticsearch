@@ -45,7 +45,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
             randomBoolean() ? null : randomMetadata(),
-            randomBoolean() ? null : randomRetentionPolicyConfig()
+            randomBoolean() ? null : randomBoolean() ? randomRetentionPolicyConfig() : NullRetentionPolicyConfig.INSTANCE
         );
     }
 
@@ -390,9 +390,13 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             builder.field(TransformField.METADATA.getPreferredName(), update.getMetadata());
         }
         if (update.getRetentionPolicyConfig() != null) {
-            builder.startObject(TransformField.RETENTION_POLICY.getPreferredName());
-            builder.field(update.getRetentionPolicyConfig().getWriteableName(), update.getRetentionPolicyConfig());
-            builder.endObject();
+            if (NullRetentionPolicyConfig.INSTANCE.equals(update.getRetentionPolicyConfig())) {
+                builder.nullField(TransformField.RETENTION_POLICY.getPreferredName());
+            } else {
+                builder.startObject(TransformField.RETENTION_POLICY.getPreferredName());
+                builder.field(update.getRetentionPolicyConfig().getWriteableName(), update.getRetentionPolicyConfig());
+                builder.endObject();
+            }
         }
 
         builder.endObject();

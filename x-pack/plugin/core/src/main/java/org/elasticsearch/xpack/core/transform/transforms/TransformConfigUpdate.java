@@ -303,7 +303,7 @@ public class TransformConfigUpdate implements Writeable {
             builder.setMetadata(metadata);
         }
         if (retentionPolicyConfig != null) {
-            if (retentionPolicyConfig instanceof NullRetentionPolicyConfig) {
+            if (NullRetentionPolicyConfig.INSTANCE.equals(retentionPolicyConfig)) {
                 builder.setRetentionPolicyConfig(null);
             } else {
                 builder.setRetentionPolicyConfig(retentionPolicyConfig);

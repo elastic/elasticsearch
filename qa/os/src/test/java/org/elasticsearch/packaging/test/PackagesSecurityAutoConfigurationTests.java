@@ -305,7 +305,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
                 "y",
                 true
             );
-            assertThat(result.exitCode, CoreMatchers.equalTo(0));
+            assertThat(result.exitCode(), CoreMatchers.equalTo(0));
             verifySecurityAutoConfigured(installation);
         }
     }

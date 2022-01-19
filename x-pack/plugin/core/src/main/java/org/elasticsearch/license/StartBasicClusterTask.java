@@ -52,7 +52,7 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
         LicensesMetadata oldLicensesMetadata = oldState.metadata().custom(LicensesMetadata.TYPE);
         logger.debug("license prior to starting basic license: {}", oldLicensesMetadata);
         License oldLicense = LicensesMetadata.extractLicense(oldLicensesMetadata);

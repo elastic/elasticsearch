@@ -15,8 +15,10 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.enrollment.BaseEnrollmentTokenGenerator;
@@ -51,7 +53,9 @@ public class InitialNodeSecurityAutoConfiguration {
         SecurityIndexManager securityIndexManager,
         SSLService sslService,
         Client client,
-        Environment environment
+        Environment environment,
+        OnNodeStartedListener onNodeStartedListener,
+        ThreadPool threadPool
     ) {
         // Assume the following auto-configuration must NOT run if enrollment is disabled when the node starts,
         // so no credentials or HTTPS CA fingerprint will be displayed in this case (in addition to no enrollment
@@ -88,81 +92,101 @@ public class InitialNodeSecurityAutoConfiguration {
                 // is now a system index), it's not a catastrophic position to be in either, because it only entails
                 // that new tokens and possibly credentials are generated anew
                 // TODO maybe we can improve the check that this is indeed the initial node
-                String fingerprint;
-                try {
-                    fingerprint = enrollmentTokenGenerator.getHttpsCaFingerprint();
-                    LOGGER.info(
-                        "HTTPS has been configured with automatically generated certificates, "
-                            + "and the CA's hex-encoded SHA-256 fingerprint is ["
-                            + fingerprint
-                            + "]"
-                    );
-                } catch (Exception e) {
-                    fingerprint = null;
-                    LOGGER.error("Failed to compute the HTTPS CA fingerprint, probably the certs are not auto-generated", e);
-                }
-                final String httpsCaFingerprint = fingerprint;
-                GroupedActionListener<Map<String, String>> groupedActionListener = new GroupedActionListener<>(
-                    ActionListener.wrap(results -> {
-                        final Map<String, String> allResultsMap = new HashMap<>();
-                        for (Map<String, String> result : results) {
-                            allResultsMap.putAll(result);
-                        }
-                        final String elasticPassword = allResultsMap.get("generated_elastic_user_password");
-                        final String kibanaEnrollmentToken = allResultsMap.get("kibana_enrollment_token");
-                        final String nodeEnrollmentToken = allResultsMap.get("node_enrollment_token");
-                        outputInformationToConsole(elasticPassword, kibanaEnrollmentToken, nodeEnrollmentToken, httpsCaFingerprint, out);
-                    }, e -> { LOGGER.error("Unexpected exception during security auto-configuration", e); }),
-                    3
-                );
-                // we only generate the elastic user password if the node has been auto-configured in a specific way, such that the first
-                // time a node starts it will form a cluster by itself and can hold the .security index (which we assume it is when
-                // {@code ENROLLMENT_ENABLED} is true), that the node process's output is a terminal and that the password is not
-                // specified already via the two secure settings
-                if (false == BOOTSTRAP_ELASTIC_PASSWORD.exists(environment.settings())
-                    && false == AUTOCONFIG_ELASTIC_PASSWORD_HASH.exists(environment.settings())) {
-                    final char[] elasticPassword = generatePassword(20);
-                    nativeUsersStore.createElasticUser(elasticPassword, ActionListener.wrap(aVoid -> {
-                        LOGGER.debug("elastic credentials generated successfully");
-                        groupedActionListener.onResponse(Map.of("generated_elastic_user_password", new String(elasticPassword)));
-                    }, e -> {
-                        LOGGER.error("Failed to generate credentials for the elastic built-in superuser", e);
-                        // null password in case of error
-                        groupedActionListener.onResponse(Map.of());
-                    }));
-                } else {
-                    if (false == BOOTSTRAP_ELASTIC_PASSWORD.exists(environment.settings())) {
-                        LOGGER.info(
-                            "Auto-configuration will not generate a password for the elastic built-in superuser, "
-                                + "you should use the password specified in the node's secure setting ["
-                                + BOOTSTRAP_ELASTIC_PASSWORD.getKey()
-                                + "] in order to authenticate as elastic"
-                        );
+                // a lot of stuff runs when a node just started, and the autoconfiguration is not time-critical
+                // and nothing else depends on it; be a good sport and wait a couple
+                onNodeStartedListener.run(() -> threadPool.schedule(new AbstractRunnable() {
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        LOGGER.error("Unexpected exception when auto configuring the initial node for Security", e);
                     }
-                    // empty password in case password generation is skipped
-                    groupedActionListener.onResponse(Map.of("generated_elastic_user_password", ""));
-                }
-                final Iterator<TimeValue> backoff = BACKOFF_POLICY.iterator();
-                enrollmentTokenGenerator.createKibanaEnrollmentToken(kibanaToken -> {
-                    if (kibanaToken != null) {
+
+                    @Override
+                    protected void doRun() {
+                        // the HTTP address is guaranteed to be bound only after the node started
+                        String fingerprint;
                         try {
-                            LOGGER.debug("Successfully generated the kibana enrollment token");
-                            groupedActionListener.onResponse(Map.of("kibana_enrollment_token", kibanaToken.getEncoded()));
+                            fingerprint = enrollmentTokenGenerator.getHttpsCaFingerprint();
+                            LOGGER.info(
+                                "HTTPS has been configured with automatically generated certificates, "
+                                    + "and the CA's hex-encoded SHA-256 fingerprint is ["
+                                    + fingerprint
+                                    + "]"
+                            );
                         } catch (Exception e) {
-                            LOGGER.error("Failed to encode kibana enrollment token", e);
-                            groupedActionListener.onResponse(Map.of());
+                            fingerprint = null;
+                            LOGGER.error("Failed to compute the HTTPS CA fingerprint, probably the certs are not auto-generated", e);
                         }
-                    } else {
-                        groupedActionListener.onResponse(Map.of());
+                        final String httpsCaFingerprint = fingerprint;
+                        GroupedActionListener<Map<String, String>> groupedActionListener = new GroupedActionListener<>(
+                            ActionListener.wrap(results -> {
+                                final Map<String, String> allResultsMap = new HashMap<>();
+                                for (Map<String, String> result : results) {
+                                    allResultsMap.putAll(result);
+                                }
+                                final String elasticPassword = allResultsMap.get("generated_elastic_user_password");
+                                final String kibanaEnrollmentToken = allResultsMap.get("kibana_enrollment_token");
+                                final String nodeEnrollmentToken = allResultsMap.get("node_enrollment_token");
+                                outputInformationToConsole(
+                                    elasticPassword,
+                                    kibanaEnrollmentToken,
+                                    nodeEnrollmentToken,
+                                    httpsCaFingerprint,
+                                    out
+                                );
+                            }, e -> LOGGER.error("Unexpected exception during security auto-configuration", e)),
+                            3
+                        );
+                        // we only generate the elastic user password if the node has been auto-configured in a specific way, such that the
+                        // first time a node starts it will form a cluster by itself and can hold the .security index (which we assume
+                        // it is when {@code ENROLLMENT_ENABLED} is true), that the node process's output is a terminal and that the
+                        // password is not specified already via the two secure settings
+                        if (false == BOOTSTRAP_ELASTIC_PASSWORD.exists(environment.settings())
+                            && false == AUTOCONFIG_ELASTIC_PASSWORD_HASH.exists(environment.settings())) {
+                            final char[] elasticPassword = generatePassword(20);
+                            nativeUsersStore.createElasticUser(elasticPassword, ActionListener.wrap(aVoid -> {
+                                LOGGER.debug("elastic credentials generated successfully");
+                                groupedActionListener.onResponse(Map.of("generated_elastic_user_password", new String(elasticPassword)));
+                            }, e -> {
+                                LOGGER.error("Failed to generate credentials for the elastic built-in superuser", e);
+                                // null password in case of error
+                                groupedActionListener.onResponse(Map.of());
+                            }));
+                        } else {
+                            if (false == BOOTSTRAP_ELASTIC_PASSWORD.exists(environment.settings())) {
+                                LOGGER.info(
+                                    "Auto-configuration will not generate a password for the elastic built-in superuser, "
+                                        + "you should use the password specified in the node's secure setting ["
+                                        + BOOTSTRAP_ELASTIC_PASSWORD.getKey()
+                                        + "] in order to authenticate as elastic"
+                                );
+                            }
+                            // empty password in case password generation is skipped
+                            groupedActionListener.onResponse(Map.of("generated_elastic_user_password", ""));
+                        }
+                        final Iterator<TimeValue> backoff = BACKOFF_POLICY.iterator();
+                        enrollmentTokenGenerator.createKibanaEnrollmentToken(kibanaToken -> {
+                            if (kibanaToken != null) {
+                                try {
+                                    LOGGER.debug("Successfully generated the kibana enrollment token");
+                                    groupedActionListener.onResponse(Map.of("kibana_enrollment_token", kibanaToken.getEncoded()));
+                                } catch (Exception e) {
+                                    LOGGER.error("Failed to encode kibana enrollment token", e);
+                                    groupedActionListener.onResponse(Map.of());
+                                }
+                            } else {
+                                groupedActionListener.onResponse(Map.of());
+                            }
+                        }, backoff);
+                        enrollmentTokenGenerator.maybeCreateNodeEnrollmentToken(encodedNodeToken -> {
+                            if (encodedNodeToken != null) {
+                                groupedActionListener.onResponse(Map.of("node_enrollment_token", encodedNodeToken));
+                            } else {
+                                groupedActionListener.onResponse(Map.of());
+                            }
+                        }, backoff);
                     }
-                }, backoff);
-                enrollmentTokenGenerator.maybeCreateNodeEnrollmentToken(encodedNodeToken -> {
-                    if (encodedNodeToken != null) {
-                        groupedActionListener.onResponse(Map.of("node_enrollment_token", encodedNodeToken));
-                    } else {
-                        groupedActionListener.onResponse(Map.of());
-                    }
-                }, backoff);
+                }, TimeValue.timeValueSeconds(9), ThreadPool.Names.GENERIC));
             }
         });
     }
@@ -252,5 +276,9 @@ public class InitialNodeSecurityAutoConfiguration {
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());
         out.println(builder);
+    }
+
+    interface OnNodeStartedListener {
+        void run(Runnable runnable);
     }
 }

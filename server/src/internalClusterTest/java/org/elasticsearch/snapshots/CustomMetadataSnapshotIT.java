@@ -77,7 +77,7 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository("test-repo", "fs", repoPath);
 
         logger.info("add custom persistent metadata");
-        boolean isSnapshotMetadataSet = true;// randomBoolean();
+        boolean isSnapshotMetadataSet = randomBoolean();
         updateClusterState(currentState -> currentState.copyAndUpdateMetadata(metadataBuilder -> {
             if (isSnapshotMetadataSet) {
                 metadataBuilder.putCustom(SnapshotMetadata.TYPE, new SnapshotMetadata("before_snapshot_s"));

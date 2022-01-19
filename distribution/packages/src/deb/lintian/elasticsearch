@@ -1,10 +1,12 @@
 # we don't have a changelog, but we put our copyright file
 # under /usr/share/doc/elasticsearch, which triggers this warning
+# Note that this is renamed to `no-changelog` in newer versions of
+# lintian, but we still support Debian 8+, so we can't change this.
 changelog-file-missing-in-native-package
 
 # we intentionally copy our copyright file for all deb packages
 copyright-file-contains-full-apache-2-license
-copyright-should-refer-to-common-license-file-for-apache-2
+copyright-not-using-common-license-for-apache2
 copyright-without-copyright-notice
 
 # we still put all our files under /usr/share/elasticsearch even after transition to platform dependent packages
@@ -21,7 +23,7 @@ non-standard-file-perm etc/elasticsearch/*
 non-standard-dir-perm var/lib/elasticsearch/ 2750 != 0755
 non-standard-dir-perm var/log/elasticsearch/ 2750 != 0755
 
-# this lintian tag is simply wrong; contrary to the explanation, debian systemd
+# this lintian tag is simply wrong; contrary to the explanation, Debian systemd
 # does actually look at /usr/lib/systemd/system
 systemd-service-file-outside-lib usr/lib/systemd/system/elasticsearch.service
 
@@ -30,7 +32,6 @@ maintainer-script-calls-systemctl
 
 # bundled JDK
 embedded-library
-arch-dependent-file-in-usr-share usr/share/elasticsearch/jdk/*
 unstripped-binary-or-object usr/share/elasticsearch/jdk/*
 extra-license-file usr/share/elasticsearch/jdk/legal/*
 hardening-no-pie usr/share/elasticsearch/jdk/bin/*
@@ -41,3 +42,12 @@ unknown-java-class-version
 
 # elastic licensed modules contain elastic license
 extra-license-file usr/share/elasticsearch/modules/*
+
+# This dependency appears to have a packaging flaw, and includes a
+# generated source file alongside the compiled version
+jar-contains-source usr/share/elasticsearch/modules/repository-gcs/api-common*.jar *
+
+# There's no `License` field in Debian control files, but earlier versions
+# of `lintian` were more permissive. Override this warning so that we can
+# run `lintian` on different releases of Debian.
+unknown-field elasticsearch-*.deb License

@@ -98,6 +98,12 @@ public class DataStreamMetadata implements Metadata.Custom {
     }
 
     @Override
+    public boolean isRestorable() {
+        // this metadata is written to the snapshot, however it uses custom logic for restoring
+        return false;
+    }
+
+    @Override
     public String getWriteableName() {
         return TYPE;
     }
@@ -196,6 +202,11 @@ public class DataStreamMetadata implements Metadata.Custom {
         @Override
         public String getWriteableName() {
             return TYPE;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_7_0;
         }
     }
 }

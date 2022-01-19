@@ -151,6 +151,29 @@ setup:
   - match: { generated_dest_index.mappings.properties.avg_response.type: "double" }
 
 ---
+"Test preview transform with disabled mapping deduction":
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "pivot": {
+              "group_by": {
+                "airline": {"terms": {"field": "airline"}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}},
+                "time.max": {"max": {"field": "time"}},
+                "time.min": {"min": {"field": "time"}}
+              }
+            },
+            "settings": {
+              "deduce_mappings": false
+            }
+          }
+  - match: { generated_dest_index.mappings.properties: {} }
+
+---
 "Test preview transform by id":
   - do:
       transform.put_transform:

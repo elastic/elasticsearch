@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -68,29 +68,64 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     public static final String SECURITY_INDEX = "security";
 
     private static final RoleMappingEntry[] AD_ROLE_MAPPING = new RoleMappingEntry[] {
-        new RoleMappingEntry(
-            "SHIELD:  [ \"CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]",
-            "{ \"roles\":[\"SHIELD\"], \"enabled\":true, \"rules\":"
-                + "{\"field\": {\"groups\": \"CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\"} } }"
-        ),
-        new RoleMappingEntry(
-            "Avengers:  [ \"CN=Avengers,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]",
-            "{ \"roles\":[\"Avengers\"], \"enabled\":true, \"rules\":" + "{ \"field\": { \"groups\" : \"CN=Avengers,CN=Users,*\" } } }"
-        ),
-        new RoleMappingEntry(
-            "Gods:  [ \"CN=Gods,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]",
-            "{ \"roles\":[\"Gods\"], \"enabled\":true, \"rules\":{\"any\": ["
-                + " { \"field\":{ \"groups\":    \"CN=Gods,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" } },"
-                + " { \"field\":{ \"groups\": \"CN=Deities,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" } } "
-                + "] } }"
-        ),
-        new RoleMappingEntry(
-            "Philanthropists:  [ \"CN=Philanthropists,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]",
-            "{ \"roles\":[\"Philanthropists\"], \"enabled\":true, \"rules\": { \"all\": ["
-                + " { \"field\": { \"groups\" : \"CN=Philanthropists,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" } },"
-                + " { \"field\": { \"realm.name\" : \"external\" } } "
-                + "] } }"
-        ) };
+        new RoleMappingEntry("SHIELD:  [ \"CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]", """
+            {
+              "roles": [ "SHIELD" ],
+              "enabled": true,
+              "rules": {
+                "field": {
+                  "groups": "CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"
+                }
+              }
+            }"""),
+        new RoleMappingEntry("Avengers:  [ \"CN=Avengers,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]", """
+            {
+              "roles": [ "Avengers" ],
+              "enabled": true,
+              "rules": {
+                "field": {
+                  "groups": "CN=Avengers,CN=Users,*"
+                }
+              }
+            }"""),
+        new RoleMappingEntry("Gods:  [ \"CN=Gods,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]", """
+            {
+              "roles": [ "Gods" ],
+              "enabled": true,
+              "rules": {
+                "any": [
+                  {
+                    "field": {
+                      "groups": "CN=Gods,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"
+                    }
+                  },
+                  {
+                    "field": {
+                      "groups": "CN=Deities,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"
+                    }
+                  }
+                ]
+              }
+            }"""),
+        new RoleMappingEntry("Philanthropists:  [ \"CN=Philanthropists,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\" ]", """
+            {
+              "roles": [ "Philanthropists" ],
+              "enabled": true,
+              "rules": {
+                "all": [
+                  {
+                    "field": {
+                      "groups": "CN=Philanthropists,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"
+                    }
+                  },
+                  {
+                    "field": {
+                      "realm.name": "external"
+                    }
+                  }
+                ]
+              }
+            }""") };
 
     protected static RealmConfig realmConfig;
     protected static List<RoleMappingEntry> roleMappings;
@@ -137,7 +172,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     public void setupRoleMappings() throws Exception {
         assertSecurityIndexActive();
 
-        List<String> content = getRoleMappingContent(RoleMappingEntry::getNativeContent);
+        List<String> content = getRoleMappingContent(RoleMappingEntry::nativeContent);
         if (content.isEmpty()) {
             return;
         }
@@ -171,7 +206,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     }
 
     protected final void configureFileRoleMappings(Settings.Builder builder, String realmType, List<RoleMappingEntry> mappings) {
-        String content = getRoleMappingContent(RoleMappingEntry::getFileContent, mappings).stream().collect(Collectors.joining("\n"));
+        String content = getRoleMappingContent(RoleMappingEntry::fileContent, mappings).stream().collect(Collectors.joining("\n"));
         Path nodeFiles = createTempDir();
         String file = writeFile(nodeFiles, "role_mapping.yml", content);
         builder.put("xpack.security.authc.realms." + realmType + ".external.files.role_mapping", file);
@@ -269,24 +304,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         );
     }
 
-    static class RoleMappingEntry {
-        @Nullable
-        public final String fileContent;
-        @Nullable
-        public final String nativeContent;
-
-        RoleMappingEntry(@Nullable String fileContent, @Nullable String nativeContent) {
-            this.fileContent = fileContent;
-            this.nativeContent = nativeContent;
-        }
-
-        String getFileContent() {
-            return fileContent;
-        }
-
-        String getNativeContent() {
-            return nativeContent;
-        }
+    record RoleMappingEntry(@Nullable String fileContent, @Nullable String nativeContent) {
 
         RoleMappingEntry pickEntry(Supplier<Boolean> shouldPickFileContent) {
             if (nativeContent == null) {
@@ -300,26 +318,6 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
             } else {
                 return new RoleMappingEntry(null, nativeContent);
             }
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            final RoleMappingEntry that = (RoleMappingEntry) o;
-            return Objects.equals(this.fileContent, that.fileContent) && Objects.equals(this.nativeContent, that.nativeContent);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = Objects.hashCode(fileContent);
-            result = 31 * result + Objects.hashCode(nativeContent);
-            return result;
         }
     }
 

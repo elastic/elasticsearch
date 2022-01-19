@@ -380,8 +380,10 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
 
         public void consume(Version version) {
-            if (version == null) return;
-            this.current.updateAndGet(current -> version.compareTo(current) <= 0 ? current : version);
+            if (version == null) {
+                return;
+            }
+            this.current.updateAndGet(currentVersion -> version.compareTo(currentVersion) <= 0 ? currentVersion : version);
         }
     }
 
@@ -479,9 +481,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         @Override
         public Optional<Object> nextState(Object currentState, Object input, Object output) {
             State state = (State) currentState;
-            if (output instanceof IndexResponseHistoryOutput) {
+            if (output instanceof IndexResponseHistoryOutput indexResponseHistoryOutput) {
                 if (input.equals(state.safeVersion) || (state.lastFailed && ((Version) input).compareTo(state.safeVersion) > 0)) {
-                    return Optional.of(casSuccess(((IndexResponseHistoryOutput) output).getVersion()));
+                    return Optional.of(casSuccess(indexResponseHistoryOutput.getVersion()));
                 } else {
                     return Optional.empty();
                 }
@@ -491,35 +493,10 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         }
     }
 
-    private static final class State {
-        private final Version safeVersion;
-        private final boolean lastFailed;
-
-        private State(Version safeVersion, boolean lastFailed) {
-            this.safeVersion = safeVersion;
-            this.lastFailed = lastFailed;
-        }
+    private record State(Version safeVersion, boolean lastFailed) {
 
         public State failed() {
             return lastFailed ? this : casFail(safeVersion);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            State that = (State) o;
-            return lastFailed == that.lastFailed && safeVersion.equals(that.safeVersion);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(safeVersion, lastFailed);
-        }
-
-        @Override
-        public String toString() {
-            return "State{" + "safeVersion=" + safeVersion + ", lastFailed=" + lastFailed + '}';
         }
     }
 
@@ -686,9 +663,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     }
 
     private static void writeEvent(LinearizabilityChecker.Event event, BytesStreamOutput output) throws IOException {
-        output.writeEnum(event.type);
-        output.writeNamedWriteable((NamedWriteable) event.value);
-        output.writeInt(event.id);
+        output.writeEnum(event.type());
+        output.writeNamedWriteable((NamedWriteable) event.value());
+        output.writeInt(event.id());
     }
 
     private static LinearizabilityChecker.Event readEvent(StreamInput input) throws IOException {

@@ -27,20 +27,14 @@ public class Json {
             json
         );
 
-        switch (parser.nextToken()) {
-            case START_ARRAY:
-                return parser.list();
-            case START_OBJECT:
-                return parser.map();
-            case VALUE_NUMBER:
-                return parser.numberValue();
-            case VALUE_BOOLEAN:
-                return parser.booleanValue();
-            case VALUE_STRING:
-                return parser.text();
-            default:
-                return null;
-        }
+        return switch (parser.nextToken()) {
+            case START_ARRAY -> parser.list();
+            case START_OBJECT -> parser.map();
+            case VALUE_NUMBER -> parser.numberValue();
+            case VALUE_BOOLEAN -> parser.booleanValue();
+            case VALUE_STRING -> parser.text();
+            default -> null;
+        };
     }
 
     /**

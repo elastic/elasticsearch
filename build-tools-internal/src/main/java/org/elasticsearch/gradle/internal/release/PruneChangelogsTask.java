@@ -162,7 +162,7 @@ public class PruneChangelogsTask extends DefaultTask {
      */
     @VisibleForTesting
     static Stream<QualifiedVersion> findPreviousVersion(GitWrapper gitWrapper, QualifiedVersion version) {
-        final int majorSeries = version.getMinor() == 0 && version.getRevision() == 0 ? version.getMajor() - 1 : version.getMajor();
+        final int majorSeries = version.minor() == 0 && version.revision() == 0 ? version.major() - 1 : version.major();
         final String tagPattern = "v" + majorSeries + ".*";
 
         return gitWrapper.listVersions(tagPattern).filter(v -> v.isBefore(version));

@@ -24,11 +24,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -81,7 +82,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
@@ -164,8 +164,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             ESIntegTestCase.TestSeedPlugin.class,
             MockHttpTransport.TestPlugin.class,
             MockTransportService.TestPlugin.class,
-            MockNioTransportPlugin.class,
-            InternalSettingsPlugin.class
+            InternalSettingsPlugin.class,
+            getTestTransportPlugin()
         );
 
         InternalTestCluster leaderCluster = new InternalTestCluster(
@@ -220,8 +220,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         for (String nodeName : followerCluster.getNodeNames()) {
             MockTransportService transportService = (MockTransportService) followerCluster.getInstance(TransportService.class, nodeName);
             transportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (isCcrAdminRequest(request) == false && request instanceof AcknowledgedRequest<?>) {
-                    final TimeValue masterTimeout = ((AcknowledgedRequest<?>) request).masterNodeTimeout();
+                if (isCcrAdminRequest(request) == false && request instanceof AcknowledgedRequest<?> acknowledgedRequest) {
+                    final TimeValue masterTimeout = acknowledgedRequest.masterNodeTimeout();
                     if (masterTimeout == null || masterTimeout.nanos() != TimeValue.MAX_VALUE.nanos()) {
                         throw new AssertionError("time out of a master request [" + request + "] on the follower is not set to unbounded");
                     }
@@ -429,13 +429,20 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         ClusterHealthResponse actionGet = testCluster.client().admin().cluster().health(healthRequest).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info(
-                "{} timed out: "
-                    + "\nleader cluster state:\n{}"
-                    + "\nleader cluster hot threads:\n{}"
-                    + "\nleader cluster tasks:\n{}"
-                    + "\nfollower cluster state:\n{}"
-                    + "\nfollower cluster hot threads:\n{}"
-                    + "\nfollower cluster tasks:\n{}",
+                """
+                    {} timed out:
+                    leader cluster state:
+                    {}
+                    leader cluster hot threads:
+                    {}
+                    leader cluster tasks:
+                    {}
+                    follower cluster state:
+                    {}
+                    follower cluster hot threads:
+                    {}
+                    follower cluster tasks:
+                    {}""",
                 method,
                 leaderClient().admin().cluster().prepareState().get().getState(),
                 getHotThreads(leaderClient()),
@@ -687,7 +694,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     shardRouting.shardId().id(),
                     docsOnShard.stream()
                         // normalize primary term as the follower use its own term
-                        .map(d -> new DocIdSeqNoAndSource(d.getId(), d.getSource(), d.getSeqNo(), 1L, d.getVersion()))
+                        .map(d -> new DocIdSeqNoAndSource(d.id(), d.source(), d.seqNo(), 1L, d.version()))
                         .collect(Collectors.toList())
                 );
             } catch (AlreadyClosedException e) {
@@ -896,15 +903,15 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 latch.countDown();
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 latch.countDown();
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         latch.await();
     }
 

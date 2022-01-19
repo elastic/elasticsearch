@@ -1045,7 +1045,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
             setDefaultQueryDelay();
             if (indicesOptions == null) {
-                indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
+                indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
             }
             return new DatafeedConfig(
                 id,
@@ -1097,8 +1097,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             }
 
             for (AggregationBuilder agg : histogramAggregation.getSubAggregations()) {
-                if (agg instanceof MaxAggregationBuilder) {
-                    MaxAggregationBuilder maxAgg = (MaxAggregationBuilder) agg;
+                if (agg instanceof MaxAggregationBuilder maxAgg) {
                     if (maxAgg.field().equals(timeField)) {
                         return;
                     }

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -61,7 +62,8 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                             updateTaskPending = true;
                             clusterService.submitStateUpdateTask(
                                 "system_index_metadata_upgrade_service {system metadata change}",
-                                new SystemIndexMetadataUpdateTask()
+                                new SystemIndexMetadataUpdateTask(),
+                                ClusterStateTaskExecutor.unbatched()
                             );
                             break;
                         }
@@ -93,11 +95,25 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                         builder.system(indexMetadata.isSystem() == false);
                         updated = true;
                     }
-                    if (isSystem && indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
-                        builder.settings(
-                            Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, false)
-                        );
+                    boolean isHidden = indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false);
+                    if (isSystem && isHidden == false) {
+                        builder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
                         updated = true;
+                    }
+                    if (isSystem && indexMetadata.getAliases().values().stream().anyMatch(a -> a.isHidden() == false)) {
+                        for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
+                            if (aliasMetadata.isHidden() == false) {
+                                builder.removeAlias(aliasMetadata.alias());
+                                builder.putAlias(
+                                    AliasMetadata.builder(aliasMetadata.alias())
+                                        .filter(aliasMetadata.filter())
+                                        .indexRouting(aliasMetadata.indexRouting())
+                                        .isHidden(true)
+                                        .searchRouting(aliasMetadata.searchRouting())
+                                        .writeIndex(aliasMetadata.writeIndex())
+                                );
+                            }
+                        }
                     }
                     if (updated) {
                         updatedMetadata.add(builder.build());
@@ -114,13 +130,13 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
+        public void onFailure(Exception e) {
             updateTaskPending = false;
             logger.error("failed to update system index metadata", e);
         }
 
         @Override
-        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             lastIndexMetadataMap = newState.metadata().indices();
             updateTaskPending = false;
         }

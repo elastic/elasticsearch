@@ -39,12 +39,13 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80939")
     public void testSnapshotBasedRecovery() throws Exception {
         final String indexName = "snapshot_based_recovery";
         final String repositoryName = "snapshot_based_recovery_repo";
         final int numDocs = 200;
         switch (CLUSTER_TYPE) {
-            case OLD:
+            case OLD -> {
                 Settings.Builder settings = Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
@@ -54,7 +55,6 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                 ensureGreen(indexName);
                 indexDocs(indexName, numDocs);
                 flush(indexName, true);
-
                 registerRepository(
                     repositoryName,
                     "fs",
@@ -64,14 +64,11 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                         .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), true)
                         .build()
                 );
-
                 createSnapshot(repositoryName, "snap", true);
-
                 updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1));
                 ensureGreen(indexName);
-                break;
-            case MIXED:
-            case UPGRADED:
+            }
+            case MIXED, UPGRADED -> {
                 if (FIRST_MIXED_ROUND) {
                     String upgradedNodeId = getUpgradedNodeId();
 
@@ -99,14 +96,12 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
 
                 // Drop replicas
                 updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0));
-
                 updateIndexSettings(indexName, Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1));
                 ensureGreen(indexName);
                 assertMatchAllReturnsAllDocuments(indexName, numDocs);
                 assertMatchQueryReturnsAllDocuments(indexName, numDocs);
-                break;
-            default:
-                throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
+            }
+            default -> throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
     }
 

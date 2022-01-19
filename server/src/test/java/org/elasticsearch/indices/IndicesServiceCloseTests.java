@@ -34,7 +34,6 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -77,7 +76,7 @@ public class IndicesServiceCloseTests extends ESTestCase {
 
         Node node = new MockNode(
             settings,
-            Arrays.asList(MockNioTransportPlugin.class, MockHttpTransport.TestPlugin.class, InternalSettingsPlugin.class),
+            Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class, InternalSettingsPlugin.class),
             true
         );
         node.start();

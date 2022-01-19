@@ -171,7 +171,7 @@ On the local cluster, which is the cluster used to initiate cross cluster
 search, a user only needs the `remote-search` role. The role privileges can be
 empty.
 
-The following request creates a `remote-search` role on the remote cluster:
+The following request creates a `remote-search` role on the local cluster:
 
 
 [source,console]

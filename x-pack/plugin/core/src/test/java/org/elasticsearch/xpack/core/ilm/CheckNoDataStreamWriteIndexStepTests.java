@@ -16,6 +16,7 @@ import org.elasticsearch.index.Index;
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -32,14 +33,9 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
         Step.StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-            case 0:
-                key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new CheckNotDataStreamWriteIndexStep(key, nextKey);
     }
@@ -81,7 +77,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(indexMetadata.getIndex())))
+                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(indexMetadata.getIndex())))
                     .build()
             )
             .build();
@@ -128,7 +124,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
                 Metadata.builder()
                     .put(indexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices))
                     .build()
             )
             .build();

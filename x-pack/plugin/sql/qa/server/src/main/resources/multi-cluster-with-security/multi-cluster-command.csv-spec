@@ -7,12 +7,15 @@
 // Note: remote index discovery (for CCS) won't list aliases.
 
 showCatalogs
+// tag::showCatalogs
 SHOW CATALOGS;
 
      name         |     type
 ------------------+---------------
 integTest         |local
 my_remote_cluster |remote
+
+// end::showCatalogs
 ;
 
 showTables
@@ -61,6 +64,7 @@ my_remote_cluster|test_emp       |TABLE          |INDEX
 ;
 
 showTablesCatalogPatternMultiLike
+// tag::showTablesCatalogPatternMultiLike
 SHOW TABLES CATALOG 'my_*' LIKE 'test_emp%';
 
      catalog     |     name      |     type      |     kind
@@ -68,6 +72,7 @@ SHOW TABLES CATALOG 'my_*' LIKE 'test_emp%';
 my_remote_cluster|test_emp       |TABLE          |INDEX
 my_remote_cluster|test_emp_copy  |TABLE          |INDEX
 
+// end::showTablesCatalogPatternMultiLike
 ;
 
 showTablesList

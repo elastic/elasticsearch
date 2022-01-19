@@ -15,9 +15,9 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodes;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
@@ -158,22 +158,12 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
         final boolean transportTLSEnabled;
 
         if (securityEnabled) {
-            switch (mode) {
-                case TRIAL:
-                    transportTLSEnabled = randomBoolean();
-                    break;
-                case BASIC:
-                    transportTLSEnabled = false;
-                    break;
-                case STANDARD:
-                case GOLD:
-                case PLATINUM:
-                case ENTERPRISE:
-                    transportTLSEnabled = true;
-                    break;
-                default:
-                    throw new AssertionError("Unknown mode [" + mode + "]");
-            }
+            transportTLSEnabled = switch (mode) {
+                case TRIAL -> randomBoolean();
+                case BASIC -> false;
+                case STANDARD, GOLD, PLATINUM, ENTERPRISE -> true;
+                default -> throw new AssertionError("Unknown mode [" + mode + "]");
+            };
 
             if (randomBoolean()) {
                 settings.put(XPackSettings.SECURITY_ENABLED.getKey(), true);

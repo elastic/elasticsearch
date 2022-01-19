@@ -56,6 +56,20 @@ class org.elasticsearch.script.field.FloatDocValuesField @dynamic_type {
   float get(int, float)
 }
 
+class org.elasticsearch.script.field.ScaledFloatDocValuesField @dynamic_type {
+  double get(double)
+  double get(int, double)
+}
+
+# defaults are cast to float, taking an double facilitates resolution with constants without casting
+class org.elasticsearch.script.field.HalfFloatDocValuesField @dynamic_type {
+  float get(double)
+  float get(int, double)
+  List asDoubles()
+  double asDouble(double)
+  double asDouble(int, double)
+}
+
 # defaults are cast to byte, taking an int facilitates resolution with constants without casting
 class org.elasticsearch.script.field.ByteDocValuesField @dynamic_type {
   byte get(int)
@@ -78,7 +92,41 @@ class org.elasticsearch.script.field.DateNanosDocValuesField @dynamic_type {
   ZonedDateTime get(int, ZonedDateTime)
 }
 
-class org.elasticsearch.script.field.KeywordDocValuesField @dynamic_type {
+class org.elasticsearch.script.field.AbstractKeywordDocValuesField @dynamic_type {
   String get(String)
   String get(int, String)
+}
+
+# subclass of AbstractKeywordDocValuesField
+class org.elasticsearch.script.field.KeywordDocValuesField @dynamic_type {
+}
+
+# subclass of AbstractKeywordDocValuesField
+class org.elasticsearch.script.field.FlattenedDocValuesField @dynamic_type {
+}
+
+class org.elasticsearch.script.field.GeoPointDocValuesField @dynamic_type {
+  GeoPoint get(GeoPoint)
+  GeoPoint get(int, GeoPoint)
+}
+
+class org.elasticsearch.script.field.IpDocValuesField @dynamic_type {
+  IPAddress get(IPAddress)
+  IPAddress get(int, IPAddress)
+  List asStrings()
+  String asString(String)
+  String asString(int, String)
+}
+
+class org.elasticsearch.script.field.AbstractLongDocValuesField @dynamic_type {
+  long get(long)
+  long get(int, long)
+}
+
+# subclass of AbstractLongDocValuesField
+class org.elasticsearch.script.field.SeqNoDocValuesField @dynamic_type {
+}
+
+# subclass of AbstractLongDocValuesField
+class org.elasticsearch.script.field.VersionDocValuesField @dynamic_type {
 }

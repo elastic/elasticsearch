@@ -12,12 +12,13 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
@@ -94,19 +95,20 @@ class CompositeAggregationDataExtractor implements DataExtractor {
     }
 
     @Override
-    public Optional<InputStream> next() throws IOException {
+    public Result next() throws IOException {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
+        SearchInterval searchInterval = new SearchInterval(context.start, context.end);
         Aggregations aggs = search();
         if (aggs == null) {
             LOGGER.trace(() -> new ParameterizedMessage("[{}] extraction finished", context.jobId));
             hasNext = false;
             afterKey = null;
-            return Optional.empty();
+            return new Result(searchInterval, Optional.empty());
         }
-        return Optional.of(processAggs(aggs));
+        return new Result(searchInterval, Optional.of(processAggs(aggs)));
     }
 
     private Aggregations search() {

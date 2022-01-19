@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -50,7 +51,6 @@ import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -346,7 +346,7 @@ public class WatcherService {
                 return Collections.emptyList();
             }
 
-            Map<Integer, List<String>> sortedShards = new HashMap<>(localShards.size());
+            Map<Integer, List<String>> sortedShards = Maps.newMapWithExpectedSize(localShards.size());
             for (ShardRouting localShardRouting : localShards) {
                 List<String> sortedAllocationIds = watchIndexShardRoutings.stream()
                     .filter(sr -> localShardRouting.getId() == sr.getId())

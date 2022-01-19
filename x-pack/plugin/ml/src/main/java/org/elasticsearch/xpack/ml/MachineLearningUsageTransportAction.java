@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.license.XPackLicenseState;
@@ -472,7 +473,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 }
             }));
 
-        Map<String, Object> ingestUsage = new HashMap<>(6);
+        Map<String, Object> ingestUsage = Maps.newMapWithExpectedSize(6);
         ingestUsage.put("pipelines", createCountUsageEntry(pipelines.size()));
         ingestUsage.put("num_docs_processed", docCountStats);
         ingestUsage.put("time_ms", timeStats);

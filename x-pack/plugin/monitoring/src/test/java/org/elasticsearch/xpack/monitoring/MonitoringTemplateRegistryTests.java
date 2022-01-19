@@ -203,7 +203,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
 
         // Make sure we logged a deprecation for using the history setting
         if (historyDurationPresent) {
-            assertSettingDeprecationsAndWarnings(new Setting<?>[]{HISTORY_DURATION});
+            assertSettingDeprecationsAndWarnings(new Setting<?>[] { HISTORY_DURATION });
         }
     }
 

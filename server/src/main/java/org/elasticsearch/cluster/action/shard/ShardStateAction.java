@@ -68,6 +68,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public class ShardStateAction {
 
@@ -300,10 +301,16 @@ public class ShardStateAction {
                 new ClusterStateTaskListener() {
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error(
-                            () -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", request.shardId, request),
-                            e
+                        final Supplier<ParameterizedMessage> msg = () -> new ParameterizedMessage(
+                            "{} unexpected failure while failing shard [{}]",
+                            request.shardId,
+                            request
                         );
+                        if (e instanceof FailedToCommitClusterStateException) {
+                            logger.debug(msg, e);
+                        } else {
+                            logger.error(msg, e);
+                        }
                         try {
                             channel.sendResponse(e);
                         } catch (Exception channelException) {

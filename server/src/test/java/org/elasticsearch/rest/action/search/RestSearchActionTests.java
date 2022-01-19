@@ -7,24 +7,19 @@
  */
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.plugin.DummyQueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -50,6 +45,10 @@ public class RestSearchActionTests extends RestActionTestCase {
      */
     @BeforeClass
     public static void init() {
+        xContentRegistry = new NamedXContentRegistry(initCCSFlagTestQuerybuilders());
+    }
+
+    public static List<Entry> initCCSFlagTestQuerybuilders() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         List<org.elasticsearch.xcontent.NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
         namedXContents.add(
@@ -68,7 +67,7 @@ public class RestSearchActionTests extends RestActionTestCase {
                 RestApiVersion.onOrAfter(RestApiVersion.current())
             )
         );
-        xContentRegistry = new NamedXContentRegistry(namedXContents);
+        return namedXContents;
     }
 
     @AfterClass
@@ -135,7 +134,7 @@ public class RestSearchActionTests extends RestActionTestCase {
 
     public void testCCSCheckCompatibilityFlag() throws IOException {
         Map<String, String> params = new HashMap<>();
-        params.put("check_ccs_compatibility", "true");
+        params.put(CCSVersionCheckHelper.CCS_VERSION_CHECK_FLAG, "true");
 
         String query = """
             { "query" : { "fail_before_current_version" : { }}}
@@ -150,7 +149,7 @@ public class RestSearchActionTests extends RestActionTestCase {
 
             Exception ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
             assertEquals(
-                "parts of request [POST /some_index/_search] are not compatible in version '8.0.0 and the check_ccs_compatibility' "
+                "parts of request [POST /some_index/_search] are not compatible with version 8.0.0 and the 'check_ccs_compatibility' "
                 + "is enabled.",
                 ex.getMessage()
             );
@@ -170,13 +169,13 @@ public class RestSearchActionTests extends RestActionTestCase {
 
             Exception ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
             assertEquals(
-                "parts of request [POST /some_index/_search] are not compatible in version '8.0.0 and the check_ccs_compatibility' "
+                "parts of request [POST /some_index/_search] are not compatible with version 8.0.0 and the 'check_ccs_compatibility' "
                 + "is enabled.",
                 ex.getMessage()
             );
             assertEquals(
-                "NamedWritable [org.elasticsearch.rest.action.search.RestSearchActionTests$NewlyReleasedQueryBuilder] was released"
-                    + " in version 8.1.0 so it cannot be sent to a node with version 8.0.0",
+                "NamedWritable [org.elasticsearch.rest.action.search.NewlyReleasedQueryBuilder] was released in "
+                    + "version 8.1.0 and was not supported in version 8.0.0",
                 ex.getCause().getMessage()
             );
         }
@@ -193,78 +192,6 @@ public class RestSearchActionTests extends RestActionTestCase {
                 .withContent(new BytesArray(query), XContentType.JSON)
                 .build();
             action.prepareRequest(request, verifyingClient);
-        }
-    }
-
-    /**
-     * Query simulating serialization error on versions earlier than CURRENT
-     */
-    public static class FailBeforeVersionQueryBuilder extends DummyQueryBuilder {
-
-        static final String NAME = "fail_before_current_version";
-        private static Version previousMinor;
-
-        static {
-            List<Version> allVersions = VersionUtils.allVersions();
-            for (int i = allVersions.size() - 1; i >= 0; i--) {
-                Version v = allVersions.get(i);
-                if (v.minor < Version.CURRENT.minor || v.major < Version.CURRENT.major) {
-                    previousMinor = v;
-                    break;
-                }
-            }
-        }
-
-        public FailBeforeVersionQueryBuilder(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        public FailBeforeVersionQueryBuilder() {}
-
-        @Override
-        protected void doWriteTo(StreamOutput out) {
-            if (out.getVersion().onOrBefore(previousMinor)) {
-                throw new IllegalArgumentException("This query isn't serializable to nodes on or before " + previousMinor);
-            }
-        }
-
-        public static DummyQueryBuilder fromXContent(XContentParser parser) throws IOException {
-            DummyQueryBuilder.fromXContent(parser);
-            return new FailBeforeVersionQueryBuilder();
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-    }
-
-    /**
-     * Query simulating a new named writable introduced in the current version.
-     */
-    public static class NewlyReleasedQueryBuilder extends DummyQueryBuilder {
-
-        static final String NAME = "new_released_query";
-
-        public NewlyReleasedQueryBuilder(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        public NewlyReleasedQueryBuilder() {}
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        public static NewlyReleasedQueryBuilder fromXContent(XContentParser parser) throws IOException {
-            DummyQueryBuilder.fromXContent(parser);
-            return new NewlyReleasedQueryBuilder();
-        }
-
-        @Override
-        public Version getFirstReleasedVersion() {
-            return Version.CURRENT;
         }
     }
 

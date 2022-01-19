@@ -42,9 +42,9 @@ public class CCSVersionCheckHelper {
                         + request.method()
                         + " "
                         + request.path()
-                        + "] are not compatible in version '"
+                        + "] are not compatible with version "
                         + checkVersion
-                        + " and the "
+                        + " and the '"
                         + CCS_VERSION_CHECK_FLAG
                         + "' is enabled.",
                     e

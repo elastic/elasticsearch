@@ -66,6 +66,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex);
+        // TODO I think we need to move this to the transport actions execute because we don't resolve scripts that early
         CCSVersionCheckHelper.checkCCSVersionCompatibility(request, multiRequest);
         return channel -> client.execute(MultiSearchTemplateAction.INSTANCE, multiRequest, new RestToXContentListener<>(channel));
     }

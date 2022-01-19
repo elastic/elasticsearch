@@ -12,23 +12,40 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.search.CCSVersionCheckHelper;
+import org.elasticsearch.rest.action.search.RestSearchActionTests;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class RestMultiSearchTemplateActionTests extends RestActionTestCase {
     final List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
+    private RestMultiSearchTemplateAction action;
+    private static NamedXContentRegistry xContentRegistry;
+
+    /**
+     * setup for the whole base test class
+     */
+    @BeforeClass
+    public static void init() {
+        xContentRegistry = new NamedXContentRegistry(RestSearchActionTests.initCCSFlagTestQuerybuilders());
+    }
 
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestMultiSearchTemplateAction(Settings.EMPTY));
+        action = new RestMultiSearchTemplateAction(Settings.EMPTY);
+        controller().registerHandler(action);
         // todo how to workaround this? we get AssertionError without this
         verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(MultiSearchTemplateResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(MultiSearchTemplateResponse.class));
@@ -62,5 +79,76 @@ public class RestMultiSearchTemplateActionTests extends RestActionTestCase {
 
         dispatchRequest(request);
         assertCriticalWarnings(RestMultiSearchTemplateAction.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    public void testCCSCheckCompatibilityFlag() throws IOException {
+        // TODO I think we cannot test this here since we don't resolve scripts
+        Map<String, String> params = new HashMap<>();
+        params.put(CCSVersionCheckHelper.CCS_VERSION_CHECK_FLAG, "true");
+
+        String query = """
+            {"index": "some_index"}
+            {"source": { "query" : { "fail_before_current_version" : { }}}}
+            """;
+
+        {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+                .withPath("/some_index/_msearch/template")
+                .withParams(params)
+                .withContent(new BytesArray(query), XContentType.JSON)
+                .build();
+
+            Exception ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
+            assertEquals(
+                "parts of request [POST /some_index/_msearch] are not compatible with version 8.0.0 and the 'check_ccs_compatibility' "
+                + "is enabled.",
+                ex.getMessage()
+            );
+            assertEquals("This query isn't serializable to nodes on or before 8.0.0", ex.getCause().getMessage());
+        }
+
+        String newQueryBuilderInside = """
+            {"index": "some_index"}
+            {"source": { "query" : { "new_released_query" : { }}}}
+            """;
+
+        {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+                .withPath("/some_index/_msearch/template")
+                .withParams(params)
+                .withContent(new BytesArray(newQueryBuilderInside), XContentType.JSON)
+                .build();
+
+            Exception ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
+            assertEquals(
+                "parts of request [POST /some_index/_msearch] are not compatible with version 8.0.0 and the 'check_ccs_compatibility' "
+                + "is enabled.",
+                ex.getMessage()
+            );
+            assertEquals(
+                "NamedWritable [org.elasticsearch.rest.action.search.NewlyReleasedQueryBuilder] was released in "
+                    + "version 8.1.0 and was not supported in version 8.0.0",
+                ex.getCause().getMessage()
+            );
+        }
+
+        // this shouldn't fail without the flag enabled
+        params = new HashMap<>();
+        if (randomBoolean()) {
+            params.put("check_ccs_compatibility", "false");
+        }
+        {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+                .withPath("/some_index/_msearch/template")
+                .withParams(params)
+                .withContent(new BytesArray(query), XContentType.JSON)
+                .build();
+            action.prepareRequest(request, verifyingClient);
+        }
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 }

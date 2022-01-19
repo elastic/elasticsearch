@@ -77,6 +77,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             searchTemplateRequest = SearchTemplateRequest.fromXContent(parser);
         }
         searchTemplateRequest.setRequest(searchRequest);
+        // TODO I think we need to move this to the transport actions execute because we don't resolve scripts that early
         CCSVersionCheckHelper.checkCCSVersionCompatibility(request, searchTemplateRequest);
         return channel -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
     }

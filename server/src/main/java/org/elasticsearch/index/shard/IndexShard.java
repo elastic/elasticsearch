@@ -300,7 +300,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexCache indexCache,
         final MapperService mapperService,
         final SimilarityService similarityService,
-        final @Nullable EngineFactory engineFactory,
+        final EngineFactory engineFactory,
         final IndexEventListener indexEventListener,
         final CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
         final ThreadPool threadPool,
@@ -2024,6 +2024,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final MappedFieldType mappedFieldType = mapperService().fieldType(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false) {
             return ShardLongFieldRange.UNKNOWN; // field missing or not a date
+        }
+        if (mappedFieldType.isIndexed() == false) {
+            return ShardLongFieldRange.UNKNOWN; // range information missing
         }
 
         final ShardLongFieldRange rawTimestampFieldRange;

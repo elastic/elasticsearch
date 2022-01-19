@@ -29,10 +29,15 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
   into outputDir
 }
 
-BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
+BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
     def baseCluster = testClusters.register(baseName) {
         testDistribution = "DEFAULT"
-        versions = [bwcVersion.toString(), project.version]
+        if (bwcVersion.before(BuildParams.bwcVersions.minimumWireCompatibleVersion)) {
+          // When testing older versions we have to first upgrade to 7.last
+          versions = [bwcVersion.toString(), BuildParams.bwcVersions.minimumWireCompatibleVersion.toString(), project.version]
+        } else {
+          versions = [bwcVersion.toString(), project.version]
+        }
         numberOfNodes = 2
         setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
         user username: "test_user", password: "x-pack-test-password"
@@ -78,7 +83,11 @@ BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
             if (BuildParams.isSnapshotBuild() == false) {
                 systemProperty 'es.index_mode_feature_flag_registered', 'true'
             }
-            testClusters.named(baseName).get().goToNextVersion()
+            baseCluster.get().goToNextVersion()
+            if (bwcVersion.before(BuildParams.bwcVersions.minimumWireCompatibleVersion)) {
+              // When doing a full cluster restart of older versions we actually have to upgrade twice. First to 7.last, then to the current version.
+              baseCluster.get().goToNextVersion()
+            }
         }
         systemProperty 'tests.is_old_cluster', 'false'
     }

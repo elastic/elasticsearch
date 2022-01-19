@@ -136,7 +136,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void postParse(DocumentParserContext context) throws IOException {
-        assert fieldType().isSearchable() == false;
+        assert fieldType().isIndexed() == false;
 
         // SortedMap is expected to be sorted by key (field name)
         SortedMap<String, BytesReference> dimensionFields = context.doc().getDimensionBytes();

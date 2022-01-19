@@ -26,7 +26,10 @@ import static org.hamcrest.Matchers.is;
 public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
 
     public void testFailureUpgradeFrom7xWithImplicitSecuritySettings() throws Exception {
-        final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_2_0, Version.V_7_16_0);
+        final Version previousVersion = randomValueOtherThan(
+            Version.V_8_0_0,
+            () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
+        );
         NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion);
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
@@ -52,7 +55,10 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
     }
 
     public void testUpgradeFrom7xWithImplicitSecuritySettingsOnGoldPlus() throws Exception {
-        final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_2_0, Version.V_7_16_0);
+        final Version previousVersion = randomValueOtherThan(
+            Version.V_8_0_0,
+            () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
+        );
         NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion);
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(
@@ -62,7 +68,10 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
     }
 
     public void testUpgradeFrom7xWithExplicitSecuritySettings() throws Exception {
-        final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_2_0, Version.V_7_16_0);
+        final Version previousVersion = randomValueOtherThan(
+            Version.V_8_0_0,
+            () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
+        );
         NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion);
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata).check(

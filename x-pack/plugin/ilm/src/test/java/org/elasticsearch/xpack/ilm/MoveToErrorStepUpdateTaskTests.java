@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -21,20 +22,20 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.MockStep;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -89,8 +90,8 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
             state -> {}
         );
         ClusterState newState = task.execute(clusterState);
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetadata().index(index));
-        StepKey actualKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+        LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
+        StepKey actualKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), ErrorStep.NAME)));
         assertThat(lifecycleState.getFailedStep(), equalTo(currentStepKey.getName()));
         assertThat(lifecycleState.getPhaseTime(), nullValue());
@@ -155,7 +156,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
 
     private void setStateToKey(StepKey stepKey) {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
-            LifecycleExecutionState.fromIndexMetadata(clusterState.metadata().index(index))
+            clusterState.metadata().index(index).getLifecycleExecutionState()
         );
         lifecycleState.setPhase(stepKey.getPhase());
         lifecycleState.setAction(stepKey.getAction());

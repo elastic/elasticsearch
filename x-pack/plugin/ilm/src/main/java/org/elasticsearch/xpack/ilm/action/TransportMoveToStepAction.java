@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -140,7 +141,7 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     IndexMetadata newIndexMetadata = newState.metadata().index(indexMetadata.getIndex());
                     if (newIndexMetadata == null) {
                         // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.
@@ -155,7 +156,8 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
                     }
                     indexLifecycleService.maybeRunAsyncAction(newState, newIndexMetadata, concreteTargetKey.get());
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

@@ -186,7 +186,8 @@ public class SecurityContext {
     @SuppressWarnings("unchecked")
     private Map<String, Object> rewriteMetadataForApiKeyRoleDescriptors(Version streamVersion, Authentication authentication) {
         Map<String, Object> metadata = authentication.getMetadata();
-        if (authentication.getAuthenticationType() == AuthenticationType.API_KEY) {
+        // If authentication type is API key, regardless whether it has run-as, the metadata must contain API key role descriptors
+        if (authentication.isAuthenticatedWithApiKey()) {
             if (authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
                 metadata = new HashMap<>(metadata);

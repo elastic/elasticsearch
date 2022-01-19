@@ -304,6 +304,8 @@ public class PersistedClusterStateService {
                         version = Version.fromId(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
                         if (userData.containsKey(OLDEST_INDEX_VERSION_KEY)) {
                             oldestIndexVersion = Version.fromId(Integer.parseInt(userData.get(OLDEST_INDEX_VERSION_KEY)));
+                        } else {
+                            oldestIndexVersion = Version.V_EMPTY;
                         }
                     }
                 } catch (IndexNotFoundException e) {
@@ -622,7 +624,7 @@ public class PersistedClusterStateService {
             indexWriter.getConfig().setMergePolicy(NO_MERGE_POLICY);
         }
 
-        void prepareCommit(String nodeId, long currentTerm, long lastAcceptedVersion, int oldestIndexVersion) throws IOException {
+        void prepareCommit(String nodeId, long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion) throws IOException {
             indexWriter.getConfig().setMergePolicy(DEFAULT_MERGE_POLICY);
             indexWriter.maybeMerge();
 
@@ -630,7 +632,7 @@ public class PersistedClusterStateService {
             commitData.put(CURRENT_TERM_KEY, Long.toString(currentTerm));
             commitData.put(LAST_ACCEPTED_VERSION_KEY, Long.toString(lastAcceptedVersion));
             commitData.put(NODE_VERSION_KEY, Integer.toString(Version.CURRENT.id));
-            commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion));
+            commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id));
             commitData.put(NODE_ID_KEY, nodeId);
             indexWriter.setLiveCommitData(commitData.entrySet());
             indexWriter.prepareCommit();
@@ -710,7 +712,7 @@ public class PersistedClusterStateService {
                 }
 
                 final WriterStats stats = overwriteMetadata(clusterState.metadata());
-                commit(currentTerm, clusterState.version(), clusterState.metadata().oldestIndexVersion().id);
+                commit(currentTerm, clusterState.version(), clusterState.metadata().oldestIndexVersion());
                 fullStateWritten = true;
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
                 final TimeValue finalSlowWriteLoggingThreshold = slowWriteLoggingThresholdSupplier.get();
@@ -750,7 +752,7 @@ public class PersistedClusterStateService {
                 }
 
                 final WriterStats stats = updateMetadata(previousClusterState.metadata(), clusterState.metadata());
-                commit(currentTerm, clusterState.version(), clusterState.metadata().oldestIndexVersion().id);
+                commit(currentTerm, clusterState.version(), clusterState.metadata().oldestIndexVersion());
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
                 final TimeValue finalSlowWriteLoggingThreshold = slowWriteLoggingThresholdSupplier.get();
                 if (durationMillis >= finalSlowWriteLoggingThreshold.getMillis()) {
@@ -903,14 +905,14 @@ public class PersistedClusterStateService {
             return new DocumentBuffer(documentBufferUsed + extraSpace, bigArrays);
         }
 
-        public void writeIncrementalTermUpdateAndCommit(long currentTerm, long lastAcceptedVersion, int oldestIndexVersion)
+        public void writeIncrementalTermUpdateAndCommit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion)
             throws IOException {
             ensureOpen();
             ensureFullStateWritten();
             commit(currentTerm, lastAcceptedVersion, oldestIndexVersion);
         }
 
-        void commit(long currentTerm, long lastAcceptedVersion, int oldestIndexVersion) throws IOException {
+        void commit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion) throws IOException {
             ensureOpen();
             try {
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {

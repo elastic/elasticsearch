@@ -565,7 +565,7 @@ public class GatewayMetaState implements Closeable {
                     getWriterSafe().writeIncrementalTermUpdateAndCommit(
                         currentTerm,
                         lastAcceptedState.version(),
-                        lastAcceptedState.metadata().oldestIndexVersion().id
+                        lastAcceptedState.metadata().oldestIndexVersion()
                     );
                 }
             } catch (IOException e) {

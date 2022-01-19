@@ -35,6 +35,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.DiskIoBufferPool;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,6 +45,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -63,6 +65,7 @@ import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -141,6 +144,27 @@ import static org.mockito.Mockito.when;
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class TranslogTests extends ESTestCase {
 
+    public static final DiskIoBufferPool RANDOMIZING_IO_BUFFERS = new DiskIoBufferPool() {
+        @Override
+        public ByteBuffer maybeGetDirectIOBuffer() {
+            // null out thread-local to be able to test that the correct buffer is used when called repeatedly from the same thread
+            ioBufferPool.remove();
+            final String currentThreadName = Thread.currentThread().getName();
+            try {
+                final boolean useWriteThread = randomBoolean();
+                Thread.currentThread().setName(useWriteThread ? "[" + ThreadPool.Names.WRITE + "] thread" : "not-a-write-thread");
+                final ByteBuffer buffer = super.maybeGetDirectIOBuffer();
+                if (useWriteThread) {
+                    assertTrue(buffer.isDirect());
+                } else {
+                    assertNull(buffer);
+                }
+                return buffer;
+            } finally {
+                Thread.currentThread().setName(currentThreadName);
+            }
+        }
+    };
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
     protected Translog translog;
@@ -260,7 +284,14 @@ public class TranslogTests extends ESTestCase {
         );
 
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), settings);
-        return new TranslogConfig(shardId, path, indexSettings, NON_RECYCLING_INSTANCE, bufferSize);
+        return new TranslogConfig(
+            shardId,
+            path,
+            indexSettings,
+            NON_RECYCLING_INSTANCE,
+            bufferSize,
+            randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS
+        );
     }
 
     private Location addToTranslogAndList(Translog translog, List<Translog.Operation> list, Translog.Operation op) throws IOException {
@@ -486,18 +517,16 @@ public class TranslogTests extends ESTestCase {
                 builder.startObject();
                 copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
-                assertThat(
-                    Strings.toString(builder),
-                    equalTo(
-                        "{\"translog\":{\"operations\":4,\"size_in_bytes\":"
-                            + 326
-                            + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":"
-                            + 271
-                            + ",\"earliest_last_modified_age\":"
-                            + stats.getEarliestLastModifiedAge()
-                            + "}}"
-                    )
-                );
+                assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace("""
+                    {
+                      "translog": {
+                        "operations": 4,
+                        "size_in_bytes": 326,
+                        "uncommitted_operations": 4,
+                        "uncommitted_size_in_bytes": 271,
+                        "earliest_last_modified_age": %s
+                      }
+                    }""".formatted(stats.getEarliestLastModifiedAge()))));
             }
         }
         translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(randomLongBetween(3, Long.MAX_VALUE));
@@ -811,29 +840,28 @@ public class TranslogTests extends ESTestCase {
                 }
                 assertEquals(expectedOp.opType(), op.opType());
                 switch (op.opType()) {
-                    case INDEX:
+                    case INDEX -> {
                         Translog.Index indexOp = (Translog.Index) op;
                         Translog.Index expIndexOp = (Translog.Index) expectedOp;
                         assertEquals(expIndexOp.id(), indexOp.id());
                         assertEquals(expIndexOp.routing(), indexOp.routing());
                         assertEquals(expIndexOp.source(), indexOp.source());
                         assertEquals(expIndexOp.version(), indexOp.version());
-                        break;
-                    case DELETE:
+                    }
+                    case DELETE -> {
                         Translog.Delete delOp = (Translog.Delete) op;
                         Translog.Delete expDelOp = (Translog.Delete) expectedOp;
                         assertEquals(expDelOp.id(), delOp.id());
                         assertEquals(expDelOp.version(), delOp.version());
-                        break;
-                    case NO_OP:
+                    }
+                    case NO_OP -> {
                         final Translog.NoOp noOp = (Translog.NoOp) op;
                         final Translog.NoOp expectedNoOp = (Translog.NoOp) expectedOp;
                         assertThat(noOp.seqNo(), equalTo(expectedNoOp.seqNo()));
                         assertThat(noOp.primaryTerm(), equalTo(expectedNoOp.primaryTerm()));
                         assertThat(noOp.reason(), equalTo(expectedNoOp.reason()));
-                        break;
-                    default:
-                        throw new AssertionError("unsupported operation type [" + op.opType() + "]");
+                    }
+                    default -> throw new AssertionError("unsupported operation type [" + op.opType() + "]");
                 }
             }
             assertNull(snapshot.next());
@@ -970,20 +998,11 @@ public class TranslogTests extends ESTestCase {
                         final Translog.Operation op;
                         final Translog.Operation.Type type = Translog.Operation.Type.values()[((int) (id % Translog.Operation.Type
                             .values().length))];
-                        switch (type) {
-                            case CREATE:
-                            case INDEX:
-                                op = new Translog.Index("" + id, id, primaryTerm.get(), new byte[] { (byte) id });
-                                break;
-                            case DELETE:
-                                op = new Translog.Delete(Long.toString(id), id, primaryTerm.get());
-                                break;
-                            case NO_OP:
-                                op = new Translog.NoOp(id, 1, Long.toString(id));
-                                break;
-                            default:
-                                throw new AssertionError("unsupported operation type [" + type + "]");
-                        }
+                        op = switch (type) {
+                            case CREATE, INDEX -> new Translog.Index("" + id, id, primaryTerm.get(), new byte[] { (byte) id });
+                            case DELETE -> new Translog.Delete(Long.toString(id), id, primaryTerm.get());
+                            case NO_OP -> new Translog.NoOp(id, 1, Long.toString(id));
+                        };
                         Translog.Location location = translog.add(op);
                         tracker.markSeqNoAsProcessed(id);
                         Translog.Location existing = writtenOps.put(op, location);
@@ -1368,7 +1387,8 @@ public class TranslogTests extends ESTestCase {
             temp.getTranslogPath(),
             temp.getIndexSettings(),
             temp.getBigArrays(),
-            new ByteSizeValue(1, ByteSizeUnit.KB)
+            new ByteSizeValue(1, ByteSizeUnit.KB),
+            randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS
         );
 
         final Set<Long> persistedSeqNos = new HashSet<>();
@@ -2304,30 +2324,21 @@ public class TranslogTests extends ESTestCase {
                 for (int opCount = 0; opCount < opsPerThread; opCount++) {
                     Translog.Operation op;
                     final Translog.Operation.Type type = randomFrom(Translog.Operation.Type.values());
-                    switch (type) {
-                        case CREATE:
-                        case INDEX:
-                            op = new Translog.Index(
-                                threadId + "_" + opCount,
-                                seqNoGenerator.getAndIncrement(),
-                                primaryTerm.get(),
-                                randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8")
-                            );
-                            break;
-                        case DELETE:
-                            op = new Translog.Delete(
-                                threadId + "_" + opCount,
-                                seqNoGenerator.getAndIncrement(),
-                                primaryTerm.get(),
-                                1 + randomInt(100000)
-                            );
-                            break;
-                        case NO_OP:
-                            op = new Translog.NoOp(seqNoGenerator.getAndIncrement(), primaryTerm.get(), randomAlphaOfLength(16));
-                            break;
-                        default:
-                            throw new AssertionError("unsupported operation type [" + type + "]");
-                    }
+                    op = switch (type) {
+                        case CREATE, INDEX -> new Translog.Index(
+                            threadId + "_" + opCount,
+                            seqNoGenerator.getAndIncrement(),
+                            primaryTerm.get(),
+                            randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8")
+                        );
+                        case DELETE -> new Translog.Delete(
+                            threadId + "_" + opCount,
+                            seqNoGenerator.getAndIncrement(),
+                            primaryTerm.get(),
+                            1 + randomInt(100000)
+                        );
+                        case NO_OP -> new Translog.NoOp(seqNoGenerator.getAndIncrement(), primaryTerm.get(), randomAlphaOfLength(16));
+                    };
 
                     Translog.Location loc = add(op);
                     writtenOperations.add(new LocationOperation(op, loc));

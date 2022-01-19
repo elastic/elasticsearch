@@ -73,7 +73,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
-        assertThat("has-passwd should indicate missing keystore", r.stderr, containsString(ERROR_KEYSTORE_NOT_FOUND));
+        assertThat("has-passwd should indicate missing keystore", r.stderr(), containsString(ERROR_KEYSTORE_NOT_FOUND));
     }
 
     /** Test initial package state */
@@ -89,9 +89,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
-        assertThat("has-passwd should indicate unprotected keystore", r.stderr, containsString(ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED));
+        assertThat("has-passwd should indicate unprotected keystore", r.stderr(), containsString(ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED));
         Shell.Result r2 = bin.keystoreTool.run("list");
-        assertThat(r2.stdout, containsString("keystore.seed"));
+        assertThat(r2.stdout(), containsString("keystore.seed"));
     }
 
     /** Test initial Docker state */
@@ -109,9 +109,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
-        assertThat("has-passwd should indicate unprotected keystore", r.stdout, containsString(ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED));
+        assertThat("has-passwd should indicate unprotected keystore", r.stdout(), containsString(ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED));
         Shell.Result r2 = bin.keystoreTool.run("list");
-        assertThat(r2.stdout, containsString("keystore.seed"));
+        assertThat(r2.stdout(), containsString("keystore.seed"));
     }
 
     public void test20KeystorePasswordOnStandardInput() throws Exception {
@@ -160,7 +160,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Shell.Result result = runElasticsearchStartCommand("wrong", false, true);
         // error will be on stdout for "expect"
-        assertThat(result.stdout, anyOf(containsString(ERROR_INCORRECT_PASSWORD), containsString(ERROR_CORRUPTED_KEYSTORE)));
+        assertThat(result.stdout(), anyOf(containsString(ERROR_INCORRECT_PASSWORD), containsString(ERROR_CORRUPTED_KEYSTORE)));
     }
 
     /**
@@ -172,7 +172,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         assertPasswordProtectedKeystore();
         Shell.Result r = installation.executables().elasticsearch.run("--help");
-        assertThat(r.stdout, startsWith("Starts Elasticsearch"));
+        assertThat(r.stdout(), startsWith("Starts Elasticsearch"));
     }
 
     public void test30KeystorePasswordFromFile() throws Exception {
@@ -293,7 +293,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             distribution(),
             builder().volume(localConfigPath.resolve("config"), installation.config).envVar("KEYSTORE_PASSWORD", "wrong")
         );
-        assertThat(r.stderr, containsString(ERROR_INCORRECT_PASSWORD));
+        assertThat(r.stderr(), containsString(ERROR_INCORRECT_PASSWORD));
     }
 
     public void test50CreateKeystoreManually() throws Exception {
@@ -305,7 +305,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         verifyKeystorePermissions();
 
         Shell.Result r = bin.keystoreTool.run("list");
-        assertThat(r.stdout, containsString("keystore.seed"));
+        assertThat(r.stdout(), containsString("keystore.seed"));
     }
 
     public void test60AutoCreateKeystore() throws Exception {
@@ -325,7 +325,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = bin.keystoreTool.run("list");
-        assertThat(r.stdout, containsString("keystore.seed"));
+        assertThat(r.stdout(), containsString("keystore.seed"));
     }
 
     /**
@@ -427,29 +427,16 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
     private void assertPasswordProtectedKeystore() {
         Shell.Result r = installation.executables().keystoreTool.run("has-passwd");
-        assertThat("keystore should be password protected", r.exitCode, is(0));
+        assertThat("keystore should be password protected", r.exitCode(), is(0));
     }
 
     private void verifyKeystorePermissions() {
         Path keystore = installation.config("elasticsearch.keystore");
         switch (distribution.packaging) {
-            case TAR:
-            case ZIP:
-                assertThat(keystore, file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
-                break;
-            case DEB:
-            case RPM:
-                assertThat(keystore, file(File, "root", "elasticsearch", p660));
-                break;
-            case DOCKER:
-            case DOCKER_UBI:
-            case DOCKER_IRON_BANK:
-            case DOCKER_CLOUD:
-            case DOCKER_CLOUD_ESS:
-                assertThat(keystore, DockerFileMatcher.file(p660));
-                break;
-            default:
-                throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+            case TAR, ZIP -> assertThat(keystore, file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
+            case DEB, RPM -> assertThat(keystore, file(File, "root", "elasticsearch", p660));
+            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS -> assertThat(keystore, DockerFileMatcher.file(p660));
+            default -> throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
     }
 }

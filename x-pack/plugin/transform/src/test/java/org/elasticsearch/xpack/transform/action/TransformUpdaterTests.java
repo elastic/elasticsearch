@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
@@ -260,8 +260,11 @@ public class TransformUpdaterTests extends ESTestCase {
                 assertEquals(stateDoc.getTransformStats(), storedDocAndVersion.v1().getTransformStats());
             }
         );
+    }
 
-        // same as dry run
+    public void testTransformUpdateDryRun() throws InterruptedException {
+        InMemoryTransformConfigManager transformConfigManager = new InMemoryTransformConfigManager();
+
         TransformConfig oldConfigForDryRunUpdate = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             VersionUtils.randomVersionBetween(
@@ -277,6 +280,7 @@ public class TransformUpdaterTests extends ESTestCase {
             config -> {}
         );
 
+        TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
                 securityContext,

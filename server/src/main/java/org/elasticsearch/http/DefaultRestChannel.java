@@ -29,7 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.tasks.Task.X_OPAQUE_ID;
+import static org.elasticsearch.tasks.Task.X_OPAQUE_ID_HTTP_HEADER;
 
 /**
  * The default rest channel for incoming requests. This class implements the basic logic for sending a rest
@@ -113,9 +113,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             corsHandler.setCorsResponseHeaders(httpRequest, httpResponse);
 
-            opaque = request.header(X_OPAQUE_ID);
+            opaque = request.header(X_OPAQUE_ID_HTTP_HEADER);
             if (opaque != null) {
-                setHeaderField(httpResponse, X_OPAQUE_ID, opaque);
+                setHeaderField(httpResponse, X_OPAQUE_ID_HTTP_HEADER, opaque);
             }
 
             // Add all custom headers

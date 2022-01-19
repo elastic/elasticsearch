@@ -199,12 +199,12 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     @Override
     protected void index(DocumentParserContext context, GeoPoint geometry) throws IOException {
-        if (fieldType().isSearchable()) {
+        if (fieldType().isIndexed()) {
             context.doc().add(new LatLonPoint(fieldType().name(), geometry.lat(), geometry.lon()));
         }
         if (fieldType().hasDocValues()) {
             context.doc().add(new LatLonDocValuesField(fieldType().name(), geometry.lat(), geometry.lon()));
-        } else if (fieldType().isStored() || fieldType().isSearchable()) {
+        } else if (fieldType().isStored() || fieldType().isIndexed()) {
             context.addToFieldNames(fieldType().name());
         }
         if (fieldType().isStored()) {

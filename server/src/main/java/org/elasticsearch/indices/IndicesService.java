@@ -25,7 +25,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -203,7 +203,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Settings settings;
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
-    private final NamedXContentRegistry xContentRegistry;
     private final XContentParserConfiguration parserConfig;
     private final TimeValue shardsClosedTimeout;
     private final AnalysisRegistry analysisRegistry;
@@ -286,7 +285,6 @@ public class IndicesService extends AbstractLifecycleComponent
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
-        this.xContentRegistry = xContentRegistry;
         this.parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
             .withRegistry(xContentRegistry);
         this.valuesSourceRegistry = valuesSourceRegistry;
@@ -441,30 +439,14 @@ public class IndicesService extends AbstractLifecycleComponent
         // the cumulative statistics also account for shards that are no longer on this node, which is tracked by oldShardsStats
         for (Flag flag : flags.getFlags()) {
             switch (flag) {
-                case Get:
-                    commonStats.get.add(oldShardsStats.getStats);
-                    break;
-                case Indexing:
-                    commonStats.indexing.add(oldShardsStats.indexingStats);
-                    break;
-                case Search:
-                    commonStats.search.add(oldShardsStats.searchStats);
-                    break;
-                case Merge:
-                    commonStats.merge.add(oldShardsStats.mergeStats);
-                    break;
-                case Refresh:
-                    commonStats.refresh.add(oldShardsStats.refreshStats);
-                    break;
-                case Recovery:
-                    commonStats.recoveryStats.add(oldShardsStats.recoveryStats);
-                    break;
-                case Flush:
-                    commonStats.flush.add(oldShardsStats.flushStats);
-                    break;
-                case Bulk:
-                    commonStats.bulk.add(oldShardsStats.bulkStats);
-                    break;
+                case Get -> commonStats.get.add(oldShardsStats.getStats);
+                case Indexing -> commonStats.indexing.add(oldShardsStats.indexingStats);
+                case Search -> commonStats.search.add(oldShardsStats.searchStats);
+                case Merge -> commonStats.merge.add(oldShardsStats.mergeStats);
+                case Refresh -> commonStats.refresh.add(oldShardsStats.refreshStats);
+                case Recovery -> commonStats.recoveryStats.add(oldShardsStats.recoveryStats);
+                case Flush -> commonStats.flush.add(oldShardsStats.flushStats);
+                case Bulk -> commonStats.bulk.add(oldShardsStats.bulkStats);
             }
         }
 
@@ -722,7 +704,7 @@ public class IndicesService extends AbstractLifecycleComponent
         return indexModule.newIndexService(
             indexCreationContext,
             nodeEnv,
-            xContentRegistry,
+            parserConfig,
             this,
             circuitBreakerService,
             bigArrays,
@@ -789,7 +771,7 @@ public class IndicesService extends AbstractLifecycleComponent
             recoveryStateFactories
         );
         pluginsService.onIndexModule(indexModule);
-        return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry, scriptService);
+        return indexModule.newIndexMapperService(parserConfig, mapperRegistry, scriptService);
     }
 
     /**
@@ -1644,9 +1626,7 @@ public class IndicesService extends AbstractLifecycleComponent
         CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
             try (
                 InputStream inputStream = bytes.streamInput();
-                XContentParser parser = XContentFactory.xContentType(inputStream)
-                    .xContent()
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, inputStream)
+                XContentParser parser = XContentFactory.xContentType(inputStream).xContent().createParser(parserConfig, inputStream)
             ) {
                 return parseInnerQueryBuilder(parser);
             }

@@ -290,22 +290,14 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
         }
 
         double stdDevBound(ExtendedStats.Bounds bounds, double sigma) {
-            switch (bounds) {
-                case UPPER:
-                    return (sum / count) + (Math.sqrt(variance()) * sigma);
-                case UPPER_POPULATION:
-                    return (sum / count) + (Math.sqrt(variancePopulation()) * sigma);
-                case UPPER_SAMPLING:
-                    return (sum / count) + (Math.sqrt(varianceSampling()) * sigma);
-                case LOWER:
-                    return (sum / count) - (Math.sqrt(variance()) * sigma);
-                case LOWER_POPULATION:
-                    return (sum / count) - (Math.sqrt(variancePopulation()) * sigma);
-                case LOWER_SAMPLING:
-                    return (sum / count) - (Math.sqrt(varianceSampling()) * sigma);
-                default:
-                    throw new IllegalArgumentException("Unknown bound " + bounds);
-            }
+            return switch (bounds) {
+                case UPPER -> (sum / count) + (Math.sqrt(variance()) * sigma);
+                case UPPER_POPULATION -> (sum / count) + (Math.sqrt(variancePopulation()) * sigma);
+                case UPPER_SAMPLING -> (sum / count) + (Math.sqrt(varianceSampling()) * sigma);
+                case LOWER -> (sum / count) - (Math.sqrt(variance()) * sigma);
+                case LOWER_POPULATION -> (sum / count) - (Math.sqrt(variancePopulation()) * sigma);
+                case LOWER_SAMPLING -> (sum / count) - (Math.sqrt(varianceSampling()) * sigma);
+            };
         }
 
         double variance() {

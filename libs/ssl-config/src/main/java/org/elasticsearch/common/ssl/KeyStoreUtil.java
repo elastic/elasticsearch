@@ -146,8 +146,8 @@ public final class KeyStoreUtil {
         kmf.init(keyStore, password);
         KeyManager[] keyManagers = kmf.getKeyManagers();
         for (KeyManager keyManager : keyManagers) {
-            if (keyManager instanceof X509ExtendedKeyManager) {
-                return (X509ExtendedKeyManager) keyManager;
+            if (keyManager instanceof X509ExtendedKeyManager x509ExtendedKeyManager) {
+                return x509ExtendedKeyManager;
             }
         }
         throw new SslConfigException(
@@ -164,8 +164,8 @@ public final class KeyStoreUtil {
         tmf.init(trustStore);
         TrustManager[] trustManagers = tmf.getTrustManagers();
         for (TrustManager trustManager : trustManagers) {
-            if (trustManager instanceof X509ExtendedTrustManager) {
-                return (X509ExtendedTrustManager) trustManager;
+            if (trustManager instanceof X509ExtendedTrustManager x509ExtendedTrustManager) {
+                return x509ExtendedTrustManager;
             }
         }
         throw new SslConfigException(
@@ -231,8 +231,8 @@ public final class KeyStoreUtil {
         public X509Certificate getX509Certificate() {
             try {
                 final Certificate c = store.getCertificate(alias);
-                if (c instanceof X509Certificate) {
-                    return (X509Certificate) c;
+                if (c instanceof X509Certificate x509Certificate) {
+                    return x509Certificate;
                 } else {
                     return null;
                 }
@@ -261,8 +261,8 @@ public final class KeyStoreUtil {
         public PrivateKey getKey(char[] password) {
             try {
                 final Key key = store.getKey(alias, password);
-                if (key instanceof PrivateKey) {
-                    return (PrivateKey) key;
+                if (key instanceof PrivateKey privateKey) {
+                    return privateKey;
                 }
                 return null;
             } catch (GeneralSecurityException e) {

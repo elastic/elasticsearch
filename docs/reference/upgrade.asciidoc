@@ -16,13 +16,15 @@ endif::[]
 {es} can usually be upgraded using a <<rolling-upgrades,Rolling upgrade>>
 process so upgrading does not interrupt service. Rolling upgrades are supported:
 
-* Between minor versions
+// tag::rolling-upgrade-versions[]
+* Between minor versions of the same major version
 * From 5.6 to 6.8
 * From 6.8 to {prev-major-version}
 * From {prev-major-version} to {version}
 ifeval::[ "{bare_version}" != "{minor-version}.0" ]
 * From any version since {minor-version}.0 to {version}
 endif::[]
+// end::rolling-upgrade-versions[]
 
 [TIP]
 ====

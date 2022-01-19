@@ -302,7 +302,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             mappingLookup,
             null,
             getMockScriptService(),
-            xContentRegistry(),
+            parserConfig(),
             writableRegistry(),
             null,
             indexSearcher,
@@ -801,13 +801,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         Set<String> valueNames = new HashSet<>();
 
-        if (agg instanceof NumericMetricsAggregation.MultiValue) {
-            NumericMetricsAggregation.MultiValue multiValueAgg = (NumericMetricsAggregation.MultiValue) agg;
+        if (agg instanceof NumericMetricsAggregation.MultiValue multiValueAgg) {
             for (String name : multiValueAgg.valueNames()) {
                 valueNames.add(name);
             }
-        } else if (agg instanceof MultiValueAggregation) {
-            MultiValueAggregation multiValueAgg = (MultiValueAggregation) agg;
+        } else if (agg instanceof MultiValueAggregation multiValueAgg) {
             for (String name : multiValueAgg.valueNames()) {
                 valueNames.add(name);
             }
@@ -1110,21 +1108,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
             final RangeFieldMapper.Range range = new RangeFieldMapper.Range(rangeType, start, end, true, true);
             doc.add(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(Collections.singleton(range))));
-            json = "{ \""
-                + fieldName
-                + "\" : { \n"
-                + "        \"gte\" : \""
-                + start
-                + "\",\n"
-                + "        \"lte\" : \""
-                + end
-                + "\"\n"
-                + "      }}";
+            json = """
+                { "%s" : { "gte" : "%s", "lte" : "%s" } }
+                """.formatted(fieldName, start, end);
         } else if (vst.equals(CoreValuesSourceType.GEOPOINT)) {
             double lat = randomDouble();
             double lon = randomDouble();
             doc.add(new LatLonDocValuesField(fieldName, lat, lon));
-            json = "{ \"" + fieldName + "\" : \"[" + lon + "," + lat + "]\" }";
+            json = """
+                { "%s" : "[%s,%s]" }""".formatted(fieldName, lon, lat);
         } else {
             throw new IllegalStateException("Unknown field type [" + typeName + "]");
         }

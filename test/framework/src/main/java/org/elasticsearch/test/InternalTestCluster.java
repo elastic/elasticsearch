@@ -28,7 +28,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
@@ -70,6 +70,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -522,6 +523,10 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
+        // RST all closing connections in tests (by setting SO_LINGER to 0) so we don't leave too many connections in TIME_WAIT state and
+        // run out of ports.
+        builder.put(TransportSettings.RST_ON_CLOSE.getKey(), true);
+
         // randomize tcp settings
         if (random.nextBoolean()) {
             builder.put(TransportSettings.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
@@ -579,6 +584,14 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(TransportReplicationAction.REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.getKey(), timeValueMillis(initialMillisBound));
             int retryTimeoutSeconds = RandomNumbers.randomIntBetween(random, 0, 60);
             builder.put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), timeValueSeconds(retryTimeoutSeconds));
+        }
+        if (random.nextInt(10) == 0) {
+            builder.put(
+                PersistedClusterStateService.DOCUMENT_PAGE_SIZE.getKey(),
+                new ByteSizeValue(
+                    RandomNumbers.randomIntBetween(random, rarely(random) ? 10 : 100, randomFrom(random, 1000, 10000, 100000, 1000000))
+                )
+            );
         }
 
         return builder.build();
@@ -1067,8 +1080,7 @@ public final class InternalTestCluster extends TestCluster {
         // clear all rules for mock transport services
         for (NodeAndClient nodeAndClient : nodes.values()) {
             TransportService transportService = nodeAndClient.node.injector().getInstance(TransportService.class);
-            if (transportService instanceof MockTransportService) {
-                final MockTransportService mockTransportService = (MockTransportService) transportService;
+            if (transportService instanceof final MockTransportService mockTransportService) {
                 mockTransportService.clearAllRules();
             }
         }
@@ -2456,7 +2468,7 @@ public final class InternalTestCluster extends TestCluster {
                 try {
                     env.shardLock(id, "InternalTestCluster assert after test", TimeUnit.SECONDS.toMillis(5)).close();
                 } catch (ShardLockObtainFailedException ex) {
-                    fail("Shard " + id + " is still locked after 5 sec waiting");
+                    throw new AssertionError("Shard " + id + " is still locked after 5 sec waiting", ex);
                 }
             }
         }

@@ -123,13 +123,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (destination.routing() == null || destination.routing().startsWith("=")) {
             return true;
         }
-        switch (destination.routing()) {
-            case "keep":
-            case "discard":
-                return true;
-            default:
-                return false;
-        }
+        return switch (destination.routing()) {
+            case "keep", "discard" -> true;
+            default -> false;
+        };
     }
 
     /**

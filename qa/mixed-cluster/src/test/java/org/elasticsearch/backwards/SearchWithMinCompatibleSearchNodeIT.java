@@ -50,8 +50,8 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
         allNodes = new ArrayList<>();
         allNodes.addAll(nodes.getBWCNodes());
         allNodes.addAll(nodes.getNewNodes());
-        bwcVersion = nodes.getBWCNodes().get(0).getVersion();
-        newVersion = nodes.getNewNodes().get(0).getVersion();
+        bwcVersion = nodes.getBWCNodes().get(0).version();
+        newVersion = nodes.getNewNodes().get(0).version();
 
         if (client().performRequest(new Request("HEAD", "/" + index)).getStatusLine().getStatusCode() == 404) {
             createIndex(
@@ -71,9 +71,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
     }
 
     public void testMinVersionAsNewVersion() throws Exception {
-        try (
-            RestClient client = buildClient(restClientSettings(), allNodes.stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))
-        ) {
+        try (RestClient client = buildClient(restClientSettings(), allNodes.stream().map(Node::publishAddress).toArray(HttpHost[]::new))) {
             Request newVersionRequest = new Request(
                 "POST",
                 index + "/_search?min_compatible_shard_node=" + newVersion + "&ccs_minimize_roundtrips=false"
@@ -84,32 +82,23 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
                     responseException.getResponse().getStatusLine().getStatusCode(),
                     equalTo(RestStatus.INTERNAL_SERVER_ERROR.getStatus())
                 );
-                assertThat(
-                    responseException.getMessage(),
-                    containsString("{\"error\":{\"root_cause\":[],\"type\":\"search_phase_execution_exception\"")
-                );
-                assertThat(
-                    responseException.getMessage(),
-                    containsString(
-                        "caused_by\":{\"type\":\"version_mismatch_exception\","
-                            + "\"reason\":\"One of the shards is incompatible with the required minimum version ["
-                            + newVersion
-                            + "]\""
-                    )
-                );
+                assertThat(responseException.getMessage(), containsString("""
+                    {"error":{"root_cause":[],"type":"search_phase_execution_exception\""""));
+                assertThat(responseException.getMessage(), containsString("""
+                    caused_by":{"type":"version_mismatch_exception",\
+                    "reason":"One of the shards is incompatible with the required minimum version [%s]\"""".formatted(newVersion)));
             });
         }
     }
 
     public void testMinVersionAsOldVersion() throws Exception {
-        try (
-            RestClient client = buildClient(restClientSettings(), allNodes.stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))
-        ) {
+        try (RestClient client = buildClient(restClientSettings(), allNodes.stream().map(Node::publishAddress).toArray(HttpHost[]::new))) {
             Request oldVersionRequest = new Request(
                 "POST",
                 index + "/_search?min_compatible_shard_node=" + bwcVersion + "&ccs_minimize_roundtrips=false"
             );
-            oldVersionRequest.setJsonEntity("{\"query\":{\"match_all\":{}},\"_source\":false}");
+            oldVersionRequest.setJsonEntity("""
+                {"query":{"match_all":{}},"_source":false}""");
             assertBusy(() -> {
                 assertWithBwcVersionCheck(() -> {
                     Response response = client.performRequest(oldVersionRequest);
@@ -127,9 +116,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
     }
 
     public void testCcsMinimizeRoundtripsIsFalse() throws Exception {
-        try (
-            RestClient client = buildClient(restClientSettings(), allNodes.stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))
-        ) {
+        try (RestClient client = buildClient(restClientSettings(), allNodes.stream().map(Node::publishAddress).toArray(HttpHost[]::new))) {
             Version version = randomBoolean() ? newVersion : bwcVersion;
 
             Request request = new Request(
@@ -143,10 +130,9 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
                         responseException.getResponse().getStatusLine().getStatusCode(),
                         equalTo(RestStatus.BAD_REQUEST.getStatus())
                     );
-                    assertThat(
-                        responseException.getMessage(),
-                        containsString("{\"error\":{\"root_cause\":[{\"type\":\"action_request_validation_exception\"")
-                    );
+                    assertThat(responseException.getMessage(), containsString("""
+                        {"error":{"root_cause":[{"type":"action_request_validation_exception"\
+                        """));
                     assertThat(
                         responseException.getMessage(),
                         containsString(

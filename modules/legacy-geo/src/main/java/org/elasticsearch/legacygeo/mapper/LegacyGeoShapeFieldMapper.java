@@ -112,15 +112,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         public static final double DISTANCE_ERROR_PCT = 0.025d;
 
         public static int defaultTreeLevel(String tree) {
-            switch (tree) {
-                case PrefixTrees.GEOHASH:
-                    return GEOHASH_TREE_LEVELS;
-                case PrefixTrees.LEGACY_QUADTREE:
-                case PrefixTrees.QUADTREE:
-                    return QUADTREE_LEVELS;
-                default:
-                    throw new IllegalArgumentException("Unknown prefix type [" + tree + "]");
-            }
+            return switch (tree) {
+                case PrefixTrees.GEOHASH -> GEOHASH_TREE_LEVELS;
+                case PrefixTrees.LEGACY_QUADTREE, PrefixTrees.QUADTREE -> QUADTREE_LEVELS;
+                default -> throw new IllegalArgumentException("Unknown prefix type [" + tree + "]");
+            };
         }
     }
 
@@ -266,7 +262,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         public Builder coerce(boolean coerce) {
-            this.coerce.setValue(new Explicit<>(coerce, true));
+            this.coerce.setValue(Explicit.explicitBoolean(coerce));
             return this;
         }
 

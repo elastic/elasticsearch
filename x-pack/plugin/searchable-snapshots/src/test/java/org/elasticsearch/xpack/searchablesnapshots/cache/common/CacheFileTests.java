@@ -436,13 +436,9 @@ public class CacheFileTests extends ESTestCase {
                 allOf(greaterThan(0L), lessThan(oneMb))
             );
 
-            final long blockSize;
-            if (Constants.LINUX) {
-                // on Linux we can infer the filesystem's block size if only 1 byte was written
-                blockSize = sizeOnDisk.getAsLong();
-            } else {
-                blockSize = 0L;
-            }
+            // on Linux we can infer the filesystem's block size if only 1 byte was written,
+            // but this is not always right with encryption at rest using dmcrypt
+            final long blockSize = Constants.LINUX && noEncryptionAtRest(file) ? sizeOnDisk.getAsLong() : 0L;
 
             fill(fileChannel, 0, Math.toIntExact(cacheFile.getLength()));
             fileChannel.force(false);
@@ -455,17 +451,31 @@ public class CacheFileTests extends ESTestCase {
                 greaterThanOrEqualTo(cacheFile.getLength())
             );
 
-            if (Constants.LINUX) {
+            if (blockSize > 0L) {
                 final long nbBlocks = (cacheFile.getLength() + blockSize - 1) / blockSize; // ceil(cacheFile.getLength() / blockSize)
+                final long expectedSize = nbBlocks * blockSize;
                 assertThat(
-                    "Cache file size mismatches (block size: " + blockSize + ", number of blocks: " + nbBlocks + ')',
+                    "Cache file size mismatches (block size: "
+                        + blockSize
+                        + ", number of blocks: "
+                        + nbBlocks
+                        + ", file length: "
+                        + cacheFile.getLength()
+                        + ')',
                     sizeOnDisk.getAsLong(),
-                    equalTo(nbBlocks * blockSize)
+                    equalTo(expectedSize)
                 );
             }
         } finally {
             cacheFile.release(listener);
         }
+    }
+
+    /**
+     * @return true when no encryption at rest is in use (best effort method)
+     */
+    private static boolean noEncryptionAtRest(Path path) {
+        return path.toAbsolutePath().toString().contains("/mnt/secret") == false;
     }
 
     static class TestEvictionListener implements EvictionListener {

@@ -11,7 +11,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.io.IOException;
@@ -26,16 +26,16 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
     static final String ARG2 = "arg_2";
     static final String ARG3 = "arg_3";
 
-    private final BertTokenizer tokenizer;
+    private final NlpTokenizer tokenizer;
 
-    public BertRequestBuilder(BertTokenizer tokenizer) {
+    public BertRequestBuilder(NlpTokenizer tokenizer) {
         this.tokenizer = tokenizer;
     }
 
     @Override
     public NlpTask.Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate) throws IOException {
         if (tokenizer.getPadTokenId().isEmpty()) {
-            throw new IllegalStateException("The input tokenizer does not have a " + BertTokenizer.PAD_TOKEN + " token in its vocabulary");
+            throw new IllegalStateException("The input tokenizer does not have a " + tokenizer.getPadToken() + " token in its vocabulary");
         }
 
         TokenizationResult tokenization = tokenizer.buildTokenizationResult(
@@ -47,7 +47,7 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
     @Override
     public NlpTask.Request buildRequest(TokenizationResult tokenization, String requestId) throws IOException {
         if (tokenizer.getPadTokenId().isEmpty()) {
-            throw new IllegalStateException("The input tokenizer does not have a " + BertTokenizer.PAD_TOKEN + " token in its vocabulary");
+            throw new IllegalStateException("The input tokenizer does not have a " + tokenizer.getPadToken() + " token in its vocabulary");
         }
         return new NlpTask.Request(tokenization, jsonRequest(tokenization, tokenizer.getPadTokenId().getAsInt(), requestId));
     }

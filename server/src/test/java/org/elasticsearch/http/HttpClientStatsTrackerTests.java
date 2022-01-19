@@ -439,14 +439,11 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
     }
 
     private static char randomizeCase(char c) {
-        switch (between(1, 3)) {
-            case 1:
-                return Character.toUpperCase(c);
-            case 2:
-                return Character.toLowerCase(c);
-            default:
-                return c;
-        }
+        return switch (between(1, 3)) {
+            case 1 -> Character.toUpperCase(c);
+            case 2 -> Character.toLowerCase(c);
+            default -> c;
+        };
     }
 
     private HttpChannel randomHttpChannel() {

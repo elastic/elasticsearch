@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.Strings;
@@ -88,7 +88,11 @@ public class AllocateAction implements LifecycleAction {
         } else {
             this.require = require;
         }
-        if (this.include.isEmpty() && this.exclude.isEmpty() && this.require.isEmpty() && numberOfReplicas == null) {
+        if (this.include.isEmpty()
+            && this.exclude.isEmpty()
+            && this.require.isEmpty()
+            && numberOfReplicas == null
+            && totalShardsPerNode == null) {
             throw new IllegalArgumentException(
                 "At least one of "
                     + INCLUDE_FIELD.getPreferredName()
@@ -96,8 +100,13 @@ public class AllocateAction implements LifecycleAction {
                     + EXCLUDE_FIELD.getPreferredName()
                     + " or "
                     + REQUIRE_FIELD.getPreferredName()
-                    + "must contain attributes for action "
+                    + " must contain attributes for action "
                     + NAME
+                    + ". Otherwise the "
+                    + NUMBER_OF_REPLICAS_FIELD.getPreferredName()
+                    + " or the "
+                    + TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName()
+                    + " options must be configured."
             );
         }
         if (numberOfReplicas != null && numberOfReplicas < 0) {

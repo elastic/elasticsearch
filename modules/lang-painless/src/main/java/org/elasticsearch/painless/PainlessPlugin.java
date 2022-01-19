@@ -119,11 +119,9 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         Map<ScriptContext<?>, List<Whitelist>> contextsWithWhitelists = new HashMap<>();
         for (ScriptContext<?> context : contexts) {
             // we might have a context that only uses the base whitelists, so would not have been filled in by reloadSPI
-            List<Whitelist> contextWhitelists = whitelists.get(context);
-            if (contextWhitelists == null) {
-                contextWhitelists = new ArrayList<>(BASE_WHITELISTS);
-            } else {
-                contextWhitelists.addAll(BASE_WHITELISTS);
+            List<Whitelist> contextWhitelists = new ArrayList<>(BASE_WHITELISTS);
+            if (whitelists.get(context) != null) {
+                contextWhitelists.addAll(whitelists.get(context));
             }
             contextsWithWhitelists.put(context, contextWhitelists);
         }

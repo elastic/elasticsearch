@@ -368,20 +368,24 @@ public abstract class Publication {
 
             @Override
             public void onFailure(Exception e) {
-                final Exception rootCause;
-                if (e instanceof TransportException) {
-                    final TransportException transportException = (TransportException) e;
-                    assert ((TransportException) e).getRootCause() instanceof Exception;
-                    rootCause = (Exception) transportException.getRootCause();
-                } else {
-                    rootCause = e;
-                }
                 logger.debug(() -> new ParameterizedMessage("PublishResponseHandler: [{}] failed", discoveryNode), e);
-                setFailed(rootCause);
+                setFailed(getRootCause(e));
                 onPossibleCommitFailure();
                 assert publicationCompletedIffAllTargetsInactiveOrCancelled();
             }
 
+        }
+
+        private Exception getRootCause(Exception e) {
+            if (e instanceof final TransportException transportException) {
+                if (transportException.getRootCause() instanceof final Exception rootCause) {
+                    return rootCause;
+                } else {
+                    assert false : e;
+                    logger.error(() -> new ParameterizedMessage("PublishResponseHandler: [{}] failed", discoveryNode), e);
+                }
+            }
+            return e;
         }
 
         private class ApplyCommitResponseHandler implements ActionListener<TransportResponse.Empty> {

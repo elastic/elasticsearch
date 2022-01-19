@@ -177,7 +177,7 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },
@@ -212,7 +212,7 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },
@@ -384,7 +384,7 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },
@@ -501,7 +501,7 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },
@@ -842,7 +842,7 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },
@@ -971,7 +971,7 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(new PutResponse(true));
                 }
             },

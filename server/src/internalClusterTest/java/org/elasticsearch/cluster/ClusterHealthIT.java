@@ -299,7 +299,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 if (keepSubmittingTasks.get()) {
                     clusterService.submitStateUpdateTask("looping task", this, ClusterStateTaskExecutor.unbatched());
                 } else {
@@ -390,7 +390,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 if (keepSubmittingTasks.get()) {
                     clusterService.submitStateUpdateTask("looping task", this, ClusterStateTaskExecutor.unbatched());
                 } else {

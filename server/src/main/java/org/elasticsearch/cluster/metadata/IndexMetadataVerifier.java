@@ -17,6 +17,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.AbstractMap;
 import java.util.Collections;
@@ -51,7 +53,7 @@ public class IndexMetadataVerifier {
     private static final Logger logger = LogManager.getLogger(IndexMetadataVerifier.class);
 
     private final Settings settings;
-    private final NamedXContentRegistry xContentRegistry;
+    private final XContentParserConfiguration parserConfiguration;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
     private final ScriptCompiler scriptService;
@@ -64,7 +66,8 @@ public class IndexMetadataVerifier {
         ScriptCompiler scriptCompiler
     ) {
         this.settings = settings;
-        this.xContentRegistry = xContentRegistry;
+        this.parserConfiguration = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
         this.scriptService = scriptCompiler;
@@ -186,7 +189,7 @@ public class IndexMetadataVerifier {
                 MapperService mapperService = new MapperService(
                     indexSettings,
                     fakeIndexAnalzyers,
-                    xContentRegistry,
+                    parserConfiguration,
                     similarityService,
                     mapperRegistry,
                     () -> null,

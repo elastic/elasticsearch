@@ -53,7 +53,7 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -417,7 +417,7 @@ public final class IndexModule {
     public IndexService newIndexService(
         IndexService.IndexCreationContext indexCreationContext,
         NodeEnvironment environment,
-        NamedXContentRegistry xContentRegistry,
+        XContentParserConfiguration parserConfiguration,
         IndexService.ShardStoreDeleter shardStoreDeleter,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
@@ -465,7 +465,7 @@ public final class IndexModule {
                 indexSettings,
                 indexCreationContext,
                 environment,
-                xContentRegistry,
+                parserConfiguration,
                 new SimilarityService(indexSettings, scriptService, similarities),
                 shardStoreDeleter,
                 indexAnalyzers,
@@ -569,14 +569,14 @@ public final class IndexModule {
      * doing so will result in an exception.
      */
     public MapperService newIndexMapperService(
-        NamedXContentRegistry xContentRegistry,
+        XContentParserConfiguration parserConfiguration,
         MapperRegistry mapperRegistry,
         ScriptService scriptService
     ) throws IOException {
         return new MapperService(
             indexSettings,
             analysisRegistry.build(indexSettings),
-            xContentRegistry,
+            parserConfiguration,
             new SimilarityService(indexSettings, scriptService, similarities),
             mapperRegistry,
             () -> { throw new UnsupportedOperationException("no index query shard context available"); },

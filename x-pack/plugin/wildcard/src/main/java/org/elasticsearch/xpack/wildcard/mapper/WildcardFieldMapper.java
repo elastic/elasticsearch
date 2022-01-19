@@ -67,6 +67,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.wildcard.WildcardDocValuesField;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -263,6 +264,11 @@ public class WildcardFieldMapper extends FieldMapper {
             }
             this.nullValue = nullValue;
             this.ignoreAbove = ignoreAbove;
+        }
+
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name());
         }
 
         @Override
@@ -829,7 +835,11 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return (cache, breakerService) -> new StringBinaryIndexFieldData(name(), CoreValuesSourceType.KEYWORD);
+            return (cache, breakerService) -> new StringBinaryIndexFieldData(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                WildcardDocValuesField::new
+            );
         }
 
         @Override

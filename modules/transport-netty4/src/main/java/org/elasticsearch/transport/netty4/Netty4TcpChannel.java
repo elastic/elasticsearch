@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CompletableContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportException;
 
@@ -105,6 +106,13 @@ public class Netty4TcpChannel implements TcpChannel {
                 try {
                     channel.config().setOption(ChannelOption.SO_LINGER, 0);
                 } catch (Exception e) {
+                    if (IOUtils.MAC_OS_X) {
+                        // Just ignore on OSX for now, there is no reliably way of determining if the socket is still in a state that
+                        // accepts the setting because it could have already been reset from the other end which quietly does nothing on
+                        // Linux but throws OSX.
+                        // TODO: handle this cleaner?
+                        return;
+                    }
                     if (channel.isOpen()) {
                         throw e;
                     }

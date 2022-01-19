@@ -42,7 +42,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
         // something in our tests wrap the error code to 1 on windows
         // TODO investigate this and remove this guard
         if (distribution.platform != Distribution.Platform.WINDOWS) {
-            assertThat(result.exitCode, equalTo(ExitCodes.USAGE));
+            assertThat(result.exitCode(), equalTo(ExitCodes.USAGE));
         }
         verifySecurityNotAutoConfigured(installation);
     }
@@ -58,7 +58,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
         // something in our tests wrap the error code to 1 on windows
         // TODO investigate this and remove this guard
         if (distribution.platform != Distribution.Platform.WINDOWS) {
-            assertThat(result.exitCode, equalTo(ExitCodes.DATA_ERROR));
+            assertThat(result.exitCode(), equalTo(ExitCodes.DATA_ERROR));
         }
         verifySecurityNotAutoConfigured(installation);
     }
@@ -74,7 +74,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
         // something in our tests wrap the error code to 1 on windows
         // TODO investigate this and remove this guard
         if (distribution.platform != Distribution.Platform.WINDOWS) {
-            assertThat(result.exitCode, equalTo(ExitCodes.UNAVAILABLE));
+            assertThat(result.exitCode(), equalTo(ExitCodes.UNAVAILABLE));
         }
         verifySecurityNotAutoConfigured(installation);
     }
@@ -95,7 +95,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
         // something in our tests wrap the error code to 1 on windows
         // TODO investigate this and remove this guard
         if (distribution.platform != Distribution.Platform.WINDOWS) {
-            assertThat(result.exitCode, equalTo(ExitCodes.NOOP));
+            assertThat(result.exitCode(), equalTo(ExitCodes.NOOP));
         }
         Platforms.onWindows(() -> sh.chown(installation.config));
     }
@@ -113,7 +113,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
         // something in our tests wrap the error code to 1 on windows
         // TODO investigate this and remove this guard
         if (distribution.platform != Distribution.Platform.WINDOWS) {
-            assertThat(result.exitCode, equalTo(ExitCodes.NOOP));
+            assertThat(result.exitCode(), equalTo(ExitCodes.NOOP));
         }
     }
 
@@ -133,8 +133,8 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
             ),
             false
         );
-        assertThat(result.stderr, containsString("Multiple --enrollment-token parameters are not allowed"));
-        assertThat(result.exitCode, equalTo(1));
+        assertThat(result.stderr(), containsString("Multiple --enrollment-token parameters are not allowed"));
+        assertThat(result.exitCode(), equalTo(1));
     }
 
     private String generateMockEnrollmentToken() throws Exception {

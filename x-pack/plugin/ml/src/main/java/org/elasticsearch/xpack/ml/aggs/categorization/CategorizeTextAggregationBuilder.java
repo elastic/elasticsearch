@@ -153,6 +153,13 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
     }
 
     public CategorizeTextAggregationBuilder setCategorizationAnalyzerConfig(CategorizationAnalyzerConfig categorizationAnalyzerConfig) {
+        if (this.categorizationAnalyzerConfig != null) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] cannot be used with [{}] - instead specify them as pattern_replace char_filters in the analyzer",
+                CATEGORIZATION_FILTERS.getPreferredName(),
+                CATEGORIZATION_ANALYZER.getPreferredName()
+            );
+        }
         this.categorizationAnalyzerConfig = categorizationAnalyzerConfig;
         return this;
     }

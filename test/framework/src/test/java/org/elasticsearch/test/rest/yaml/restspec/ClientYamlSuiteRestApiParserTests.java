@@ -30,19 +30,19 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         Iterator<ClientYamlSuiteRestApi.Path> iterator = restApi.getPaths().iterator();
         {
             ClientYamlSuiteRestApi.Path next = iterator.next();
-            assertThat(next.getPath(), equalTo("/{index}/{type}"));
-            assertThat(next.getMethods().length, equalTo(1));
-            assertThat(next.getMethods()[0], equalTo("POST"));
-            assertThat(next.getParts().size(), equalTo(2));
-            assertThat(next.getParts(), containsInAnyOrder("index", "type"));
+            assertThat(next.path(), equalTo("/{index}/{type}"));
+            assertThat(next.methods().length, equalTo(1));
+            assertThat(next.methods()[0], equalTo("POST"));
+            assertThat(next.parts().size(), equalTo(2));
+            assertThat(next.parts(), containsInAnyOrder("index", "type"));
         }
         {
             ClientYamlSuiteRestApi.Path next = iterator.next();
-            assertThat(next.getPath(), equalTo("/{index}/{type}/{id}"));
-            assertThat(next.getMethods().length, equalTo(1));
-            assertThat(next.getMethods()[0], equalTo("PUT"));
-            assertThat(next.getParts().size(), equalTo(3));
-            assertThat(next.getParts(), containsInAnyOrder("id", "index", "type"));
+            assertThat(next.path(), equalTo("/{index}/{type}/{id}"));
+            assertThat(next.methods().length, equalTo(1));
+            assertThat(next.methods()[0], equalTo("PUT"));
+            assertThat(next.parts().size(), equalTo(3));
+            assertThat(next.parts(), containsInAnyOrder("id", "index", "type"));
         }
         assertThat(restApi.getParams().size(), equalTo(4));
         assertThat(restApi.getParams().keySet(), containsInAnyOrder("wait_for_active_shards", "op_type", "routing", "refresh"));
@@ -62,18 +62,18 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         Iterator<ClientYamlSuiteRestApi.Path> iterator = restApi.getPaths().iterator();
         {
             ClientYamlSuiteRestApi.Path next = iterator.next();
-            assertThat(next.getPath(), equalTo("/_template"));
-            assertThat(next.getMethods().length, equalTo(1));
-            assertThat(next.getMethods()[0], equalTo("GET"));
-            assertEquals(0, next.getParts().size());
+            assertThat(next.path(), equalTo("/_template"));
+            assertThat(next.methods().length, equalTo(1));
+            assertThat(next.methods()[0], equalTo("GET"));
+            assertEquals(0, next.parts().size());
         }
         {
             ClientYamlSuiteRestApi.Path next = iterator.next();
-            assertThat(next.getPath(), equalTo("/_template/{name}"));
-            assertThat(next.getMethods().length, equalTo(1));
-            assertThat(next.getMethods()[0], equalTo("GET"));
-            assertThat(next.getParts().size(), equalTo(1));
-            assertThat(next.getParts(), contains("name"));
+            assertThat(next.path(), equalTo("/_template/{name}"));
+            assertThat(next.methods().length, equalTo(1));
+            assertThat(next.methods()[0], equalTo("GET"));
+            assertThat(next.parts().size(), equalTo(1));
+            assertThat(next.parts(), contains("name"));
         }
         assertThat(restApi.getParams().size(), equalTo(0));
         assertThat(restApi.isBodySupported(), equalTo(false));
@@ -91,28 +91,28 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         Iterator<ClientYamlSuiteRestApi.Path> iterator = restApi.getPaths().iterator();
         {
             ClientYamlSuiteRestApi.Path next = iterator.next();
-            assertThat(next.getPath(), equalTo("/_count"));
-            assertThat(next.getMethods().length, equalTo(2));
-            assertThat(next.getMethods()[0], equalTo("POST"));
-            assertThat(next.getMethods()[1], equalTo("GET"));
-            assertEquals(0, next.getParts().size());
+            assertThat(next.path(), equalTo("/_count"));
+            assertThat(next.methods().length, equalTo(2));
+            assertThat(next.methods()[0], equalTo("POST"));
+            assertThat(next.methods()[1], equalTo("GET"));
+            assertEquals(0, next.parts().size());
         }
         {
             ClientYamlSuiteRestApi.Path next = iterator.next();
-            assertThat(next.getPath(), equalTo("/{index}/_count"));
-            assertThat(next.getMethods().length, equalTo(2));
-            assertThat(next.getMethods()[0], equalTo("POST"));
-            assertThat(next.getMethods()[1], equalTo("GET"));
-            assertEquals(1, next.getParts().size());
-            assertThat(next.getParts(), contains("index"));
+            assertThat(next.path(), equalTo("/{index}/_count"));
+            assertThat(next.methods().length, equalTo(2));
+            assertThat(next.methods()[0], equalTo("POST"));
+            assertThat(next.methods()[1], equalTo("GET"));
+            assertEquals(1, next.parts().size());
+            assertThat(next.parts(), contains("index"));
         }
         {
             ClientYamlSuiteRestApi.Path next = iterator.next();
-            assertThat(next.getPath(), equalTo("/{index}/{type}/_count"));
-            assertThat(next.getMethods().length, equalTo(2));
-            assertThat(next.getMethods()[0], equalTo("POST"));
-            assertThat(next.getMethods()[1], equalTo("GET"));
-            assertThat(next.getParts(), containsInAnyOrder("index", "type"));
+            assertThat(next.path(), equalTo("/{index}/{type}/_count"));
+            assertThat(next.methods().length, equalTo(2));
+            assertThat(next.methods()[0], equalTo("POST"));
+            assertThat(next.methods()[1], equalTo("GET"));
+            assertThat(next.parts(), containsInAnyOrder("index", "type"));
         }
         assertThat(restApi.getParams().size(), equalTo(1));
         assertThat(restApi.getParams().keySet(), contains("ignore_unavailable"));
@@ -151,7 +151,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
 
         assertThat(restApi, notNullValue());
         assertThat(restApi.getPaths().size(), equalTo(1));
-        assertThat(restApi.getPaths().iterator().next().getParts().isEmpty(), equalTo(true));
+        assertThat(restApi.getPaths().iterator().next().parts().isEmpty(), equalTo(true));
         assertThat(restApi.getParams().isEmpty(), equalTo(true));
         assertThat(restApi.isBodyRequired(), equalTo(true));
     }

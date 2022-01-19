@@ -314,7 +314,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             for (ClientYamlSuiteRestApi restApi : restSpec.getApis()) {
                 if (restApi.isBodySupported()) {
                     for (ClientYamlSuiteRestApi.Path path : restApi.getPaths()) {
-                        List<String> methodsList = Arrays.asList(path.getMethods());
+                        List<String> methodsList = Arrays.asList(path.methods());
                         if (methodsList.contains("GET") && restApi.isBodySupported()) {
                             if (methodsList.contains("POST") == false) {
                                 errorMessage.append("\n- ")
@@ -494,7 +494,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     private String errorMessage(ExecutableSection executableSection, Throwable t) {
-        return "Failure at [" + testCandidate.getSuitePath() + ":" + executableSection.getLocation().lineNumber + "]: " + t.getMessage();
+        return "Failure at [" + testCandidate.getSuitePath() + ":" + executableSection.getLocation().lineNumber() + "]: " + t.getMessage();
     }
 
     protected boolean randomizeContentType() {

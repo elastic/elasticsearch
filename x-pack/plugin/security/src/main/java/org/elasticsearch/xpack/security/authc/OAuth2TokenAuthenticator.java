@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 
 class OAuth2TokenAuthenticator implements Authenticator {
 

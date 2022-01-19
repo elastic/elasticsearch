@@ -41,6 +41,8 @@ setup:
                             analyzer: standard
                         rank:
                             type: integer
+                        flattended:
+                            type: flattened
 
 
     - do:
@@ -1531,7 +1533,7 @@ setup:
 
   - do:
       index:
-        index: test
+        index: versiontest
         id: 3000
         version: 50
         version_type: external
@@ -1543,6 +1545,7 @@ setup:
 
   - do:
       search:
+        index: versiontest
         rest_total_hits_as_int: true
         body:
           query: { term: { _id: 3000 } }
@@ -1554,11 +1557,11 @@ setup:
               script:
                 source: "field('_seq_no').get(10000)"
   - match: { hits.hits.0.fields.ver.0: 50 }
-  - match: { hits.hits.0.fields.seq.0: 3 }
+  - match: { hits.hits.0.fields.seq.0: 0 }
 
   - do:
       index:
-        index: test
+        index: versiontest
         id: 3000
         version: 60
         version_type: external
@@ -1570,7 +1573,7 @@ setup:
   - do:
       catch:      conflict
       index:
-        index: test
+        index: versiontest
         id: 3000
         version: 55
         version_type: external
@@ -1581,6 +1584,7 @@ setup:
 
   - do:
       search:
+        index: versiontest
         rest_total_hits_as_int: true
         body:
           query: { term: { _id: 3000 } }
@@ -1592,4 +1596,103 @@ setup:
               script:
                 source: "field('_seq_no').get(10000)"
   - match: { hits.hits.0.fields.ver.0: 60 }
-  - match: { hits.hits.0.fields.seq.0: 4 }
+  - match: { hits.hits.0.fields.seq.0: 1 }
+
+---
+"flattened fields api":
+  - do:
+      indices.create:
+        index: flatindex
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              rank:
+                type: integer
+              flattened:
+                type: flattened
+
+  - do:
+      index:
+        index: flatindex
+        id: 40
+        body:
+          rank: 1
+          flattened:
+            top: 123
+            dict:
+              abc: def
+              hij: lmn
+            list: [true]
+
+  - do:
+      index:
+        index: flatindex
+        id: 41
+        body:
+          rank: 2
+          flattened:
+            top2: 876
+            dict2:
+              abc: def
+              opq: rst
+              hij: lmn
+              uvx: wyz
+            list2: [789, 1011, 1213]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: flatindex
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            f_root:
+              script:
+                source: "field('flattened').get('dne')"
+            f_root_index:
+              script:
+                source: "field('flattened').get(2, 'dne')"
+            f_top:
+              script:
+                source: "field('flattened.top').get('dne')"
+            f_top2:
+              script:
+                source: "field('flattened.top2').get('dne')"
+            f_dict:
+              script:
+                source: "field('flattened.dict.abc').get('dne')"
+            f_dict2:
+              script:
+                source: "field('flattened.dict2.uvx').get('dne')"
+            f_list:
+              script:
+                source: "field('flattened.list').get('dne')"
+            f_list2:
+              script:
+                source: "field('flattened.list2').get(2, 'dne')"
+            all:
+              script:
+                source: "String all = ''; for (String value : field('flattened')) { all += value } all"
+  - match: { hits.hits.0.fields.f_root.0: "123" }
+  - match: { hits.hits.0.fields.f_root_index.0: "lmn" }
+  - match: { hits.hits.0.fields.f_top.0: "123" }
+  - match: { hits.hits.0.fields.f_top2.0: "dne" }
+  - match: { hits.hits.0.fields.f_dict.0: "def" }
+  - match: { hits.hits.0.fields.f_dict2.0: "dne" }
+  - match: { hits.hits.0.fields.f_list.0: "true" }
+  - match: { hits.hits.0.fields.f_list2.0: "dne" }
+  - match: { hits.hits.0.fields.all.0: "123deflmntrue" }
+  - match: { hits.hits.1.fields.f_root.0: "1011" }
+  - match: { hits.hits.1.fields.f_root_index.0: "789" }
+  - match: { hits.hits.1.fields.f_top.0: "dne" }
+  - match: { hits.hits.1.fields.f_top2.0: "876" }
+  - match: { hits.hits.1.fields.f_dict.0: "dne" }
+  - match: { hits.hits.1.fields.f_dict2.0: "wyz" }
+  - match: { hits.hits.1.fields.f_list.0: "dne" }
+  - match: { hits.hits.1.fields.f_list2.0: "789" }
+  - match: { hits.hits.1.fields.all.0: "10111213789876deflmnrstwyz" }

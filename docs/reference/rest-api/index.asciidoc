@@ -32,6 +32,7 @@ not be included yet.
 * <<logstash-apis,Logstash APIs>>
 * <<ml-apis,{ml-cap} {anomaly-detect} APIs>>
 * <<ml-df-analytics-apis,{ml-cap} {dfanalytics} APIs>>
+* <<ml-df-trained-models-apis,{ml-cap} trained model APIs>>
 * <<migration-api,Migration APIs>>
 * <<node-lifecycle-api,Node lifecycle API>>
 * <<indices-reload-analyzers,Reload search analyzers API>>

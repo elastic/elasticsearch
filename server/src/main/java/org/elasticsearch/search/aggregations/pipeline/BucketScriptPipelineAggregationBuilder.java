@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -83,7 +84,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
     public BucketScriptPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME);
         int mapSize = in.readVInt();
-        bucketsPathsMap = new HashMap<>(mapSize);
+        bucketsPathsMap = Maps.newMapWithExpectedSize(mapSize);
         for (int i = 0; i < mapSize; i++) {
             bucketsPathsMap.put(in.readString(), in.readString());
         }

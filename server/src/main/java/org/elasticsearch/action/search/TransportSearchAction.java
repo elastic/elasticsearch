@@ -40,6 +40,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
@@ -1238,7 +1239,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         String[] concreteLocalIndices
     ) {
         HashSet<String> searchedIndices = new HashSet<>(Arrays.asList(concreteLocalIndices));
-        HashMap<String, long[]> newWaitForCheckpoints = new HashMap<>(searchRequest.getWaitForCheckpoints().size());
+        Map<String, long[]> newWaitForCheckpoints = Maps.newMapWithExpectedSize(searchRequest.getWaitForCheckpoints().size());
         for (Map.Entry<String, long[]> waitForCheckpointIndex : searchRequest.getWaitForCheckpoints().entrySet()) {
             long[] checkpoints = waitForCheckpointIndex.getValue();
             int checkpointsProvided = checkpoints.length;

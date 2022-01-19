@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -71,7 +72,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
 
             sz = 0;
             for (SearchHit hit : hits) {
-                Map<String, SearchHit[]> innerHitsPerPath = new HashMap<>(innerHits.size());
+                Map<String, SearchHit[]> innerHitsPerPath = Maps.newMapWithExpectedSize(innerHits.size());
                 for (String ih : innerHits) {
                     SearchHit[] sh = getAllInnerHits(hit, ih);
                     innerHitsPerPath.put(ih, sh);

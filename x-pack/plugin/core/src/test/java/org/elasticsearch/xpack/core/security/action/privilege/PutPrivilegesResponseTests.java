@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.core.security.action.privilege;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,7 +23,7 @@ public class PutPrivilegesResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         final int applicationCount = randomInt(3);
-        final Map<String, List<String>> map = new HashMap<>(applicationCount);
+        final Map<String, List<String>> map = Maps.newMapWithExpectedSize(applicationCount);
         for (int i = 0; i < applicationCount; i++) {
             map.put(randomAlphaOfLengthBetween(3, 8), Arrays.asList(generateRandomStringArray(5, 6, false, true)));
         }

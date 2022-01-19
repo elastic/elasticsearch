@@ -27,6 +27,7 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslDiagnostics;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -534,7 +535,7 @@ public class SSLService {
 
     private static Map<String, SslConfiguration> getSSLConfigurations(Environment env, Settings settings) {
         final Map<String, Settings> sslSettingsMap = getSSLSettingsMap(settings);
-        final Map<String, SslConfiguration> sslConfigurationMap = new HashMap<>(sslSettingsMap.size());
+        final Map<String, SslConfiguration> sslConfigurationMap = Maps.newMapWithExpectedSize(sslSettingsMap.size());
         sslSettingsMap.forEach((key, sslSettings) -> {
             if (key.endsWith(".")) {
                 // Drop trailing '.' so that any exception messages are consistent
@@ -596,7 +597,7 @@ public class SSLService {
      * Parses the settings to load all SslConfiguration objects that will be used.
      */
     Map<SslConfiguration, SSLContextHolder> loadSslConfigurations(Map<String, SslConfiguration> sslConfigurationMap) {
-        final Map<SslConfiguration, SSLContextHolder> sslContextHolders = new HashMap<>(sslConfigurationMap.size());
+        final Map<SslConfiguration, SSLContextHolder> sslContextHolders = Maps.newMapWithExpectedSize(sslConfigurationMap.size());
         sslConfigurationMap.forEach((key, sslConfiguration) -> {
             try {
                 sslContextHolders.computeIfAbsent(sslConfiguration, this::createSslContext);

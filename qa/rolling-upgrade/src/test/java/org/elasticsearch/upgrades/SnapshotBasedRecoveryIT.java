@@ -70,9 +70,15 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
             }
             case MIXED, UPGRADED -> {
                 if (FIRST_MIXED_ROUND) {
-                    String upgradedNodeId = getUpgradedNodeId();
-                    updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.exclude._id", upgradedNodeId));
-                    ensureGreen(indexName);
+                    List<String> upgradedNodeIds = getUpgradedNodeIds();
+                    // It's possible that the test simply does a rolling-restart, i.e. it "upgrades" to
+                    // the same version. In that case we proceed without excluding any node
+                    if (upgradedNodeIds.isEmpty() == false) {
+                        assertThat(upgradedNodeIds.size(), is(equalTo(1)));
+                        String upgradedNodeId = upgradedNodeIds.get(0);
+                        updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.exclude._id", upgradedNodeId));
+                        ensureGreen(indexName);
+                    }
 
                     String primaryNodeId = getPrimaryNodeIdOfShard(indexName, 0);
                     Version primaryNodeVersion = getNodeVersion(primaryNodeId);
@@ -104,7 +110,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
         }
     }
 
-    private String getUpgradedNodeId() throws IOException {
+    private List<String> getUpgradedNodeIds() throws IOException {
         Request request = new Request(HttpGet.METHOD_NAME, "_nodes/_all");
         Response response = client().performRequest(request);
         Map<String, Object> responseMap = responseAsMap(response);
@@ -116,8 +122,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                 upgradedNodes.add(nodeInfoEntry.getKey());
             }
         }
-        assertThat(upgradedNodes.size(), is(equalTo(1)));
-        return upgradedNodes.get(0);
+        return upgradedNodes;
     }
 
     private Version getNodeVersion(String primaryNodeId) throws IOException {

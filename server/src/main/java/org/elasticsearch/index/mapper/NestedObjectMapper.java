@@ -29,8 +29,8 @@ public class NestedObjectMapper extends ObjectMapper {
 
     public static class Builder extends ObjectMapper.Builder {
 
-        private Explicit<Boolean> includeInRoot = new Explicit<>(false, false);
-        private Explicit<Boolean> includeInParent = new Explicit<>(false, false);
+        private Explicit<Boolean> includeInRoot = Explicit.IMPLICIT_FALSE;
+        private Explicit<Boolean> includeInParent = Explicit.IMPLICIT_FALSE;
         private final Version indexCreatedVersion;
 
         public Builder(String name, Version indexCreatedVersion) {
@@ -39,12 +39,12 @@ public class NestedObjectMapper extends ObjectMapper {
         }
 
         Builder includeInRoot(boolean includeInRoot) {
-            this.includeInRoot = new Explicit<>(includeInRoot, true);
+            this.includeInRoot = Explicit.explicitBoolean(includeInRoot);
             return this;
         }
 
         Builder includeInParent(boolean includeInParent) {
-            this.includeInParent = new Explicit<>(includeInParent, true);
+            this.includeInParent = Explicit.explicitBoolean(includeInParent);
             return this;
         }
 
@@ -122,7 +122,7 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     public void setIncludeInParent(boolean includeInParent) {
-        this.includeInParent = new Explicit<>(includeInParent, true);
+        this.includeInParent = Explicit.explicitBoolean(includeInParent);
     }
 
     public boolean isIncludeInRoot() {
@@ -130,7 +130,7 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     public void setIncludeInRoot(boolean includeInRoot) {
-        this.includeInRoot = new Explicit<>(includeInRoot, true);
+        this.includeInRoot = Explicit.explicitBoolean(includeInRoot);
     }
 
     public Map<String, Mapper> getChildren() {

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.action.role;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -31,13 +31,9 @@ public class PutRoleBuilderTests extends ESTestCase {
                 ElasticsearchParseException.class,
                 () -> new PutRoleRequestBuilder(client).source("role1", new BytesArray(roleString), XContentType.JSON)
             );
-            assertThat(
-                e.getDetailedMessage(),
-                containsString(
-                    "\"fields\": [...]] format has changed for field permissions in role "
-                        + "[role1], use [\"field_security\": {\"grant\":[...],\"except\":[...]}] instead"
-                )
-            );
+            assertThat(e.getDetailedMessage(), containsString("""
+                "fields": [...]] format has changed for field permissions in role [role1], \
+                use ["field_security": {"grant":[...],"except":[...]}] instead"""));
         }
     }
 }

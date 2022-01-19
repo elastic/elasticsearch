@@ -172,10 +172,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode leader = cluster.getAnyLeader();
             logger.info("--> adding two new healthy nodes");
             ClusterNode newNode1 = cluster.new ClusterNode(
-                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, () -> healthStatusInfo.get()
+                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, healthStatusInfo::get
             );
             ClusterNode newNode2 = cluster.new ClusterNode(
-                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, () -> healthStatusInfo.get()
+                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, healthStatusInfo::get
             );
             cluster.clusterNodes.add(newNode1);
             cluster.clusterNodes.add(newNode2);
@@ -1132,12 +1132,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 return cs;
             }, new ClusterStateTaskListener() {
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     notifyAdvancer.advanceTime();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     assert false : e;
                 }
             });
@@ -1219,12 +1219,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 return ClusterState.builder(cs).putCustom(customName, new DelayedCustom(contextAdvancer)).build();
             }, new ClusterStateTaskListener() {
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     notifyAdvancer.advanceTime();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     assert false : e;
                 }
             });
@@ -1280,12 +1280,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 return ClusterState.builder(cs).build();
             }, new ClusterStateTaskListener() {
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     fail("shouldn't have processed cluster state");
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     notifyAdvancer.advanceTime();
                 }
             });
@@ -1428,7 +1428,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                 return ClusterState.builder(cs)
                     .metadata(Metadata.builder(cs.metadata()).persistentSettings(settingsBuilder.build()))
                     .build();
-            }, (source, e) -> {});
+            }, (e) -> {});
             cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing setting update");
 
             final ClusterNode removedNode = cluster.getAnyNode();
@@ -1829,15 +1829,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             logger.info("--> submitting broken task to [{}]", leader1);
 
             final AtomicBoolean failed = new AtomicBoolean();
-            leader1.submitUpdateTask(
-                "broken-task",
-                cs -> ClusterState.builder(cs).putCustom("broken", new BrokenCustom()).build(),
-                (source, e) -> {
-                    assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
-                    assertThat(e.getCause().getMessage(), equalTo(BrokenCustom.EXCEPTION_MESSAGE));
-                    failed.set(true);
-                }
-            );
+            leader1.submitUpdateTask("broken-task", cs -> ClusterState.builder(cs).putCustom("broken", new BrokenCustom()).build(), (e) -> {
+                assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
+                assertThat(e.getCause().getMessage(), equalTo(BrokenCustom.EXCEPTION_MESSAGE));
+                failed.set(true);
+            });
             cluster.runFor(2 * DEFAULT_DELAY_VARIABILITY + 1, "processing broken task");
             assertTrue(failed.get());
 

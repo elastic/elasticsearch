@@ -15,6 +15,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
@@ -26,6 +27,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
@@ -120,9 +122,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void putAutoFollowPattern(String patternName, String remoteCluster, String indexPattern) throws IOException {
         Request putPatternRequest = new Request("PUT", "/_ccr/auto_follow/" + patternName);
-        putPatternRequest.setJsonEntity(
-            "{\"leader_index_patterns\": [\"" + indexPattern + "\"], \"remote_cluster\": \"" + remoteCluster + "\"}"
-        );
+        putPatternRequest.setJsonEntity(String.format(Locale.ROOT, """
+            {"leader_index_patterns": ["%s"], "remote_cluster": "%s"}
+            """, indexPattern, remoteCluster));
         assertOK(client().performRequest(putPatternRequest));
     }
 
@@ -174,7 +176,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void verifyCcrMonitoring(final String expectedLeaderIndex, final String expectedFollowerIndex) throws IOException {
         Request request = new Request("GET", "/.monitoring-*/_search");
-        request.setJsonEntity("{\"query\": {\"term\": {\"ccr_stats.leader_index\": \"" + expectedLeaderIndex + "\"}}}");
+        request.setJsonEntity(String.format(Locale.ROOT, """
+            {"query": {"term": {"ccr_stats.leader_index": "%s"}}}
+            """, expectedLeaderIndex));
         Map<String, ?> response;
         try {
             response = toMap(adminClient().performRequest(request));
@@ -216,7 +220,8 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void verifyAutoFollowMonitoring() throws IOException {
         Request request = new Request("GET", "/.monitoring-*/_search");
-        request.setJsonEntity("{\"query\": {\"term\": {\"type\": \"ccr_auto_follow_stats\"}}}");
+        request.setJsonEntity("""
+            {"query": {"term": {"type": "ccr_auto_follow_stats"}}}""");
         Map<String, ?> response;
         try {
             response = toMap(adminClient().performRequest(request));
@@ -344,8 +349,19 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         assertOK(client.performRequest(request));
     }
 
-    protected static String backingIndexName(String dataStreamName, int generation) {
-        return DataStream.getDefaultBackingIndexName(dataStreamName, generation);
+    /**
+     * Fix point in time when data stream backing index is first time queried.
+     * This is required to avoid failures when running test at midnight.
+     * (index is created for day0, but assertions are executed for day1 assuming different time based index name that does not exist)
+     */
+    private final LazyInitializable<Long, RuntimeException> time = new LazyInitializable<>(System::currentTimeMillis);
+
+    protected String backingIndexName(String dataStreamName, int generation) {
+        return DataStream.getDefaultBackingIndexName(dataStreamName, generation, time.getOrCompute());
+    }
+
+    protected String backingIndexName(String dataStreamName, int generation, long epochMillis) {
+        return DataStream.getDefaultBackingIndexName(dataStreamName, generation, epochMillis);
     }
 
     protected RestClient buildLeaderClient() throws IOException {

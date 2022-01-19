@@ -11,9 +11,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
@@ -254,6 +254,23 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             existingTemplates.put(".watches", INDEX_TEMPLATE_VERSION);
             assertThat(WatcherIndexTemplateRegistry.validate(createClusterState(existingTemplates)), is(true));
         }
+
+        {
+            Map<String, Integer> existingTemplates = new HashMap<>();
+            existingTemplates.put(".watch-history-11", 11);
+            existingTemplates.put(".triggered_watches", 11);
+            existingTemplates.put(".watches", 11);
+            assertThat(WatcherIndexTemplateRegistry.validate(createClusterState(existingTemplates)), is(false));
+        }
+
+        {
+            Map<String, Integer> existingTemplates = new HashMap<>();
+            existingTemplates.put(".watch-history-15", 15);
+            existingTemplates.put(".triggered_watches", 15);
+            existingTemplates.put(".watches", 15);
+            assertThat(WatcherIndexTemplateRegistry.validate(createClusterState(existingTemplates)), is(true));
+        }
+
         {
             Map<String, Integer> existingTemplates = new HashMap<>();
             existingTemplates.put(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);

@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;

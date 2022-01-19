@@ -12,7 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -399,7 +399,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings unused) {
         return List.of(
             SystemIndexDescriptor.builder()
                 .setIndexPattern(SNAPSHOT_BLOB_CACHE_INDEX_PATTERN)
@@ -506,7 +506,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     public List<RestHandler> getRestHandlers(
-        Settings settings,
+        Settings unused,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -533,11 +533,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     @Override
-    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+    public Collection<AllocationDecider> createAllocationDeciders(Settings settingsToUse, ClusterSettings clusterSettings) {
         return List.of(
             new SearchableSnapshotAllocationDecider(() -> SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(getLicenseState())),
             new SearchableSnapshotRepositoryExistsAllocationDecider(),
-            new SearchableSnapshotEnableAllocationDecider(settings, clusterSettings),
+            new SearchableSnapshotEnableAllocationDecider(settingsToUse, clusterSettings),
             new HasFrozenCacheAllocationDecider(frozenCacheInfoService),
             new DedicatedFrozenNodeAllocationDecider()
         );

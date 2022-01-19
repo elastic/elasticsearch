@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.execute;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;

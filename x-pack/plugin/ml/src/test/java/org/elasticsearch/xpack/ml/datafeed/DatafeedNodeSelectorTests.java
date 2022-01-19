@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -672,7 +672,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
         clusterState = ClusterState.builder(new ClusterName("cluster_name"))
             .metadata(
                 new Metadata.Builder().put(
-                    new DataStream(dataStreamName, createTimestampField("@timestamp"), Collections.singletonList(index))
+                    DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), Collections.singletonList(index))
                 ).putCustom(PersistentTasksCustomMetadata.TYPE, tasks).putCustom(MlMetadata.TYPE, mlMetadata).put(indexMetadata, false)
             )
             .nodes(nodes)

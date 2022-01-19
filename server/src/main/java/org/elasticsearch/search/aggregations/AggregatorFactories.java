@@ -124,11 +124,8 @@ public class AggregatorFactories {
                 token = parser.nextToken();
                 if (token == XContentParser.Token.START_OBJECT) {
                     switch (fieldName) {
-                        case "meta":
-                            metadata = parser.map();
-                            break;
-                        case "aggregations":
-                        case "aggs":
+                        case "meta" -> metadata = parser.map();
+                        case "aggregations", "aggs" -> {
                             if (subFactories != null) {
                                 throw new ParsingException(
                                     parser.getTokenLocation(),
@@ -136,8 +133,8 @@ public class AggregatorFactories {
                                 );
                             }
                             subFactories = parseAggregators(parser, level + 1);
-                            break;
-                        default:
+                        }
+                        default -> {
                             if (aggBuilder != null) {
                                 throw new ParsingException(
                                     parser.getTokenLocation(),
@@ -150,7 +147,6 @@ public class AggregatorFactories {
                                         + "]"
                                 );
                             }
-
                             try {
                                 aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName, aggregationName);
                             } catch (NamedObjectNotFoundException ex) {
@@ -162,6 +158,7 @@ public class AggregatorFactories {
                                 );
                                 throw new ParsingException(new XContentLocation(ex.getLineNumber(), ex.getColumnNumber()), message, ex);
                             }
+                        }
                     }
                 } else {
                     throw new ParsingException(
@@ -441,14 +438,14 @@ public class AggregatorFactories {
                 String[] bucketsPaths = builder.getBucketsPaths();
                 for (String bucketsPath : bucketsPaths) {
                     List<AggregationPath.PathElement> bucketsPathElements = AggregationPath.parse(bucketsPath).getPathElements();
-                    String firstAggName = bucketsPathElements.get(0).name;
+                    String firstAggName = bucketsPathElements.get(0).name();
                     if (bucketsPath.equals("_count") || bucketsPath.equals("_key")) {
                         continue;
                     } else if (aggBuildersMap.containsKey(firstAggName)) {
                         AggregationBuilder aggBuilder = aggBuildersMap.get(firstAggName);
                         for (int i = 1; i < bucketsPathElements.size(); i++) {
                             PathElement pathElement = bucketsPathElements.get(i);
-                            String aggName = pathElement.name;
+                            String aggName = pathElement.name();
                             if ((i == bucketsPathElements.size() - 1) && (aggName.equalsIgnoreCase("_key") || aggName.equals("_count"))) {
                                 break;
                             } else {

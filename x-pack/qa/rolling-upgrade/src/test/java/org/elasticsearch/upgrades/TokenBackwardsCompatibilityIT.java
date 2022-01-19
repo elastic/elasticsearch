@@ -278,19 +278,21 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(request));
             assertEquals(401, e.getResponse().getStatusLine().getStatusCode());
             Response response = e.getResponse();
-            assertEquals(
-                "Bearer realm=\"security\", error=\"invalid_token\", error_description=\"The access token expired\"",
-                response.getHeader("WWW-Authenticate")
-            );
+            assertEquals("""
+                Bearer realm="security", error="invalid_token", error_description="The access token expired"\
+                """, response.getHeader("WWW-Authenticate"));
         }
     }
 
     private void assertRefreshTokenInvalidated(String refreshToken) throws IOException {
         for (RestClient client : twoClients) {
             Request refreshTokenRequest = new Request("POST", "/_security/oauth2/token");
-            refreshTokenRequest.setJsonEntity(
-                "{\n" + "    \"refresh_token\": \"" + refreshToken + "\",\n" + "    \"grant_type\": \"refresh_token\"\n" + "}"
-            );
+            refreshTokenRequest.setJsonEntity("""
+                {
+                  "refresh_token": "%s",
+                  "grant_type": "refresh_token"
+                }
+                """.formatted(refreshToken));
             ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(refreshTokenRequest));
             assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
             Response response = e.getResponse();
@@ -322,17 +324,12 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private Map<String, Object> createTokens(RestClient client, String username, String password) throws IOException {
         final Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
-        createTokenRequest.setJsonEntity(
-            "{\n"
-                + "    \"username\": \""
-                + username
-                + "\",\n"
-                + "    \"password\": \""
-                + password
-                + "\",\n"
-                + "    \"grant_type\": \"password\"\n"
-                + "}"
-        );
+        createTokenRequest.setJsonEntity("""
+            {
+              "username": "%s",
+              "password": "%s",
+              "grant_type": "password"
+            }""".formatted(username, password));
         Response response = client().performRequest(createTokenRequest);
         assertOK(response);
         return entityAsMap(response);
@@ -340,9 +337,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private void storeTokens(RestClient client, int idx, String accessToken, String refreshToken) throws IOException {
         final Request indexRequest = new Request("PUT", "token_backwards_compatibility_it/_doc/old_cluster_token" + idx);
-        indexRequest.setJsonEntity(
-            "{\n" + "    \"token\": \"" + accessToken + "\",\n" + "    \"refresh_token\": \"" + refreshToken + "\"\n" + "}"
-        );
+        indexRequest.setJsonEntity("""
+            {
+              "token": "%s",
+              "refresh_token": "%s"
+            }""".formatted(accessToken, refreshToken));
         Response indexResponse1 = client.performRequest(indexRequest);
         assertOK(indexResponse1);
     }
@@ -357,9 +356,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private Map<String, Object> refreshToken(RestClient client, String refreshToken) throws IOException {
         final Request refreshTokenRequest = new Request("POST", "/_security/oauth2/token");
-        refreshTokenRequest.setJsonEntity(
-            "{\n" + "    \"refresh_token\": \"" + refreshToken + "\",\n" + "    \"grant_type\": \"refresh_token\"\n" + "}"
-        );
+        refreshTokenRequest.setJsonEntity("""
+            {
+              "refresh_token": "%s",
+              "grant_type": "refresh_token"
+            }""".formatted(refreshToken));
         Response refreshResponse = client.performRequest(refreshTokenRequest);
         assertOK(refreshResponse);
         return entityAsMap(refreshResponse);

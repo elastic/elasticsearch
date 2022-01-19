@@ -306,10 +306,25 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-        builder.field(FROM_FIELD.getPreferredName(), maybeConvertToString(this.from));
-        builder.field(TO_FIELD.getPreferredName(), maybeConvertToString(this.to));
-        builder.field(INCLUDE_LOWER_FIELD.getPreferredName(), includeLower);
-        builder.field(INCLUDE_UPPER_FIELD.getPreferredName(), includeUpper);
+
+        Object from = maybeConvertToString(this.from);
+        if (from != null) {
+            if (includeLower) {
+                builder.field(GTE_FIELD.getPreferredName(), from);
+            } else {
+                builder.field(GT_FIELD.getPreferredName(), from);
+            }
+        }
+
+        Object to = maybeConvertToString(this.to);
+        if (to != null) {
+            if (includeUpper) {
+                builder.field(LTE_FIELD.getPreferredName(), to);
+            } else {
+                builder.field(LT_FIELD.getPreferredName(), to);
+            }
+        }
+
         if (timeZone != null) {
             builder.field(TIME_ZONE_FIELD.getPreferredName(), timeZone.getId());
         }
@@ -420,8 +435,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         CoordinatorRewriteContext coordinatorRewriteContext = queryRewriteContext.convertToCoordinatorRewriteContext();
         if (coordinatorRewriteContext != null) {
             final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
-            if (fieldType instanceof DateFieldMapper.DateFieldType) {
-                final DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) fieldType;
+            if (fieldType instanceof final DateFieldMapper.DateFieldType dateFieldType) {
                 if (coordinatorRewriteContext.hasTimestampData() == false) {
                     return MappedFieldType.Relation.DISJOINT;
                 }

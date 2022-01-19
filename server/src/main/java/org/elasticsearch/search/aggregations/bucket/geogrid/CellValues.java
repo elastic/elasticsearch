@@ -17,7 +17,7 @@ import java.io.IOException;
  * the geo-doc-values. Class must encode the values and then
  * sort them in order to account for the cells correctly.
  */
-abstract class CellValues extends AbstractSortingNumericDocValues {
+public abstract class CellValues extends AbstractSortingNumericDocValues {
     private MultiGeoPointValues geoValues;
     protected int precision;
 
@@ -51,5 +51,5 @@ abstract class CellValues extends AbstractSortingNumericDocValues {
      * @param valuesIdx the index into <code>values</code> to set
      * @return          valuesIdx + 1 if value was set, valuesIdx otherwise.
      */
-    abstract int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx);
+    protected abstract int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx);
 }

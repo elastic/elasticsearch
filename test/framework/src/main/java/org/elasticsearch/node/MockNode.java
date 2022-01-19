@@ -8,7 +8,7 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;

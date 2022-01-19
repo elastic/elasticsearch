@@ -18,11 +18,10 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -83,18 +82,11 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
     }
 
     private DocValueFormat randomFormat(InternalMultiTerms.KeyConverter converter) {
-        switch (converter) {
-            case UNSIGNED_LONG:
-            case LONG:
-            case DOUBLE:
-                return randomNumericDocValueFormat();
-            case IP:
-                return DocValueFormat.IP;
-            case STRING:
-                return DocValueFormat.RAW;
-            default:
-                throw new IllegalArgumentException("unsupported converter [" + converter + "]");
-        }
+        return switch (converter) {
+            case UNSIGNED_LONG, LONG, DOUBLE -> randomNumericDocValueFormat();
+            case IP -> DocValueFormat.IP;
+            case STRING -> DocValueFormat.RAW;
+        };
     }
 
     private List<InternalMultiTerms.KeyConverter> randomKeyConverters(int size) {
@@ -117,19 +109,12 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
     }
 
     private Object randomKey(InternalMultiTerms.KeyConverter converter) {
-        switch (converter) {
-            case UNSIGNED_LONG:
-            case LONG:
-                return randomLong();
-            case DOUBLE:
-                return randomDouble();
-            case IP:
-                return new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
-            case STRING:
-                return new BytesRef(randomAlphaOfLength(5));
-            default:
-                throw new IllegalArgumentException("unsupported converter [" + converter + "]");
-        }
+        return switch (converter) {
+            case UNSIGNED_LONG, LONG -> randomLong();
+            case DOUBLE -> randomDouble();
+            case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+            case STRING -> new BytesRef(randomAlphaOfLength(5));
+        };
     }
 
     private List<InternalMultiTerms.Bucket> randomBuckets(
@@ -263,22 +248,17 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
         Map<String, Object> metadata = instance.getMetadata();
         BucketOrder order = instance.order;
         switch (between(0, 2)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                order = randomValueOtherThan(order, InternalMultiTermsTests::randomBucketOrder);
-                break;
-            case 2:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> order = randomValueOtherThan(order, InternalMultiTermsTests::randomBucketOrder);
+            case 2 -> {
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalMultiTerms(
             name,
@@ -371,12 +351,7 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             keyConverters2,
             null
         );
-        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
-            bigArrays,
-            mockScriptService,
-            () -> PipelineAggregator.PipelineTree.EMPTY,
-            () -> false
-        );
+        AggregationReduceContext context = new AggregationReduceContext.ForPartial(bigArrays, mockScriptService, () -> false);
 
         InternalMultiTerms result = (InternalMultiTerms) terms1.reduce(List.of(terms1, terms2), context);
         assertThat(result.buckets, hasSize(3));

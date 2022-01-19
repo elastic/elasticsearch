@@ -256,7 +256,7 @@ public final class Def {
                 );
             }
 
-            MethodHandle handle = painlessMethod.methodHandle;
+            MethodHandle handle = painlessMethod.methodHandle();
             Object[] injections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
 
             if (injections.length > 0) {
@@ -298,7 +298,7 @@ public final class Def {
             );
         }
 
-        MethodHandle handle = method.methodHandle;
+        MethodHandle handle = method.methodHandle();
         Object[] injections = PainlessLookupUtility.buildInjections(method, constants);
 
         if (injections.length > 0) {
@@ -313,7 +313,7 @@ public final class Def {
             if (lambdaArgs.get(i - 1)) {
                 Def.Encoding defEncoding = new Encoding((String) args[upTo++]);
                 MethodHandle filter;
-                Class<?> interfaceType = method.typeParameters.get(i - 1 - replaced - (defEncoding.needsInstance ? 1 : 0));
+                Class<?> interfaceType = method.typeParameters().get(i - 1 - replaced - (defEncoding.needsInstance ? 1 : 0));
                 if (defEncoding.isStatic) {
                     // the implementation is strongly typed, now that we know the interface type,
                     // we have everything.
@@ -385,7 +385,7 @@ public final class Def {
         if (interfaceMethod == null) {
             throw new IllegalArgumentException("Class [" + interfaceClass + "] is not a functional interface");
         }
-        int arity = interfaceMethod.typeParameters.size();
+        int arity = interfaceMethod.typeParameters().size();
         PainlessMethod implMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, arity);
         if (implMethod == null) {
             throw new IllegalArgumentException(
@@ -399,8 +399,8 @@ public final class Def {
             constants,
             methodHandlesLookup,
             interfaceType,
-            PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass),
-            implMethod.javaMethod.getName(),
+            PainlessLookupUtility.typeToCanonicalTypeName(implMethod.targetClass()),
+            implMethod.javaMethod().getName(),
             1,
             false
         );

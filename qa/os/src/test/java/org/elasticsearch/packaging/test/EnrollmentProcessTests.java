@@ -12,30 +12,33 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Shell;
-import org.junit.BeforeClass;
+import org.elasticsearch.packaging.util.docker.Docker;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
+import static org.elasticsearch.packaging.util.docker.Docker.removeContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.runAdditionalContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.runContainer;
+import static org.elasticsearch.packaging.util.docker.Docker.verifyContainerInstallation;
+import static org.elasticsearch.packaging.util.docker.Docker.waitForElasticsearch;
+import static org.elasticsearch.packaging.util.docker.DockerRun.builder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assume.assumeTrue;
 
 public class EnrollmentProcessTests extends PackagingTestCase {
 
-    @BeforeClass
-    public static void filterDistros() {
-        assumeTrue("only archives", distribution.isArchive());
-    }
-
-    public void test10AutoFormCluster() throws Exception {
+    public void test10ArchiveAutoFormCluster() throws Exception {
         /* Windows issue awaits fix: https://github.com/elastic/elasticsearch/issues/49340 */
         assumeTrue("expect command isn't on Windows", distribution.platform != Distribution.Platform.WINDOWS);
+        assumeTrue("only archives", distribution.isArchive());
         installation = installArchive(sh, distribution(), getRootTempDir().resolve("elasticsearch-node1"), getCurrentVersion(), true);
         verifyArchiveInstallation(installation, distribution());
         setFileSuperuser("test_superuser", "test_superuser_password");
@@ -48,8 +51,8 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         verifySecurityAutoConfigured(installation);
         // Generate a node enrollment token to be subsequently used by the second node
         Shell.Result createTokenResult = installation.executables().createEnrollmentToken.run("-s node");
-        assertThat(Strings.isNullOrEmpty(createTokenResult.stdout), is(false));
-        final String enrollmentToken = createTokenResult.stdout;
+        assertThat(Strings.isNullOrEmpty(createTokenResult.stdout()), is(false));
+        final String enrollmentToken = createTokenResult.stdout();
         // installation now points to the second node
         installation = installArchive(sh, distribution(), getRootTempDir().resolve("elasticsearch-node2"), getCurrentVersion(), true);
 
@@ -62,7 +65,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             false
         );
         assertThat(
-            startSecondNodeWithInvalidToken.stdout,
+            startSecondNodeWithInvalidToken.stdout(),
             containsString("Failed to parse enrollment token : some-invalid-token-here . Error was: Illegal base64 character 2d")
         );
         verifySecurityNotAutoConfigured(installation);
@@ -79,6 +82,46 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         verifySecurityAutoConfigured(installation);
         // verify that the two nodes formed a cluster
         assertThat(makeRequest("https://localhost:9200/_cluster/health"), containsString("\"number_of_nodes\":2"));
+    }
+
+    public void test20DockerAutoFormCluster() throws Exception {
+        assumeTrue("only docker", distribution.isDocker());
+        // First node
+        installation = runContainer(distribution(), builder().envVar("ELASTIC_PASSWORD", "password"));
+        verifyContainerInstallation(installation);
+        verifySecurityAutoConfigured(installation);
+        waitForElasticsearch(installation);
+        final String node1ContainerId = Docker.getContainerId();
+
+        final String enrollmentToken = installation.executables().createEnrollmentToken.run("-s node")
+            .stdout()
+            .lines()
+            .filter(line -> line.startsWith("WARNING:") == false)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("Failing to find any non-warning output lines"));
+
+        // installation refers to second node from now on
+        installation = runAdditionalContainer(distribution(), builder().envVar("ENROLLMENT_TOKEN", enrollmentToken), 9201, 9301);
+
+        // TODO Make our packaging test methods aware of multiple installations, see https://github.com/elastic/elasticsearch/issues/79688
+        waitForElasticsearch(installation);
+        verifyContainerInstallation(installation);
+        verifySecurityAutoConfigured(installation);
+
+        // Allow some time for the second node to join the cluster, we can probably do this more elegantly in
+        // https://github.com/elastic/elasticsearch/issues/79688
+        // Then verify that the two nodes formed a cluster
+        assertBusy(
+            () -> assertThat(
+                makeRequestAsElastic("https://localhost:9200/_cluster/health", "password"),
+                containsString("\"number_of_nodes\":2")
+            ),
+            20,
+            TimeUnit.SECONDS
+        );
+
+        // Cleanup the first node that is still running
+        removeContainer(node1ContainerId);
     }
 
     private void waitForSecondNode() {

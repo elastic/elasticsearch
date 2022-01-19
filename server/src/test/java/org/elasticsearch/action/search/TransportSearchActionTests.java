@@ -37,6 +37,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -47,7 +48,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -81,6 +82,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -465,7 +467,7 @@ public class TransportSearchActionTests extends ESTestCase {
         boolean local = randomBoolean();
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
-        Function<Boolean, InternalAggregation.ReduceContext> reduceContext = finalReduce -> null;
+        Function<Boolean, AggregationReduceContext> reduceContext = finalReduce -> null;
         try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
             service.start();
             service.acceptIncomingRequests();
@@ -1273,7 +1275,7 @@ public class TransportSearchActionTests extends ESTestCase {
             } else {
                 // relocated or no longer assigned
                 relocatedContexts.add(new ShardId(indexMetadata.getIndex(), shardId));
-                targetNode = UUIDs.randomBase64UUID();
+                targetNode = randomFrom(clusterState.nodes().getAllNodes()).getId();
             }
             contexts.put(
                 new ShardId(indexMetadata.getIndex(), shardId),
@@ -1292,7 +1294,8 @@ public class TransportSearchActionTests extends ESTestCase {
             OriginalIndices.NONE,
             null,
             new SearchContextId(contexts, aliasFilterMap),
-            keepAlive
+            keepAlive,
+            randomBoolean()
         );
         shardIterators.sort(Comparator.comparing(SearchShardIterator::shardId));
         assertThat(shardIterators, hasSize(numberOfShards));
@@ -1319,5 +1322,38 @@ public class TransportSearchActionTests extends ESTestCase {
             assertThat(shardIterator.getSearchContextId(), equalTo(context.getSearchContextId()));
             assertThat(shardIterator.getSearchContextKeepAlive(), equalTo(keepAlive));
         }
+
+        // Fails when some indices don't exist and `allowPartialSearchResults` is false.
+        ShardId anotherShardId = new ShardId(new Index("another-index", IndexMetadata.INDEX_UUID_NA_VALUE), randomIntBetween(0, 10));
+        contexts.put(
+            anotherShardId,
+            new SearchContextIdForNode(
+                null,
+                randomFrom(clusterState.nodes().getAllNodes()).getId(),
+                new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong(), null)
+            )
+        );
+        IndexNotFoundException error = expectThrows(IndexNotFoundException.class, () -> {
+            TransportSearchAction.getLocalLocalShardsIteratorFromPointInTime(
+                clusterState,
+                OriginalIndices.NONE,
+                null,
+                new SearchContextId(contexts, aliasFilterMap),
+                keepAlive,
+                false
+            );
+        });
+        assertThat(error.getIndex().getName(), equalTo("another-index"));
+        // Ok when some indices don't exist and `allowPartialSearchResults` is true.
+        Optional<SearchShardIterator> anotherShardIterator = TransportSearchAction.getLocalLocalShardsIteratorFromPointInTime(
+            clusterState,
+            OriginalIndices.NONE,
+            null,
+            new SearchContextId(contexts, aliasFilterMap),
+            keepAlive,
+            true
+        ).stream().filter(si -> si.shardId().equals(anotherShardId)).findFirst();
+        assertTrue(anotherShardIterator.isPresent());
+        assertThat(anotherShardIterator.get().getTargetNodeIds(), hasSize(1));
     }
 }

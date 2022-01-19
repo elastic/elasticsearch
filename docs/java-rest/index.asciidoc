@@ -6,7 +6,3 @@ include::{asciidoc-dir}/../../shared/attributes.asciidoc[]
 include::../Versions.asciidoc[]
 
 include::overview.asciidoc[]
-
-include::high-level/index.asciidoc[]
-
-include::redirects.asciidoc[]

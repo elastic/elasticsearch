@@ -40,6 +40,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -131,7 +132,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             null,
             null,
             null,
-            xContentRegistry(),
+            parserConfig(),
             writableRegistry(),
             null,
             null,
@@ -577,7 +578,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 threadPool,
                 null,
                 EmptySystemIndices.INSTANCE,
-                false
+                false,
+                new IndexSettingProviders(Set.of())
             );
             validateIndexName(checkerService, "index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
 
@@ -656,7 +658,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 new SystemIndices(
                     Collections.singletonMap("foo", new SystemIndices.Feature("foo", "test feature", systemIndexDescriptors))
                 ),
-                false
+                false,
+                new IndexSettingProviders(Set.of())
             );
             // Check deprecations
             assertFalse(checkerService.validateDotIndex(".test2", false));
@@ -1088,7 +1091,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testParseMappingsWithTypedTemplate() throws Exception {
         IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
             try {
-                builder.putMapping("type", "{\"type\":{\"properties\":{\"field\":{\"type\":\"keyword\"}}}}");
+                builder.putMapping("type", """
+                    {"type":{"properties":{"field":{"type":"keyword"}}}}
+                    """);
             } catch (IOException e) {
                 ExceptionsHelper.reThrowIfNotNull(e);
             }

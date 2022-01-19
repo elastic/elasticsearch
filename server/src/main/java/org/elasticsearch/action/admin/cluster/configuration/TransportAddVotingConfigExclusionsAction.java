@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateObserver.Listener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -117,12 +118,12 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
 
                 final ClusterStateObserver observer = new ClusterStateObserver(
                     clusterService,
@@ -173,7 +174,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
                     observer.waitForNextChange(clusterStateListener, allNodesRemoved);
                 }
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     private static Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(

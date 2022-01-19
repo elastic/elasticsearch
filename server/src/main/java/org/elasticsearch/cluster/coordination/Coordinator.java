@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -240,7 +239,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             this::removeNode,
             nodeHealthService
         );
-        this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
+        this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService);
         this.clusterApplier = clusterApplier;
         masterService.setClusterStateSupplier(this::getStateForMasterService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
@@ -300,27 +299,17 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private void removeNode(DiscoveryNode discoveryNode, String reason) {
         synchronized (mutex) {
             if (mode == Mode.LEADER) {
+                var task = new NodeRemovalClusterStateTaskExecutor.Task(
+                    discoveryNode,
+                    reason,
+                    () -> joinReasonService.onNodeRemoved(discoveryNode, reason)
+                );
                 masterService.submitStateUpdateTask(
                     "node-left",
-                    new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, reason),
+                    task,
                     ClusterStateTaskConfig.build(Priority.IMMEDIATE),
                     nodeRemovalExecutor,
-                    new ClusterStateTaskListener() {
-                        @Override
-                        public void onFailure(final String source, final Exception e) {
-                            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-                        }
-
-                        @Override
-                        public void onNoLongerMaster(String source) {
-                            logger.debug("no longer master while processing node removal [{}]", source);
-                        }
-
-                        @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                            joinReasonService.onNodeRemoved(discoveryNode, reason);
-                        }
-                    }
+                    task
                 );
             }
         }
@@ -802,7 +791,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private void cleanMasterService() {
         new LocalMasterServiceTask(Priority.NORMAL) {
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 // ignore
                 logger.trace("failed to clean-up after stepping down as master", e);
             }
@@ -1174,7 +1163,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     reconfigurationTaskScheduled.set(false);
                     logger.debug("reconfiguration failed", e);
                 }

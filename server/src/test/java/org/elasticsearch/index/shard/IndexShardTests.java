@@ -3982,7 +3982,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 try {
                     List<String> exposedDocIds = EngineTestCase.getDocIds(getEngine(shard), rarely())
                         .stream()
-                        .map(DocIdSeqNoAndSource::getId)
+                        .map(DocIdSeqNoAndSource::id)
                         .collect(Collectors.toList());
                     assertThat(
                         "every operations before the global checkpoint must be reserved",

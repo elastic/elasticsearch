@@ -50,9 +50,9 @@ public class WindowsServiceTests extends PackagingTestCase {
 
     private void assertService(String id, String status, String displayName) {
         Result result = sh.run("Get-Service " + id + " | Format-List -Property Name, Status, DisplayName");
-        assertThat(result.stdout, containsString("Name        : " + id));
-        assertThat(result.stdout, containsString("Status      : " + status));
-        assertThat(result.stdout, containsString("DisplayName : " + displayName));
+        assertThat(result.stdout(), containsString("Name        : " + id));
+        assertThat(result.stdout(), containsString("Status      : " + status));
+        assertThat(result.stdout(), containsString("DisplayName : " + displayName));
     }
 
     // runs the service command, dumping all log files on failure
@@ -69,8 +69,8 @@ public class WindowsServiceTests extends PackagingTestCase {
     }
 
     private void assertExit(Result result, String script, int exitCode) {
-        if (result.exitCode != exitCode) {
-            logger.error("---- Unexpected exit code (expected " + exitCode + ", got " + result.exitCode + ") for script: " + script);
+        if (result.exitCode() != exitCode) {
+            logger.error("---- Unexpected exit code (expected " + exitCode + ", got " + result.exitCode() + ") for script: " + script);
             logger.error(result);
             logger.error("Dumping log files\n");
             Result logs = sh.run(
@@ -83,10 +83,10 @@ public class WindowsServiceTests extends PackagingTestCase {
                     + "    Get-Content \"$file\" "
                     + "}"
             );
-            logger.error(logs.stdout);
+            logger.error(logs.stdout());
             fail();
         } else {
-            logger.info("\nscript: " + script + "\nstdout: " + result.stdout + "\nstderr: " + result.stderr);
+            logger.info("\nscript: " + script + "\nstdout: " + result.stdout() + "\nstderr: " + result.stderr());
         }
     }
 
@@ -102,8 +102,8 @@ public class WindowsServiceTests extends PackagingTestCase {
         Path tmpServiceExe = serviceExe.getParent().resolve(serviceExe.getFileName() + ".tmp");
         Files.move(serviceExe, tmpServiceExe);
         Result result = sh.runIgnoreExitCode(serviceScript + " install");
-        assertThat(result.exitCode, equalTo(1));
-        assertThat(result.stdout, containsString("elasticsearch-service-x64.exe was not found..."));
+        assertThat(result.exitCode(), equalTo(1));
+        assertThat(result.stdout(), containsString("elasticsearch-service-x64.exe was not found..."));
         Files.move(tmpServiceExe, serviceExe);
     }
 
@@ -119,8 +119,8 @@ public class WindowsServiceTests extends PackagingTestCase {
         try {
             mv(installation.bundledJdk, relocatedJdk);
             Result result = sh.runIgnoreExitCode(serviceScript + " install");
-            assertThat(result.exitCode, equalTo(1));
-            assertThat(result.stderr, containsString("could not find java in bundled JDK"));
+            assertThat(result.exitCode(), equalTo(1));
+            assertThat(result.stderr(), containsString("could not find java in bundled JDK"));
         } finally {
             mv(relocatedJdk, installation.bundledJdk);
         }
@@ -129,13 +129,13 @@ public class WindowsServiceTests extends PackagingTestCase {
     public void test14InstallBadJavaHome() throws IOException {
         sh.getEnv().put("ES_JAVA_HOME", "doesnotexist");
         Result result = sh.runIgnoreExitCode(serviceScript + " install");
-        assertThat(result.exitCode, equalTo(1));
-        assertThat(result.stderr, containsString("could not find java in ES_JAVA_HOME"));
+        assertThat(result.exitCode(), equalTo(1));
+        assertThat(result.stderr(), containsString("could not find java in ES_JAVA_HOME"));
     }
 
     public void test15RemoveNotInstalled() {
         Result result = assertFailure(serviceScript + " remove", 1);
-        assertThat(result.stdout, containsString("Failed removing '" + DEFAULT_ID + "' service"));
+        assertThat(result.stdout(), containsString("Failed removing '" + DEFAULT_ID + "' service"));
     }
 
     public void test16InstallSpecialCharactersInJdkPath() throws IOException {
@@ -146,7 +146,7 @@ public class WindowsServiceTests extends PackagingTestCase {
         try {
             mv(installation.bundledJdk, relocatedJdk);
             Result result = sh.run(serviceScript + " install");
-            assertThat(result.stdout, containsString("The service 'elasticsearch-service-x64' has been installed."));
+            assertThat(result.stdout(), containsString("The service 'elasticsearch-service-x64' has been installed."));
         } finally {
             sh.runIgnoreExitCode(serviceScript + " remove");
             mv(relocatedJdk, installation.bundledJdk);
@@ -214,14 +214,14 @@ public class WindowsServiceTests extends PackagingTestCase {
 
     public void test31StartNotInstalled() throws IOException {
         Result result = sh.runIgnoreExitCode(serviceScript + " start");
-        assertThat(result.stdout, result.exitCode, equalTo(1));
-        assertThat(result.stdout, containsString("Failed starting '" + DEFAULT_ID + "' service"));
+        assertThat(result.stdout(), result.exitCode(), equalTo(1));
+        assertThat(result.stdout(), containsString("Failed starting '" + DEFAULT_ID + "' service"));
     }
 
     public void test32StopNotStarted() throws IOException {
         sh.run(serviceScript + " install");
         Result result = sh.run(serviceScript + " stop"); // stop is ok when not started
-        assertThat(result.stdout, containsString("The service '" + DEFAULT_ID + "' has been stopped"));
+        assertThat(result.stdout(), containsString("The service '" + DEFAULT_ID + "' has been stopped"));
     }
 
     public void test33JavaChanged() throws Exception {
@@ -247,20 +247,20 @@ public class WindowsServiceTests extends PackagingTestCase {
         Files.write(fakeServiceMgr, Arrays.asList("echo \"Fake Service Manager GUI\""));
         Shell sh = new Shell();
         Result result = sh.run(serviceScript + " manager");
-        assertThat(result.stdout, containsString("Fake Service Manager GUI"));
+        assertThat(result.stdout(), containsString("Fake Service Manager GUI"));
 
         // check failure too
         Files.write(fakeServiceMgr, Arrays.asList("echo \"Fake Service Manager GUI Failure\"", "exit 1"));
         result = sh.runIgnoreExitCode(serviceScript + " manager");
-        TestCase.assertEquals(1, result.exitCode);
-        TestCase.assertTrue(result.stdout, result.stdout.contains("Fake Service Manager GUI Failure"));
+        TestCase.assertEquals(1, result.exitCode());
+        TestCase.assertTrue(result.stdout(), result.stdout().contains("Fake Service Manager GUI Failure"));
         Files.move(tmpServiceMgr, serviceMgr);
     }
 
     public void test70UnknownCommand() {
         Result result = sh.runIgnoreExitCode(serviceScript + " bogus");
-        assertThat(result.exitCode, equalTo(1));
-        assertThat(result.stdout, containsString("Unknown option \"bogus\""));
+        assertThat(result.exitCode(), equalTo(1));
+        assertThat(result.stdout(), containsString("Unknown option \"bogus\""));
     }
 
     public void test80JavaOptsInEnvVar() throws Exception {

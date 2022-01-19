@@ -148,7 +148,7 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 taskFailed[0] = true;
                 latch1.countDown();
             }
@@ -166,7 +166,7 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 taskFailed[0] = true;
                 latch2.countDown();
             }
@@ -210,7 +210,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     assertFalse(threadPool.getThreadContext().isSystemContext());
                     assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
                     assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
@@ -218,7 +218,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     assertFalse(threadPool.getThreadContext().isSystemContext());
                     assertEquals(expectedHeaders, threadPool.getThreadContext().getHeaders());
                     assertEquals(expectedResponseHeaders, threadPool.getThreadContext().getResponseHeaders());
@@ -282,12 +282,12 @@ public class MasterServiceTests extends ESTestCase {
                 },
                 new ClusterStateTaskListener() {
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        throw new IllegalStateException(source);
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                        throw new IllegalStateException();
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {}
+                    public void onFailure(Exception e) {}
                 }
             );
 
@@ -403,10 +403,10 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {}
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     fail();
                 }
             }, ClusterStateTaskExecutor.unbatched());
@@ -418,12 +418,12 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     fail();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {}
+                public void onFailure(Exception e) {}
             }, ClusterStateTaskExecutor.unbatched());
             masterService.submitStateUpdateTask("test3", new ClusterStateUpdateTask() {
                 @Override
@@ -433,12 +433,12 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     relativeTimeInMillis += TimeValue.timeValueSeconds(4).millis();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     fail();
                 }
             }, ClusterStateTaskExecutor.unbatched());
@@ -449,10 +449,10 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {}
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     fail();
                 }
             }, ClusterStateTaskExecutor.unbatched());
@@ -579,18 +579,6 @@ public class MasterServiceTests extends ESTestCase {
             totalTaskCount += taskCount;
         }
         final CountDownLatch updateLatch = new CountDownLatch(totalTaskCount);
-        final ClusterStateTaskListener listener = new ClusterStateTaskListener() {
-            @Override
-            public void onFailure(String source, Exception e) {
-                throw new AssertionError(e);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                processedStates.computeIfAbsent(source, key -> new AtomicInteger()).incrementAndGet();
-                updateLatch.countDown();
-            }
-        };
 
         try (MasterService masterService = createMasterService(true)) {
             final ConcurrentMap<String, AtomicInteger> submittedTasksPerThread = new ConcurrentHashMap<>();
@@ -606,6 +594,18 @@ public class MasterServiceTests extends ESTestCase {
                             final Set<Task> tasks = assignment.v2();
                             submittedTasksPerThread.computeIfAbsent(threadName, key -> new AtomicInteger()).addAndGet(tasks.size());
                             final TaskExecutor executor = assignment.v1();
+                            final ClusterStateTaskListener listener = new ClusterStateTaskListener() {
+                                @Override
+                                public void onFailure(Exception e) {
+                                    throw new AssertionError(e);
+                                }
+
+                                @Override
+                                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                                    processedStates.computeIfAbsent(threadName, key -> new AtomicInteger()).incrementAndGet();
+                                    updateLatch.countDown();
+                                }
+                            };
                             if (tasks.size() == 1) {
                                 masterService.submitStateUpdateTask(
                                     threadName,
@@ -682,7 +682,7 @@ public class MasterServiceTests extends ESTestCase {
                 },
                 new ClusterStateTaskListener() {
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         BaseFuture<Void> future = new BaseFuture<Void>() {
                         };
                         try {
@@ -700,7 +700,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {}
+                    public void onFailure(Exception e) {}
                 }
             );
 
@@ -818,13 +818,13 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     latch.countDown();
                     processedFirstTask.countDown();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     fail();
                 }
             }, ClusterStateTaskExecutor.unbatched());
@@ -839,12 +839,12 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     fail();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     latch.countDown();
                 }
             }, ClusterStateTaskExecutor.unbatched());
@@ -857,12 +857,12 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     latch.countDown();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     fail();
                 }
             }, ClusterStateTaskExecutor.unbatched());
@@ -875,12 +875,12 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     latch.countDown();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     fail();
                 }
             }, ClusterStateTaskExecutor.unbatched());
@@ -891,12 +891,12 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     latch.countDown();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     fail();
                 }
             }, ClusterStateTaskExecutor.unbatched());
@@ -907,12 +907,12 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     fail();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     fail(); // maybe we should notify here?
                 }
             }, ClusterStateTaskExecutor.unbatched());
@@ -925,12 +925,12 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     latch.countDown();
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     fail();
                 }
             }, ClusterStateTaskExecutor.unbatched());
@@ -986,7 +986,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         fail();
                     }
 
@@ -997,7 +997,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
+                    public void onFailure(Exception e) {
                         latch.countDown();
                     }
 
@@ -1031,7 +1031,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         latch.countDown();
                     }
 
@@ -1042,7 +1042,7 @@ public class MasterServiceTests extends ESTestCase {
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
+                    public void onFailure(Exception e) {
                         fail();
                     }
 
@@ -1102,7 +1102,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     fail();
                 }
             };
@@ -1118,7 +1118,7 @@ public class MasterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     fail();
                 }
             }, ClusterStateTaskExecutor.unbatched());

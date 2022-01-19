@@ -68,7 +68,7 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
             new ClusterStateUpdateTask(Priority.HIGH, request.masterNodeTimeout()) {
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
 
@@ -78,7 +78,7 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },

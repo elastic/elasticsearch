@@ -14,7 +14,9 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -27,10 +29,16 @@ public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDV
 
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
+    protected final ToScriptField<SortedBinaryDocValues> toScriptField;
 
-    public StringBinaryIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
+    public StringBinaryIndexFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        ToScriptField<SortedBinaryDocValues> toScriptField
+    ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
+        this.toScriptField = toScriptField;
     }
 
     @Override
@@ -52,7 +60,7 @@ public class StringBinaryIndexFieldData implements IndexFieldData<StringBinaryDV
     @Override
     public StringBinaryDVLeafFieldData load(LeafReaderContext context) {
         try {
-            return new StringBinaryDVLeafFieldData(DocValues.getBinary(context.reader(), fieldName));
+            return new StringBinaryDVLeafFieldData(DocValues.getBinary(context.reader(), fieldName), toScriptField);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

@@ -209,6 +209,8 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         scheduledRecovery.set(false);
     }
 
+    private static final String TASK_SOURCE = "local-gateway-elected-state";
+
     class RecoverStateUpdateTask extends ClusterStateUpdateTask {
 
         @Override
@@ -227,7 +229,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         }
 
         @Override
-        public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
+        public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
             logger.info("recovered [{}] indices into cluster_state", newState.metadata().indices().size());
             // reset flag even though state recovery completed, to ensure that if we subsequently become leader again based on a
             // not-recovered state, that we again do another state recovery.
@@ -235,14 +237,14 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         }
 
         @Override
-        public void onNoLongerMaster(String source) {
-            logger.debug("stepped down as master before recovering state [{}]", source);
+        public void onNoLongerMaster() {
+            logger.debug("stepped down as master before recovering state [{}]", TASK_SOURCE);
             resetRecoveredFlags();
         }
 
         @Override
-        public void onFailure(final String source, final Exception e) {
-            logger.info(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+        public void onFailure(final Exception e) {
+            logger.info(() -> new ParameterizedMessage("unexpected failure during [{}]", TASK_SOURCE), e);
             resetRecoveredFlags();
         }
     }
@@ -253,10 +255,6 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     }
 
     private void runRecovery() {
-        clusterService.submitStateUpdateTask(
-            "local-gateway-elected-state",
-            new RecoverStateUpdateTask(),
-            ClusterStateTaskExecutor.unbatched()
-        );
+        clusterService.submitStateUpdateTask(TASK_SOURCE, new RecoverStateUpdateTask(), ClusterStateTaskExecutor.unbatched());
     }
 }

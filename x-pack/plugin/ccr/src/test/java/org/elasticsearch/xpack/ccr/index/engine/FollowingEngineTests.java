@@ -408,7 +408,7 @@ public class FollowingEngineTests extends ESTestCase {
             // Apply optimization for documents that do not exist
             long moreDocs = between(1, 100);
             versionLookUps = getNumVersionLookups(follower);
-            Set<String> docIds = getDocIds(follower, true).stream().map(doc -> doc.getId()).collect(Collectors.toSet());
+            Set<String> docIds = getDocIds(follower, true).stream().map(doc -> doc.id()).collect(Collectors.toSet());
             for (int i = 0; i < moreDocs; i++) {
                 String docId = randomValueOtherThanMany(docIds::contains, () -> Integer.toString(between(1, 1000)));
                 docIds.add(docId);
@@ -805,7 +805,7 @@ public class FollowingEngineTests extends ESTestCase {
                     }
                 }
                 for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true)) {
-                    assertThat(docId.getPrimaryTerm(), equalTo(operationWithTerms.get(docId.getSeqNo())));
+                    assertThat(docId.primaryTerm(), equalTo(operationWithTerms.get(docId.seqNo())));
                 }
                 // Replica should accept duplicates
                 primaryTerm.set(newTerm);
@@ -819,7 +819,7 @@ public class FollowingEngineTests extends ESTestCase {
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                 }
                 for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true)) {
-                    assertThat(docId.getPrimaryTerm(), equalTo(operationWithTerms.get(docId.getSeqNo())));
+                    assertThat(docId.primaryTerm(), equalTo(operationWithTerms.get(docId.seqNo())));
                 }
             }
         }

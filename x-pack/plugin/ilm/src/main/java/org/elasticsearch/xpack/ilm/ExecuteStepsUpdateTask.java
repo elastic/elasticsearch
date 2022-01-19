@@ -206,7 +206,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
     }
 
     @Override
-    public void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void onClusterStateProcessed(ClusterState oldState, ClusterState newState) {
         IndexMetadata indexMetadata = newState.metadata().index(index);
         if (indexMetadata != null) {
 
@@ -233,7 +233,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
     }
 
     @Override
-    public void handleFailure(String source, Exception e) {
+    public void handleFailure(Exception e) {
         logger.warn(new ParameterizedMessage("policy [{}] for index [{}] failed on step [{}].", policy, index, startStep.getKey()), e);
     }
 

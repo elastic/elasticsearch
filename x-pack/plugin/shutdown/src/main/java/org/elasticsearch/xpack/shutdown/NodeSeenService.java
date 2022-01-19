@@ -99,7 +99,7 @@ public class NodeSeenService implements ClusterStateListener {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     logger.warn(new ParameterizedMessage("failed to mark shutting down nodes as seen: {}", nodesNotPreviouslySeen), e);
                 }
             }, ClusterStateTaskExecutor.unbatched());

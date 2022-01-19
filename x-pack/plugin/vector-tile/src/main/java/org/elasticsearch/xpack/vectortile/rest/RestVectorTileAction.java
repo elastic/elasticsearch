@@ -30,6 +30,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.rest.action.search.CCSVersionCheckHelper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -99,6 +100,7 @@ public class RestVectorTileAction extends BaseRestHandler {
         final RestCancellableNodeClient cancellableNodeClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
         final VectorTileRequest request = VectorTileRequest.parseRestRequest(restRequest);
         final SearchRequestBuilder searchRequestBuilder = searchRequestBuilder(cancellableNodeClient, request);
+        CCSVersionCheckHelper.checkCCSVersionCompatibility(restRequest, searchRequestBuilder.request());
         return channel -> searchRequestBuilder.execute(new RestResponseListener<>(channel) {
 
             @Override

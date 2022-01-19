@@ -41,6 +41,7 @@ import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
@@ -48,7 +49,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -198,7 +198,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         final CcrClient ccrClient = highLevelClient().ccr();
 
         final CreateIndexRequest createIndexRequest = new CreateIndexRequest("leader");
-        final Map<String, String> settings = new HashMap<>(3);
+        final Map<String, String> settings = Maps.newMapWithExpectedSize(3);
         final int numberOfShards = randomIntBetween(1, 2);
         settings.put("index.number_of_replicas", "0");
         settings.put("index.number_of_shards", Integer.toString(numberOfShards));

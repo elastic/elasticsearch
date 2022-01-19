@@ -9,6 +9,7 @@ package org.elasticsearch.client.enrich;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -29,7 +29,7 @@ public class GetPolicyResponseTests extends AbstractResponseTestCase<GetEnrichPo
     @Override
     protected GetEnrichPolicyAction.Response createServerTestInstance(XContentType xContentType) {
         int numPolicies = randomIntBetween(0, 8);
-        Map<String, EnrichPolicy> policies = new HashMap<>(numPolicies);
+        Map<String, EnrichPolicy> policies = Maps.newMapWithExpectedSize(numPolicies);
         for (int i = 0; i < numPolicies; i++) {
             policies.put(randomAlphaOfLength(4), createRandomEnrichPolicy(xContentType));
         }

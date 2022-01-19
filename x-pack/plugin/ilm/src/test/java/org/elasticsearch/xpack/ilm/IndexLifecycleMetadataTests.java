@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -46,7 +47,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -60,7 +60,7 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
     @Override
     protected IndexLifecycleMetadata createTestInstance() {
         int numPolicies = randomIntBetween(1, 5);
-        Map<String, LifecyclePolicyMetadata> policies = new HashMap<>(numPolicies);
+        Map<String, LifecyclePolicyMetadata> policies = Maps.newMapWithExpectedSize(numPolicies);
         for (int i = 0; i < numPolicies; i++) {
             LifecyclePolicy policy = randomTimeseriesLifecyclePolicy(randomAlphaOfLength(4) + i);
             policies.put(
@@ -189,7 +189,7 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
         SortedMap<String, LifecyclePolicyMetadata> policies = new TreeMap<>();
         for (int i = 0; i < numPolicies; i++) {
             int numberPhases = randomInt(5);
-            Map<String, Phase> phases = new HashMap<>(numberPhases);
+            Map<String, Phase> phases = Maps.newMapWithExpectedSize(numberPhases);
             for (int j = 0; j < numberPhases; j++) {
                 TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
                 Map<String, LifecycleAction> actions = Collections.emptyMap();

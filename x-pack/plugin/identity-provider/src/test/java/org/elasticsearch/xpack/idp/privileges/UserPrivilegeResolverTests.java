@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -169,7 +170,7 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         Tuple<String, Tuple<String, Boolean>>... resourceActionAccess
     ) {
         final boolean isCompleteMatch = randomBoolean();
-        final Map<String, Map<String, Boolean>> resourcePrivilegeMap = new HashMap<>(resourceActionAccess.length);
+        final Map<String, Map<String, Boolean>> resourcePrivilegeMap = Maps.newMapWithExpectedSize(resourceActionAccess.length);
         for (Tuple<String, Tuple<String, Boolean>> t : resourceActionAccess) {
             final String resource = t.v1();
             final String action = t.v2().v1();

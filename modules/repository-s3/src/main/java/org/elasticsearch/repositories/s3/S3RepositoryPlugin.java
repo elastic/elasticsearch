@@ -12,7 +12,7 @@ import com.amazonaws.util.json.Jackson;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;

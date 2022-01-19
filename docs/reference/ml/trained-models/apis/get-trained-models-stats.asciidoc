@@ -147,7 +147,7 @@ The total number of inference calls made against this node for this model.
 `inference_threads`:::
 (integer)
 The number of threads used by the inference process.
-This figure may be lower than top level value if there is not sufficient
+This value may be lower than top level value if there is not sufficient
 hardware threads to satisfy the configured value.
 
 `last_access`:::

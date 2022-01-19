@@ -43,16 +43,19 @@ public class DesiredNodesService {
         clusterService.submitStateUpdateTask("update-desired-nodes", new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                DesiredNodesMetadata currentDesiredNodesMetadata = currentState.metadata().custom(DesiredNodesMetadata.TYPE);
+                DesiredNodesMetadata currentDesiredNodesMetadata = getDesiredNodesMetadata(currentState);
                 DesiredNodes currentDesiredNodes = currentDesiredNodesMetadata.getCurrentDesiredNodes();
                 DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
 
-                if (currentDesiredNodes.isSupersededBy(proposedDesiredNodes) == false) {
-                    throw new IllegalArgumentException("Unexpected");
-                }
+                if (currentDesiredNodes != null) {
+                    if (currentDesiredNodes.hasSameVersion(proposedDesiredNodes)
+                        && currentDesiredNodes.equals(proposedDesiredNodes) == false) {
+                        throw new IllegalArgumentException("not same version");
+                    }
 
-                if (currentDesiredNodes.hasSameVersion(proposedDesiredNodes) && currentDesiredNodes.equals(proposedDesiredNodes) == false) {
-                    throw new IllegalArgumentException();
+                    if (currentDesiredNodes.isSupersededBy(proposedDesiredNodes) == false) {
+                        throw new IllegalArgumentException("Unexpected");
+                    }
                 }
 
                 validateSettings(proposedDesiredNodes);
@@ -65,6 +68,16 @@ public class DesiredNodesService {
                     .build();
             }
         }, ClusterStateTaskExecutor.unbatched());
+    }
+
+    private DesiredNodesMetadata getDesiredNodesMetadata(ClusterState currentState) {
+        DesiredNodesMetadata currentDesiredNodesMetadata;
+        if (currentState.metadata().custom(DesiredNodesMetadata.TYPE) != null) {
+            currentDesiredNodesMetadata = currentState.metadata().custom(DesiredNodesMetadata.TYPE);
+        } else {
+            currentDesiredNodesMetadata = DesiredNodesMetadata.EMPTY;
+        }
+        return currentDesiredNodesMetadata;
     }
 
     private void validateSettings(DesiredNodes desiredNodes) {

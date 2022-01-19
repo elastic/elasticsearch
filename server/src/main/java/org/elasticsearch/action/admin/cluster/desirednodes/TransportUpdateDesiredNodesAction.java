@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.desirednodes.DesiredNodesService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -33,7 +32,6 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        Writeable.Reader<UpdateDesiredNodesRequest> request,
         IndexNameExpressionResolver indexNameExpressionResolver,
         DesiredNodesService desiredNodesService
     ) {
@@ -43,7 +41,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             clusterService,
             threadPool,
             actionFilters,
-            request,
+            UpdateDesiredNodesRequest::new,
             indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             ThreadPool.Names.SAME

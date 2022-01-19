@@ -229,6 +229,13 @@ public class ClusterModule extends AbstractModule {
                 NodesShutdownMetadata::fromXContent
             )
         );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(DesiredNodesMetadata.TYPE),
+                DesiredNodesMetadata::fromXContent
+            )
+        );
         return entries;
     }
 

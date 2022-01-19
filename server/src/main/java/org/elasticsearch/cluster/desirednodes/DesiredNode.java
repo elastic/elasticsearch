@@ -94,7 +94,9 @@ public record DesiredNode(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(SETTINGS_FIELD.getPreferredName(), settings);
+        builder.startObject(SETTINGS_FIELD.getPreferredName());
+        settings.toXContent(builder, params);
+        builder.endObject();
         builder.field(EXTERNAL_ID_FIELD.getPreferredName(), externalID);
         builder.field(PROCESSORS_FIELD.getPreferredName(), processors);
         builder.field(MEMORY_FIELD.getPreferredName(), memory);

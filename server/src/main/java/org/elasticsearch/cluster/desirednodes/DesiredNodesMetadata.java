@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.desirednodes;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -62,15 +62,17 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
         currentDesiredNodes.writeTo(out);
     }
 
-    public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(ClusterState.Custom.class, TYPE, in);
+    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(Metadata.Custom.class, TYPE, in);
+    }
+
+    public static DesiredNodesMetadata fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
         builder.field(CURRENT_DESIRED_NODES_FIELD.getPreferredName(), currentDesiredNodes);
-        builder.endObject();
         return builder;
     }
 

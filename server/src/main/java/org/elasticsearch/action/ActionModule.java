@@ -308,6 +308,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestResetFeatureStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshottableFeaturesAction;
+import org.elasticsearch.rest.action.admin.cluster.RestUpdateDesiredNodesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.dangling.RestDeleteDanglingIndexAction;
 import org.elasticsearch.rest.action.admin.cluster.dangling.RestImportDanglingIndexAction;
@@ -846,6 +847,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestFieldUsageStatsAction());
 
         registerHandler.accept(new RestUpgradeActionDeprecated());
+
+        // Desired nodes
+        registerHandler.accept(new RestUpdateDesiredNodesAction());
 
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(

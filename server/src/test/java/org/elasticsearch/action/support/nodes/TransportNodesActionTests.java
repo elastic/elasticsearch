@@ -146,34 +146,7 @@ public class TransportNodesActionTests extends ESTestCase {
         assertEquals(clusterService.state().nodes().getDataNodes().size(), capturedRequests.size());
     }
 
-    public void testTaskCancellationThrowsException() {
-        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
-        List<String> nodeIds = new ArrayList<>();
-        for (DiscoveryNode node : clusterService.state().nodes()) {
-            nodeIds.add(node.getId());
-        }
-
-        TestNodesRequest request = new TestNodesRequest(nodeIds.toArray(new String[0]));
-        PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
-        CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
-        TaskCancelHelper.cancel(cancellableTask, "simulated");
-        action.doExecute(cancellableTask, request, listener);
-        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
-        for (List<CapturingTransport.CapturedRequest> requests : capturedRequests.values()) {
-            for (CapturingTransport.CapturedRequest capturedRequest : requests) {
-                if (randomBoolean()) {
-                    transport.handleResponse(capturedRequest.requestId(), new TestNodeResponse(capturedRequest.node()));
-                } else {
-                    transport.handleRemoteError(capturedRequest.requestId(), new TaskCancelledException("simulated"));
-                }
-            }
-        }
-
-        assertTrue(listener.isDone());
-        expectThrows(ExecutionException.class, TaskCancelledException.class, listener::get);
-    }
-
-    public void testDiscardingResultUponCancellation() {
+    public void testTaskCancellation() {
         TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
         List<String> nodeIds = new ArrayList<>();
         for (DiscoveryNode node : clusterService.state().nodes()) {
@@ -187,17 +160,27 @@ public class TransportNodesActionTests extends ESTestCase {
             action.new AsyncAction(cancellableTask, request, listener);
         asyncAction.start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
+        int cancelAt = randomIntBetween(1, capturedRequests.values().size() - 2);
+        int requestCount = 0;
         for (List<CapturingTransport.CapturedRequest> requests : capturedRequests.values()) {
-            for (CapturingTransport.CapturedRequest capturedRequest : requests) {
-                transport.handleResponse(capturedRequest.requestId, new TestNodeResponse(capturedRequest.node));
+            if (requestCount == cancelAt) {
+                TaskCancelHelper.cancel(cancellableTask, "simulated");
             }
+            for (CapturingTransport.CapturedRequest capturedRequest : requests) {
+                if (randomBoolean()) {
+                    transport.handleResponse(capturedRequest.requestId(), new TestNodeResponse(capturedRequest.node()));
+                } else {
+                    transport.handleRemoteError(capturedRequest.requestId(), new TaskCancelledException("simulated"));
+                }
+            }
+            requestCount++;
         }
-        TaskCancelHelper.cancel(cancellableTask, "simulated");
-        AtomicReferenceArray<Object> responses = asyncAction.getResponses();
-        for (int i = 0; i < responses.length(); i++) {
-            assertNull(responses.get(i));
-        }
+
         assertTrue(listener.isDone());
+        for (int i = 0; i < asyncAction.getResponses().length(); i++) {
+            assertNull(asyncAction.getResponses().get(i));
+        }
+        expectThrows(ExecutionException.class, TaskCancelledException.class, listener::get);
     }
 
     private <T> List<T> mockList(Supplier<T> supplier, int size) {

@@ -121,12 +121,13 @@ public class PersistedClusterStateService {
     private static final String LAST_ACCEPTED_VERSION_KEY = "last_accepted_version";
     private static final String NODE_ID_KEY = "node_id";
     private static final String NODE_VERSION_KEY = "node_version";
+    private static final String OLDEST_INDEX_VERSION_KEY = "oldest_index_version";
     private static final String TYPE_FIELD_NAME = "type";
     private static final String DATA_FIELD_NAME = "data";
     private static final String GLOBAL_TYPE_NAME = "global";
     private static final String INDEX_TYPE_NAME = "index";
     private static final String INDEX_UUID_FIELD_NAME = "index_uuid";
-    private static final int COMMIT_DATA_SIZE = 4;
+    private static final int COMMIT_DATA_SIZE = 5;
 
     private static final MergePolicy NO_MERGE_POLICY = noMergePolicy();
     private static final MergePolicy DEFAULT_MERGE_POLICY = defaultMergePolicy();
@@ -284,6 +285,7 @@ public class PersistedClusterStateService {
     public static NodeMetadata nodeMetadata(Path... dataPaths) throws IOException {
         String nodeId = null;
         Version version = null;
+        Version oldestIndexVersion = Version.V_EMPTY;
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
@@ -300,6 +302,9 @@ public class PersistedClusterStateService {
                     } else if (nodeId == null) {
                         nodeId = thisNodeId;
                         version = Version.fromId(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
+                        if (userData.containsKey(OLDEST_INDEX_VERSION_KEY)) {
+                            oldestIndexVersion = Version.fromId(Integer.parseInt(userData.get(OLDEST_INDEX_VERSION_KEY)));
+                        }
                     }
                 } catch (IndexNotFoundException e) {
                     logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
@@ -309,7 +314,7 @@ public class PersistedClusterStateService {
         if (nodeId == null) {
             return null;
         }
-        return new NodeMetadata(nodeId, version);
+        return new NodeMetadata(nodeId, version, oldestIndexVersion);
     }
 
     /**
@@ -616,7 +621,7 @@ public class PersistedClusterStateService {
             indexWriter.getConfig().setMergePolicy(NO_MERGE_POLICY);
         }
 
-        void prepareCommit(String nodeId, long currentTerm, long lastAcceptedVersion) throws IOException {
+        void prepareCommit(String nodeId, long currentTerm, long lastAcceptedVersion, int oldestIndexVersion) throws IOException {
             indexWriter.getConfig().setMergePolicy(DEFAULT_MERGE_POLICY);
             indexWriter.maybeMerge();
 
@@ -624,6 +629,7 @@ public class PersistedClusterStateService {
             commitData.put(CURRENT_TERM_KEY, Long.toString(currentTerm));
             commitData.put(LAST_ACCEPTED_VERSION_KEY, Long.toString(lastAcceptedVersion));
             commitData.put(NODE_VERSION_KEY, Integer.toString(Version.CURRENT.id));
+            commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion));
             commitData.put(NODE_ID_KEY, nodeId);
             indexWriter.setLiveCommitData(commitData.entrySet());
             indexWriter.prepareCommit();
@@ -703,7 +709,7 @@ public class PersistedClusterStateService {
                 }
 
                 final WriterStats stats = overwriteMetadata(clusterState.metadata());
-                commit(currentTerm, clusterState.version());
+                commit(currentTerm, clusterState.version(), clusterState.metadata().oldestIndexVersion().id);
                 fullStateWritten = true;
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
                 final TimeValue finalSlowWriteLoggingThreshold = slowWriteLoggingThresholdSupplier.get();
@@ -743,7 +749,7 @@ public class PersistedClusterStateService {
                 }
 
                 final WriterStats stats = updateMetadata(previousClusterState.metadata(), clusterState.metadata());
-                commit(currentTerm, clusterState.version());
+                commit(currentTerm, clusterState.version(), clusterState.metadata().oldestIndexVersion().id);
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
                 final TimeValue finalSlowWriteLoggingThreshold = slowWriteLoggingThresholdSupplier.get();
                 if (durationMillis >= finalSlowWriteLoggingThreshold.getMillis()) {
@@ -896,17 +902,18 @@ public class PersistedClusterStateService {
             return new DocumentBuffer(documentBufferUsed + extraSpace, bigArrays);
         }
 
-        public void writeIncrementalTermUpdateAndCommit(long currentTerm, long lastAcceptedVersion) throws IOException {
+        public void writeIncrementalTermUpdateAndCommit(long currentTerm, long lastAcceptedVersion, int oldestIndexVersion)
+            throws IOException {
             ensureOpen();
             ensureFullStateWritten();
-            commit(currentTerm, lastAcceptedVersion);
+            commit(currentTerm, lastAcceptedVersion, oldestIndexVersion);
         }
 
-        void commit(long currentTerm, long lastAcceptedVersion) throws IOException {
+        void commit(long currentTerm, long lastAcceptedVersion, int oldestIndexVersion) throws IOException {
             ensureOpen();
             try {
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                    metadataIndexWriter.prepareCommit(nodeId, currentTerm, lastAcceptedVersion);
+                    metadataIndexWriter.prepareCommit(nodeId, currentTerm, lastAcceptedVersion, oldestIndexVersion);
                 }
             } catch (Exception e) {
                 try {

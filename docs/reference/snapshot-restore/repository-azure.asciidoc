@@ -1,11 +1,11 @@
 [[repository-azure]]
-=== Azure Repository
+=== Azure repository
 
 You can use https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction[Azure Blob storage] as a repository for
 {ref}/modules-snapshots.html[Snapshot/Restore].
 
 [[repository-azure-usage]]
-==== Azure Repository
+==== Setup
 
 To enable Azure repositories, you have first to define your azure storage settings as
 {ref}/secure-settings.html[secure settings], before starting up the node:

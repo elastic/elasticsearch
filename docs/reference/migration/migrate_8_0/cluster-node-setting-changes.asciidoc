@@ -875,9 +875,9 @@ previously be used to enable compression for all shared file system repositories
 The `repositories.fs.compress` setting has been removed.
 
 *Impact* +
-Use the repository specific `compress` setting to enable compression. See
-{ref}/snapshots-register-repository.html[Register a snapshot repository] for
+{ref}/filesystem-repository-settings.html[Shared file system repository settings] for
 information on the `compress` setting.
+Use the repository specific `compress` setting to enable compression. See
 
 Discontinue use of the `repositories.fs.compress` node-level setting.
 ====

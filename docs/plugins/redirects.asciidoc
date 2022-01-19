@@ -71,3 +71,77 @@ See {ref}/monitor-elasticsearch-cluster.html[{stack} monitoring].
 === Security plugins
 
 See {ref}/secure-cluster.html[{stack} security].
+
+[role="exclude",id="repository-azure"]
+=== Azure repository plugin
+
+// tag::azure-repo-migration[]
+The Azure repository plugin is now included in {es}.
+See {ref}/repository-azure.html[Azure Repository].
+// end::azure-repo-migration[]
+
+[role="exclude",id="repository-azure-usage"]
+=== Azure repository
+
+include::redirects.asciidoc[tag=azure-repo-migration]
+
+[role="exclude",id="repository-azure-client-settings"]
+=== Azure repository: Client settings
+
+include::redirects.asciidoc[tag=azure-repo-migration]
+
+[role="exclude",id="repository-azure-repository-settings"]
+=== Azure repository: Repository settings
+
+include::redirects.asciidoc[tag=azure-repo-migration]
+
+[role="exclude",id="repository-azure-validation"]
+=== Azure repository: Repository validation rules
+
+include::redirects.asciidoc[tag=azure-repo-migration]
+
+[role="exclude",id="repository-s3"]
+=== S3 repository plugin
+
+// tag::s3-repo-migration[]
+The S3 repository plugin is now included in {es}.
+See {ref}/repository-s3.html[S3 Repository].
+// end::s3-repo-migration[]
+
+[role="exclude",id="repository-s3-usage"]
+=== S3 repository plugin: Getting started
+
+include::redirects.asciidoc[tag=s3-repo-migration]
+
+[role="exclude",id="repository-s3-client"]
+=== S3 repository plugin: Client settings
+
+include::redirects.asciidoc[tag=s3-repo-migration]
+
+[role="exclude",id="repository-s3-repository"]
+=== S3 repository plugin: Repository settings
+
+include::redirects.asciidoc[tag=s3-repo-migration]
+
+[role="exclude",id="repository-gcs"]
+=== Google Cloud Storage repository plugin
+
+// tag::gcs-repo-migration[]
+The Google Cloud Storage repository plugin is now included in {es}.
+See {ref}/repository-gcs.html[Google Cloud Storage Repository].
+// end::gcs-repo-migration[]
+
+[role="exclude",id="repository-gcs-usage"]
+=== Google Cloud Storage repository plugin: Getting started
+
+include::redirects.asciidoc[tag=gcs-repo-migration]
+
+[role="exclude",id="repository-gcs-client"]
+=== Google Cloud Storage repository plugin: Client settings
+
+include::redirects.asciidoc[tag=gcs-repo-migration]
+
+[role="exclude",id="repository-gcs-repository"]
+=== Google Cloud Storage repository plugin: Repository settings
+
+include::redirects.asciidoc[tag=gcs-repo-migration]

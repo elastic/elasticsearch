@@ -266,6 +266,11 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name());
+        }
+
+        @Override
         public Query normalizedWildcardQuery(String value, MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
             return wildcardQuery(value, method, false, context);
         }

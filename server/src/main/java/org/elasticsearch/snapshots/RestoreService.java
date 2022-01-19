@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
-import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -35,7 +34,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
-import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -49,12 +48,12 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -128,7 +127,6 @@ import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VAL
 public class RestoreService implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(RestoreService.class);
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestoreService.class);
 
     public static final Setting<Boolean> REFRESH_REPO_UUID_ON_RESTORE_SETTING = Setting.boolSetting(
         "snapshot.refresh_repo_uuid_on_restore",
@@ -297,7 +295,7 @@ public class RestoreService implements ClusterStateApplier {
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
 
         // Make sure that we can restore from this snapshot
-        validateSnapshotRestorable(repositoryName, snapshotInfo);
+        validateSnapshotRestorable(request, repository.getMetadata(), snapshotInfo);
 
         // Get the global state if necessary
         Metadata globalMetadata = null;
@@ -547,7 +545,7 @@ public class RestoreService implements ClusterStateApplier {
                 globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
             }
             final Map<String, DataStream> dataStreamsInSnapshot = globalMetadata.dataStreams();
-            dataStreams = new HashMap<>(requestedDataStreams.size());
+            dataStreams = Maps.newMapWithExpectedSize(requestedDataStreams.size());
             for (String requestedDataStream : requestedDataStreams) {
                 final DataStream dataStreamInSnapshot = dataStreamsInSnapshot.get(requestedDataStream);
                 assert dataStreamInSnapshot != null : "DataStream [" + requestedDataStream + "] not found in snapshot";
@@ -957,16 +955,16 @@ public class RestoreService implements ClusterStateApplier {
      * @param repository      repository name
      * @param snapshotInfo    snapshot metadata
      */
-    private static void validateSnapshotRestorable(final String repository, final SnapshotInfo snapshotInfo) {
+    static void validateSnapshotRestorable(RestoreSnapshotRequest request, RepositoryMetadata repository, SnapshotInfo snapshotInfo) {
         if (snapshotInfo.state().restorable() == false) {
             throw new SnapshotRestoreException(
-                new Snapshot(repository, snapshotInfo.snapshotId()),
+                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
                 "unsupported snapshot state [" + snapshotInfo.state() + "]"
             );
         }
         if (Version.CURRENT.before(snapshotInfo.version())) {
             throw new SnapshotRestoreException(
-                new Snapshot(repository, snapshotInfo.snapshotId()),
+                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
                 "the snapshot was created with Elasticsearch version ["
                     + snapshotInfo.version()
                     + "] which is higher than the version of this node ["
@@ -976,12 +974,18 @@ public class RestoreService implements ClusterStateApplier {
         }
         if (snapshotInfo.version().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
             throw new SnapshotRestoreException(
-                new Snapshot(repository, snapshotInfo.snapshotId()),
+                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
                 "the snapshot was created with Elasticsearch version ["
                     + snapshotInfo.version()
                     + "] which is below the current versions minimum index compatibility version ["
                     + Version.CURRENT.minimumIndexCompatibilityVersion()
                     + "]"
+            );
+        }
+        if (request.includeGlobalState() && snapshotInfo.includeGlobalState() == Boolean.FALSE) {
+            throw new SnapshotRestoreException(
+                new Snapshot(repository.name(), snapshotInfo.snapshotId()),
+                "cannot restore global state since the snapshot was created without global state"
             );
         }
     }
@@ -1441,16 +1445,19 @@ public class RestoreService implements ClusterStateApplier {
                     mdBuilder.put(cursor);
                 }
             }
+
+            // override existing restorable customs (as there might be nothing in snapshot to override them)
+            mdBuilder.removeCustomIf((key, value) -> value.isRestorable());
+
+            // restore customs from the snapshot
             if (metadata.customs() != null) {
-                for (Map.Entry<String, Metadata.Custom> cursor : metadata.customs().entrySet()) {
-                    if (RepositoriesMetadata.TYPE.equals(cursor.getKey()) == false
-                        && DataStreamMetadata.TYPE.equals(cursor.getKey()) == false
-                        && cursor.getValue() instanceof Metadata.NonRestorableCustom == false) {
+                for (var entry : metadata.customs().entrySet()) {
+                    if (entry.getValue().isRestorable()) {
                         // TODO: Check request.skipOperatorOnly for Autoscaling policies (NonRestorableCustom)
                         // Don't restore repositories while we are working with them
                         // TODO: Should we restore them at the end?
                         // Also, don't restore data streams here, we already added them to the metadata builder above
-                        mdBuilder.putCustom(cursor.getKey(), cursor.getValue());
+                        mdBuilder.putCustom(entry.getKey(), entry.getValue());
                     }
                 }
             }

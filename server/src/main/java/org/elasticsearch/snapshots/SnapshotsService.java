@@ -62,6 +62,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -937,7 +938,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             return Collections.emptyList();
         }
         if ("_all".equals(repository)) {
-            return snapshotsInProgress.asStream().collect(Collectors.toUnmodifiableList());
+            return snapshotsInProgress.asStream().toList();
         }
         if (snapshots.isEmpty()) {
             return snapshotsInProgress.forRepo(repository);
@@ -965,13 +966,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     newMaster || removedNodesCleanupNeeded(snapshotsInProgress, event.nodesDelta().removedNodes()),
                     event.routingTableChanged() && waitingShardsStartedOrUnassigned(snapshotsInProgress, event)
                 );
-            } else if (snapshotCompletionListeners.isEmpty() == false) {
-                // We have snapshot listeners but are not the master any more. Fail all waiting listeners except for those that already
-                // have their snapshots finalizing (those that are already finalizing will fail on their own from to update the cluster
-                // state).
-                for (Snapshot snapshot : Set.copyOf(snapshotCompletionListeners.keySet())) {
-                    if (endingSnapshots.add(snapshot)) {
-                        failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer master"));
+            } else {
+                if (snapshotCompletionListeners.isEmpty() == false) {
+                    // We have snapshot listeners but are not the master any more. Fail all waiting listeners except for those that already
+                    // have their snapshots finalizing (those that are already finalizing will fail on their own from to update the cluster
+                    // state).
+                    for (Snapshot snapshot : Set.copyOf(snapshotCompletionListeners.keySet())) {
+                        if (endingSnapshots.add(snapshot)) {
+                            failSnapshotCompletionListeners(snapshot, new SnapshotException(snapshot, "no longer master"));
+                            assert endingSnapshots.contains(snapshot) == false : snapshot;
+                        }
+                    }
+                }
+                if (snapshotDeletionListeners.isEmpty() == false) {
+                    final Exception e = new NotMasterException("no longer master");
+                    for (String delete : Set.copyOf(snapshotDeletionListeners.keySet())) {
+                        failListenersIgnoringException(snapshotDeletionListeners.remove(delete), e);
                     }
                 }
             }
@@ -1530,7 +1540,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             metadataListener.whenComplete(meta -> {
                 final Metadata metaForSnapshot = metadataForSnapshot(entry, meta);
 
-                final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = new HashMap<>(finalIndices.size());
+                final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = Maps.newMapWithExpectedSize(
+                    finalIndices.size()
+                );
                 for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardEntry : entry.shardsByRepoShardId().entrySet()) {
                     indexSnapshotDetails.compute(shardEntry.getKey().indexName(), (indexName, current) -> {
                         if (current == SnapshotInfo.IndexSnapshotDetails.SKIPPED) {

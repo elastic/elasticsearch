@@ -364,15 +364,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    private static class ConflictCheck {
-        final XContentBuilder init;
-        final XContentBuilder update;
-
-        private ConflictCheck(XContentBuilder init, XContentBuilder update) {
-            this.init = init;
-            this.update = update;
-        }
-    }
+    private record ConflictCheck(XContentBuilder init, XContentBuilder update) {}
 
     public class ParameterChecker {
 

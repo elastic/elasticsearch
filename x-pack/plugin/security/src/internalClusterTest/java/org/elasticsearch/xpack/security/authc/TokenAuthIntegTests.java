@@ -290,7 +290,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     .addHeader(
                         "Authorization",
                         UsernamePasswordToken.basicAuthHeaderValue(
-                            SecuritySettingsSource.TEST_SUPERUSER,
+                            SecuritySettingsSource.ES_TEST_ROOT_USER,
                             SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
                         )
                     )
@@ -321,7 +321,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     .addHeader(
                         "Authorization",
                         UsernamePasswordToken.basicAuthHeaderValue(
-                            SecuritySettingsSource.TEST_SUPERUSER,
+                            SecuritySettingsSource.ES_TEST_ROOT_USER,
                             SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
                         )
                     )
@@ -352,7 +352,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     .addHeader(
                         "Authorization",
                         UsernamePasswordToken.basicAuthHeaderValue(
-                            SecuritySettingsSource.TEST_SUPERUSER,
+                            SecuritySettingsSource.ES_TEST_ROOT_USER,
                             SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
                         )
                     )
@@ -711,7 +711,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                         .addHeader(
                             "Authorization",
                             UsernamePasswordToken.basicAuthHeaderValue(
-                                SecuritySettingsSource.TEST_SUPERUSER,
+                                SecuritySettingsSource.ES_TEST_ROOT_USER,
                                 SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
                             )
                         )
@@ -728,7 +728,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .addHeader(
                 "Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue(
-                    SecuritySettingsSource.TEST_SUPERUSER,
+                    SecuritySettingsSource.ES_TEST_ROOT_USER,
                     SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
                 )
             )
@@ -751,7 +751,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
         AuthenticateResponse response = restClient.security().authenticate(superuserOptions);
 
-        assertEquals(SecuritySettingsSource.TEST_SUPERUSER, response.getUser().getUsername());
+        assertEquals(SecuritySettingsSource.ES_TEST_ROOT_USER, response.getUser().getUsername());
         assertEquals("realm", response.getAuthenticationType());
 
         assertAuthenticateWithToken(createTokenResponse.getAccessToken(), SecuritySettingsSource.TEST_USER_NAME);
@@ -763,7 +763,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .addHeader(
                 "Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue(
-                    SecuritySettingsSource.TEST_SUPERUSER,
+                    SecuritySettingsSource.ES_TEST_ROOT_USER,
                     SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
                 )
             )
@@ -773,7 +773,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .createToken(CreateTokenRequest.clientCredentialsGrant(), superuserOptions);
         assertNull(createTokenResponse.getRefreshToken());
 
-        assertAuthenticateWithToken(createTokenResponse.getAccessToken(), SecuritySettingsSource.TEST_SUPERUSER);
+        assertAuthenticateWithToken(createTokenResponse.getAccessToken(), SecuritySettingsSource.ES_TEST_ROOT_USER);
 
         // invalidate
         InvalidateTokenResponse invalidateTokenResponse = restClient.security()

@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -76,7 +77,6 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -167,7 +167,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
-        Map<String, Object> metadata = new HashMap<>(1);
+        Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);
@@ -282,7 +282,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
-        Map<String, Object> metadata = new HashMap<>(1);
+        Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);
@@ -434,7 +434,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
-        Map<String, Object> metadata = new HashMap<>(1);
+        Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);

@@ -15,6 +15,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -146,7 +147,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
         createTsdbIndex("dim0", "dim1", "dim2", "dim3", "dim4", "dim5", "dim6", "dim7");
         assertManyTimeSeries(i -> {
             int dimCount = (i & 0x07) + 1;
-            Map<String, Object> dims = new HashMap<>(dimCount);
+            Map<String, Object> dims = Maps.newMapWithExpectedSize(dimCount);
             int offset = (i >> 3) & 0x03;
             String value = Integer.toString(i, Character.MAX_RADIX);
             for (int d = 0; d < dimCount; d++) {

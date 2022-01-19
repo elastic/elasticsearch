@@ -292,13 +292,5 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         return new DanglingIndexDetails(stoppedNodeName.get(), indexToUUID);
     }
 
-    private static class DanglingIndexDetails {
-        private final String stoppedNodeName;
-        private final Map<String, String> indexToUUID;
-
-        DanglingIndexDetails(String stoppedNodeName, Map<String, String> indexToUUID) {
-            this.stoppedNodeName = stoppedNodeName;
-            this.indexToUUID = indexToUUID;
-        }
-    }
+    private record DanglingIndexDetails(String stoppedNodeName, Map<String, String> indexToUUID) {}
 }

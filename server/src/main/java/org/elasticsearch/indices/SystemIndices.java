@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
@@ -620,7 +621,7 @@ public class SystemIndices {
     }
 
     private static Map<String, Feature> buildSystemIndexDescriptorMap(Map<String, Feature> featuresMap) {
-        final Map<String, Feature> map = new HashMap<>(featuresMap.size() + SERVER_SYSTEM_INDEX_DESCRIPTORS.size());
+        final Map<String, Feature> map = Maps.newMapWithExpectedSize(featuresMap.size() + SERVER_SYSTEM_INDEX_DESCRIPTORS.size());
         map.putAll(featuresMap);
         // put the server items last since we expect less of them
         SERVER_SYSTEM_INDEX_DESCRIPTORS.forEach((source, feature) -> {

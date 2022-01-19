@@ -54,6 +54,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedConsumer;
@@ -540,7 +541,7 @@ public class PersistedClusterStateService {
     private static final ToXContent.Params FORMAT_PARAMS;
 
     static {
-        Map<String, String> params = new HashMap<>(2);
+        Map<String, String> params = Maps.newMapWithExpectedSize(2);
         params.put("binary", "true");
         params.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
         FORMAT_PARAMS = new ToXContent.MapParams(params);
@@ -796,7 +797,9 @@ public class PersistedClusterStateService {
                     }
                 }
 
-                final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(previouslyWrittenMetadata.indices().size());
+                final Map<String, Long> indexMetadataVersionByUUID = Maps.newMapWithExpectedSize(
+                    previouslyWrittenMetadata.indices().size()
+                );
                 for (IndexMetadata indexMetadata : previouslyWrittenMetadata.indices().values()) {
                     final Long previousValue = indexMetadataVersionByUUID.putIfAbsent(
                         indexMetadata.getIndexUUID(),

@@ -12,6 +12,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -617,7 +618,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         );
         RollupJobCaps rollupJobCaps = new RollupJobCaps(rollupJobConfig);
         RollableIndexCaps rollableIndexCaps = new RollableIndexCaps("myIndex_rollup", Collections.singletonList(rollupJobCaps));
-        Map<String, RollableIndexCaps> jobs = new HashMap<>(1);
+        Map<String, RollableIndexCaps> jobs = Maps.newMapWithExpectedSize(1);
         jobs.put("rollupJob1", rollableIndexCaps);
         when(getRollupIndexResponse.getJobs()).thenReturn(jobs);
     }

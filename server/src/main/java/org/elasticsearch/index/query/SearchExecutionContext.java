@@ -10,7 +10,10 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -97,6 +100,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final IndexSearcher searcher;
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
+    private Set<String> fieldsInIndex = null;
 
     private final Index fullyQualifiedIndex;
     private final Predicate<String> indexNameMatcher;
@@ -643,6 +647,25 @@ public class SearchExecutionContext extends QueryRewriteContext {
      *  for instance if this rewrite context is used to index queries (percolation). */
     public IndexSearcher searcher() {
         return searcher;
+    }
+
+    /**
+     * Is this field present in the underlying lucene index for the current shard?
+     */
+    public boolean fieldExistsInIndex(String fieldname) {
+        if (searcher == null) {
+            return false;
+        }
+        if (fieldsInIndex == null) {
+            fieldsInIndex = new HashSet<>();
+            for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
+                FieldInfos fis = ctx.reader().getFieldInfos();
+                for (FieldInfo fi : fis) {
+                    fieldsInIndex.add(fi.name);
+                }
+            }
+        }
+        return fieldsInIndex.contains(fieldname);
     }
 
     /**

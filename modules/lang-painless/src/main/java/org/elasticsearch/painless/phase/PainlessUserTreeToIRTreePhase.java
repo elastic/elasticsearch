@@ -525,7 +525,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         }
 
         IRNodeDecoration irNodeDecoration = scriptScope.getDecoration(userStatementNode, IRNodeDecoration.class);
-        IRNode irNode = irNodeDecoration.getIRNode();
+        IRNode irNode = irNodeDecoration.irNode();
 
         if ((irNode instanceof ReturnNode) == false) {
             // Shouldn't have a Converter decoration if StatementExpressionNode, should be ReturnNode if explicit return
@@ -536,7 +536,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
         // inject converter
         InvokeCallMemberNode irInvokeCallMemberNode = new InvokeCallMemberNode(userStatementNode.getLocation());
-        irInvokeCallMemberNode.attachDecoration(new IRDFunction(converter.getConverter()));
+        irInvokeCallMemberNode.attachDecoration(new IRDFunction(converter.converter()));
         ExpressionNode returnExpression = returnNode.getExpressionNode();
         returnNode.setExpressionNode(irInvokeCallMemberNode);
         irInvokeCallMemberNode.addArgumentNode(returnExpression);

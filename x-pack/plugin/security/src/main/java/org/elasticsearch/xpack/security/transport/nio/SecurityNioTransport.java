@@ -213,7 +213,7 @@ public class SecurityNioTransport extends NioTransport {
             SSLEngine sslEngine;
             SslConfiguration defaultConfig = profileConfiguration.get(TransportSettings.DEFAULT_PROFILE);
             SslConfiguration sslConfig = profileConfiguration.getOrDefault(profileName, defaultConfig);
-            boolean hostnameVerificationEnabled = sslConfig.getVerificationMode().isHostnameVerificationEnabled();
+            boolean hostnameVerificationEnabled = sslConfig.verificationMode().isHostnameVerificationEnabled();
             if (hostnameVerificationEnabled && socketConfig.isAccepted() == false) {
                 InetSocketAddress remoteAddress = socketConfig.getRemoteAddress();
                 // we create the socket based on the name given. don't reverse DNS

@@ -464,7 +464,9 @@ POST _transform/_preview
 
 <1> The indices referenced in the `source` object are compared to each other.
 <2> The `dest` index contains the results of the comparison.
-<3> The `group_by` field needs to be a unique identifier for each document.
+<3> The `group_by` field needs to be a unique identifier for each document. Do 
+not use the `_id` field as a `group_by`; fielddata access on this field is not 
+allowed.
 <4> Object of the `scripted_metric` aggregation.
 <5> The `map_script` defines `doc` in the state object. By using 
 `new HashMap(...)` you copy the source document, this is important whenever you 

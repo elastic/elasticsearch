@@ -24,7 +24,6 @@ import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.elasticsearch.gradle.util.Pair;
 import org.gradle.api.Action;
-import org.gradle.api.GradleException;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
@@ -39,6 +38,7 @@ import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
+import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
@@ -60,6 +60,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.LineNumberReader;
 import java.io.UncheckedIOException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -127,6 +128,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private final ExecOperations execOperations;
+    private FileOperations fileOperations;
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path workingDir;
 
@@ -181,6 +183,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         ExecOperations execOperations,
+        FileOperations fileOperations,
         File workingDirBase,
         Provider<File> runtimeJava
     ) {
@@ -192,6 +195,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
         this.execOperations = execOperations;
+        this.fileOperations = fileOperations;
         this.runtimeJava = runtimeJava;
         workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
         confPathRepo = workingDir.resolve("repo");
@@ -759,21 +763,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         credentials.add(cred);
     }
 
-    /**
-     * Todo we should replace usage of mutable project object here.
-     * */
     private File getBuildPluginFile(String name) {
-        return project.getRootProject().getName().equals("elasticsearch")
-            ? project.getRootProject().file("build-tools/src/main/resources/" + name)
-            : project.getGradle()
-                .getIncludedBuilds()
-                .stream()
-                .map(i -> new File(i.getProjectDir(), "build-tools/src/main/resources/" + name))
-                .filter(f -> f.exists())
-                .findFirst()
-                .orElseThrow(
-                    () -> new GradleException("Cannot resolve build plugin file " + name + " from root project " + project.getRootProject())
-                );
+        URL resource = getClass().getResource(name);
+        return fileOperations.getResources().getText().fromUri(resource).asFile();
     }
 
     @Override

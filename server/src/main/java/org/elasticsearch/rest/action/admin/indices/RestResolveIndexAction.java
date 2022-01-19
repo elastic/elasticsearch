@@ -41,6 +41,7 @@ public class RestResolveIndexAction extends BaseRestHandler {
             indices,
             IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS)
         );
+        // TODO discuss if we really need this check. Currently hard to even face a writable inside here that is version specific
         CCSVersionCheckHelper.checkCCSVersionCompatibility(request, resolveRequest);
         return channel -> client.admin().indices().resolveIndex(resolveRequest, new RestToXContentListener<>(channel));
     }

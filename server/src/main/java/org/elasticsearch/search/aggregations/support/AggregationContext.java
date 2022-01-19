@@ -313,7 +313,7 @@ public abstract class AggregationContext implements Releasable {
         private final Supplier<Boolean> isCancelled;
         private final Function<Query, Query> filterQuery;
         private final boolean enableRewriteToFilterByFilter;
-        private final boolean isInOrderExecutionRequired;
+        private final boolean inSortOrderExecutionRequired;
         private final AnalysisRegistry analysisRegistry;
 
         private final List<Aggregator> releaseMe = new ArrayList<>();
@@ -333,7 +333,7 @@ public abstract class AggregationContext implements Releasable {
             Supplier<Boolean> isCancelled,
             Function<Query, Query> filterQuery,
             boolean enableRewriteToFilterByFilter,
-            boolean isInOrderExecutionRequired
+            boolean inSortOrderExecutionRequired
         ) {
             this.analysisRegistry = analysisRegistry;
             this.context = context;
@@ -366,7 +366,7 @@ public abstract class AggregationContext implements Releasable {
             this.isCancelled = isCancelled;
             this.filterQuery = filterQuery;
             this.enableRewriteToFilterByFilter = enableRewriteToFilterByFilter;
-            this.isInOrderExecutionRequired = isInOrderExecutionRequired;
+            this.inSortOrderExecutionRequired = inSortOrderExecutionRequired;
         }
 
         @Override
@@ -546,7 +546,7 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         public boolean isInSortOrderExecutionRequired() {
-            return isInOrderExecutionRequired;
+            return inSortOrderExecutionRequired;
         }
 
         @Override

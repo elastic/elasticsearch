@@ -33,6 +33,8 @@ import java.io.IOException;
  */
 public class TimeSeriesIndexSearcher {
 
+    // We need to delegate to the other searcher here as opposed to extending IndexSearcher and inheriting default implementations as the
+    // IndexSearcher would most of the time be a ContextIndexSearcher that has important logic related to e.g. document-level security.
     private final IndexSearcher searcher;
 
     public TimeSeriesIndexSearcher(IndexSearcher searcher) {

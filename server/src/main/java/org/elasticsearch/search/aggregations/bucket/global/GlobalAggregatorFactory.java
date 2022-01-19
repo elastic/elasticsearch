@@ -28,7 +28,7 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, subFactories, metadata);
-        if (subFactories.isInOrderExecutionRequired()) {
+        if (subFactories.isInSortOrderExecutionRequired()) {
             throw new AggregationExecutionException("Time series aggregations cannot be used inside global aggregation.");
         }
     }

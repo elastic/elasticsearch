@@ -330,7 +330,7 @@ public class AggregatorFactories {
         /**
          * Return true if any of the factories can build a time-series aggregation that requires an in-order execution
          */
-        public boolean isInOrderExecutionRequired() {
+        public boolean isInSortOrderExecutionRequired() {
             for (AggregationBuilder builder : aggregationBuilders) {
                 if (builder.isInSortOrderExecutionRequired()) {
                     return true;

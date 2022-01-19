@@ -23,19 +23,31 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public record DesiredNode(Settings settings, int processors, ByteSizeValue memory, ByteSizeValue storage, Version version)
-    implements
-        Writeable,
-        ToXContentObject {
+public record DesiredNode(
+    Settings settings,
+    String externalID,
+    int processors,
+    ByteSizeValue memory,
+    ByteSizeValue storage,
+    Version version
+) implements Writeable, ToXContentObject {
 
     private static final ParseField SETTINGS_FIELD = new ParseField("settings");
+    private static final ParseField EXTERNAL_ID_FIELD = new ParseField("external_id");
     private static final ParseField PROCESSORS_FIELD = new ParseField("processors");
     private static final ParseField MEMORY_FIELD = new ParseField("memory");
     private static final ParseField STORAGE_FIELD = new ParseField("storage");
     private static final ParseField VERSION_FIELD = new ParseField("version");
 
     public DesiredNode(StreamInput in) throws IOException {
-        this(Settings.readSettingsFromStream(in), in.readInt(), new ByteSizeValue(in), new ByteSizeValue(in), Version.readVersion(in));
+        this(
+            Settings.readSettingsFromStream(in),
+            in.readString(),
+            in.readInt(),
+            new ByteSizeValue(in),
+            new ByteSizeValue(in),
+            Version.readVersion(in)
+        );
     }
 
     public static final ConstructingObjectParser<DesiredNode, String> PARSER = new ConstructingObjectParser<>(
@@ -43,15 +55,17 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
         false,
         (args, name) -> new DesiredNode(
             (Settings) args[0],
-            (int) args[1],
-            (ByteSizeValue) args[2],
+            (String) args[1],
+            (int) args[2],
             (ByteSizeValue) args[3],
-            (Version) args[4]
+            (ByteSizeValue) args[4],
+            (Version) args[5]
         )
     );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), EXTERNAL_ID_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), PROCESSORS_FIELD);
         PARSER.declareField(
             ConstructingObjectParser.constructorArg(),
@@ -81,6 +95,7 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(SETTINGS_FIELD.getPreferredName(), settings);
+        builder.field(EXTERNAL_ID_FIELD.getPreferredName(), externalID);
         builder.field(PROCESSORS_FIELD.getPreferredName(), processors);
         builder.field(MEMORY_FIELD.getPreferredName(), memory);
         builder.field(STORAGE_FIELD.getPreferredName(), storage);
@@ -92,6 +107,7 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Settings.writeSettingsToStream(settings, out);
+        out.writeString(externalID);
         out.writeInt(processors);
         memory.writeTo(out);
         storage.writeTo(out);

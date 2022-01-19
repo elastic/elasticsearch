@@ -20,7 +20,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
-public record DesiredNodes(String historyID, int version, List<DesiredNode> desiredNodes) implements Writeable, ToXContentObject {
+public record DesiredNodes(String historyID, int version, List<DesiredNode> nodes) implements Writeable, ToXContentObject {
 
     private static final ParseField HISTORY_ID_FIELD = new ParseField("history_id");
     private static final ParseField VERSION_FIELD = new ParseField("version");
@@ -47,7 +47,7 @@ public record DesiredNodes(String historyID, int version, List<DesiredNode> desi
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(historyID);
         out.writeInt(version);
-        out.writeList(desiredNodes);
+        out.writeList(nodes);
     }
 
     static DesiredNodes fromXContent(XContentParser parser) throws IOException {
@@ -59,7 +59,7 @@ public record DesiredNodes(String historyID, int version, List<DesiredNode> desi
         builder.startObject();
         builder.field(HISTORY_ID_FIELD.getPreferredName(), historyID);
         builder.field(VERSION_FIELD.getPreferredName(), version);
-        builder.xContentList(NODES_FIELD.getPreferredName(), desiredNodes);
+        builder.xContentList(NODES_FIELD.getPreferredName(), nodes);
         builder.endObject();
         return builder;
     }

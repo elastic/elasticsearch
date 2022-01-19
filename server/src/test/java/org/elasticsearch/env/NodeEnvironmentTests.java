@@ -542,7 +542,6 @@ public class NodeEnvironmentTests extends ESTestCase {
         final Settings settings = buildEnvSettings(Settings.EMPTY);
 
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-
             try (
                 PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
                     env.nodeDataPaths(),

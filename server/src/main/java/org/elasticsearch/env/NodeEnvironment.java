@@ -489,8 +489,6 @@ public final class NodeEnvironment implements Closeable {
         final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
         NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(paths);
 
-        metadata.verifyUpgradeToCurrentVersion();
-
         // We are upgrading the cluster, but we didn't find any previous metadata. Corrupted state or incompatible version.
         if (metadata == null) {
             throw new CorruptStateException(
@@ -501,6 +499,8 @@ public final class NodeEnvironment implements Closeable {
                     + "]."
             );
         }
+
+        metadata.verifyUpgradeToCurrentVersion();
 
         logger.info("oldest index version recorded in NodeMetadata {}", metadata.oldestIndexVersion());
 

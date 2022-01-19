@@ -129,7 +129,6 @@ public class PublicationTransportHandler {
             }
             in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
             in.setVersion(request.version());
-
             // If true we received full cluster state - otherwise diffs
             if (in.readBoolean()) {
                 final ClusterState incomingState;
@@ -335,14 +334,12 @@ public class PublicationTransportHandler {
             assert transportService.getThreadPool().getThreadContext().isSystemContext();
             if (destination.equals(discoveryNodes.getLocalNode())) {
 
-                // The master needs the original non-serialized state as the cluster state contains some volatile information that we
-                // don't want to be replicated because it's not usable on another node (e.g. UnassignedInfo.unassignedTimeNanos) or
-                // because it's mostly just debugging info that would unnecessarily blow up CS updates (I think there was one in
-                // snapshot code). We may be able to remove this in future.
+                // The transport service normally avoids serializing/deserializing requests to the local node but here we have special
+                // handling to re-use the serialized representation of the cluster state across requests which means we must also handle
+                // local requests differently to avoid having to decompress and deserialize the request on the master.
                 //
-                // Also, the transport service normally avoids serializing/deserializing requests to the local node but here we have special
-                // handling to share the serialized representation of the cluster state across requests, so we must also handle local
-                // requests differently to avoid having to decompress and deserialize the request on the master.
+                // Also, the master needs the original non-serialized state as it contains some transient information that isn't replicated
+                // because it only makes sense on the local node (e.g. UnassignedInfo#unassignedTimeNanos).
 
                 final boolean isVotingOnlyNode = discoveryNodes.getLocalNode().getRoles().contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
                 logger.trace("handling cluster state version [{}] locally on [{}]", newState.version(), destination);
@@ -350,6 +347,9 @@ public class PublicationTransportHandler {
                     .generic()
                     .execute(transportService.getThreadPool().getThreadContext().preserveContext(ActionRunnable.supply(listener, () -> {
                         if (isVotingOnlyNode) {
+                            // Voting-only nodes publish their cluster state to other nodes in order to freshen the state held on other full
+                            // master nodes, but then fail the publication before committing. However there's no need to freshen our local
+                            // state so we can fail right away.
                             throw new TransportException(
                                 new ElasticsearchException("voting-only node skipping local publication to " + destination)
                             );

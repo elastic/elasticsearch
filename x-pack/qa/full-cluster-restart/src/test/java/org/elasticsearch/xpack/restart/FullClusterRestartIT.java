@@ -353,10 +353,29 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         )
                     )
             );
-            createApiKeyRequest.setJsonEntity("""
-                {
-                   "name": "super_legacy_key"
-                }""");
+            if (getOldClusterVersion().onOrAfter(Version.V_7_3_0)) {
+                createApiKeyRequest.setJsonEntity("""
+                    {
+                       "name": "super_legacy_key"
+                    }""");
+            } else {
+                createApiKeyRequest.setJsonEntity("""
+                    {
+                       "name": "super_legacy_key",
+                       "role_descriptors": {
+                         "super": {
+                           "cluster": [ "all" ],
+                           "indices": [
+                             {
+                               "names": [ "*" ],
+                               "privileges": [ "all" ],
+                               "allow_restricted_indices": true
+                             }
+                           ]
+                         }
+                       }
+                    }""");
+            }
             final Map<String, Object> createApiKeyResponse = entityAsMap(client().performRequest(createApiKeyRequest));
             final byte[] keyBytes = (createApiKeyResponse.get("id") + ":" + createApiKeyResponse.get("api_key")).getBytes(
                 StandardCharsets.UTF_8

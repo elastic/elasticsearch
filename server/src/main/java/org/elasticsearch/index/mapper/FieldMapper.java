@@ -655,7 +655,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param defaultValue  the default value for the parameter, used if unspecified in mappings
          * @param parser        a function that converts an object to a parameter value
          * @param initializer   a function that reads a parameter value from an existing mapper
-         * @param serializer    a function that serializes a parameter value
+         * @param serializer    a function that serializes a parameter value, prefer type specific x-content generation methods here for
+         *                      good performance as this is used on the hot-path during cluster state updates
          * @param conflictSerializer a function that serializes a parameter value on conflict
          */
         public Parameter(

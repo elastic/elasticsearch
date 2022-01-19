@@ -20,7 +20,7 @@ import java.io.IOException;
  */
 public class NewlyReleasedQueryBuilder extends DummyQueryBuilder {
 
-    static final String NAME = "new_released_query";
+    public static final String NAME = "new_released_query";
 
     public NewlyReleasedQueryBuilder(StreamInput in) throws IOException {
         super(in);

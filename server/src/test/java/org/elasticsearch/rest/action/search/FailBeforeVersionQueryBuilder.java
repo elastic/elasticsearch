@@ -23,7 +23,7 @@ import java.util.List;
  */
 public class FailBeforeVersionQueryBuilder extends DummyQueryBuilder {
 
-    static final String NAME = "fail_before_current_version";
+    public static final String NAME = "fail_before_current_version";
     private static Version previousMinor;
 
     static {

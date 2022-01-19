@@ -188,7 +188,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
             params.put(CCSVersionCheckHelper.CCS_VERSION_CHECK_FLAG, "false");
         }
         {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
                 .withPath("/some_index/_async_search")
                 .withParams(params)
                 .withContent(new BytesArray(query), XContentType.JSON)

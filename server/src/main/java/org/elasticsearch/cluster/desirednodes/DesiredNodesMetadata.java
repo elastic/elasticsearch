@@ -30,7 +30,7 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     public static final DesiredNodesMetadata EMPTY = new DesiredNodesMetadata((DesiredNodes) null);
 
-    private static final ParseField CURRENT_DESIRED_NODES_FIELD = new ParseField("current_desired_nodes");
+    private static final ParseField CURRENT_FIELD = new ParseField("current");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DesiredNodesMetadata, Void> PARSER = new ConstructingObjectParser<>(
@@ -40,11 +40,7 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     );
 
     static {
-        PARSER.declareObject(
-            ConstructingObjectParser.constructorArg(),
-            (p, c) -> DesiredNodes.fromXContent(p),
-            CURRENT_DESIRED_NODES_FIELD
-        );
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DesiredNodes.fromXContent(p), CURRENT_FIELD);
     }
 
     private final DesiredNodes currentDesiredNodes;
@@ -72,7 +68,7 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(CURRENT_DESIRED_NODES_FIELD.getPreferredName(), currentDesiredNodes);
+        builder.field(CURRENT_FIELD.getPreferredName(), currentDesiredNodes);
         return builder;
     }
 

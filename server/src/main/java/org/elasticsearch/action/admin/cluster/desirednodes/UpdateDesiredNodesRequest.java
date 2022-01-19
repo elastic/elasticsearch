@@ -29,12 +29,11 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
 
     private static final ParseField NODES_FIELD = new ParseField("nodes");
 
-    // TODO: Check if this can be done more elegantly
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<UpdateDesiredNodesRequest, Builder> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<List<DesiredNode>, Void> PARSER = new ConstructingObjectParser<>(
         "update_desired_nodes_request",
         false,
-        (args, builder) -> builder.setNodes((List<DesiredNode>) args[0]).build()
+        (args, unused) -> (List<DesiredNode>) args[0]
     );
 
     static {
@@ -65,7 +64,8 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
     }
 
     public static UpdateDesiredNodesRequest fromXContent(String historyID, int version, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new Builder(historyID, version));
+        List<DesiredNode> nodes = PARSER.parse(parser, null);
+        return new UpdateDesiredNodesRequest(historyID, version, nodes);
     }
 
     public String getHistoryID() {
@@ -91,30 +91,6 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
     @Override
     public int hashCode() {
         return Objects.hash(historyID, version, nodes);
-    }
-
-    private static class Builder {
-        private final String historyID;
-        private final int version;
-        private List<DesiredNode> nodes;
-
-        Builder(String historyID, int version) {
-            this.historyID = historyID;
-            this.version = version;
-        }
-
-        Builder setNodes(List<DesiredNode> nodes) {
-            assert nodes != null;
-
-            this.nodes = nodes;
-            return this;
-        }
-
-        UpdateDesiredNodesRequest build() {
-            assert nodes != null;
-
-            return new UpdateDesiredNodesRequest(historyID, version, nodes);
-        }
     }
 
     @Override

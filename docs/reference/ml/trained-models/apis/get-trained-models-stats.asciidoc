@@ -97,6 +97,16 @@ The detailed allocation status given the deployment configuration.
 (integer)
 The current number of nodes where the model is allocated.
 
+`error_count`:::
+(integer)
+The total number of errors when evaluating the trained model
+for all nodes in the deployment.
+
+`rejected_execution_count`:::
+(integer)
+The total number of inference requests that were not processed because
+the queue was full for all nodes in the deployment.
+
 `state`:::
 (string)
 The detailed allocation state related to the nodes.
@@ -110,6 +120,11 @@ The detailed allocation state related to the nodes.
 `target_allocation_count`:::
 (integer)
 The desired number of nodes for model allocation.
+
+`timeout_count`:::
+(integer)
+The total number of inference requests that timed out before being
+processed for all nodes in the deployment.
 ======
 
 `inference_threads`:::
@@ -138,7 +153,6 @@ The average time for each inference call to complete on this node.
 `error_count`:::
 (integer)
 The number of errors when evaluating the trained model.
-
 
 `inference_count`:::
 (integer)
@@ -205,14 +219,14 @@ The current routing state and reason for the current routing state for this allo
 * `failed`: The allocation attempt failed, see `reason` field for the potential cause.
 --
 
-`start_time`:::
-(long)
-The epoch timestamp when the allocation started.
-
 `rejected_execution_count`:::
 (integer)
 The number of inference requests that were not processed because the
 queue was full.
+
+`start_time`:::
+(long)
+The epoch timestamp when the allocation started.
 
 `timeout_count`:::
 (integer)

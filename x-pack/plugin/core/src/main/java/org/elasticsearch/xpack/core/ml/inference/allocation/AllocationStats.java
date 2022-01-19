@@ -395,6 +395,21 @@ public class AllocationStats implements ToXContentObject, Writeable {
             builder.field("allocation_status", allocationStatus);
         }
         builder.timeField("start_time", "start_time_string", startTime.toEpochMilli());
+
+        int totalErrorCount = nodeStats.stream().mapToInt(NodeStats::getErrorCount).sum();
+        int totalRejectedExecutionCount = nodeStats.stream().mapToInt(NodeStats::getRejectedExecutionCount).sum();
+        int totalTimeoutCount = nodeStats.stream().mapToInt(NodeStats::getTimeoutCount).sum();
+
+        if (totalErrorCount > 0) {
+            builder.field("error_count", totalErrorCount);
+        }
+        if (totalRejectedExecutionCount > 0) {
+            builder.field("rejected_execution_count", totalRejectedExecutionCount);
+        }
+        if (totalTimeoutCount > 0) {
+            builder.field("timeout_count", totalTimeoutCount);
+        }
+
         builder.startArray("nodes");
         for (AllocationStats.NodeStats nodeStat : nodeStats) {
             nodeStat.toXContent(builder, params);

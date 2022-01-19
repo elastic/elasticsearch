@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -85,7 +86,9 @@ public class TermsGroupConfig implements Writeable, ToXContentObject {
             Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
             if (fieldCaps != null && fieldCaps.isEmpty() == false) {
                 fieldCaps.forEach((key, value) -> {
-                    if (key.equals(KeywordFieldMapper.CONTENT_TYPE) || key.equals(TextFieldMapper.CONTENT_TYPE)) {
+                    if (key.equals(KeywordFieldMapper.CONTENT_TYPE)
+                        || key.equals(TextFieldMapper.CONTENT_TYPE)
+                        || key.equals(TimeSeriesIdFieldMapper.CONTENT_TYPE)) {
                         if (value.isAggregatable() == false) {
                             validationException.addValidationError(
                                 "The field [" + field + "] must be aggregatable across all indices, " + "but is not."

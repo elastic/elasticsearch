@@ -1,6 +1,7 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-rollup'
   description 'Elasticsearch Expanded Pack Plugin - Rollup'
@@ -16,11 +17,12 @@ dependencies {
   compileOnly project(path: xpackModule('analytics'))
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   compileOnly project(path: xpackModule('data-streams'))
+  compileOnly project(path: xpackModule('ilm'))
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 addQaCheckDependencies()
 
-tasks.named("test").configure {
+tasks.named("internalClusterTest").configure {
   systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
 }

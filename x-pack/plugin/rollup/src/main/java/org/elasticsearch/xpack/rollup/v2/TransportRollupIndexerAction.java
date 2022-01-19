@@ -20,23 +20,30 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupShardStatus;
+import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
+import org.elasticsearch.xpack.rollup.v2.indexer.TimeSeriesRollupShardIndexer;
+import org.elasticsearch.xpack.rollup.v2.indexer.UnSortedRollupShardIndexer;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.elasticsearch.xpack.rollup.Rollup.TASK_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.rollup.v2.TransportRollupAction.TMP_INDEX_PREFIX;
 
 /**
  * A {@link TransportBroadcastAction} that rollups all the shards of a single index into a new one.
@@ -86,12 +93,9 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
         String[] concreteIndices
     ) {
         if (concreteIndices.length > 1) {
-            throw new IllegalArgumentException("multiple indices: " + Arrays.toString(concreteIndices));
+            throw new IllegalArgumentException("multiple indices: [" + Arrays.toString(concreteIndices) + "] not allowed");
         }
-        // Random routing to limit request to a single shard
-        String routing = Integer.toString(Randomness.get().nextInt(1000));
-        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, routing, request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, null);
+        return clusterService.operationRouting().searchShards(clusterState, concreteIndices, null, null);
     }
 
     @Override
@@ -117,17 +121,61 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
     @Override
     protected RollupIndexerAction.ShardResponse shardOperation(RollupIndexerAction.ShardRequest request, Task task) throws IOException {
         IndexService indexService = indicesService.indexService(request.shardId().getIndex());
-        String tmpIndexName = ".rolluptmp-" + request.getRollupIndex();
-        RollupShardIndexer indexer = new RollupShardIndexer(
-            client,
-            indexService,
-            request.shardId(),
-            request.getRollupConfig(),
-            tmpIndexName,
-            SORTER_RAM_SIZE_MB
-        );
-        indexer.execute();
+        String tmpIndexName = TMP_INDEX_PREFIX + request.getRollupIndex();
+        if (isRollupTimeSeries(indexService.getIndexSettings(), request.getRollupConfig().getGroupConfig())) {
+            new TimeSeriesRollupShardIndexer(
+                (RollupShardStatus) task.getStatus(),
+                client,
+                indexService,
+                request.shardId(),
+                request.getRollupConfig(),
+                tmpIndexName
+            ).execute();
+        } else {
+            new UnSortedRollupShardIndexer(
+                (RollupShardStatus) task.getStatus(),
+                client,
+                indexService,
+                request.shardId(),
+                request.getRollupConfig(),
+                tmpIndexName,
+                SORTER_RAM_SIZE_MB
+            ).execute();
+        }
         return new RollupIndexerAction.ShardResponse(request.shardId());
+    }
+
+    /**
+     *  if rollup a time_series, and the rollup group are _tsid and @timestamp, it can use a sorted mode to rollup data
+     *
+     *  TODO:
+     *  if rollup config match the index sorting config, it can use a sorted mode to rollup data.
+     *  but if the index sorting field is a multi value field, it's not a real sorting mode.
+     *  when index setting support setting single value field, the method can change to rollup the sorted data
+     */
+    static boolean isRollupTimeSeries(IndexSettings indexSettings, RollupActionGroupConfig groupConfig) {
+        if (groupConfig == null) {
+            return false;
+        }
+
+        if (indexSettings.getMode() != IndexMode.TIME_SERIES) {
+            return false;
+        }
+
+        if (false == groupConfig.getDateHistogram().getField().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)) {
+            return false;
+        }
+
+        if (groupConfig.getHistogram() != null) {
+            return false;
+        }
+
+        TermsGroupConfig terms = groupConfig.getTerms();
+        if (terms != null && terms.getFields().length == 1 && terms.getFields()[0].equals(TimeSeriesIdFieldMapper.NAME)) {
+            return true;
+        }
+
+        return false;
     }
 
     @Override

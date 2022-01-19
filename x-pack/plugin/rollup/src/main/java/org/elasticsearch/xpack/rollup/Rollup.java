@@ -66,9 +66,9 @@ import org.elasticsearch.xpack.rollup.rest.RestPutRollupJobAction;
 import org.elasticsearch.xpack.rollup.rest.RestRollupSearchAction;
 import org.elasticsearch.xpack.rollup.rest.RestStartRollupJobAction;
 import org.elasticsearch.xpack.rollup.rest.RestStopRollupJobAction;
-import org.elasticsearch.xpack.rollup.v2.RestRollupAction;
 import org.elasticsearch.xpack.rollup.v2.TransportRollupAction;
 import org.elasticsearch.xpack.rollup.v2.TransportRollupIndexerAction;
+import org.elasticsearch.xpack.rollup.v2.rest.RestRollupAction;
 
 import java.time.Clock;
 import java.util.ArrayList;

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.rollup.job;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -117,6 +118,23 @@ public class TermsGroupConfigSerializingTests extends AbstractSerializingTestCas
         responseMap.put("my_field", Collections.singletonMap(type, fieldCaps));
 
         TermsGroupConfig config = new TermsGroupConfig("my_field");
+        config.validateMappings(responseMap, e);
+        if (e.validationErrors().size() != 0) {
+            fail(e.getMessage());
+        }
+    }
+
+    public void testVaildateTsidMatchingField() {
+        ActionRequestValidationException e = new ActionRequestValidationException();
+        Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
+        String type = TimeSeriesIdFieldMapper.NAME;
+
+        // Have to mock fieldcaps because the ctor's aren't public...
+        FieldCapabilities fieldCaps = mock(FieldCapabilities.class);
+        when(fieldCaps.isAggregatable()).thenReturn(true);
+        responseMap.put(TimeSeriesIdFieldMapper.NAME, Collections.singletonMap(type, fieldCaps));
+
+        TermsGroupConfig config = new TermsGroupConfig(TimeSeriesIdFieldMapper.NAME);
         config.validateMappings(responseMap, e);
         if (e.validationErrors().size() != 0) {
             fail(e.getMessage());

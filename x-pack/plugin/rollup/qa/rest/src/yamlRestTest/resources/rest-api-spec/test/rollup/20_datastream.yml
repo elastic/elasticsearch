@@ -1,0 +1,101 @@
+setup:
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [simple-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ simple-data-stream ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+            mappings:
+              properties:
+                timestamp:
+                  type: date
+                color:
+                  type: keyword
+                price:
+                  type: integer
+          data_stream: { }
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - create:
+              _index: simple-data-stream
+              _id: 1
+          - '@timestamp': "2020-01-01T05:10:00Z"
+            color: "blue"
+            price: 10
+          - create:
+              _index: simple-data-stream
+              _id: 2
+          - '@timestamp': "2020-01-01T05:30:00Z"
+            color: "blue"
+            price: 20
+          - create:
+              _index: simple-data-stream
+              _id: 3
+          - '@timestamp': "2020-01-01T06:10:00Z"
+            color: "red"
+            price: 30
+          - create:
+              _index: simple-data-stream
+              _id: 4
+          - '@timestamp': "2020-01-01T06:30:00Z"
+            price: 40
+            color: "green"
+
+---
+"Rollup index":
+  - skip:
+      version: " - 7.99.99"
+      reason: "rolling up an index directly is only supported in 8.0+"
+
+  - do:
+      indices.rollover:
+        alias: simple-data-stream
+  - set: { old_index: idx0name }
+
+  - do:
+      rollup.rollup:
+        index: $idx0name
+        rollup_index: rollup_docs
+        body: >
+          {
+            "groups" : {
+              "date_histogram": {
+                "field": "@timestamp",
+                "calendar_interval": "1h"
+              },
+              "terms": {
+                "fields": ["color"]
+              }
+            },
+            "metrics": [
+              {
+                "field": "price",
+                "metrics": ["max", "min", "sum", "avg", "value_count"]
+              }
+            ]
+          }
+  - is_true: acknowledged
+
+  - do:
+      indices.forcemerge:
+        index: rollup_docs
+        max_num_segments: 1
+
+  - do:
+      search:
+        index: rollup_docs
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 3 }

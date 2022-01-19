@@ -11,9 +11,14 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.DocValueFormat.TimeSeriesIdDocValueFormat;
+import org.elasticsearch.xpack.rollup.v2.indexer.metrics.LeafMetricField;
+import org.elasticsearch.xpack.rollup.v2.indexer.metrics.MetricCollector;
+import org.elasticsearch.xpack.rollup.v2.indexer.metrics.NumberLeafMetricField;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -25,7 +30,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
-class FieldValueFetcher {
+public class FieldValueFetcher {
     private static final Set<Class<?>> VALID_TYPES = Collections.unmodifiableSet(
         new HashSet<>(Arrays.asList(Long.class, Double.class, BigInteger.class, String.class, BytesRef.class))
     );
@@ -44,24 +49,40 @@ class FieldValueFetcher {
         this.valueFunc = valueFunc;
     }
 
-    FormattedDocValues getLeaf(LeafReaderContext context) {
-        final FormattedDocValues delegate = fieldData.load(context).getFormattedValues(DocValueFormat.RAW);
-        return new FormattedDocValues() {
-            @Override
-            public boolean advanceExact(int docId) throws IOException {
-                return delegate.advanceExact(docId);
-            }
+    public MappedFieldType getFieldType() {
+        return fieldType;
+    }
 
-            @Override
-            public int docValueCount() throws IOException {
-                return delegate.docValueCount();
-            }
+    public FormattedDocValues getGroupLeaf(LeafReaderContext context) {
+        if (format instanceof TimeSeriesIdDocValueFormat) {
+            // TODO RAW format use string to save format data, but the _tsid is a binary data.
+            // it maybe lost bytes when string decode to binary data.
+            // so here use it's own format, it will decode in indexBucket
+            return fieldData.load(context).getFormattedValues(format);
+        } else {
+            final FormattedDocValues delegate = fieldData.load(context).getFormattedValues(DocValueFormat.RAW);
+            return new FormattedDocValues() {
+                @Override
+                public boolean advanceExact(int docId) throws IOException {
+                    return delegate.advanceExact(docId);
+                }
 
-            @Override
-            public Object nextValue() throws IOException {
-                return valueFunc.apply(delegate.nextValue());
-            }
-        };
+                @Override
+                public int docValueCount() throws IOException {
+                    return delegate.docValueCount();
+                }
+
+                @Override
+                public Object nextValue() throws IOException {
+                    return valueFunc.apply(delegate.nextValue());
+                }
+            };
+        }
+    }
+
+    public LeafMetricField getMetricFieldLeaf(LeafReaderContext context, MetricCollector[] metricCollectors) {
+        LeafFieldData leafFieldData = fieldData.load(context);
+        return new NumberLeafMetricField(metricCollectors, leafFieldData);
     }
 
     Object format(Object value) {
@@ -78,17 +99,21 @@ class FieldValueFetcher {
         }
     }
 
-    static List<FieldValueFetcher> build(SearchExecutionContext context, String[] fields) {
+    static List<FieldValueFetcher> buildList(SearchExecutionContext context, String[] fields) {
         List<FieldValueFetcher> fetchers = new ArrayList<>();
         for (String field : fields) {
-            MappedFieldType fieldType = context.getFieldType(field);
-            if (fieldType == null) {
-                throw new IllegalArgumentException("Unknown field: [" + field + "]");
-            }
-            IndexFieldData<?> fieldData = context.getForField(fieldType);
-            fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field)));
+            fetchers.add(build(context, field));
         }
         return Collections.unmodifiableList(fetchers);
+    }
+
+    static FieldValueFetcher build(SearchExecutionContext context, String field) {
+        MappedFieldType fieldType = context.getFieldType(field);
+        if (fieldType == null) {
+            throw new IllegalArgumentException("Unknown field: [" + field + "]");
+        }
+        IndexFieldData<?> fieldData = context.getForField(fieldType);
+        return new FieldValueFetcher(field, fieldType, fieldData, getValidator(field));
     }
 
     static List<FieldValueFetcher> buildHistograms(SearchExecutionContext context, String[] fields, double interval) {

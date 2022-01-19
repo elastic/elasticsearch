@@ -69,7 +69,7 @@ setup:
             "metrics": [
               {
                 "field": "price",
-                "metrics": ["max", "sum", "avg"]
+                "metrics": ["max", "min", "sum", "avg", "value_count"]
               }
             ]
           }
@@ -85,3 +85,33 @@ setup:
         index: rollup_docs
         body: { query: { match_all: {} } }
   - length:   { hits.hits: 3  }
+
+---
+"Rollup not found index":
+  - skip:
+      version: " - 7.99.99"
+      reason: "rolling up an index directly is only supported in 8.0+"
+  - do:
+      catch: /Invalid index name \[no_docs\], rollup origin index metadata missing/
+      rollup.rollup:
+        index: no_docs
+        rollup_index: rollup_docs
+        body: >
+          {
+            "groups" : {
+              "date_histogram": {
+                "field": "timestamp",
+                "calendar_interval": "1h"
+              },
+              "terms": {
+                "fields": ["color"]
+              }
+            },
+            "metrics": [
+              {
+                "field": "price",
+                "metrics": ["max", "min", "sum", "avg", "value_count"]
+              }
+            ]
+          }
+

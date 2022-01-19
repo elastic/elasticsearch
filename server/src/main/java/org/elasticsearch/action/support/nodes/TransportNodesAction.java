@@ -280,19 +280,23 @@ public abstract class TransportNodesAction<
         }
 
         private void onOperation(int idx, NodeResponse nodeResponse) {
-            if (cancelled == false) {
-                responses.set(idx, nodeResponse);
+            if (cancelled) {
+                return;
             }
+
+            responses.set(idx, nodeResponse);
             if (counter.incrementAndGet() == responses.length()) {
                 finishHim();
             }
         }
 
         private void onFailure(int idx, String nodeId, Throwable t) {
-            if (cancelled == false) {
-                logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
-                responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
+            if (cancelled) {
+                return;
             }
+
+            logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
+            responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
             if (counter.incrementAndGet() == responses.length()) {
                 finishHim();
             }

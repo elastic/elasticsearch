@@ -147,8 +147,9 @@ The total number of inference calls made against this node for this model.
 `inference_threads`:::
 (integer)
 The number of threads used by the inference process.
-This value may be lower than top level value if there is not sufficient
-hardware threads to satisfy the configured value.
+This number may be lower than the value of the `inference_threads` setting
+in the <<start-trained-model-deployment>> API if the requested value
+is greater than the number of hardware threads on the machine.
 
 `last_access`:::
 (long)
@@ -157,8 +158,9 @@ The epoch time stamp of the last inference call for the model on this node.
 `model_threads`:::
 (integer)
 The number of threads used when sending inference requests to the model.
-This value may be lower than top level value if there is not sufficient
-hardware threads to satisfy the configured value.
+This number may be lower than the value of the `model_threads` setting
+in the <<start-trained-model-deployment>> API if the requested value
+is greater than the number of hardware threads on the machine.
 
 `node`:::
 (object)

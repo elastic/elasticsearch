@@ -400,9 +400,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
                     );
                 } else {
-                    indexRequest.setOptions(
-                        RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader)
-                    );
+                    indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader));
                 }
                 assertOK(client().performRequest(indexRequest));
             }

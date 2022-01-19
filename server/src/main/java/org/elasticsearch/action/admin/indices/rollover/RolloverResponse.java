@@ -11,12 +11,12 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -48,7 +48,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         oldIndex = in.readString();
         newIndex = in.readString();
         int conditionSize = in.readVInt();
-        conditionStatus = new HashMap<>(conditionSize);
+        conditionStatus = Maps.newMapWithExpectedSize(conditionSize);
         for (int i = 0; i < conditionSize; i++) {
             conditionStatus.put(in.readString(), in.readBoolean());
         }

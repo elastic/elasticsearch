@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesActi
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -322,7 +322,7 @@ public class ClusterPrivilegeResolver {
      */
     static SortedMap<String, NamedClusterPrivilege> sortByAccessLevel(Collection<NamedClusterPrivilege> privileges) {
         // How many other privileges does this privilege imply. Those with a higher count are considered to be a higher privilege
-        final Map<String, Long> impliesCount = new HashMap<>(privileges.size());
+        final Map<String, Long> impliesCount = Maps.newMapWithExpectedSize(privileges.size());
         privileges.forEach(
             priv -> impliesCount.put(
                 priv.name(),

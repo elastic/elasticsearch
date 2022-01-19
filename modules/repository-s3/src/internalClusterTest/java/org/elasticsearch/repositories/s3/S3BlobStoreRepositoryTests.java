@@ -226,7 +226,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, service, clusterService, bigArrays, recoverySettings) {
+            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings) {
 
                 @Override
                 public BlobStore blobStore() {

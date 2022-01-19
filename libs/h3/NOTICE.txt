@@ -1,6 +1,6 @@
-{elastic-hex}
+Elastic-hex
 
-Copyright {2021} Elasticsearch B.V.
+Copyright 2022 Elasticsearch B.V.
 
 --
 

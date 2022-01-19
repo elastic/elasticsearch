@@ -897,7 +897,7 @@ public class MetadataTests extends ESTestCase {
         assertEquals("[index.version.created] is not present in the index settings for index with UUID [null]", ex.getMessage());
     }
 
-    private Metadata.Builder buildIndicesWithVersions(Version[] indexVersions) {
+    private Metadata.Builder buildIndicesWithVersions(Version... indexVersions) {
 
         final List<Index> indices = new ArrayList<>();
         int lastIndexNum = randomIntBetween(9, 50);

@@ -79,6 +79,13 @@ testing.
 output to the terminal, plus an enrollment token for enrolling {kib}.
 +
 --
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of {es} has not yet been released, so no
+Docker image is currently available for this version.
+
+endif::[]
+
 ifeval::["{release-state}"!="unreleased"]
 [source,sh,subs="attributes"]
 ----
@@ -155,13 +162,26 @@ enrollment token for adding new {es} nodes.
 
 . On your new node, start {es} and include the generated enrollment token.
 +
+--
+ifeval::["{release-state}"=="unreleased"]
+
+WARNING: Version {version} of {es} has not yet been released, so no
+Docker image is currently available for this version.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
 [source,sh,subs="attributes"]
 ----
-docker run -e ENROLLMENT_TOKEN="<token>" --name es02 --net elastic -it docker.elastic.co/elasticsearch/elasticsearch:{docker-image}
+docker run -e ENROLLMENT_TOKEN="<token>" --name es02 --net elastic -it {docker-image}
 ----
+
+endif::[]
 +
 {es} is now configured to join the existing cluster.
+--
 
+===== Setting JVM heap size
 If you experience issues where the container where your first node is running
 exits when your second node starts, explicitly set values for the JVM heap size.
 To <<set-jvm-heap-size,manually configure the heap size>>, include the

@@ -78,7 +78,7 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             },

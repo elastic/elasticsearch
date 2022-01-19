@@ -51,8 +51,8 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         verifySecurityAutoConfigured(installation);
         // Generate a node enrollment token to be subsequently used by the second node
         Shell.Result createTokenResult = installation.executables().createEnrollmentToken.run("-s node");
-        assertThat(Strings.isNullOrEmpty(createTokenResult.stdout), is(false));
-        final String enrollmentToken = createTokenResult.stdout;
+        assertThat(Strings.isNullOrEmpty(createTokenResult.stdout()), is(false));
+        final String enrollmentToken = createTokenResult.stdout();
         // installation now points to the second node
         installation = installArchive(sh, distribution(), getRootTempDir().resolve("elasticsearch-node2"), getCurrentVersion(), true);
 
@@ -65,7 +65,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             false
         );
         assertThat(
-            startSecondNodeWithInvalidToken.stdout,
+            startSecondNodeWithInvalidToken.stdout(),
             containsString("Failed to parse enrollment token : some-invalid-token-here . Error was: Illegal base64 character 2d")
         );
         verifySecurityNotAutoConfigured(installation);
@@ -93,7 +93,9 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         waitForElasticsearch(installation);
         final String node1ContainerId = Docker.getContainerId();
 
-        final String enrollmentToken = installation.executables().createEnrollmentToken.run("-s node").stdout.lines()
+        final String enrollmentToken = installation.executables().createEnrollmentToken.run("-s node")
+            .stdout()
+            .lines()
             .filter(line -> line.startsWith("WARNING:") == false)
             .findFirst()
             .orElseThrow(() -> new AssertionError("Failing to find any non-warning output lines"));

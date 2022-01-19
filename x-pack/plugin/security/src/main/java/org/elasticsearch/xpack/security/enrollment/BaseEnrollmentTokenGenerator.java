@@ -30,7 +30,7 @@ public class BaseEnrollmentTokenGenerator {
     public BaseEnrollmentTokenGenerator() {}
 
     static String getHttpsCaFingerprint(SSLService sslService) throws Exception {
-        final SslKeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().getKeyConfig();
+        final SslKeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().keyConfig();
         if (keyConfig instanceof StoreKeyConfig == false) {
             throw new IllegalStateException(
                 "Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration is "

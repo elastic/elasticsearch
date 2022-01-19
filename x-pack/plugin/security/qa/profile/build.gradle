@@ -10,6 +10,8 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
 
+  rolesFile file('src/javaRestTest/resources/roles.yml')
+
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 
@@ -18,4 +20,5 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authc.api_key.enabled', 'true'
 
   user username: "test_admin", password: 'x-pack-test-password'
+  user username: "rac_user", password: 'x-pack-test-password', role: "rac_role"
 }

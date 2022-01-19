@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -59,7 +60,6 @@ import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -768,7 +768,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
     }
 
     private static Metadata.Builder addIngest(Metadata.Builder builder, String... modelId) throws IOException {
-        Map<String, PipelineConfiguration> configurations = new HashMap<>(modelId.length);
+        Map<String, PipelineConfiguration> configurations = Maps.newMapWithExpectedSize(modelId.length);
         for (String id : modelId) {
             configurations.put("pipeline_with_model_" + id, newConfigurationWithInferenceProcessor(id));
         }

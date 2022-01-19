@@ -12,13 +12,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -124,7 +124,7 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         if (contextStats.isEmpty()) {
             return new ScriptCacheStats(this);
         }
-        Map<String, ScriptStats> contexts = new HashMap<>(contextStats.size());
+        Map<String, ScriptStats> contexts = Maps.newMapWithExpectedSize(contextStats.size());
         for (ScriptContextStats contextStats : contextStats) {
             contexts.put(contextStats.getContext(), new ScriptStats(contextStats));
         }

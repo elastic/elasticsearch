@@ -8,12 +8,12 @@
 
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -34,7 +34,7 @@ public class ParsedAdjacencyMatrix extends ParsedMultiBucketAggregation<ParsedAd
     @Override
     public ParsedBucket getBucketByKey(String key) {
         if (bucketMap == null) {
-            bucketMap = new HashMap<>(buckets.size());
+            bucketMap = Maps.newMapWithExpectedSize(buckets.size());
             for (ParsedBucket bucket : buckets) {
                 bucketMap.put(bucket.getKey(), bucket);
             }

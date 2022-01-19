@@ -191,6 +191,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
             .setSize(0)
             .addAggregation(
                 terms("by_dim").field(groupBy)
+                    .size(data.size())
                     .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
                     .subAggregation(timeSeries("by_ts"))
             )

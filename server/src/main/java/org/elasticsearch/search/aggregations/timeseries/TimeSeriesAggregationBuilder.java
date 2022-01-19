@@ -105,7 +105,7 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
     }
 
     @Override
-    public boolean isInOrderExecutionRequired() {
+    public boolean isInSortOrderExecutionRequired() {
         return true;
     }
 

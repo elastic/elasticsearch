@@ -45,7 +45,6 @@ public class TimeSeriesIndexSearcher {
         PriorityQueue<LeafWalker> queue = new PriorityQueue<>(searcher.getIndexReader().leaves().size()) {
             @Override
             protected boolean lessThan(LeafWalker a, LeafWalker b) {
-                assert a.tsid != null && a.timestamp != null && b.tsid != null && b.timestamp != null;
                 int res = a.tsid.compareTo(b.tsid);
                 if (res == 0) {
                     return a.timestamp < b.timestamp;
@@ -81,17 +80,12 @@ public class TimeSeriesIndexSearcher {
         private final DocIdSetIterator iterator;
         private final SortedSetDocValues tsids;
         private final SortedNumericDocValues timestamps;
-        int docBase;
+        final int docBase;
         int docId;
         BytesRef tsid;
-        Long timestamp;
-
-        String id;
+        long timestamp;
 
         LeafWalker(LeafReaderContext context, Scorer scorer, LeafCollector collector) throws IOException {
-            id = context.toString().replaceFirst(".*:c", "c");
-            id = id.substring(0, id.indexOf(':'));
-
             this.collector = collector;
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
@@ -105,28 +99,22 @@ public class TimeSeriesIndexSearcher {
             collector.collect(docId);
         }
 
-        boolean next() {
-            try {
-                do {
-                    docId = iterator.nextDoc();
-                    if (docId != DocIdSetIterator.NO_MORE_DOCS && (liveDocs == null || liveDocs.get(docId))) {
-                        if (tsids.advanceExact(docId)) {
-                            BytesRef tsid = tsids.lookupOrd(tsids.nextOrd());
-                            if (timestamps.advanceExact(docId)) {
-                                this.timestamp = timestamps.nextValue();
-                                if (tsid.equals(this.tsid) == false) {
-                                    this.tsid = BytesRef.deepCopyOf(tsid);
-                                }
-                                return true;
+        boolean next() throws IOException {
+            do {
+                docId = iterator.nextDoc();
+                if (docId != DocIdSetIterator.NO_MORE_DOCS && (liveDocs == null || liveDocs.get(docId))) {
+                    if (tsids.advanceExact(docId)) {
+                        BytesRef tsid = tsids.lookupOrd(tsids.nextOrd());
+                        if (timestamps.advanceExact(docId)) {
+                            this.timestamp = timestamps.nextValue();
+                            if (tsid.equals(this.tsid) == false) {
+                                this.tsid = BytesRef.deepCopyOf(tsid);
                             }
+                            return true;
                         }
                     }
-                } while (docId != DocIdSetIterator.NO_MORE_DOCS);
-            } catch (IOException ex) {
-                throw new RuntimeException(ex);
-            }
-            this.tsid = null;
-            this.timestamp = null;
+                }
+            } while (docId != DocIdSetIterator.NO_MORE_DOCS);
             return false;
         }
     }

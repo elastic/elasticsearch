@@ -332,7 +332,7 @@ public class AggregatorFactories {
          */
         public boolean isInOrderExecutionRequired() {
             for (AggregationBuilder builder : aggregationBuilders) {
-                if (builder.isInOrderExecutionRequired()) {
+                if (builder.isInSortOrderExecutionRequired()) {
                     return true;
                 }
             }

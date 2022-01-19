@@ -413,7 +413,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 if (maxOrd > 0
                     && maxOrd <= MAX_ORDS_TO_TRY_FILTERS
                     && context.enableRewriteToFilterByFilter()
-                    && false == context.isInOrderExecutionRequired()) {
+                    && false == context.isInSortOrderExecutionRequired()) {
                     StringTermsAggregatorFromFilters adapted = StringTermsAggregatorFromFilters.adaptIntoFiltersOrNull(
                         name,
                         factories,

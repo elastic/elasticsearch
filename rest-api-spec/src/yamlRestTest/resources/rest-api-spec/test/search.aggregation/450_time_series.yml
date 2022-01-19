@@ -40,6 +40,7 @@ setup:
           - '{ "index": {}}'
           - '{ "key": "bar", "val": 40, "@timestamp": "2021-01-01T00:00:20Z" }'
 
+  # Let's try to create another segment to make things a bit more interesting
   - do:
       bulk:
         index: tsdb

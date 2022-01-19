@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.timeseries;
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FloatDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -19,6 +20,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -77,7 +79,7 @@ public class TimeSeriesAggregatorTests extends AggregatorTestCase {
 
     public static void writeTS(RandomIndexWriter iw, long timestamp, Object[] dimensions, Object[] metrics) throws IOException {
         final List<IndexableField> fields = new ArrayList<>();
-        fields.add(new NumericDocValuesField("@timestamp", timestamp));
+        fields.add(new SortedNumericDocValuesField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
         final SortedMap<String, BytesReference> dimensionFields = new TreeMap<>();
         for (int i = 0; i < dimensions.length; i += 2) {
             final BytesReference reference;
@@ -115,7 +117,7 @@ public class TimeSeriesAggregatorTests extends AggregatorTestCase {
     ) throws IOException {
         MappedFieldType[] newFieldTypes = new MappedFieldType[fieldTypes.length + 2];
         newFieldTypes[0] = TimeSeriesIdFieldMapper.FIELD_TYPE;
-        newFieldTypes[1] = new NumberFieldMapper.NumberFieldType("@timestamp", NumberFieldMapper.NumberType.LONG);
+        newFieldTypes[1] = new DateFieldMapper.DateFieldType("@timestamp");
         System.arraycopy(fieldTypes, 0, newFieldTypes, 2, fieldTypes.length);
 
         testCase(builder, query, buildIndex, verify, newFieldTypes);

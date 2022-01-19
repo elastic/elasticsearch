@@ -193,9 +193,9 @@ public abstract class AggregationBuilder
     /**
      * Return true if any of the child aggregations is a time-series aggregation that requires an in-order execution
      */
-    public boolean isInOrderExecutionRequired() {
+    public boolean isInSortOrderExecutionRequired() {
         for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
-            if (builder.isInOrderExecutionRequired()) {
+            if (builder.isInSortOrderExecutionRequired()) {
                 return true;
             }
         }

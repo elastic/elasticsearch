@@ -214,7 +214,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         try (StreamInput input = new BytesArray(bytesRef).streamInput()) {
             return decodeTsid(input);
         } catch (IOException ex) {
-            throw new IllegalArgumentException("Dimension field cannot be serialized.", ex);
+            throw new IllegalArgumentException("Dimension field cannot be deserialized.", ex);
         }
     }
 

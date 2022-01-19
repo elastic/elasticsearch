@@ -39,7 +39,7 @@ public class AggregationPhase {
             throw new AggregationInitializationException("Could not initialize aggregators", e);
         }
         if (context.aggregations().factories().context() != null
-            && context.aggregations().factories().context().isInOrderExecutionRequired()) {
+            && context.aggregations().factories().context().isInSortOrderExecutionRequired()) {
             TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher());
             try {
                 searcher.search(context.rewrittenQuery(), bucketCollector);

@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -283,9 +284,13 @@ public abstract class AggregationContext implements Releasable {
     public abstract boolean enableRewriteToFilterByFilter();
 
     /**
-     * Return true if any of the aggregations in this context is a time-series aggregation that requires an in-order execution.
+     * Return true if any of the aggregations in this context is a time-series aggregation that requires an in-sort order execution.
+     *
+     * A side-effect of such execution is that all leaves are walked simultaneously and therefore we can no longer rely on
+     * {@link org.elasticsearch.search.aggregations.BucketCollector#getLeafCollector(LeafReaderContext)} to be called only after the
+     * previous leaf was fully collected.
      */
-    public abstract boolean isInOrderExecutionRequired();
+    public abstract boolean isInSortOrderExecutionRequired();
 
     /**
      * Implementation of {@linkplain AggregationContext} for production usage
@@ -540,7 +545,7 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public boolean isInOrderExecutionRequired() {
+        public boolean isInSortOrderExecutionRequired() {
             return isInOrderExecutionRequired;
         }
 

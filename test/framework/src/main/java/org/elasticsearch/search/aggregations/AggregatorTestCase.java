@@ -36,6 +36,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.Weight;
@@ -260,6 +261,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             new NoneCircuitBreakerService(),
             AggregationBuilder.DEFAULT_PREALLOCATION * 5, // We don't know how many bytes to preallocate so we grab a hand full
             DEFAULT_MAX_BUCKETS,
+            false,
             fieldTypes
         );
     }
@@ -277,6 +279,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         CircuitBreakerService breakerService,
         long bytesToPreallocate,
         int maxBucket,
+        boolean isInSortOrderExecutionRequired,
         MappedFieldType... fieldTypes
     ) throws IOException {
         MappingLookup mappingLookup = MappingLookup.fromMappers(
@@ -339,7 +342,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             () -> false,
             q -> q,
             true,
-            false
+            isInSortOrderExecutionRequired
         );
         releasables.add(context);
         return context;
@@ -556,11 +559,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
             breakerService,
             randomBoolean() ? 0 : builder.bytesToPreallocate(),
             maxBucket,
+            builder.isInSortOrderExecutionRequired(),
             fieldTypes
         );
         C root = createAggregator(builder, context);
 
-        if (splitLeavesIntoSeparateAggregators && searcher.getIndexReader().leaves().size() > 0) {
+        if (splitLeavesIntoSeparateAggregators
+            && searcher.getIndexReader().leaves().size() > 0
+            && context.isInSortOrderExecutionRequired() == false) {
             assertThat(ctx, instanceOf(CompositeReaderContext.class));
             final CompositeReaderContext compCTX = (CompositeReaderContext) ctx;
             final int size = compCTX.leaves().size();
@@ -572,7 +578,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             for (ShardSearcher subSearcher : subSearchers) {
                 C a = createAggregator(builder, context);
                 a.preCollection();
-                if (context.isInOrderExecutionRequired()) {
+                if (context.isInSortOrderExecutionRequired()) {
                     new TimeSeriesIndexSearcher(subSearcher).search(rewritten, a);
                 } else {
                     Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
@@ -583,7 +589,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
         } else {
             root.preCollection();
-            if (context.isInOrderExecutionRequired()) {
+            if (context.isInSortOrderExecutionRequired()) {
                 new TimeSeriesIndexSearcher(searcher).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
             } else {
                 searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
@@ -653,13 +659,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
         Consumer<V> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        boolean timeSeries = aggregationBuilder.isInOrderExecutionRequired();
+        boolean timeSeries = aggregationBuilder.isInSortOrderExecutionRequired();
         try (Directory directory = newDirectory()) {
             IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
             if (timeSeries) {
                 Sort sort = new Sort(
                     new SortedSetSortField(TimeSeriesIdFieldMapper.NAME, false, SortedSetSelector.Type.MAX),
-                    new SortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG)
+                    new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG)
                 );
                 config.setIndexSort(sort);
             }
@@ -748,6 +754,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             breakerService,
             builder.bytesToPreallocate(),
             DEFAULT_MAX_BUCKETS,
+            builder.isInSortOrderExecutionRequired(),
             fieldTypes
         );
         Aggregator aggregator = createAggregator(builder, context);

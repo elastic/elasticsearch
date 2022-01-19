@@ -347,7 +347,7 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
-        public boolean isInOrderExecutionRequired() {
+        public boolean isInSortOrderExecutionRequired() {
             return false;
         }
 

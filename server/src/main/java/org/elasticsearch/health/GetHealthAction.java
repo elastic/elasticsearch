@@ -14,6 +14,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,13 +30,19 @@ import java.io.IOException;
 public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
     public static final GetHealthAction INSTANCE = new GetHealthAction();
-    public static final String NAME = "indices:monitor/fleet/global_checkpoints";
+    public static final String NAME = "cluster:monitor/health2"; // TODO: Need new name
 
     private GetHealthAction() {
         super(NAME, GetHealthAction.Response::new);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
+
+        private final ClusterName clusterName;
+
+        public Response(ClusterName clusterName) {
+            this.clusterName = clusterName;
+        }
 
         public Response(StreamInput in) {
             throw new AssertionError("GetHealthAction should not be sent over the wire.");
@@ -48,12 +56,13 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
+            builder.field("timed_out", false);
+            builder.field("cluster_name", clusterName.value());
             return builder.endObject();
         }
     }
 
     public static class Request extends ActionRequest {
-
 
         @Override
         public ActionRequestValidationException validate() {
@@ -63,13 +72,21 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
     public static class TransportAction extends org.elasticsearch.action.support.TransportAction<Request, Response> {
 
+        private final ClusterService clusterService;
+
         @Inject
-        public TransportAction(final ActionFilters actionFilters, final TransportService transportService) {
+        public TransportAction(
+            final ActionFilters actionFilters,
+            final TransportService transportService,
+            final ClusterService clusterService
+        ) {
             super(NAME, actionFilters, transportService.getTaskManager());
+            this.clusterService = clusterService;
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+            listener.onResponse(new Response(clusterService.getClusterName()));
         }
     }
 }

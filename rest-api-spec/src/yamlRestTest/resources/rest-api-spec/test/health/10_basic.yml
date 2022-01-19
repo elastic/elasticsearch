@@ -1,0 +1,7 @@
+---
+"cluster health basic test":
+  - do:
+      health: {}
+
+  - is_true:   cluster_name
+  - is_false:  timed_out

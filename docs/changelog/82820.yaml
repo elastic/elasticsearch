@@ -2,4 +2,5 @@ pr: 82820
 summary: Fix duplicated allow lists upon script engine creation
 area: Infra/Scripting
 type: bug
-issues: []
+issues:
+ - 82778

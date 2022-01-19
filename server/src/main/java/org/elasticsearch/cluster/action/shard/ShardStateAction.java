@@ -98,21 +98,13 @@ public class ShardStateAction {
             SHARD_STARTED_ACTION_NAME,
             ThreadPool.Names.SAME,
             StartedShardEntry::new,
-            new ShardStartedTransportHandler(
-                clusterService,
-                new ShardStartedClusterStateTaskExecutor(allocationService, rerouteService, logger),
-                logger
-            )
+            new ShardStartedTransportHandler(clusterService, new ShardStartedClusterStateTaskExecutor(allocationService, rerouteService))
         );
         transportService.registerRequestHandler(
             SHARD_FAILED_ACTION_NAME,
             ThreadPool.Names.SAME,
             FailedShardEntry::new,
-            new ShardFailedTransportHandler(
-                clusterService,
-                new ShardFailedClusterStateTaskExecutor(allocationService, rerouteService, logger),
-                logger
-            )
+            new ShardFailedTransportHandler(clusterService, new ShardFailedClusterStateTaskExecutor(allocationService, rerouteService))
         );
     }
 
@@ -284,16 +276,13 @@ public class ShardStateAction {
     private static class ShardFailedTransportHandler implements TransportRequestHandler<FailedShardEntry> {
         private final ClusterService clusterService;
         private final ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
-        private final Logger logger;
 
         ShardFailedTransportHandler(
             ClusterService clusterService,
-            ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor,
-            Logger logger
+            ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor
         ) {
             this.clusterService = clusterService;
             this.shardFailedClusterStateTaskExecutor = shardFailedClusterStateTaskExecutor;
-            this.logger = logger;
         }
 
         private static final String TASK_SOURCE = "shard-failed";
@@ -369,12 +358,10 @@ public class ShardStateAction {
     public static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<FailedShardEntry> {
         private final AllocationService allocationService;
         private final RerouteService rerouteService;
-        private final Logger logger;
 
-        public ShardFailedClusterStateTaskExecutor(AllocationService allocationService, RerouteService rerouteService, Logger logger) {
+        public ShardFailedClusterStateTaskExecutor(AllocationService allocationService, RerouteService rerouteService) {
             this.allocationService = allocationService;
             this.rerouteService = rerouteService;
-            this.logger = logger;
         }
 
         @Override
@@ -610,16 +597,13 @@ public class ShardStateAction {
     private static class ShardStartedTransportHandler implements TransportRequestHandler<StartedShardEntry> {
         private final ClusterService clusterService;
         private final ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
-        private final Logger logger;
 
         ShardStartedTransportHandler(
             ClusterService clusterService,
-            ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor,
-            Logger logger
+            ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor
         ) {
             this.clusterService = clusterService;
             this.shardStartedClusterStateTaskExecutor = shardStartedClusterStateTaskExecutor;
-            this.logger = logger;
         }
 
         @Override
@@ -644,12 +628,10 @@ public class ShardStateAction {
 
     public static class ShardStartedClusterStateTaskExecutor implements ClusterStateTaskExecutor<StartedShardEntry> {
         private final AllocationService allocationService;
-        private final Logger logger;
         private final RerouteService rerouteService;
 
-        public ShardStartedClusterStateTaskExecutor(AllocationService allocationService, RerouteService rerouteService, Logger logger) {
+        public ShardStartedClusterStateTaskExecutor(AllocationService allocationService, RerouteService rerouteService) {
             this.allocationService = allocationService;
-            this.logger = logger;
             this.rerouteService = rerouteService;
         }
 

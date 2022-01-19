@@ -103,17 +103,7 @@ public class AggregationPath {
         return new AggregationPath(tokens);
     }
 
-    public static class PathElement {
-
-        private final String fullName;
-        public final String name;
-        public final String key;
-
-        public PathElement(String fullName, String name, String key) {
-            this.fullName = fullName;
-            this.name = name;
-            this.key = key;
-        }
+    public record PathElement(String fullName, String name, String key) {
 
         @Override
         public boolean equals(Object o) {
@@ -121,7 +111,6 @@ public class AggregationPath {
             if (o == null || getClass() != o.getClass()) return false;
 
             PathElement token = (PathElement) o;
-
             return Objects.equals(key, token.key) && Objects.equals(name, token.name);
         }
 

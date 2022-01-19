@@ -81,7 +81,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             .metadata(metadata)
             .routingTable(routingTable)
             .build();
-        executor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
+        executor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null);
     }
 
     public void testEmptyTaskListProducesSameClusterState() throws Exception {
@@ -113,8 +113,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         List<FailedShardEntry> nonExistentTasks = createNonExistentShards(currentState, reason);
         ShardStateAction.ShardFailedClusterStateTaskExecutor failingExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(
             allocationService,
-            null,
-            logger
+            null
         ) {
             @Override
             ClusterState applyFailedShards(ClusterState currentState, List<FailedShard> failedShards, List<StaleShard> staleShards) {

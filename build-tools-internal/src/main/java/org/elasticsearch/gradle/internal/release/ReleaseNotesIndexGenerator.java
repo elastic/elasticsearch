@@ -43,7 +43,7 @@ public class ReleaseNotesIndexGenerator {
         versionsSet.stream().map(v -> v.isSnapshot() ? v.withoutQualifier() : v).forEach(versions::add);
 
         final List<String> includeVersions = versions.stream()
-            .map(v -> v.hasQualifier() ? v.toString() : v.getMajor() + "." + v.getMinor())
+            .map(v -> v.hasQualifier() ? v.toString() : v.major() + "." + v.minor())
             .distinct()
             .collect(Collectors.toList());
 

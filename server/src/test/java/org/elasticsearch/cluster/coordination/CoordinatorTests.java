@@ -172,10 +172,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode leader = cluster.getAnyLeader();
             logger.info("--> adding two new healthy nodes");
             ClusterNode newNode1 = cluster.new ClusterNode(
-                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, () -> healthStatusInfo.get()
+                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, healthStatusInfo::get
             );
             ClusterNode newNode2 = cluster.new ClusterNode(
-                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, () -> healthStatusInfo.get()
+                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, healthStatusInfo::get
             );
             cluster.clusterNodes.add(newNode1);
             cluster.clusterNodes.add(newNode2);

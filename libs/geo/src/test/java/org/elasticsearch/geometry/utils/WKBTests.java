@@ -11,6 +11,7 @@ package org.elasticsearch.geometry.utils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiLine;
@@ -96,6 +97,16 @@ public class WKBTests extends ESTestCase {
     public void testMultiPolygon() throws IOException {
         MultiPolygon multiPolygon = GeometryTestUtils.randomMultiPolygon(randomBoolean());
         assertWKB(multiPolygon);
+    }
+
+    public void testEmptyGeometryCollection() throws IOException {
+        GeometryCollection<Geometry> collection = GeometryCollection.EMPTY;
+        assertWKB(collection);
+    }
+
+    public void testGeometryCollection() throws IOException {
+        GeometryCollection<Geometry> collection = GeometryTestUtils.randomGeometryCollection(randomBoolean());
+        assertWKB(collection);
     }
 
     public void testEmptyCircle() {

@@ -91,33 +91,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
     }
 
-    public void testGetAdditionalIndexSettingsNoTimeSeries() {
-        Metadata metadata = Metadata.EMPTY_METADATA;
-        String dataStreamName = "logs-app1";
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false, randomBoolean() ? null : IndexMode.STANDARD)
-        );
-
-        long now = Instant.now().toEpochMilli();
-        Settings settings = Settings.EMPTY;
-        var provider = new DataStreamIndexSettingsProvider();
-        Settings result = provider.getAdditionalIndexSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-            dataStreamName,
-            template,
-            metadata,
-            now,
-            settings
-        );
-        assertThat(result, equalTo(Settings.EMPTY));
-    }
-
     public void testGetAdditionalIndexSettingsDataStreamAlreadyCreated() {
         String dataStreamName = "logs-app1";
         TimeValue lookAheadTime = TimeValue.timeValueHours(2);

@@ -573,11 +573,11 @@ POST _transform/_preview
                 all_docs.add(span); 
               }
             }
-            all_docs.sort((HashMap o1, HashMap o2)->o1['@timestamp'].millis.compareTo(o2['@timestamp'].millis)); 
+            all_docs.sort((HashMap o1, HashMap o2)->o1['@timestamp'].compareTo(o2['@timestamp'])); 
             def size = all_docs.size();
             def min_time = all_docs[0]['@timestamp'];
             def max_time = all_docs[size-1]['@timestamp'];
-            def duration = max_time.millis - min_time.millis;
+            def duration = max_time.second - min_time.second;
             def entry_page = all_docs[0]['url'];
             def exit_path = all_docs[size-1]['url'];
             def first_referrer = all_docs[0]['referrer'];

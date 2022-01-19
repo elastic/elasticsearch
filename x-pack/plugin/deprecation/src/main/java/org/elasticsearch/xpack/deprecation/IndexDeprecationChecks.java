@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -189,38 +188,6 @@ public class IndexDeprecationChecks {
                 false,
                 null
             );
-        }
-        return null;
-    }
-
-    static DeprecationIssue tooManyFieldsCheck(IndexMetadata indexMetadata) {
-        if (indexMetadata.getSettings().get(IndexSettings.DEFAULT_FIELD_SETTING.getKey()) == null) {
-            AtomicInteger fieldCount = new AtomicInteger(0);
-
-            fieldLevelMappingIssue(
-                indexMetadata,
-                ((mappingMetadata, sourceAsMap) -> { fieldCount.addAndGet(countFieldsRecursively(mappingMetadata.type(), sourceAsMap)); })
-            );
-
-            // We can't get to the setting `indices.query.bool.max_clause_count` from here, so just check the default of that setting.
-            // It's also much better practice to set `index.query.default_field` than `indices.query.bool.max_clause_count` - there's a
-            // reason we introduced the limit.
-            if (fieldCount.get() > 1024) {
-                return new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
-                    "Number of fields exceeds automatic field expansion limit",
-                    "https://ela.st/es-deprecation-7-number-of-auto-expanded-fields",
-                    "This index has "
-                        + fieldCount.get()
-                        + " fields, which exceeds the automatic field expansion limit (1024). Set "
-                        + IndexSettings.DEFAULT_FIELD_SETTING.getKey()
-                        + " to prevent queries that support automatic field expansion from "
-                        + "failing if no fields are specified. Otherwise, you must explicitly specify fields in all query_string, "
-                        + "simple_query_string, and multi_match queries.",
-                    false,
-                    null
-                );
-            }
         }
         return null;
     }

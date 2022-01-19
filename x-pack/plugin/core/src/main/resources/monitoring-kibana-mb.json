@@ -391,126 +391,64 @@
                 }
               }
             },
-            "rule": {
+            "rules": {
               "properties": {
-                "name": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "keyword"
-                },
-                "lastExecutionDuration": {
-                  "type": "long"
-                },
-                "averageDrift": {
-                  "type": "long"
-                },
-                "averageDuration": {
-                  "type": "long"
-                },
-                "lastExecutionTimeout": {
-                  "type": "date"
-                },
-                "totalExecutions": {
-                  "type": "long"
-                },
-                "lastErrorDate": {
-                  "type": "date"
-                },
-                "lastErrorMessage": {
-                  "type": "text"
-                },
-                "lastErrorReason": {
-                  "type": "text"
-                }
-              }
-            },
-            "task_manager": {
-              "properties": {
-                "pending": {
-                  "type": "long"
-                },
-                "drift": {
+                "overdue": {
                   "properties": {
-                    "p50": {
+                    "count": {
                       "type": "long"
                     },
-                    "p90": {
-                      "type": "long"
-                    },
-                    "p95": {
-                      "type": "long"
-                    },
-                    "p99": {
-                      "type": "long"
+                    "duration": {
+                      "properties": {
+                        "p50": {
+                          "type": "float"
+                        },
+                        "p99": {
+                          "type": "float"
+                        }
+                      }
                     }
                   }
+                },
+                "ruleFailures": {
+                  "type": "long"
+                },
+                "ruleExecutions": {
+                  "type": "long"
                 }
               }
             }
           }
         },
-        "kibana_rule": {
+        "kibana_rules": {
           "properties": {
-            "rule": {
+            "overdue": {
               "properties": {
-                "id": {
-                  "path": "kibana.rule.id",
-                  "type": "alias"
-                },
-                "averageDrift": {
-                  "path": "kibana.rule.averageDrift",
-                  "type": "alias"
-                },
-                "totalExecutions": {
-                  "path": "kibana.rule.totalExecutions",
-                  "type": "alias"
-                },
-                "averageDuration": {
-                  "path": "kibana.rule.averageDuration",
-                  "type": "alias"
-                }
-              }
-            }
-          }
-        },
-        "kibana_task_manager": {
-          "properties": {
-            "kibana": {
-              "properties": {
-                "uuid": {
+                "count": {
                   "type": "alias",
-                  "path": "service.id"
-                }
-              }
-            },
-            "task_manager": {
-              "properties": {
-                "pending": {
-                  "path": "kibana.task_manager.pending",
-                  "type": "alias"
+                  "path": "kibana.rules.overdue.count"
                 },
-                "drift": {
+                "duration": {
                   "properties": {
                     "p50": {
-                      "path": "kibana.task_manager.drift.p50",
-                      "type": "alias"
-                    },
-                    "p90": {
-                      "path": "kibana.task_manager.drift.p90",
-                      "type": "alias"
-                    },
-                    "p95": {
-                      "path": "kibana.task_manager.drift.p95",
-                      "type": "alias"
+                      "type": "alias",
+                      "path": "kibana.rules.overdue.duration.p50"
                     },
                     "p99": {
-                      "path": "kibana.task_manager.drift.p99",
-                      "type": "alias"
+                      "type": "alias",
+                      "path": "kibana.rules.overdue.duration.p99"
                     }
                   }
                 }
               }
+            },
+            "failures": {
+              "type": "alias",
+              "path": "kibana.rules.failures"
+            },
+            "executions": {
+              "type": "alias",
+              "path": "kibana.rules.executions"
             }
           }
         },

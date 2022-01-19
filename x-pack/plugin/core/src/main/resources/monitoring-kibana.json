@@ -48,7 +48,7 @@
             }
           }
         },
-        "kibana_rule": {
+        "kibana_rules": {
           "properties": {
             "timestamp": {
               "type": "date",
@@ -89,105 +89,28 @@
                 }
               }
             },
-            "rule": {
+            "overdue": {
               "properties": {
-                "name": {
-                  "type": "keyword"
-                },
-                "id": {
-                  "type": "keyword"
-                },
-                "lastExecutionDuration": {
+                "count": {
                   "type": "long"
                 },
-                "averageDrift": {
-                  "type": "long"
-                },
-                "averageDuration": {
-                  "type": "long"
-                },
-                "lastExecutionTimeout": {
-                  "type": "date"
-                },
-                "totalExecutions": {
-                  "type": "long"
-                },
-                "lastErrorDate": {
-                  "type": "date"
-                },
-                "lastErrorMessage": {
-                  "type": "text"
-                },
-                "lastErrorReason": {
-                  "type": "text"
-                }
-              }
-            }
-          }
-        },
-        "kibana_task_manager": {
-          "properties": {
-            "timestamp": {
-              "type": "date",
-              "format": "date_time"
-            },
-            "kibana": {
-              "properties": {
-                "uuid": {
-                  "type": "keyword"
-                },
-                "name": {
-                  "type": "keyword"
-                },
-                "host": {
-                  "type": "keyword"
-                },
-                "transport_address": {
-                  "type": "keyword"
-                },
-                "version": {
-                  "type": "keyword"
-                },
-                "snapshot": {
-                  "type": "boolean"
-                },
-                "status": {
-                  "type": "keyword"
-                },
-                "statuses": {
-                  "properties": {
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "state": {
-                      "type": "keyword"
-                    }
-                  }
-                }
-              }
-            },
-            "task_manager": {
-              "properties": {
-                "pending": {
-                  "type": "long"
-                },
-                "drift": {
+                "duration": {
                   "properties": {
                     "p50": {
-                      "type": "long"
-                    },
-                    "p90": {
-                      "type": "long"
-                    },
-                    "p95": {
-                      "type": "long"
+                      "type": "float"
                     },
                     "p99": {
-                      "type": "long"
+                      "type": "float"
                     }
                   }
                 }
               }
+            },
+            "failures": {
+              "type": "long"
+            },
+            "executions": {
+              "type": "long"
             }
           }
         },

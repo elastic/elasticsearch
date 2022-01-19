@@ -299,7 +299,15 @@ public final class DataStreamTestHelper {
 
     public static ClusterState getClusterStateWithDataStream(String dataStream, List<Tuple<Instant, Instant>> timeSlices) {
         Metadata.Builder builder = Metadata.builder();
+        getClusterStateWithDataStream(builder, dataStream, timeSlices);
+        return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
+    }
 
+    public static void getClusterStateWithDataStream(
+        Metadata.Builder builder,
+        String dataStream,
+        List<Tuple<Instant, Instant>> timeSlices
+    ) {
         List<IndexMetadata> backingIndices = new ArrayList<>();
         int generation = 1;
         for (Tuple<Instant, Instant> tuple : timeSlices) {
@@ -322,8 +330,6 @@ public final class DataStreamTestHelper {
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
         );
         builder.put(ds);
-
-        return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
     }
 
     private static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {

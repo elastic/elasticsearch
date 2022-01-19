@@ -290,72 +290,69 @@ public class ShardStateAction {
         @Override
         public void messageReceived(FailedShardEntry request, TransportChannel channel, Task task) throws Exception {
             logger.debug(() -> new ParameterizedMessage("{} received shard failed for {}", request.shardId, request), request.failure);
-            clusterService.submitStateUpdateTask(
-                TASK_SOURCE,
-                request,
-                ClusterStateTaskConfig.build(Priority.HIGH),
-                shardFailedClusterStateTaskExecutor,
-                new ClusterStateTaskListener() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.error(
-                            () -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", request.shardId, request),
-                            e
+            var update = new FailedShardUpdateTask(request, new ClusterStateTaskListener() {
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(
+                        () -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", request.shardId, request),
+                        e
+                    );
+                    try {
+                        channel.sendResponse(e);
+                    } catch (Exception channelException) {
+                        channelException.addSuppressed(e);
+                        logger.warn(
+                            () -> new ParameterizedMessage(
+                                "{} failed to send failure [{}] while failing shard [{}]",
+                                request.shardId,
+                                e,
+                                request
+                            ),
+                            channelException
                         );
-                        try {
-                            channel.sendResponse(e);
-                        } catch (Exception channelException) {
-                            channelException.addSuppressed(e);
-                            logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "{} failed to send failure [{}] while failing shard [{}]",
-                                    request.shardId,
-                                    e,
-                                    request
-                                ),
-                                channelException
-                            );
-                        }
-                    }
-
-                    @Override
-                    public void onNoLongerMaster() {
-                        logger.error("{} no longer master while failing shard [{}]", request.shardId, request);
-                        try {
-                            channel.sendResponse(new NotMasterException(TASK_SOURCE));
-                        } catch (Exception channelException) {
-                            logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "{} failed to send no longer master while failing shard [{}]",
-                                    request.shardId,
-                                    request
-                                ),
-                                channelException
-                            );
-                        }
-                    }
-
-                    @Override
-                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                        try {
-                            channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                        } catch (Exception channelException) {
-                            logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "{} failed to send response while failing shard [{}]",
-                                    request.shardId,
-                                    request
-                                ),
-                                channelException
-                            );
-                        }
                     }
                 }
+
+                @Override
+                public void onNoLongerMaster() {
+                    logger.error("{} no longer master while failing shard [{}]", request.shardId, request);
+                    try {
+                        channel.sendResponse(new NotMasterException(TASK_SOURCE));
+                    } catch (Exception channelException) {
+                        logger.warn(
+                            () -> new ParameterizedMessage(
+                                "{} failed to send no longer master while failing shard [{}]",
+                                request.shardId,
+                                request
+                            ),
+                            channelException
+                        );
+                    }
+                }
+
+                @Override
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                    try {
+                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                    } catch (Exception channelException) {
+                        logger.warn(
+                            () -> new ParameterizedMessage("{} failed to send response while failing shard [{}]", request.shardId, request),
+                            channelException
+                        );
+                    }
+                }
+            });
+            clusterService.submitStateUpdateTask(
+                TASK_SOURCE,
+                update,
+                ClusterStateTaskConfig.build(Priority.HIGH),
+                shardFailedClusterStateTaskExecutor,
+                update
             );
         }
     }
 
-    public static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<FailedShardEntry> {
+    public static class ShardFailedClusterStateTaskExecutor implements ClusterStateTaskExecutor<FailedShardUpdateTask> {
         private final AllocationService allocationService;
         private final RerouteService rerouteService;
 
@@ -365,13 +362,14 @@ public class ShardStateAction {
         }
 
         @Override
-        public ClusterTasksResult<FailedShardEntry> execute(ClusterState currentState, List<FailedShardEntry> tasks) throws Exception {
-            ClusterTasksResult.Builder<FailedShardEntry> batchResultBuilder = ClusterTasksResult.builder();
-            List<FailedShardEntry> tasksToBeApplied = new ArrayList<>();
+        public ClusterTasksResult<FailedShardUpdateTask> execute(ClusterState currentState, List<FailedShardUpdateTask> tasks)
+            throws Exception {
+            ClusterTasksResult.Builder<FailedShardUpdateTask> batchResultBuilder = ClusterTasksResult.builder();
+            List<FailedShardUpdateTask> tasksToBeApplied = new ArrayList<>();
             List<FailedShard> failedShardsToBeApplied = new ArrayList<>();
             List<StaleShard> staleShardsToBeApplied = new ArrayList<>();
 
-            for (FailedShardEntry task : tasks) {
+            for (FailedShardUpdateTask task : tasks) {
                 IndexMetadata indexMetadata = currentState.metadata().index(task.shardId.getIndex());
                 if (indexMetadata == null) {
                     // tasks that correspond to non-existent indices are marked as successful
@@ -566,6 +564,62 @@ public class ShardStateAction {
         @Override
         public int hashCode() {
             return Objects.hash(shardId, allocationId, primaryTerm, markAsStale);
+        }
+    }
+
+    public static class FailedShardUpdateTask implements ClusterStateTaskListener {
+        final ShardId shardId;
+        final String allocationId;
+        final long primaryTerm;
+        final String message;
+        @Nullable
+        final Exception failure;
+        final boolean markAsStale;
+        final ClusterStateTaskListener listener;
+
+        public FailedShardUpdateTask(
+            ShardId shardId,
+            String allocationId,
+            long primaryTerm,
+            String message,
+            Exception failure,
+            boolean markAsStale,
+            ClusterStateTaskListener listener
+        ) {
+            this.shardId = shardId;
+            this.allocationId = allocationId;
+            this.primaryTerm = primaryTerm;
+            this.message = message;
+            this.failure = failure;
+            this.markAsStale = markAsStale;
+            this.listener = listener;
+        }
+
+        public FailedShardUpdateTask(FailedShardEntry entry, ClusterStateTaskListener listener) {
+            this(entry.shardId, entry.allocationId, entry.primaryTerm, entry.message, entry.failure, entry.markAsStale, listener);
+        }
+
+        public ShardId getShardId() {
+            return shardId;
+        }
+
+        public String getAllocationId() {
+            return allocationId;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        public void onNoLongerMaster() {
+            listener.onNoLongerMaster();
+        }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            listener.clusterStateProcessed(oldState, newState);
         }
     }
 

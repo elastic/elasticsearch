@@ -43,7 +43,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdateTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
@@ -392,15 +392,16 @@ public class ClusterStateChanges {
     }
 
     public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {
-        List<FailedShardEntry> entries = failedShards.stream()
+        List<FailedShardUpdateTask> entries = failedShards.stream()
             .map(
-                failedShard -> new FailedShardEntry(
+                failedShard -> new FailedShardUpdateTask(
                     failedShard.getRoutingEntry().shardId(),
                     failedShard.getRoutingEntry().allocationId().getId(),
                     0L,
                     failedShard.getMessage(),
                     failedShard.getFailure(),
-                    failedShard.markAsStale()
+                    failedShard.markAsStale(),
+                    null
                 )
             )
             .collect(Collectors.toList());

@@ -903,7 +903,7 @@ public class MetadataTests extends ESTestCase {
         Metadata.Builder b = Metadata.builder();
         for (Version indexVersion : indexVersions) {
             IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
-                .settings(settings(indexVersions[k]))
+                .settings(settings(indexVersion))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();

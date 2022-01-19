@@ -29,13 +29,13 @@ public class RestMultiSearchTemplateActionTests extends RestActionTestCase {
     private RestMultiSearchTemplateAction action;
     private static NamedXContentRegistry xContentRegistry;
 
-//    /**
-//     * setup for the whole base test class
-//     */
-//    @BeforeClass
-//    public static void init() {
-//        xContentRegistry = new NamedXContentRegistry(RestSearchActionTests.initCCSFlagTestQuerybuilders());
-//    }
+    // /**
+    // * setup for the whole base test class
+    // */
+    // @BeforeClass
+    // public static void init() {
+    // xContentRegistry = new NamedXContentRegistry(RestSearchActionTests.initCCSFlagTestQuerybuilders());
+    // }
 
     @Before
     public void setUpAction() {

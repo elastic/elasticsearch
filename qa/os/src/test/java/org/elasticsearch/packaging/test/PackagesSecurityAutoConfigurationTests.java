@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ssl.PemKeyConfig;
+import org.elasticsearch.packaging.util.FileMatcher;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Shell;
@@ -31,12 +32,17 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
+import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
+import static org.elasticsearch.packaging.util.FileMatcher.p660;
+import static org.elasticsearch.packaging.util.FileMatcher.p750;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
@@ -306,7 +312,14 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
                 true
             );
             assertThat(result.exitCode(), CoreMatchers.equalTo(0));
-            verifySecurityAutoConfigured(installation);
+            assertThat(installation.config("certs"), FileMatcher.file(Directory, "root", "elasticsearch", p750));
+            Stream.of("http.p12", "http_ca.crt", "transport.p12")
+                .forEach(
+                    file -> assertThat(
+                        installation.config("certs").resolve(file),
+                        FileMatcher.file(File, "root", "elasticsearch", p660)
+                    )
+                );
         }
     }
 

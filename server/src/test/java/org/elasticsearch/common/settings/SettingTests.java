@@ -25,6 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -41,10 +42,12 @@ import java.util.stream.Stream;
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SettingTests extends ESTestCase {
 
@@ -1418,5 +1421,46 @@ public class SettingTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> Setting.boolSetting("a.bool.setting", true, Property.Deprecated, Property.DeprecatedWarning)
         );
+    }
+
+    public void testDateSetting() {
+        final Setting<Instant> dateSetting = Setting.dateSetting(
+            "date.setting",
+            Instant.ofEpochMilli(300),
+            Instant.ofEpochMilli(100),
+            Instant.ofEpochMilli(500),
+            v -> {
+                assertThat(v.toEpochMilli(), greaterThanOrEqualTo(100L));
+                assertThat(v.toEpochMilli(), lessThanOrEqualTo(500L));
+            },
+            Property.IndexScope,
+            Property.Final
+        );
+
+        assertThat(dateSetting.get(Settings.EMPTY).toEpochMilli(), equalTo(300L));
+        assertThat(dateSetting.get(Settings.builder().put("date.setting", 200L).build()).toEpochMilli(), equalTo(200L));
+        assertThat(dateSetting.get(Settings.builder().put("date.setting", Instant.ofEpochMilli(200).toString()).build()).toEpochMilli(), equalTo(200L));
+        assertThat(dateSetting.get(Settings.builder().put("date.setting", 100L).build()).toEpochMilli(), equalTo(100L));
+        assertThat(dateSetting.get(Settings.builder().put("date.setting", 500L).build()).toEpochMilli(), equalTo(500L));
+
+        {
+            Instant value = Instant.ofEpochMilli(99);
+            final Settings settings = Settings.builder().put("date.setting", value.toString()).build();
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> dateSetting.get(settings));
+            final String expectedMessage = "Failed to parse value ["
+                + value
+                + "] for setting [date.setting] must be >= 1970-01-01T00:00:00.100Z";
+            assertThat(e, hasToString(containsString(expectedMessage)));
+        }
+
+        {
+            Instant value = Instant.ofEpochMilli(501);
+            final Settings settings = Settings.builder().put("date.setting", value.toString()).build();
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> dateSetting.get(settings));
+            final String expectedMessage = "Failed to parse value ["
+                + value
+                + "] for setting [date.setting] must be <= 1970-01-01T00:00:00.500Z";
+            assertThat(e, hasToString(containsString(expectedMessage)));
+        }
     }
 }

@@ -570,7 +570,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 // Alerts-as-data
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(ReservedRolesStore.ALERTS_INDEX_ALIAS, ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS)
+                    .indices(
+                        ReservedRolesStore.ALERTS_INDEX_ALIAS,
+                        ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS,
+                        ReservedRolesStore.PERCOLATOR_ALERTS_INDEX_ALIAS,
+                    ),
                     .privileges("read", "view_index_metadata")
                     .build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {

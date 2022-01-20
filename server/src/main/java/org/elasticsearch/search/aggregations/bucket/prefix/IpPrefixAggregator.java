@@ -137,20 +137,15 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             if (values.advanceExact(doc)) {
                 int valuesCount = values.docValueCount();
 
-                byte[] previousSubnet = null;
+                BytesRef previousSubnet = null;
+                BytesRef subnet;
                 for (int i = 0; i < valuesCount; ++i) {
-                    BytesRef value = values.nextValue();
-                    byte[] ipAddress = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
-                    byte[] netmask = Arrays.copyOfRange(
-                        ipPrefix.netmask.bytes,
-                        ipPrefix.netmask.offset,
-                        ipPrefix.netmask.offset + ipPrefix.netmask.length
-                    );
-                    byte[] subnet = maskIpAddress(ipAddress, netmask);
-                    if (Arrays.equals(subnet, previousSubnet)) {
+                    BytesRef ipAddress = values.nextValue();
+                    subnet = maskIpAddress(ipAddress, ipPrefix.netmask);
+                    if (previousSubnet != null && subnet.bytesEquals(previousSubnet)) {
                         continue;
                     }
-                    long bucketOrd = bucketOrds.add(owningBucketOrd, new BytesRef(subnet));
+                    long bucketOrd = bucketOrds.add(owningBucketOrd, subnet);
                     if (bucketOrd < 0) {
                         bucketOrd = -1 - bucketOrd;
                         collectExistingBucket(sub, doc, bucketOrd);
@@ -162,28 +157,22 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             }
         }
 
-        private byte[] maskIpAddress(byte[] ipAddress, byte[] netmask) {
-            // NOTE: ip addresses are always encoded to 16 bytes by IpFieldMapper
-            if (ipAddress.length != 16) {
-                throw new IllegalArgumentException("Invalid length for ip address [" + ipAddress.length + "]");
-            }
-            if (netmask.length == 4) {
-                return mask(Arrays.copyOfRange(ipAddress, 12, 16), netmask);
-            }
-            if (netmask.length == 16) {
-                return mask(ipAddress, netmask);
-            }
-
-            throw new IllegalArgumentException("Invalid length for netmask [" + netmask.length + "]");
+        private BytesRef maskIpAddress(final BytesRef ipAddress, final BytesRef netmask) {
+            assert ipAddress.length == 16 : "Invalid length for ip address [" + ipAddress.length + "] expected 16 bytes";
+            return mask(ipAddress, netmask);
         }
 
-        private byte[] mask(byte[] ipAddress, byte[] subnetMask) {
-            byte[] subnet = new byte[ipAddress.length];
-            for (int i = 0; i < ipAddress.length; ++i) {
-                subnet[i] = (byte) (ipAddress[i] & subnetMask[i]);
+        private BytesRef mask(final BytesRef ipAddress, final BytesRef subnetMask) {
+            //NOTE: IPv4 addresses are encoded as 16-bytes. As a result, we use an
+            //offset (12) to apply the subnet to the last 4 bytes (byes 12, 13, 14, 15)
+            //if the subnet mask is just a 4-bytes subnet mask.
+            int offset = subnetMask.length == 4 ? 12 : 0;
+            byte[] subnet = new byte[subnetMask.length];
+            for (int i = 0; i < subnetMask.length; ++i) {
+                subnet[i] = (byte) (ipAddress.bytes[i + offset] & subnetMask.bytes[i]);
             }
 
-            return subnet;
+            return new BytesRef(subnet);
         }
     }
 

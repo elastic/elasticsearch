@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
 import org.apache.lucene.search.DocIdSetIterator;

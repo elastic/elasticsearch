@@ -479,12 +479,13 @@ public class SearchModule {
             builder
         );
         if (randomSamplerAggEnabled()) {
-            registerAggregation(new AggregationSpec(
-                RandomSamplerAggregationBuilder.NAME,
-                RandomSamplerAggregationBuilder::new,
-                RandomSamplerAggregationBuilder.PARSER
-            ).addResultReader(InternalRandomSampler.NAME, InternalRandomSampler::new)
-                .setAggregatorRegistrar(s -> s.registerUsage(RandomSamplerAggregationBuilder.NAME)),
+            registerAggregation(
+                new AggregationSpec(
+                    RandomSamplerAggregationBuilder.NAME,
+                    RandomSamplerAggregationBuilder::new,
+                    RandomSamplerAggregationBuilder.PARSER
+                ).addResultReader(InternalRandomSampler.NAME, InternalRandomSampler::new)
+                    .setAggregatorRegistrar(s -> s.registerUsage(RandomSamplerAggregationBuilder.NAME)),
                 builder
             );
         }

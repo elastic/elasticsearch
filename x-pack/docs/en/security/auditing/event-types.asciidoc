@@ -869,3 +869,6 @@ that have been previously described:
                                  This attribute is only provided for authentication using a service account token.
   `authentication.token.type` :: Type of the <<service-accounts,service account>> token.
                                  This attribute is only provided for authentication using a service account token.
+
+
+include::api-conventions.asciidoc[]

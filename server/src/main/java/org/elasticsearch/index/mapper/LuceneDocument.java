@@ -180,7 +180,9 @@ public class LuceneDocument implements Iterable<IndexableField> {
         return null;
     }
 
-    static record DimensionInfo(BytesReference tsidBytes, boolean isRoutingDimension) implements CheckedConsumer<StreamOutput, IOException> {
+    static record DimensionInfo(BytesReference tsidBytes, boolean isRoutingDimension)
+        implements
+            CheckedConsumer<StreamOutput, IOException> {
         @Override
         public void accept(StreamOutput t) throws IOException {
             tsidBytes.writeTo(t);

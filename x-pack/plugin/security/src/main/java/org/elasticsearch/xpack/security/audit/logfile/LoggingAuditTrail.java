@@ -180,6 +180,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String TRANSPORT_PROFILE_FIELD_NAME = "transport.profile";
     public static final String RULE_FIELD_NAME = "rule";
     public static final String OPAQUE_ID_FIELD_NAME = "opaque_id";
+    public static final String TRACE_ID_FIELD_NAME = "trace_id";
     public static final String X_FORWARDED_FOR_FIELD_NAME = "x_forwarded_for";
     // the fields below are used exclusively for "security_config_change" type of events, and show the configuration
     // object taking effect; it could be creating a new, or updating an existing configuration
@@ -1477,6 +1478,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             final String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
             if (opaqueId != null) {
                 logEntry.with(OPAQUE_ID_FIELD_NAME, opaqueId);
+            }
+            final String traceId = threadContext.getHeader(Task.TRACE_ID);
+            if (traceId != null) {
+                logEntry.with(TRACE_ID_FIELD_NAME, opaqueId);
             }
             return this;
         }

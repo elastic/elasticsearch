@@ -260,7 +260,9 @@ public abstract class IndexRouting {
                     source.nextToken();
                     break;
                 case VALUE_STRING:
-                    hashes.add(new NameAndHash(path, TimeSeriesModeIdFieldMapper.hash(TimeSeriesIdFieldMapper.encodeTsidValue(source.text()))));
+                    hashes.add(
+                        new NameAndHash(path, TimeSeriesModeIdFieldMapper.hash(TimeSeriesIdFieldMapper.encodeTsidValue(source.text())))
+                    );
                     source.nextToken();
                     break;
                 case VALUE_NULL:

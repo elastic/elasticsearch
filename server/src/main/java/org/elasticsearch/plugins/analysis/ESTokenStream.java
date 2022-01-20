@@ -26,7 +26,12 @@ public class ESTokenStream implements Closeable {
     private final TypeAttribute type;
     private final PositionLengthAttribute posLen;
 
-    public ESTokenStream(TokenStream stream) {
+    /**
+     * An opaque wrapper around the TokenStream ES typically passes to
+     * plugins. It can only be made by Elasticsearch, with our current Lucene TokenStream version.
+     * @param stream a TokenStream made by Elasticsearch
+     */
+    ESTokenStream(TokenStream stream) {
         this.stream = stream;
         term = stream.addAttribute(CharTermAttribute.class);
         posIncr = stream.addAttribute(PositionIncrementAttribute.class);

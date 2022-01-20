@@ -19,7 +19,7 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TestStableAnalysisPluginAPIIT extends ESIntegTestCase {
+public class TestStableAnalysisPluginsIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(DemoAnalysisPlugin.class);

@@ -15,7 +15,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.analysis.AbstractAnalysisIteratorFactory;
 import org.elasticsearch.plugins.analysis.PortableAnalyzeIterator;
 import org.elasticsearch.plugins.analysis.ReaderProvider;
-import org.elasticsearch.plugins.analysis.StableLuceneTokenizerIterator;
+import org.elasticsearch.plugins.lucene.StableLuceneTokenizerIterator;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.newAttributeFactory;
 

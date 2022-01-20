@@ -6,9 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins.analysis;
+package org.elasticsearch.plugins.lucene;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.plugins.analysis.AnalyzeToken;
+import org.elasticsearch.plugins.analysis.ReaderProvider;
 
 import java.io.Reader;
 import java.lang.invoke.MethodHandle;
@@ -23,14 +25,14 @@ public class StableLuceneTokenizerIterator extends StableLuceneFilterIterator {
 
     public StableLuceneTokenizerIterator(Object stream, ReaderProvider provider) {
         super(stream);
-        StablePluginAPIUtil.ensureClassCompatibility(stream.getClass(), "org.apache.lucene.analysis.Tokenizer");
+        ensureClassCompatibility(stream.getClass(), "org.apache.lucene.analysis.Tokenizer");
 
         this.readerProvider = provider;
 
         MethodHandles.Lookup lookup = MethodHandles.lookup();
 
         try {
-            Class<?> tokenizerClass = StablePluginAPIUtil.lookupClass(stream, "org.apache.lucene.analysis.Tokenizer");
+            Class<?> tokenizerClass = lookupClass(stream, "org.apache.lucene.analysis.Tokenizer");
             mhSetReader = lookup.findVirtual(tokenizerClass, "setReader", MethodType.methodType(void.class, Reader.class));
         } catch (Throwable x) {
             throw new IllegalArgumentException("Incompatible Lucene library provided", x);

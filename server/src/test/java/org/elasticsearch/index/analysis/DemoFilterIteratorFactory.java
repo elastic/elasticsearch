@@ -15,10 +15,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.analysis.AbstractAnalysisIteratorFactory;
-import org.elasticsearch.plugins.analysis.DelegatingTokenStream;
 import org.elasticsearch.plugins.analysis.ESTokenStream;
 import org.elasticsearch.plugins.analysis.PortableAnalyzeIterator;
-import org.elasticsearch.plugins.analysis.StableLuceneFilterIterator;
+import org.elasticsearch.plugins.lucene.DelegatingTokenStream;
+import org.elasticsearch.plugins.lucene.StableLuceneFilterIterator;
 
 public class DemoFilterIteratorFactory extends AbstractAnalysisIteratorFactory {
 

@@ -36,6 +36,14 @@ public final class ClaimParser {
         this.parser = parser;
     }
 
+    public String getName() {
+        return this.name;
+    }
+
+    public Function<JWTClaimsSet, List<String>> getParser() {
+        return this.parser;
+    }
+
     public List<String> getClaimValues(JWTClaimsSet claims) {
         return parser.apply(claims);
     }

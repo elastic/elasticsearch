@@ -499,7 +499,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         void processedDifferentClusterState(ClusterState previousClusterState, ClusterState newClusterState) {
-            nonFailedTasks.forEach(task -> task.listener.clusterStateProcessed(task.source(), previousClusterState, newClusterState));
+            nonFailedTasks.forEach(task -> task.listener.clusterStateProcessed(previousClusterState, newClusterState));
         }
 
         void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
@@ -543,7 +543,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     // no need to wait for ack if nothing changed, the update can be counted as acknowledged
                     ((AckedClusterStateTaskListener) task.listener).onAllNodesAcked(null);
                 }
-                task.listener.clusterStateProcessed(task.source(), newClusterState, newClusterState);
+                task.listener.clusterStateProcessed(newClusterState, newClusterState);
             });
         }
     }
@@ -622,20 +622,15 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             try (ThreadContext.StoredContext ignore = context.get()) {
-                listener.clusterStateProcessed(source, oldState, newState);
+                listener.clusterStateProcessed(oldState, newState);
             } catch (Exception e) {
-                logger.error(
-                    () -> new ParameterizedMessage(
-                        "exception thrown by listener while notifying of cluster state processed from [{}], old cluster state:\n"
-                            + "{}\nnew cluster state:\n{}",
-                        source,
-                        oldState,
-                        newState
-                    ),
-                    e
-                );
+                logger.error(() -> new ParameterizedMessage("""
+                    exception thrown by listener while notifying of cluster state, old cluster state:
+                    {}
+                    new cluster state:
+                    {}""", oldState, newState), e);
             }
         }
     }

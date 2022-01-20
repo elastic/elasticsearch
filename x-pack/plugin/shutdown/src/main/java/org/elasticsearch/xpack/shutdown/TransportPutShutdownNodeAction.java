@@ -105,7 +105,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 if (SingleNodeShutdownMetadata.Type.REMOVE.equals(request.getType())
                     || SingleNodeShutdownMetadata.Type.REPLACE.equals(request.getType())) {
                     clusterService.getRerouteService()

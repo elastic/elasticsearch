@@ -37,6 +37,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexService;
@@ -265,7 +266,7 @@ class RollupShardIndexer {
 
     private void indexBucket(BucketKey key, List<FieldMetricsProducer> fieldsMetrics, int docCount) {
         IndexRequestBuilder request = client.prepareIndex(tmpIndex);
-        Map<String, Object> doc = new HashMap<>(2 + key.groupFields.size() + fieldsMetrics.size());
+        Map<String, Object> doc = Maps.newMapWithExpectedSize(2 + key.groupFields.size() + fieldsMetrics.size());
         doc.put(DocCountFieldMapper.NAME, docCount);
         doc.put(timestampField.name(), timestampFormat.format(key.timestamp));
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.rollup;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -97,7 +98,7 @@ public class RollupActionDateHistogramGroupConfigSerializingTests extends Abstra
 
         // Have to mock fieldcaps because the ctor's aren't public...
         FieldCapabilities fieldCaps = mock(FieldCapabilities.class);
-        Map<String, FieldCapabilities> types = new HashMap<>(2);
+        Map<String, FieldCapabilities> types = Maps.newMapWithExpectedSize(2);
         types.put("date", fieldCaps);
         types.put("keyword", fieldCaps);
         responseMap.put("my_field", types);

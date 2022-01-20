@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -118,7 +119,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         @Override
         public void expectDescribe(Map<String, List<String>> columns, String user) throws Exception {
             String mode = randomMode();
-            Map<String, Object> expected = new HashMap<>(3);
+            Map<String, Object> expected = Maps.newMapWithExpectedSize(3);
             expected.put(
                 "columns",
                 Arrays.asList(

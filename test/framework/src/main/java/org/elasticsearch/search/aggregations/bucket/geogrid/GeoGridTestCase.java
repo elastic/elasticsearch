@@ -8,6 +8,7 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.IndexWriter;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
@@ -128,7 +129,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
             case 2 -> size = size + between(1, 10);
             case 3 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

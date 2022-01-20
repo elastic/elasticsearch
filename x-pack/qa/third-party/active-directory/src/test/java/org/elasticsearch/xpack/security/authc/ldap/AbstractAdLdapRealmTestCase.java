@@ -172,7 +172,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     public void setupRoleMappings() throws Exception {
         assertSecurityIndexActive();
 
-        List<String> content = getRoleMappingContent(RoleMappingEntry::getNativeContent);
+        List<String> content = getRoleMappingContent(RoleMappingEntry::nativeContent);
         if (content.isEmpty()) {
             return;
         }
@@ -206,7 +206,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     }
 
     protected final void configureFileRoleMappings(Settings.Builder builder, String realmType, List<RoleMappingEntry> mappings) {
-        String content = getRoleMappingContent(RoleMappingEntry::getFileContent, mappings).stream().collect(Collectors.joining("\n"));
+        String content = getRoleMappingContent(RoleMappingEntry::fileContent, mappings).stream().collect(Collectors.joining("\n"));
         Path nodeFiles = createTempDir();
         String file = writeFile(nodeFiles, "role_mapping.yml", content);
         builder.put("xpack.security.authc.realms." + realmType + ".external.files.role_mapping", file);
@@ -304,24 +304,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         );
     }
 
-    static class RoleMappingEntry {
-        @Nullable
-        public final String fileContent;
-        @Nullable
-        public final String nativeContent;
-
-        RoleMappingEntry(@Nullable String fileContent, @Nullable String nativeContent) {
-            this.fileContent = fileContent;
-            this.nativeContent = nativeContent;
-        }
-
-        String getFileContent() {
-            return fileContent;
-        }
-
-        String getNativeContent() {
-            return nativeContent;
-        }
+    record RoleMappingEntry(@Nullable String fileContent, @Nullable String nativeContent) {
 
         RoleMappingEntry pickEntry(Supplier<Boolean> shouldPickFileContent) {
             if (nativeContent == null) {
@@ -335,26 +318,6 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
             } else {
                 return new RoleMappingEntry(null, nativeContent);
             }
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-
-            final RoleMappingEntry that = (RoleMappingEntry) o;
-            return Objects.equals(this.fileContent, that.fileContent) && Objects.equals(this.nativeContent, that.nativeContent);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = Objects.hashCode(fileContent);
-            result = 31 * result + Objects.hashCode(nativeContent);
-            return result;
         }
     }
 

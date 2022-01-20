@@ -162,9 +162,9 @@ public class TransportNodesActionTests extends ESTestCase {
         for (List<CapturingTransport.CapturedRequest> requests : capturedRequests.values()) {
             for (CapturingTransport.CapturedRequest capturedRequest : requests) {
                 if (randomBoolean()) {
-                    transport.handleResponse(capturedRequest.requestId, new TestNodeResponse(capturedRequest.node));
+                    transport.handleResponse(capturedRequest.requestId(), new TestNodeResponse(capturedRequest.node()));
                 } else {
-                    transport.handleRemoteError(capturedRequest.requestId, new TaskCancelledException("simulated"));
+                    transport.handleRemoteError(capturedRequest.requestId(), new TaskCancelledException("simulated"));
                 }
             }
         }

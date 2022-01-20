@@ -20,6 +20,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlDocsTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -40,7 +41,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -297,7 +297,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                         .replace("$", "\\$")
                 );
             }
-            Map<String, Object> body = new HashMap<>(2);
+            Map<String, Object> body = Maps.newMapWithExpectedSize(2);
             body.put("analyzer", first);
             body.put("text", testText);
             ClientYamlTestResponse response = executionContext.callApi(

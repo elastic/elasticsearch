@@ -16,6 +16,7 @@
     }
   },
   "_meta": {
-    "description": "ILM policy used for deprecation logs"
+    "description": "ILM policy used for deprecation logs",
+    "managed": true
   }
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.datastreams;
 
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -32,15 +31,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     public void testGetAdditionalIndexSettings() {
         Metadata metadata = Metadata.EMPTY_METADATA;
         String dataStreamName = "logs-app1";
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES)
-        );
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
@@ -49,7 +39,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            template,
+            IndexMode.TIME_SERIES,
             metadata,
             now.toEpochMilli(),
             settings
@@ -63,15 +53,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     public void testGetAdditionalIndexSettingsLookAheadTime() {
         Metadata metadata = Metadata.EMPTY_METADATA;
         String dataStreamName = "logs-app1";
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES)
-        );
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         TimeValue lookAheadTime = TimeValue.timeValueMinutes(30);
@@ -80,7 +61,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            template,
+            IndexMode.TIME_SERIES,
             metadata,
             now.toEpochMilli(),
             settings
@@ -94,15 +75,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     public void testGetAdditionalIndexSettingsDataStreamAlreadyCreated() {
         String dataStreamName = "logs-app1";
         TimeValue lookAheadTime = TimeValue.timeValueHours(2);
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES)
-        );
 
         Instant sixHoursAgo = Instant.now().minus(6, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MILLIS);
         Instant currentEnd = sixHoursAgo.plusMillis(lookAheadTime.getMillis());
@@ -117,7 +89,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         var result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            template,
+            IndexMode.TIME_SERIES,
             metadata,
             now.toEpochMilli(),
             settings
@@ -132,15 +104,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsDataStreamAlreadyCreatedTimeSettingsMissing() {
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES)
-        );
         String dataStreamName = "logs-app1";
         Instant twoHoursAgo = Instant.now().minus(4, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MILLIS);
         Metadata.Builder mb = Metadata.builder(
@@ -177,7 +140,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             () -> provider.getAdditionalIndexSettings(
                 DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                 dataStreamName,
-                template,
+                IndexMode.TIME_SERIES,
                 metadata,
                 now.toEpochMilli(),
                 settings
@@ -196,22 +159,13 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     public void testGetAdditionalIndexSettingsIndexModeNotSpecified() {
         Metadata metadata = Metadata.EMPTY_METADATA;
         String dataStreamName = "logs-app1";
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false, null)
-        );
 
         Settings settings = Settings.EMPTY;
         var provider = new DataStreamIndexSettingsProvider();
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            template,
+            null,
             metadata,
             1L,
             settings
@@ -222,22 +176,13 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     public void testGetAdditionalIndexSettingsIndexModeStandardSpecified() {
         Metadata metadata = Metadata.EMPTY_METADATA;
         String dataStreamName = "logs-app1";
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(),
-            null,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.STANDARD)
-        );
 
         Settings settings = Settings.EMPTY;
         var provider = new DataStreamIndexSettingsProvider();
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            template,
+            IndexMode.STANDARD,
             metadata,
             1L,
             settings

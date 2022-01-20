@@ -636,7 +636,7 @@ public class MetadataIndexTemplateService {
                 provider.getAdditionalIndexSettings(
                     "validate-index-name",
                     indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
-                    indexTemplate,
+                    indexTemplate.getDataStreamTemplate() != null ? indexTemplate.getDataStreamTemplate().getIndexMode() : null,
                     currentState.getMetadata(),
                     System.currentTimeMillis(),
                     finalTemplate.map(Template::settings).orElse(Settings.EMPTY)

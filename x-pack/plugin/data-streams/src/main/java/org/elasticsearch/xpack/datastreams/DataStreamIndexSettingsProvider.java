@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.datastreams;
 
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -30,7 +29,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     public Settings getAdditionalIndexSettings(
         String indexName,
         String dataStreamName,
-        ComposableIndexTemplate matchingTemplate,
+        IndexMode templateIndexMode,
         Metadata metadata,
         long resolvedAt,
         Settings allSettings
@@ -41,7 +40,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             if (dataStream != null) {
                 indexMode = dataStream.getIndexMode();
             } else {
-                indexMode = matchingTemplate.getDataStreamTemplate().getIndexMode();
+                indexMode = templateIndexMode;
             }
             if (indexMode != null) {
                 Settings.Builder builder = Settings.builder();

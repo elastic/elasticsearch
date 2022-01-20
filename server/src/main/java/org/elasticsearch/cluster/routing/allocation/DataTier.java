@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
@@ -233,12 +233,12 @@ public class DataTier {
 
         @Override
         public Settings getAdditionalIndexSettings(
-            String indexName,
-            String dataStreamName,
-            ComposableIndexTemplate matchingTemplate,
-            Metadata metadata,
-            long resolvedAt,
-            Settings allSettings
+                String indexName,
+                String dataStreamName,
+                IndexMode templateIndexMode,
+                Metadata metadata,
+                long resolvedAt,
+                Settings allSettings
         ) {
             Set<String> settings = allSettings.keySet();
             if (settings.contains(TIER_PREFERENCE)) {

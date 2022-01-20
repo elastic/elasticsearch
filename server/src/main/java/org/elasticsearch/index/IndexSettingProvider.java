@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 
@@ -23,7 +22,7 @@ public interface IndexSettingProvider {
      *
      * @param indexName         The name of the new index being created
      * @param dataStreamName    The name of the data stream if the index being created is part of a data stream otherwise <code>null</code>
-     * @param matchingTemplate  The composable index template that matches with the data stream name.
+     * @param templateIndexMode The index mode from the data stream template of the matching template.
      * @param metadata          The current metadata instance that doesn't yet contain the index to be created
      * @param resolvedAt        The time the request to create this new index was accepted.
      * @param allSettings       All the setting resolved from the template that matches and any setting defined on the create index request
@@ -31,7 +30,7 @@ public interface IndexSettingProvider {
     Settings getAdditionalIndexSettings(
         String indexName,
         String dataStreamName,
-        ComposableIndexTemplate matchingTemplate,
+        IndexMode templateIndexMode,
         Metadata metadata,
         long resolvedAt,
         Settings allSettings

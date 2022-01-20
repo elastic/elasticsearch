@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.service;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -58,8 +59,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
@@ -68,13 +67,15 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 
 public class MasterServiceTests extends ESTestCase {
 
@@ -466,9 +467,14 @@ public class MasterServiceTests extends ESTestCase {
     }
 
     public void testClusterStateBatchedUpdates() throws BrokenBarrierException, InterruptedException {
-        AtomicInteger counter = new AtomicInteger();
-        class Task {
-            private AtomicBoolean state = new AtomicBoolean();
+
+        AtomicInteger executedTasks = new AtomicInteger();
+        AtomicInteger submittedTasks = new AtomicInteger();
+        AtomicInteger processedStates = new AtomicInteger();
+        SetOnce<CountDownLatch> processedStatesLatch = new SetOnce<>();
+
+        class Task implements ClusterStateTaskListener {
+            private final AtomicBoolean executed = new AtomicBoolean();
             private final int id;
 
             Task(int id) {
@@ -476,11 +482,22 @@ public class MasterServiceTests extends ESTestCase {
             }
 
             public void execute() {
-                if (state.compareAndSet(false, true) == false) {
+                if (executed.compareAndSet(false, true) == false) {
                     throw new AssertionError("Task [] should only be executed once");
                 } else {
-                    counter.incrementAndGet();
+                    executedTasks.incrementAndGet();
                 }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                processedStates.incrementAndGet();
+                processedStatesLatch.get().countDown();
             }
 
             @Override
@@ -493,7 +510,6 @@ public class MasterServiceTests extends ESTestCase {
                 }
                 Task task = (Task) o;
                 return id == task.id;
-
             }
 
             @Override
@@ -550,8 +566,6 @@ public class MasterServiceTests extends ESTestCase {
             }
         }
 
-        ConcurrentMap<String, AtomicInteger> processedStates = new ConcurrentHashMap<>();
-
         List<Set<Task>> taskGroups = new ArrayList<>();
         List<TaskExecutor> executors = new ArrayList<>();
         for (int i = 0; i < numberOfExecutors; i++) {
@@ -580,10 +594,9 @@ public class MasterServiceTests extends ESTestCase {
             counts.merge(assignment.v1(), taskCount, (previous, count) -> previous + count);
             totalTaskCount += taskCount;
         }
-        final CountDownLatch updateLatch = new CountDownLatch(totalTaskCount);
+        processedStatesLatch.set(new CountDownLatch(totalTaskCount));
 
         try (MasterService masterService = createMasterService(true)) {
-            final ConcurrentMap<String, AtomicInteger> submittedTasksPerThread = new ConcurrentHashMap<>();
             CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
             for (int i = 0; i < numberOfThreads; i++) {
                 final int index = i;
@@ -592,36 +605,23 @@ public class MasterServiceTests extends ESTestCase {
                     try {
                         barrier.await();
                         for (int j = 0; j < taskSubmissionsPerThread; j++) {
-                            Tuple<TaskExecutor, Set<Task>> assignment = assignments.get(index * taskSubmissionsPerThread + j);
-                            final Set<Task> tasks = assignment.v2();
-                            submittedTasksPerThread.computeIfAbsent(threadName, key -> new AtomicInteger()).addAndGet(tasks.size());
-                            final TaskExecutor executor = assignment.v1();
-                            final ClusterStateTaskListener listener = new ClusterStateTaskListener() {
-                                @Override
-                                public void onFailure(Exception e) {
-                                    throw new AssertionError(e);
-                                }
-
-                                @Override
-                                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                                    processedStates.computeIfAbsent(threadName, key -> new AtomicInteger()).incrementAndGet();
-                                    updateLatch.countDown();
-                                }
-                            };
+                            var assignment = assignments.get(index * taskSubmissionsPerThread + j);
+                            var tasks = assignment.v2();
+                            var executor = assignment.v1();
+                            submittedTasks.addAndGet(tasks.size());
                             if (tasks.size() == 1) {
+                                var update = tasks.iterator().next();
                                 masterService.submitStateUpdateTask(
                                     threadName,
-                                    tasks.stream().findFirst().get(),
+                                    update,
                                     ClusterStateTaskConfig.build(randomFrom(Priority.values())),
                                     executor,
-                                    listener
+                                    update
                                 );
                             } else {
-                                Map<Task, ClusterStateTaskListener> taskListeners = new HashMap<>();
-                                tasks.forEach(t -> taskListeners.put(t, listener));
                                 masterService.submitStateUpdateTasks(
                                     threadName,
-                                    taskListeners,
+                                    tasks.stream().collect(toMap(Function.<Task>identity(), Function.<ClusterStateTaskListener>identity())),
                                     ClusterStateTaskConfig.build(randomFrom(Priority.values())),
                                     executor
                                 );
@@ -641,12 +641,14 @@ public class MasterServiceTests extends ESTestCase {
             barrier.await();
 
             // wait until all the cluster state updates have been processed
-            updateLatch.await();
+            processedStatesLatch.get().await();
             // and until all of the publication callbacks have completed
             semaphore.acquire(numberOfExecutors);
 
             // assert the number of executed tasks is correct
-            assertEquals(totalTaskCount, counter.get());
+            assertThat(submittedTasks.get(), equalTo(totalTaskCount));
+            assertThat(executedTasks.get(), equalTo(totalTaskCount));
+            assertThat(processedStates.get(), equalTo(totalTaskCount));
 
             // assert each executor executed the correct number of tasks
             for (TaskExecutor executor : executors) {
@@ -654,16 +656,6 @@ public class MasterServiceTests extends ESTestCase {
                     assertEquals((int) counts.get(executor), executor.counter.get());
                     assertEquals(executor.batches.get(), executor.published.get());
                 }
-            }
-
-            // assert the correct number of clusterStateProcessed events were triggered
-            for (Map.Entry<String, AtomicInteger> entry : processedStates.entrySet()) {
-                assertThat(submittedTasksPerThread, hasKey(entry.getKey()));
-                assertEquals(
-                    "not all tasks submitted by " + entry.getKey() + " received a processed event",
-                    entry.getValue().get(),
-                    submittedTasksPerThread.get(entry.getKey()).get()
-                );
             }
         }
     }

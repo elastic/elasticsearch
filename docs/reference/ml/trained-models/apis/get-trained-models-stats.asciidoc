@@ -163,7 +163,6 @@ The total number of inference calls made against this node for this model.
 The number of threads used by the inference process.
 This value is limited by the number of hardware threads on the node; 
 in the <<start-trained-model-deployment>> API if the requested value
-is greater than the number of hardware threads on the machine.
 
 `last_access`:::
 (long)

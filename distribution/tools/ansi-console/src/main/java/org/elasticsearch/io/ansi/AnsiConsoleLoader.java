@@ -7,23 +7,24 @@
  */
 package org.elasticsearch.io.ansi;
 
+import org.elasticsearch.bootstrap.ConsoleLoader;
 import org.fusesource.jansi.AnsiConsole;
 import org.fusesource.jansi.AnsiPrintStream;
 import org.fusesource.jansi.AnsiType;
 
-import java.io.PrintStream;
 import java.util.function.Supplier;
 
 /**
- * Loads the({@link PrintStream} print stream) from {@link AnsiConsole} and checks whether it meets our requirements for a "Console".
+ * Loads the {@link AnsiConsole} and checks whether it meets our requirements for a "Console".
  * @see org.elasticsearch.bootstrap.ConsoleLoader
  */
-public class AnsiConsoleLoader implements Supplier<PrintStream> {
+public class AnsiConsoleLoader implements Supplier<ConsoleLoader.Console> {
 
-    public PrintStream get() {
+    public ConsoleLoader.Console get() {
         final AnsiPrintStream out = AnsiConsole.out();
         if (isValidConsole(out)) {
-            return out;
+            // TODO use reflection to surface the Charset, in order to verify that the unicode code points can be printed
+            return new ConsoleLoader.Console(out, () -> out.getTerminalWidth());
         } else {
             return null;
         }

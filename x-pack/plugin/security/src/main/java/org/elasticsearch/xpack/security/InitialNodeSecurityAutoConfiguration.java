@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.elasticsearch.bootstrap.ConsoleLoader;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.enrollment.InternalEnrollmentTokenGenerator;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
-import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -73,8 +73,8 @@ public class InitialNodeSecurityAutoConfiguration {
             client
         );
 
-        final PrintStream out = getConsoleOutput();
-        if (out == null) {
+        final ConsoleLoader.Console console = getConsole();
+        if (console == null) {
             LOGGER.info(
                 "Auto-configuration will not generate a password for the elastic built-in superuser, as we cannot "
                     + " determine if there is a terminal attached to the elasticsearch process. You can use the"
@@ -132,7 +132,7 @@ public class InitialNodeSecurityAutoConfiguration {
                                     kibanaEnrollmentToken,
                                     nodeEnrollmentToken,
                                     httpsCaFingerprint,
-                                    out
+                                    console
                                 );
                             }, e -> LOGGER.error("Unexpected exception during security auto-configuration", e)),
                             3
@@ -191,17 +191,17 @@ public class InitialNodeSecurityAutoConfiguration {
         });
     }
 
-    private static PrintStream getConsoleOutput() {
-        final PrintStream output = BootstrapInfo.getConsoleOutput();
-        if (output == null) {
+    private static ConsoleLoader.Console getConsole() {
+        final ConsoleLoader.Console console = BootstrapInfo.getConsole();
+        if (console == null) {
             return null;
         }
         // Check if it has been closed, try to write something so that we trigger PrintStream#ensureOpen
-        output.println();
-        if (output.checkError()) {
+        console.printStream().println();
+        if (console.printStream().checkError()) {
             return null;
         }
-        return output;
+        return console;
     }
 
     private static void outputInformationToConsole(
@@ -209,7 +209,7 @@ public class InitialNodeSecurityAutoConfiguration {
         String kibanaEnrollmentToken,
         String nodeEnrollmentToken,
         String caCertFingerprint,
-        PrintStream out
+        ConsoleLoader.Console console
     ) {
         final String infoBullet = "\u2139";
         final String bullet = "\u2022";
@@ -221,8 +221,11 @@ public class InitialNodeSecurityAutoConfiguration {
         final String boldOffANSI = "\u001B[22m";
         final String cmdOn = "`";
         final String cmdOff = "`";
-        final int horizontalLineLength = 140;
+        final int horizontalLineLength = console.width().get();
         StringBuilder builder = new StringBuilder();
+        builder.append(System.lineSeparator());
+        builder.append(System.lineSeparator());
+        builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());
         builder.append(horizontalLine.repeat(horizontalLineLength));
         builder.append(System.lineSeparator());
@@ -372,16 +375,18 @@ public class InitialNodeSecurityAutoConfiguration {
             builder.append(System.lineSeparator());
             builder.append("If you're running in Docker, copy the enrollment token and run:");
             builder.append(System.lineSeparator());
-            builder.append(cmdOn + "docker run --name <node-name> -p <host-http-port>:9200 --net elastic -it ");
-            builder.append("docker.elastic.co/elasticsearch/elasticsearch:" + Version.CURRENT + " /bin/bash -c");
-            builder.append("\"/usr/share/elasticsearch/bin/elasticsearch --enrollment-token <token>\"");
+            builder.append(cmdOn + "docker run --name <node-name> -p <host-http-port>:9200 --net elastic -e \"ENROLLMENT_TOKEN=<token>\"");
+            builder.append(" docker.elastic.co/elasticsearch/elasticsearch:" + Version.CURRENT + cmdOff);
         }
 
         builder.append(System.lineSeparator());
         builder.append(horizontalLine.repeat(horizontalLineLength));
         builder.append(System.lineSeparator());
+        builder.append(System.lineSeparator());
+        builder.append(System.lineSeparator());
+        builder.append(System.lineSeparator());
 
-        out.println(builder);
+        console.printStream().println(builder);
     }
 
     interface OnNodeStartedListener {

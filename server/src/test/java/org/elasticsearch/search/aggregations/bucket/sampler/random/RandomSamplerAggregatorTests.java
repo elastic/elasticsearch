@@ -1,24 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.ml.aggs.randomsample;
+package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.metrics.Avg;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,21 +26,6 @@ import static org.hamcrest.Matchers.lessThan;
 public class RandomSamplerAggregatorTests extends AggregatorTestCase {
 
     private static final String NUMERIC_FIELD_NAME = "value";
-
-    @Override
-    protected AnalysisModule createAnalysisModule() throws Exception {
-        return new AnalysisModule(
-            TestEnvironment.newEnvironment(
-                Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
-            ),
-            List.of(new MachineLearning(Settings.EMPTY))
-        );
-    }
-
-    @Override
-    protected List<SearchPlugin> getSearchPlugins() {
-        return List.of(new MachineLearning(Settings.EMPTY));
-    }
 
     public void testAggregationSampling() throws IOException {
         testCase(

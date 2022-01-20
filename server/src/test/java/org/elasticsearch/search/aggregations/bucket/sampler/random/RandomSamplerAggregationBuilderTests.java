@@ -1,26 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.ml.aggs.randomsample;
+package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.xpack.ml.MachineLearning;
-
-import java.util.Collection;
-import java.util.Collections;
 
 public class RandomSamplerAggregationBuilderTests extends BaseAggregationTestCase<RandomSamplerAggregationBuilder> {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getExtraPlugins() {
-        return Collections.singletonList(MachineLearning.class);
-    }
 
     @Override
     protected RandomSamplerAggregationBuilder createTestAggregatorBuilder() {

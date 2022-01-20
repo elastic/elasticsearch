@@ -1,9 +1,5 @@
 setup:
-  - skip:
-      features: headers
   - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.create:
         index: data
         body:
@@ -15,9 +11,6 @@ setup:
                 type: long
 
   - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-        Content-Type: application/json
       bulk:
         index: data
         refresh: true
@@ -39,6 +32,8 @@ setup:
 "Test random_sampler aggregation with no filter":
   - skip:
       features: close_to
+      version: " - 8.0.99"
+      reason: added in 8.1.0
   - do:
       search:
         index: data
@@ -64,6 +59,9 @@ setup:
 
 ---
 "Test random_sampler aggregation with filter":
+  - skip:
+      version: " - 8.0.99"
+      reason: added in 8.1.0
   - do:
       search:
         index: data
@@ -125,7 +123,9 @@ setup:
   - match: { aggregations.sampled.mean.value: 4.0 }
 ---
 "Test random_sampler aggregation with poor settings":
-
+  - skip:
+      version: " - 8.0.99"
+      reason: added in 8.1.0
   - do:
       catch: /\[probability\] must be between 0 and 1/
       search:

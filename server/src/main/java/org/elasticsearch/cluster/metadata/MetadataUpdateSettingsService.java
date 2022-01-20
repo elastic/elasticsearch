@@ -50,9 +50,7 @@ public class MetadataUpdateSettingsService {
     private static final Logger logger = LogManager.getLogger(MetadataUpdateSettingsService.class);
 
     private final ClusterService clusterService;
-
     private final AllocationService allocationService;
-
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesService indicesService;
     private final ShardLimitValidator shardLimitValidator;
@@ -256,7 +254,6 @@ public class MetadataUpdateSettingsService {
         BiFunction<Index, Settings.Builder, Boolean> settingUpdater,
         Boolean preserveExisting,
         IndexScopedSettings indexScopedSettings
-
     ) {
         for (Index index : indices) {
             IndexMetadata indexMetadata = metadataBuilder.getSafe(index);

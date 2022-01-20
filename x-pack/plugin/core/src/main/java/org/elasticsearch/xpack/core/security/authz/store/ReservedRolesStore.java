@@ -574,7 +574,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.ALERTS_INDEX_ALIAS,
                         ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS,
                         ReservedRolesStore.PERCOLATOR_ALERTS_INDEX_ALIAS
-                    ),
+                    )
                     .privileges("read", "view_index_metadata")
                     .build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {

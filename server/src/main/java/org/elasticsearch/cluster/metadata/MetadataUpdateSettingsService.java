@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -55,6 +56,7 @@ public class MetadataUpdateSettingsService {
     private final IndicesService indicesService;
     private final ShardLimitValidator shardLimitValidator;
     private final ThreadPool threadPool;
+    private final ClusterStateTaskExecutor<AckedClusterStateUpdateTask> executor;
 
     public MetadataUpdateSettingsService(
         ClusterService clusterService,
@@ -70,6 +72,21 @@ public class MetadataUpdateSettingsService {
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
         this.threadPool = threadPool;
+        this.executor = (currentState, tasks) -> {
+            ClusterTasksResult.Builder<AckedClusterStateUpdateTask> builder = ClusterTasksResult.builder();
+            ClusterState state = currentState;
+            for (AckedClusterStateUpdateTask task : tasks) {
+                try {
+                    state = task.execute(state);
+                    builder.success(task);
+                } catch (Exception e) {
+                    builder.failure(task, e);
+                }
+            }
+            // reroute in case things change that require it (like number of replicas)
+            state = allocationService.reroute(state, "settings update");
+            return builder.build(state);
+        };
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
@@ -241,18 +258,11 @@ public class MetadataUpdateSettingsService {
                     throw ExceptionsHelper.convertToElastic(ex);
                 }
 
-                // now, reroute in case things change that require it (like number of replicas)
-                updatedState = allocationService.reroute(updatedState, "settings update");
-
                 return updatedState;
             }
         };
 
-        clusterService.submitStateUpdateTask(
-            "update-settings " + Arrays.toString(request.indices()),
-            clusterTask,
-            ClusterStateTaskExecutor.unbatched()
-        );
+        clusterService.submitStateUpdateTask("update-settings " + Arrays.toString(request.indices()), clusterTask, this.executor);
     }
 
     public static void updateIndexSettings(

@@ -1453,18 +1453,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        LogEntryBuilder withXOpaqueIdAndTraceId(ThreadContext threadContext) {
-            final String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
-            if (opaqueId != null) {
-                logEntry.with(OPAQUE_ID_FIELD_NAME, opaqueId);
-            }
-            final String traceId = threadContext.getHeader(Task.TRACE_ID);
-            if (traceId != null) {
-                logEntry.with(TRACE_ID_FIELD_NAME, opaqueId);
-            }
-            return this;
-        }
-
         LogEntryBuilder withThreadContext(ThreadContext threadContext) {
             setThreadContextField(threadContext, AuditTrail.X_FORWARDED_FOR_HEADER, X_FORWARDED_FOR_FIELD_NAME);
             setThreadContextField(threadContext, Task.X_OPAQUE_ID_HTTP_HEADER, OPAQUE_ID_FIELD_NAME);

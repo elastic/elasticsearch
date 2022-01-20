@@ -76,7 +76,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new TermQuery(new Term("field", "foo")), ft.termQuery("foo", MOCK_CONTEXT));
 
         MappedFieldType ft2 = new KeywordFieldType("field", false, true, Map.of());
-        assertEquals(new DocValuesTermsQuery("field", "foo"), ft2.termQuery("foo", MOCK_CONTEXT));
+        assertEquals(SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef("foo")), ft2.termQuery("foo", MOCK_CONTEXT));
 
         MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("bar", MOCK_CONTEXT));

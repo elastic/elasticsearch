@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.search.DocValuesTermsQuery;
 import org.apache.lucene.search.Query;
@@ -68,8 +69,7 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
         if (isIndexed()) {
             return new TermQuery(new Term(name(), indexedValueForSearch(value)));
         } else {
-            // Should we use SortedSetDocValuesField.newSlowExactQuery instead?
-            return new DocValuesTermsQuery(name(), indexedValueForSearch(value));
+            return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
         }
     }
 
@@ -84,7 +84,6 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
         if (isIndexed()) {
             return new TermInSetQuery(name(), bytesRefs);
         } else {
-            // Should we use super.termsQuery instead?
             return new DocValuesTermsQuery(name(), bytesRefs);
         }
     }

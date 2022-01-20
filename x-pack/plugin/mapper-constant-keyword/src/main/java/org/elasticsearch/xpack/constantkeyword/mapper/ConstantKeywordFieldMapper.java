@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordDocValuesField;
 import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
@@ -77,7 +78,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 throw new MapperParsingException("Property [value] on field [" + n + "] must be a number or a string, but got [" + o + "]");
             }
             return o.toString();
-        }, m -> toType(m).fieldType().value);
+        }, m -> toType(m).fieldType().value, XContentBuilder::field, Objects::toString);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {

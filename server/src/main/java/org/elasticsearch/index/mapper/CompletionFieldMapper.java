@@ -131,15 +131,17 @@ public class CompletionFieldMapper extends FieldMapper {
             false,
             () -> null,
             (n, c, o) -> ContextMappings.load(o),
-            m -> builder(m).contexts.get()
-        ).setSerializer((b, n, c) -> {
-            if (c == null) {
-                return;
-            }
-            b.startArray(n);
-            c.toXContent(b, ToXContent.EMPTY_PARAMS);
-            b.endArray();
-        }, Objects::toString);
+            m -> builder(m).contexts.get(),
+            (b, n, c) -> {
+                if (c == null) {
+                    return;
+                }
+                b.startArray(n);
+                c.toXContent(b, ToXContent.EMPTY_PARAMS);
+                b.endArray();
+            },
+            Objects::toString
+        );
         private final Parameter<Integer> maxInputLength = Parameter.intParam(
             "max_input_length",
             true,

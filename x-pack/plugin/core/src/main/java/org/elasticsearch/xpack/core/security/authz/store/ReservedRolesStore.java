@@ -55,7 +55,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     /** Alerts, Rules, Cases (RAC) preview index used by multiple solutions */
     public static final String PREVIEW_ALERTS_INDEX_ALIAS = ".preview.alerts*";
     public static final String PREVIEW_ALERTS_BACKING_INDEX_ALIAS = ".internal.preview.alerts*";
-  
+
     /** Alerts, Rules, Cases (RAC) percolator index used by security solution */
     public static final String PERCOLATOR_ALERTS_INDEX_ALIAS = ".percolator.alerts*";
     public static final String PERCOLATOR_ALERTS_BACKING_INDEX_ALIAS = ".internal.percolator.alerts*";

@@ -577,7 +577,7 @@ POST _transform/_preview
             def size = all_docs.size();
             def min_time = all_docs[0]['@timestamp'];
             def max_time = all_docs[size-1]['@timestamp'];
-            def duration = max_time.toEpochMilli() - min_time.toEpochMIlli();
+            def duration = max_time.toEpochMilli() - min_time.toEpochMilli();
             def entry_page = all_docs[0]['url'];
             def exit_path = all_docs[size-1]['url'];
             def first_referrer = all_docs[0]['referrer'];

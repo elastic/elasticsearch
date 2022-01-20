@@ -23,7 +23,9 @@ import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,8 +33,11 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequestSerializationTests.randomUpdateDesiredNodesRequest;
+import static org.elasticsearch.cluster.metadata.DesiredNodeSerializationTests.randomDesiredNode;
 import static org.elasticsearch.cluster.metadata.DesiredNodesMetadataSerializationTests.randomDesiredNodesMetadata;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -209,7 +214,7 @@ public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, desiredNodesSettingsValidator, request)
         );
-        assertThat(exception.getMessage(), containsString("Unknown settings"));
+        assertThat(exception.getMessage(), containsString("has unknown settings"));
     }
 
     public void testUnknownSettingsInUnknownVersions() {
@@ -240,6 +245,36 @@ public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
     }
 
     public void testSettingsValidation() {
-        fail("todo");
+        final Set<Setting<?>> availableSettings = Set.of(
+            Setting.intSetting("test.a", 1, Setting.Property.NodeScope),
+            Setting.floatSetting("test.b", 1, Setting.Property.NodeScope)
+        );
+        final Consumer<Settings.Builder> settingsProvider = settings -> {
+            if (randomBoolean()) {
+                settings.put("test.a", randomAlphaOfLength(10));
+            } else {
+                settings.put("test.b", randomAlphaOfLength(10));
+            }
+        };
+
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings, Collections.emptySet());
+        final DesiredNodesSettingsValidator desiredNodesSettingsValidator = new DesiredNodesSettingsValidator(
+            clusterSettings,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
+
+        final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10))).build();
+        final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
+            UUIDs.randomBase64UUID(),
+            randomIntBetween(1, 20),
+            randomList(1, 20, () -> randomDesiredNode(Version.CURRENT, settingsProvider))
+        );
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, desiredNodesSettingsValidator, request)
+        );
+        assertThat(exception.getMessage(), containsString("Failed to parse value"));
     }
 }

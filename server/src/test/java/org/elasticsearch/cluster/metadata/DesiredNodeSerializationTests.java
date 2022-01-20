@@ -17,6 +17,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.function.Consumer;
 
 public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<DesiredNode> {
     @Override
@@ -39,8 +40,12 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
     }
 
     public static DesiredNode randomDesiredNode(Version version) {
+        return randomDesiredNode(version, DesiredNodeSerializationTests::putRandomSetting);
+    }
+
+    public static DesiredNode randomDesiredNode(Version version, Consumer<Settings.Builder> settingsProvider) {
         return new DesiredNode(
-            randomSetting(),
+            randomSetting(settingsProvider),
             randomAlphaOfLength(20),
             randomIntBetween(1, 256),
             ByteSizeValue.ofGb(randomIntBetween(1, 1024)),
@@ -49,12 +54,12 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
         );
     }
 
-    private static Settings randomSetting() {
+    private static Settings randomSetting(Consumer<Settings.Builder> settingsProvider) {
         int numSettings = randomIntBetween(0, 20);
         Settings.Builder settingsBuilder = Settings.builder();
 
         for (int i = 0; i < numSettings; i++) {
-            putRandomSetting(settingsBuilder);
+            settingsProvider.accept(settingsBuilder);
         }
         return settingsBuilder.build();
     }

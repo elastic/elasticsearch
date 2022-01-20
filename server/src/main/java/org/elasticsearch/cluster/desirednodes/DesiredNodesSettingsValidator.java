@@ -18,9 +18,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+
+import static java.lang.String.format;
 
 public class DesiredNodesSettingsValidator {
     private final ClusterSettings clusterSettings;
@@ -57,7 +60,9 @@ public class DesiredNodesSettingsValidator {
 
         if (unknownSettings != null && node.version().onOrBefore(Version.CURRENT)) {
             assert unknownSettings.isEmpty() == false;
-            throw new IllegalArgumentException("Unknown settings " + unknownSettings);
+            throw new IllegalArgumentException(
+                format(Locale.ROOT, "Node [%s] has unknown settings %s", node.externalID(), unknownSettings)
+            );
         }
 
         final Settings updatedSettings = updatedSettingsBuilder.build();

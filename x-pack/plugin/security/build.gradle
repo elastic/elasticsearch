@@ -18,6 +18,7 @@ dependencies {
   api project(path: ':modules:transport-netty4')
   api project(path: ':plugins:transport-nio')
 
+  testImplementation project(path: xpackModule('ilm'))
   testImplementation project(path: xpackModule('monitoring'))
   testImplementation project(path: xpackModule('spatial'))
   testImplementation project(path: xpackModule('vectors'))

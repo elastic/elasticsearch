@@ -52,32 +52,12 @@ public class IpPrefixAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new IpPrefixAggregator.Unmapped(
-            name,
-            factories,
-            config,
-            keyed,
-            minDocCount,
-            context,
-            parent,
-            metadata
-        );
+        return new IpPrefixAggregator.Unmapped(name, factories, config, keyed, minDocCount, context, parent, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        return aggregationSupplier.build(
-            name,
-            factories,
-            config,
-            keyed,
-            minDocCount,
-            ipPrefix,
-            context,
-            parent,
-            cardinality,
-            metadata
-        );
+        return aggregationSupplier.build(name, factories, config, keyed, minDocCount, ipPrefix, context, parent, cardinality, metadata);
     }
 }

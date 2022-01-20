@@ -85,12 +85,7 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
     private boolean appendPrefixLength = false;
     private boolean keyed = false;
 
-    private static<T> void throwOnInvalidFieldValue(
-        final String fieldName,
-        final T minValue,
-        final T maxValue,
-        final T fieldValue
-    ) {
+    private static <T> void throwOnInvalidFieldValue(final String fieldName, final T minValue, final T maxValue, final T fieldValue) {
         throw new IllegalArgumentException(
             "["
                 + fieldName
@@ -99,19 +94,15 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
                 + ", "
                 + maxValue.toString()
                 + "] while value is ["
-                + fieldValue.toString() + "]"
+                + fieldValue.toString()
+                + "]"
         );
     }
 
     /** Set the minDocCount on this builder, and return the builder so that calls can be chained. */
     public IpPrefixAggregationBuilder minDocCount(long minDocCount) {
         if (minDocCount < 1) {
-            throwOnInvalidFieldValue(
-                MIN_DOC_COUNT_FIELD.getPreferredName(),
-                1,
-                Integer.MAX_VALUE,
-                minDocCount
-            );
+            throwOnInvalidFieldValue(MIN_DOC_COUNT_FIELD.getPreferredName(), 1, Integer.MAX_VALUE, minDocCount);
         }
         this.minDocCount = minDocCount;
         return this;
@@ -214,7 +205,9 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
     ) throws IOException {
         IpPrefixAggregationSupplier aggregationSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
-        if (prefixLength < 0 || (isIpv6 == false && prefixLength > IPV4_MAX_PREFIX_LENGTH) || (isIpv6 && prefixLength > IPV6_MAX_PREFIX_LENGTH)) {
+        if (prefixLength < 0
+            || (isIpv6 == false && prefixLength > IPV4_MAX_PREFIX_LENGTH)
+            || (isIpv6 && prefixLength > IPV6_MAX_PREFIX_LENGTH)) {
             throwOnInvalidFieldValue(
                 PREFIX_LENGTH_FIELD.getPreferredName(),
                 MIN_PREFIX_LENGTH,
@@ -255,7 +248,9 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
      *         network, or is not in range [0, 32] for an IPv4 network.
      */
     public static BytesRef extractNetmask(int prefixLength, boolean isIpv6) {
-        if (prefixLength < 0 || (isIpv6 == false && prefixLength > IPV4_MAX_PREFIX_LENGTH) || (isIpv6 && prefixLength > IPV6_MAX_PREFIX_LENGTH)) {
+        if (prefixLength < 0
+            || (isIpv6 == false && prefixLength > IPV4_MAX_PREFIX_LENGTH)
+            || (isIpv6 && prefixLength > IPV6_MAX_PREFIX_LENGTH)) {
             throwOnInvalidFieldValue(
                 PREFIX_LENGTH_FIELD.getPreferredName(),
                 MIN_PREFIX_LENGTH,
@@ -270,14 +265,14 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
         int bytesCount = prefixLength / 8;
         int bitsCount = prefixLength % 8;
         int i = 0;
-        //NOTE: first set whole bytes to 255 (0xFF)
+        // NOTE: first set whole bytes to 255 (0xFF)
         for (; i < bytesCount; i++) {
             ipAddress[i] = (byte) 0xFF;
         }
-        //NOTE: then set the remaining bits to 1.
-        //Trailing bits are already set to 0 at initialization time.
-        //Example: for prefixLength = 20, we first set 16 bits (2 bytes)
-        //to 0xFF, then set the remaining 4 bits to 1.
+        // NOTE: then set the remaining bits to 1.
+        // Trailing bits are already set to 0 at initialization time.
+        // Example: for prefixLength = 20, we first set 16 bits (2 bytes)
+        // to 0xFF, then set the remaining 4 bits to 1.
         if (bitsCount > 0) {
             int rem = 0;
             for (int j = 0; j < bitsCount; j++) {

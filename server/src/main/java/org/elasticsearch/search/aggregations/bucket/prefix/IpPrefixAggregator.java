@@ -30,7 +30,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -164,9 +163,9 @@ public final class IpPrefixAggregator extends BucketsAggregator {
         }
 
         private BytesRef mask(final BytesRef ipAddress, final BytesRef subnetMask) {
-            //NOTE: IPv4 addresses are encoded as 16-bytes. As a result, we use an
-            //offset (12) to apply the subnet to the last 4 bytes (byes 12, 13, 14, 15)
-            //if the subnet mask is just a 4-bytes subnet mask.
+            // NOTE: IPv4 addresses are encoded as 16-bytes. As a result, we use an
+            // offset (12) to apply the subnet to the last 4 bytes (byes 12, 13, 14, 15)
+            // if the subnet mask is just a 4-bytes subnet mask.
             int offset = subnetMask.length == 4 ? 12 : 0;
             byte[] subnet = new byte[subnetMask.length];
             for (int i = 0; i < subnetMask.length; ++i) {
@@ -273,14 +272,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
 
         @Override
         public InternalAggregation buildEmptyAggregation() {
-            return new InternalIpPrefix(
-                name,
-                config.format(),
-                keyed,
-                minDocCount,
-                Collections.emptyList(),
-                metadata()
-            );
+            return new InternalIpPrefix(name, config.format(), keyed, minDocCount, Collections.emptyList(), metadata());
         }
     }
 }

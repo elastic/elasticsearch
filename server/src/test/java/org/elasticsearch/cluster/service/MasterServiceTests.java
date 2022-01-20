@@ -53,7 +53,6 @@ import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -68,7 +67,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -530,7 +528,9 @@ public class MasterServiceTests extends ESTestCase {
 
         class TaskExecutor implements ClusterStateTaskExecutor<Task> {
             private final List<Set<Task>> taskGroups;
-            private final AtomicInteger counter = new AtomicInteger();
+
+            private final AtomicInteger executed = new AtomicInteger();
+            private final AtomicInteger assigned = new AtomicInteger();
             private final AtomicInteger batches = new AtomicInteger();
             private final AtomicInteger published = new AtomicInteger();
 
@@ -549,7 +549,7 @@ public class MasterServiceTests extends ESTestCase {
                     );
                 }
                 tasks.forEach(Task::execute);
-                counter.addAndGet(tasks.size());
+                executed.addAndGet(tasks.size());
                 ClusterState maybeUpdatedClusterState = currentState;
                 if (randomBoolean()) {
                     maybeUpdatedClusterState = ClusterState.builder(currentState).build();
@@ -574,27 +574,22 @@ public class MasterServiceTests extends ESTestCase {
 
         // randomly assign tasks to executors
         List<Tuple<TaskExecutor, Set<Task>>> assignments = new ArrayList<>();
-        int taskId = 0;
+        int totalTasks = 0;
         for (int i = 0; i < numberOfThreads; i++) {
             for (int j = 0; j < taskSubmissionsPerThread; j++) {
                 TaskExecutor executor = randomFrom(executors);
+
                 Set<Task> tasks = new HashSet<>();
                 for (int t = randomInt(3); t >= 0; t--) {
-                    tasks.add(new Task(taskId++));
+                    tasks.add(new Task(totalTasks++));
                 }
+
                 taskGroups.add(tasks);
                 assignments.add(Tuple.tuple(executor, tasks));
+                executor.assigned.addAndGet(tasks.size());
             }
         }
-
-        Map<TaskExecutor, Integer> counts = new HashMap<>();
-        int totalTaskCount = 0;
-        for (Tuple<TaskExecutor, Set<Task>> assignment : assignments) {
-            final int taskCount = assignment.v2().size();
-            counts.merge(assignment.v1(), taskCount, (previous, count) -> previous + count);
-            totalTaskCount += taskCount;
-        }
-        processedStatesLatch.set(new CountDownLatch(totalTaskCount));
+        processedStatesLatch.set(new CountDownLatch(totalTasks));
 
         try (MasterService masterService = createMasterService(true)) {
             CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
@@ -646,16 +641,14 @@ public class MasterServiceTests extends ESTestCase {
             semaphore.acquire(numberOfExecutors);
 
             // assert the number of executed tasks is correct
-            assertThat(submittedTasks.get(), equalTo(totalTaskCount));
-            assertThat(executedTasks.get(), equalTo(totalTaskCount));
-            assertThat(processedStates.get(), equalTo(totalTaskCount));
+            assertThat(submittedTasks.get(), equalTo(totalTasks));
+            assertThat(executedTasks.get(), equalTo(totalTasks));
+            assertThat(processedStates.get(), equalTo(totalTasks));
 
             // assert each executor executed the correct number of tasks
             for (TaskExecutor executor : executors) {
-                if (counts.containsKey(executor)) {
-                    assertEquals((int) counts.get(executor), executor.counter.get());
+                    assertEquals(executor.assigned.get(), executor.executed.get());
                     assertEquals(executor.batches.get(), executor.published.get());
-                }
             }
         }
     }

@@ -1,0 +1,117 @@
+
+[[release-notes-7.17.0]]
+== {es} version 7.17.0
+
+Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
+
+coming::[7.17.0]
+
+[[deprecation-7.17.0]]
+[float]
+=== Deprecations
+
+Mapping::
+* Remove `too_many_fields` upgrade check {es-pull}82809[#82809] (issues: {es-issue}81539[#81539], {es-issue}81850[#81850])
+
+Transform::
+* Improve transform deprecation messages {es-pull}81853[#81853] (issues: {es-issue}81521[#81521], {es-issue}81523[#81523])
+
+
+
+[[enhancement-7.17.0]]
+[float]
+=== Enhancements
+
+Authorization::
+* Allow read template with cluster monitor privilege {es-pull}82046[#82046] (issue: {es-issue}78832[#78832])
+* Make authz perf log msg configurable and disabled by default {es-pull}82648[#82648] (issue: {es-issue}75439[#75439])
+* [Security Solution] Add kibana system permissions for Endpoint action indices {es-pull}81953[#81953]
+
+ILM+SLM::
+* Migrate legacy/v2/component templates away from custom attributes routing {es-pull}82472[#82472] (issue: {es-issue}82170[#82170])
+* Migrate to data tiers API dry run on any ILM status {es-pull}82226[#82226] (issue: {es-issue}82169[#82169])
+
+Infra/Settings::
+* Implement Setting Deduplication via String Interning {es-pull}80493[#80493] (issues: {es-issue}77466[#77466], {es-issue}78892[#78892])
+
+Java Low Level REST Client::
+* LLRC: expose http client and allow overriding meta header {es-pull}81955[#81955]
+
+License::
+* Add DEBUG log when DLS/FLS usage is detected {es-pull}82182[#82182] (issue: {es-issue}79152[#79152])
+
+Machine Learning::
+* Move datafeed stats action off of master node {es-pull}82271[#82271]
+
+Watcher::
+* Preventing watcher from starting up if its templates are missing {es-pull}82395[#82395]
+
+
+
+[[bug-7.17.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix bucket keys format for range aggregations on float field {es-pull}81801[#81801] (issue: {es-issue}81749[#81749])
+* Fix cardinality agg in async search {es-pull}82108[#82108]
+* Fix: missing fields in range aggregation response for date fields {es-pull}82732[#82732] (issue: {es-issue}82688[#82688])
+
+Authorization::
+* Fix FLS for frozen tier {es-pull}82521[#82521] (issues: {es-issue}78988[#78988], {es-issue}82044[#82044])
+
+CRUD::
+* Fix potential listener leak in `TransportBulkAction` {es-pull}81894[#81894]
+
+Data streams::
+* Change `DataStream` class to have a single public constructor {es-pull}82464[#82464]
+
+Geo::
+* Handle degenerated rectangles in vector tiles {es-pull}82404[#82404] (issue: {es-issue}81891[#81891])
+
+ILM+SLM::
+* Data tiers: migrate the coldest node attribute {es-pull}81940[#81940] (issue: {es-issue}81633[#81633])
+* ILM step retry safe refresh of the cached phase {es-pull}82613[#82613] (issue: {es-issue}81921[#81921])
+* ILM: fix allocate action to allow only `total_shards_per_node` {es-pull}81944[#81944] (issue: {es-issue}81943[#81943])
+
+Indices APIs::
+* Make the rollover API respect the request's `master_timeout` {es-pull}82326[#82326] (issue: {es-issue}81762[#81762])
+
+Infra/Core::
+* Allow clearing blocks on managed system indices {es-pull}82507[#82507] (issue: {es-issue}80814[#80814])
+
+Infra/Logging::
+* Add `doPrivileged` section in deprecation logger {es-pull}81819[#81819] (issue: {es-issue}81708[#81708])
+
+Ingest::
+* Filter enrich policy index deletes to just the policy's associated indices {es-pull}82568[#82568]
+* Fix enrich cache corruption bug {es-pull}82441[#82441] (issue: {es-issue}82340[#82340])
+
+Java Low Level REST Client::
+* Fix version resolution and encoding in LLRC {es-pull}81989[#81989]
+
+Machine Learning::
+* Fix annotations index maintenance after reindexing {es-pull}82304[#82304] (issue: {es-issue}82250[#82250])
+* Improve cleanup for model snapshot upgrades {es-pull}81831[#81831] (issue: {es-issue}81578[#81578])
+* Make delete intervening results more selective {es-pull}82437[#82437]
+* Skip time to next interval with data for datafeeds with aggs {es-pull}82488[#82488] (issue: {es-issue}82406[#82406])
+
+Other::
+* Checking both node and cluster settings in `NodeDeprecationChecks` {es-pull}82487[#82487] (issue: {es-issue}82484[#82484])
+* Getting `deprecation.skip_deprecated_settings` to work with dynamic settings {es-pull}81836[#81836]
+
+Snapshot/Restore::
+* Always fail snapshot deletion listeners on master fail over {es-pull}82361[#82361] (issue: {es-issue}81596[#81596])
+* Remove Requirement for Key Setting on Azure Client Settings {es-pull}82030[#82030]
+
+
+
+[[upgrade-7.17.0]]
+[float]
+=== Upgrades
+
+Search::
+* Upgrade to Lucene 8.11.1 {es-pull}81900[#81900]
+
+
+

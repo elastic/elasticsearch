@@ -565,19 +565,6 @@ public class ShardStateAction {
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            FailedShardUpdateTask that = (FailedShardUpdateTask) o;
-            return entry.equals(that.entry);
-        }
-
-        @Override
-        public int hashCode() {
-            return entry.hashCode();
-        }
-
-        @Override
         public String toString() {
             return entry.toString();
         }

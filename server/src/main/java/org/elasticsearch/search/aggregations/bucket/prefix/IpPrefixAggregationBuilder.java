@@ -85,10 +85,33 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
     private boolean appendPrefixLength = false;
     private boolean keyed = false;
 
+    private static<T> void throwOnInvalidFieldValue(
+        final String fieldName,
+        final T minValue,
+        final T maxValue,
+        final T fieldValue
+    ) {
+        throw new IllegalArgumentException(
+            "["
+                + fieldName
+                + "] must be in range ["
+                + minValue.toString()
+                + ", "
+                + maxValue.toString()
+                + "] while value is ["
+                + fieldValue.toString() + "]"
+        );
+    }
+
     /** Set the minDocCount on this builder, and return the builder so that calls can be chained. */
     public IpPrefixAggregationBuilder minDocCount(long minDocCount) {
         if (minDocCount < 1) {
-            throw new IllegalArgumentException("[min_doc_count] must not be less than 1: [" + name + "]");
+            throwOnInvalidFieldValue(
+                MIN_DOC_COUNT_FIELD.getPreferredName(),
+                1,
+                Integer.MAX_VALUE,
+                minDocCount
+            );
         }
         this.minDocCount = minDocCount;
         return this;
@@ -101,7 +124,12 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
      * */
     public IpPrefixAggregationBuilder prefixLength(int prefixLength) {
         if (prefixLength < MIN_PREFIX_LENGTH) {
-            throw new IllegalArgumentException("[prefix_len] must not be less than " + MIN_PREFIX_LENGTH + ": [" + name + "]");
+            throwOnInvalidFieldValue(
+                PREFIX_LENGTH_FIELD.getPreferredName(),
+                0,
+                isIpv6 ? IPV6_MAX_PREFIX_LENGTH : IPV4_MAX_PREFIX_LENGTH,
+                prefixLength
+            );
         }
         this.prefixLength = prefixLength;
         return this;
@@ -186,31 +214,12 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
     ) throws IOException {
         IpPrefixAggregationSupplier aggregationSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
-        if (isIpv6 && prefixLength > IPV6_MAX_PREFIX_LENGTH) {
-            throw new IllegalArgumentException(
-                "["
-                    + PREFIX_LENGTH_FIELD.getPreferredName()
-                    + "] must be in range ["
-                    + MIN_PREFIX_LENGTH
-                    + ", "
-                    + IPV6_MAX_PREFIX_LENGTH
-                    + "] for aggregation ["
-                    + this.getName()
-                    + "]"
-            );
-        }
-
-        if (isIpv6 == false && prefixLength > IPV4_MAX_PREFIX_LENGTH) {
-            throw new IllegalArgumentException(
-                "["
-                    + PREFIX_LENGTH_FIELD.getPreferredName()
-                    + "] must be in range ["
-                    + MIN_PREFIX_LENGTH
-                    + ", "
-                    + IPV4_MAX_PREFIX_LENGTH
-                    + "] for aggregation ["
-                    + this.getName()
-                    + "]"
+        if (prefixLength < 0 || (isIpv6 == false && prefixLength > IPV4_MAX_PREFIX_LENGTH) || (isIpv6 && prefixLength > IPV6_MAX_PREFIX_LENGTH)) {
+            throwOnInvalidFieldValue(
+                PREFIX_LENGTH_FIELD.getPreferredName(),
+                MIN_PREFIX_LENGTH,
+                isIpv6 ? IPV6_MAX_PREFIX_LENGTH : IPV4_MAX_PREFIX_LENGTH,
+                prefixLength
             );
         }
 
@@ -246,15 +255,12 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
      *         network, or is not in range [0, 32] for an IPv4 network.
      */
     public static BytesRef extractNetmask(int prefixLength, boolean isIpv6) {
-        if (prefixLength < 0 || (isIpv6 == false && prefixLength > 32) || (isIpv6 && prefixLength > 128)) {
-            throw new IllegalArgumentException(
-                "["
-                    + PREFIX_LENGTH_FIELD.getPreferredName()
-                    + "] must be in range ["
-                    + MIN_PREFIX_LENGTH
-                    + ", "
-                    + (isIpv6 ? IPV6_MAX_PREFIX_LENGTH : IPV4_MAX_PREFIX_LENGTH)
-                    + "]"
+        if (prefixLength < 0 || (isIpv6 == false && prefixLength > IPV4_MAX_PREFIX_LENGTH) || (isIpv6 && prefixLength > IPV6_MAX_PREFIX_LENGTH)) {
+            throwOnInvalidFieldValue(
+                PREFIX_LENGTH_FIELD.getPreferredName(),
+                MIN_PREFIX_LENGTH,
+                isIpv6 ? IPV6_MAX_PREFIX_LENGTH : IPV4_MAX_PREFIX_LENGTH,
+                prefixLength
             );
         }
 

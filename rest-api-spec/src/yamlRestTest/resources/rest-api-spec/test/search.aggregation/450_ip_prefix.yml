@@ -204,7 +204,7 @@ setup:
       version: " - 8.0.99"
       reason: "added in 8.1.0"
   - do:
-      catch: /\[prefix_len\] must be in range \[0, 32\] for aggregation \[ip_prefix\]/
+      catch: /\[prefix_length\] must be in range \[0, 32\] while value is \[44\]/
       search:
         body:
           size: 0
@@ -222,7 +222,7 @@ setup:
       version: " - 8.0.99"
       reason: "added in 8.1.0"
   - do:
-      catch: /\[prefix_len\] must be in range \[0, 128\] for aggregation \[ip_prefix\]/
+      catch: /\[prefix_length] must be in range \[0, 128\] while value is \[170]/
       search:
         body:
           size: 0

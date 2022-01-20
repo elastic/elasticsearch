@@ -45,6 +45,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
@@ -1214,7 +1215,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject();
             withRequestBody(builder, grantApiKeyRequest.getApiKeyRequest());
-            GrantApiKeyRequest.Grant grant = grantApiKeyRequest.getGrant();
+            Grant grant = grantApiKeyRequest.getGrant();
             builder.startObject("grant").field("type", grant.getType());
             if (grant.getUsername() != null) {
                 builder.startObject("user")
@@ -1491,7 +1492,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         LogEntryBuilder withAuthentication(Authentication authentication) {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
-            if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+            if (authentication.isAuthenticatedWithApiKey()) {
                 logEntry.with(API_KEY_ID_FIELD_NAME, (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
                 String apiKeyName = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
                 if (apiKeyName != null) {

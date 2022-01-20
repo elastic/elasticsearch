@@ -46,6 +46,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
@@ -64,6 +65,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -1222,10 +1224,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         assertBusy(() -> {
             GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();
             assertThat(resp.getSetting("follower", "index.max_ngram_diff"), equalTo("2"));
@@ -1286,16 +1288,16 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 settingVersionOnLeader.set(newState.metadata().index("leader").getSettingsVersion());
                 latch.countDown();
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
         latch.await();
         assertBusy(() -> assertThat(getFollowTaskSettingsVersion("follower"), equalTo(settingVersionOnLeader.get())));
         GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();
@@ -1395,7 +1397,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final Consumer<Collection<ResourceNotFoundException>> exceptionConsumer
     ) throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
-        final Map<String, String> extraSettingsMap = new HashMap<>(2);
+        final Map<String, String> extraSettingsMap = Maps.newMapWithExpectedSize(2);
         extraSettingsMap.put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms");
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1), extraSettingsMap);
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));

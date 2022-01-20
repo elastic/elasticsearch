@@ -13,10 +13,12 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -27,30 +29,39 @@ public class ProfileIT extends ESRestTestCase {
 
     public static final String SAMPLE_PROFILE_DOCUMENT_TEMPLATE = """
         {
-          "uid": "%s",
-          "enabled": true,
-          "user": {
-            "username": "foo",
-            "realm": {
-              "name": "realm_name",
-              "type": "realm_type",
-              "node_name": "node1"
+          "user_profile": {
+            "uid": "%s",
+            "enabled": true,
+            "user": {
+              "username": "foo",
+              "roles": [
+                "role1",
+                "role2"
+              ],
+              "realm": {
+                "name": "realm_name_1",
+                "type": "realm_type_1",
+                "domain": {
+                  "name": "domainA",
+                  "realms": [
+                    { "name": "realm_name_1", "type": "realm_type_1" },
+                    { "name": "realm_name_2", "type": "realm_type_2" }
+                  ]
+                },
+                "node_name": "node1"
+              },
+              "email": "foo@example.com",
+              "full_name": "User Foo",
+              "display_name": "Curious Foo",
+              "active": true
             },
-            "email": "foo@example.com",
-            "full_name": "User Foo",
-            "display_name": "Curious Foo"
-          },
-          "last_synchronized": %s,
-          "access": {
-            "roles": [
-              "role1",
-              "role2"
-            ],
-            "applications": {}
-          },
-          "application_data": {
-            "app1": { "name": "app1" },
-            "app2": { "name": "app2" }
+            "last_synchronized": %s,
+            "access": {
+            },
+            "application_data": {
+              "app1": { "name": "app1" },
+              "app2": { "name": "app2" }
+            }
           }
         }
         """;
@@ -63,6 +74,14 @@ public class ProfileIT extends ESRestTestCase {
                 basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()))
             )
             .build();
+    }
+
+    public void testActivateProfile() throws IOException {
+        final Map<String, Object> activateProfileMap = doActivateProfile();
+
+        final String profileUid = (String) activateProfileMap.get("uid");
+        final Map<String, Object> profile1 = doGetProfile(profileUid);
+        assertThat(profile1, equalTo(activateProfileMap));
     }
 
     public void testGetProfile() throws IOException {
@@ -79,34 +98,71 @@ public class ProfileIT extends ESRestTestCase {
         );
         assertOK(adminClient().performRequest(indexRequest));
 
-        final Request getProfileRequest1 = new Request("GET", "_security/profile/" + uid);
-        final Response getProfileResponse1 = adminClient().performRequest(getProfileRequest1);
-        assertOK(getProfileResponse1);
-        final Map<String, Object> getProfileMap1 = responseAsMap(getProfileResponse1);
-        assertThat(getProfileMap1.keySet(), contains(uid));
-        final Map<String, Object> profile1 = castToMap(getProfileMap1.get(uid));
-        assertThat(castToMap(profile1.get("data")), anEmptyMap());
+        final Map<String, Object> profileMap1 = doGetProfile(uid);
+        assertThat(castToMap(profileMap1.get("data")), anEmptyMap());
 
         // Retrieve application data along the profile
-        final Request getProfileRequest2 = new Request("GET", "_security/profile/" + uid);
-        getProfileRequest2.addParameter("data", "app1");
-        final Map<String, Object> getProfileMap2 = responseAsMap(adminClient().performRequest(getProfileRequest2));
-        assertThat(getProfileMap2.keySet(), contains(uid));
-        final Map<String, Object> profile2 = castToMap(getProfileMap2.get(uid));
-        assertThat(castToMap(profile2.get("data")), equalTo(Map.of("app1", Map.of("name", "app1"))));
+        final Map<String, Object> profileMap2 = doGetProfile(uid, "app1");
+        assertThat(castToMap(profileMap2.get("data")), equalTo(Map.of("app1", Map.of("name", "app1"))));
 
         // Retrieve multiple application data
-        final Request getProfileRequest3 = new Request("GET", "_security/profile/" + uid);
-        getProfileRequest3.addParameter("data", randomFrom("app1,app2", "*", "app*"));
-        final Map<String, Object> getProfileMap3 = responseAsMap(adminClient().performRequest(getProfileRequest3));
-        assertThat(getProfileMap3.keySet(), contains(uid));
-        final Map<String, Object> profile3 = castToMap(getProfileMap3.get(uid));
-        assertThat(castToMap(profile3.get("data")), equalTo(Map.of("app1", Map.of("name", "app1"), "app2", Map.of("name", "app2"))));
+        final Map<String, Object> profileMap3 = doGetProfile(uid, randomFrom("app1,app2", "*", "app*"));
+        assertThat(castToMap(profileMap3.get("data")), equalTo(Map.of("app1", Map.of("name", "app1"), "app2", Map.of("name", "app2"))));
 
         // Non-existing profile
         final Request getProfileRequest4 = new Request("GET", "_security/profile/not_" + uid);
         final ResponseException e4 = expectThrows(ResponseException.class, () -> adminClient().performRequest(getProfileRequest4));
         assertThat(e4.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+    }
+
+    public void testUpdateProfileData() throws IOException {
+        final Map<String, Object> activateProfileMap = doActivateProfile();
+        final String uid = (String) activateProfileMap.get("uid");
+        final Request updateProfileRequest1 = new Request("POST", "_security/profile/_data/" + uid);
+        updateProfileRequest1.setJsonEntity("""
+            {
+              "access": {
+                "app1": { "tags": [ "prod", "east" ] }
+              },
+              "data": {
+                "app1": { "theme": "default" }
+              }
+            }""");
+        assertOK(adminClient().performRequest(updateProfileRequest1));
+
+        final Map<String, Object> profileMap1 = doGetProfile(uid, "app1");
+        assertThat(castToMap(profileMap1.get("access")), equalTo(Map.of("app1", Map.of("tags", List.of("prod", "east")))));
+        assertThat(castToMap(profileMap1.get("data")), equalTo(Map.of("app1", Map.of("theme", "default"))));
+    }
+
+    private Map<String, Object> doActivateProfile() throws IOException {
+        final Request activateProfileRequest = new Request("POST", "_security/profile/_activate");
+        activateProfileRequest.setJsonEntity("""
+            {
+              "grant_type": "password",
+              "username": "rac_user",
+              "password": "x-pack-test-password"
+            }""");
+
+        final Response activateProfileResponse = adminClient().performRequest(activateProfileRequest);
+        assertOK(activateProfileResponse);
+        return responseAsMap(activateProfileResponse);
+    }
+
+    private Map<String, Object> doGetProfile(String uid) throws IOException {
+        return doGetProfile(uid, null);
+    }
+
+    private Map<String, Object> doGetProfile(String uid, @Nullable String dataKey) throws IOException {
+        final Request getProfileRequest1 = new Request("GET", "_security/profile/" + uid);
+        if (dataKey != null) {
+            getProfileRequest1.addParameter("data", dataKey);
+        }
+        final Response getProfileResponse1 = adminClient().performRequest(getProfileRequest1);
+        assertOK(getProfileResponse1);
+        final Map<String, Object> getProfileMap1 = responseAsMap(getProfileResponse1);
+        assertThat(getProfileMap1.keySet(), contains(uid));
+        return castToMap(getProfileMap1.get(uid));
     }
 
     @SuppressWarnings("unchecked")

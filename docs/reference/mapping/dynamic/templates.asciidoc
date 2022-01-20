@@ -22,9 +22,10 @@ Use the `{name}` and `{dynamic_type}` <<template-variables,template variables>>
 in the mapping specification as placeholders.
 
 IMPORTANT: Dynamic field mappings are only added when a field contains a
-concrete value -- not `null` or an empty array. If the
-`null_value` option is used in a `dynamic_template`, it will only be applied
-after the first document with a concrete value for the field has been
+concrete value. {es} doesn't add a dynamic field mapping when the field contains
+`null` or an empty array. If the `null_value` option is used in a
+`dynamic_template`, it will only be applied after the first document with a
+concrete value for the field has been
 indexed.
 
 Dynamic templates are specified as an array of named objects:

@@ -171,7 +171,7 @@ public class ClientYamlSuiteRestApi {
         for (ClientYamlSuiteRestApi.Path path : paths) {
             int matches = 0;
             for (String actualParameter : pathParams) {
-                if (path.getParts().contains(actualParameter)) {
+                if (path.parts().contains(actualParameter)) {
                     matches++;
                 }
             }
@@ -193,28 +193,7 @@ public class ClientYamlSuiteRestApi {
         return pathsByRelevance;
     }
 
-    public static class Path {
-        private final String path;
-        private final String[] methods;
-        private final Set<String> parts;
-
-        private Path(String path, String[] methods, Set<String> parts) {
-            this.path = path;
-            this.methods = methods;
-            this.parts = parts;
-        }
-
-        public String getPath() {
-            return path;
-        }
-
-        public String[] getMethods() {
-            return methods;
-        }
-
-        public Set<String> getParts() {
-            return parts;
-        }
+    public record Path(String path, String[] methods, Set<String> parts) {
 
         @Override
         public boolean equals(Object o) {

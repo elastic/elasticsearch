@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -84,16 +84,17 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
     }
 
     @Override
-    public Optional<InputStream> next() throws IOException {
+    public Result next() throws IOException {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
+        SearchInterval searchInterval = new SearchInterval(context.start, context.end);
         if (aggregationToJsonProcessor == null) {
             Aggregations aggs = search();
             if (aggs == null) {
                 hasNext = false;
-                return Optional.empty();
+                return new Result(searchInterval, Optional.empty());
             }
             initAggregationProcessor(aggs);
         }
@@ -104,9 +105,12 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         // We process the whole search. So, if we are chunking or not, we have nothing more to process given the current query
         hasNext = false;
 
-        return aggregationToJsonProcessor.getKeyValueCount() > 0
-            ? Optional.of(new ByteArrayInputStream(outputStream.toByteArray()))
-            : Optional.empty();
+        return new Result(
+            searchInterval,
+            aggregationToJsonProcessor.getKeyValueCount() > 0
+                ? Optional.of(new ByteArrayInputStream(outputStream.toByteArray()))
+                : Optional.empty()
+        );
     }
 
     private Aggregations search() {

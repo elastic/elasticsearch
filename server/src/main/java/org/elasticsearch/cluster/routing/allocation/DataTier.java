@@ -233,12 +233,12 @@ public class DataTier {
 
         @Override
         public Settings getAdditionalIndexSettings(
-                String indexName,
-                String dataStreamName,
-                IndexMode templateIndexMode,
-                Metadata metadata,
-                long resolvedAt,
-                Settings allSettings
+            String indexName,
+            String dataStreamName,
+            IndexMode templateIndexMode,
+            Metadata metadata,
+            long resolvedAt,
+            Settings allSettings
         ) {
             Set<String> settings = allSettings.keySet();
             if (settings.contains(TIER_PREFERENCE)) {

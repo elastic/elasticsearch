@@ -125,7 +125,7 @@ public class ClientYamlTestClient implements Closeable {
         Map<String, String> queryStringParams = new HashMap<>();
 
         for (Map.Entry<String, String> entry : params.entrySet()) {
-            if (path.getParts().contains(entry.getKey())) {
+            if (path.parts().contains(entry.getKey())) {
                 pathParts.put(entry.getKey(), entry.getValue());
             } else if (restApi.getParams().containsKey(entry.getKey())
                 || restSpec.isGlobalParameter(entry.getKey())
@@ -146,13 +146,11 @@ public class ClientYamlTestClient implements Closeable {
         }
 
         Set<String> partNames = pathParts.keySet();
-        if (path.getParts().size() != partNames.size() || path.getParts().containsAll(partNames) == false) {
-            throw new IllegalStateException(
-                "provided path parts don't match the best matching path: " + path.getParts() + " - " + partNames
-            );
+        if (path.parts().size() != partNames.size() || path.parts().containsAll(partNames) == false) {
+            throw new IllegalStateException("provided path parts don't match the best matching path: " + path.parts() + " - " + partNames);
         }
 
-        String finalPath = path.getPath();
+        String finalPath = path.path();
         for (Entry<String, String> pathPart : pathParts.entrySet()) {
             try {
                 // Encode rules for path and query string parameters are different. We use URI to encode the path. We need to encode each
@@ -167,7 +165,7 @@ public class ClientYamlTestClient implements Closeable {
             }
         }
 
-        List<String> supportedMethods = Arrays.asList(path.getMethods());
+        List<String> supportedMethods = Arrays.asList(path.methods());
         String requestMethod;
         if (entity != null) {
             if (false == restApi.isBodySupported()) {

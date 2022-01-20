@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetB
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
-import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
@@ -43,6 +42,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleKey;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -193,25 +193,8 @@ public class CompositeRolesStore {
 
         assert false == User.isInternal(subject.getUser()) : "Internal user should not pass here";
 
-        final List<RoleReference> roleReferences = subject.getRoleReferences(anonymousUser);
-        // TODO: Two levels of nesting can be relaxed in future
-        assert roleReferences.size() <= 2 : "only support up to one level of limiting";
-        assert false == roleReferences.isEmpty() : "role references cannot be empty";
-
-        buildRoleFromRoleReference(roleReferences.get(0), ActionListener.wrap(role -> {
-            if (roleReferences.size() == 1) {
-                roleActionListener.onResponse(role);
-            } else {
-                buildRoleFromRoleReference(
-                    roleReferences.get(1),
-                    ActionListener.wrap(
-                        limitedByRole -> roleActionListener.onResponse(LimitedRole.createLimitedRole(role, limitedByRole)),
-                        roleActionListener::onFailure
-                    )
-                );
-            }
-
-        }, roleActionListener::onFailure));
+        final RoleReferenceIntersection roleReferenceIntersection = subject.getRoleReferenceIntersection(anonymousUser);
+        roleReferenceIntersection.buildRole(this::buildRoleFromRoleReference, roleActionListener);
     }
 
     // Accessible by tests

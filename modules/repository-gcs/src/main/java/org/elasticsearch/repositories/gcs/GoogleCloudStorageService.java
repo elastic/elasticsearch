@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.Proxy;
 import java.net.URI;
 import java.net.URL;
 import java.security.KeyStore;
@@ -140,6 +141,11 @@ public class GoogleCloudStorageService {
                 SecurityUtils.loadKeyStore(certTrustStore, keyStoreStream, "notasecret");
             }
             builder.trustCertificates(certTrustStore);
+            Proxy proxy = gcsClientSettings.getProxy();
+            if (proxy != null) {
+                builder.setProxy(proxy);
+                notifyProxyIsSet(proxy);
+            }
             return builder.build();
         });
 
@@ -272,4 +278,7 @@ public class GoogleCloudStorageService {
         }
         return Math.toIntExact(timeout.getMillis());
     }
+
+    // used for unit testing
+    void notifyProxyIsSet(Proxy proxy) {}
 }

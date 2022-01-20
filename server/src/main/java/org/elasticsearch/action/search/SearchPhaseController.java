@@ -25,6 +25,7 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -456,7 +457,7 @@ public final class SearchPhaseController {
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         final Map<String, List<Suggestion<?>>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
         final Map<String, SearchProfileQueryPhaseResult> profileShardResults = hasProfileResults
-            ? new HashMap<>(queryResults.size())
+            ? Maps.newMapWithExpectedSize(queryResults.size())
             : Collections.emptyMap();
         int from = 0;
         int size = 0;

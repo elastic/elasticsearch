@@ -615,15 +615,46 @@ public final class Settings implements ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         Settings settings = SettingsFilter.filterSettings(params, this);
         if (params.paramAsBoolean("flat_settings", false) == false) {
-            for (Map.Entry<String, Object> entry : settings.getAsStructuredMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
+            toXContentFlat(builder, settings);
         } else {
-            for (Map.Entry<String, Object> entry : settings.settings.entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
+            toXContent(builder, settings);
         }
         return builder;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void toXContent(XContentBuilder builder, Settings settings) throws IOException {
+        for (Map.Entry<String, Object> entry : settings.settings.entrySet()) {
+            final Object value = entry.getValue();
+            final String key = entry.getKey();
+            if (value instanceof String) {
+                // most setting values are string
+                builder.field(key, (String) value);
+            } else if (value instanceof List) {
+                // all setting lists are lists of String so we can save the expensive type detection in the builder
+                builder.stringListField(key, (List<String>) value);
+            } else {
+                // this should be rare, let the builder figure out the type
+                builder.field(key, value);
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void toXContentFlat(XContentBuilder builder, Settings settings) throws IOException {
+        for (Map.Entry<String, Object> entry : settings.getAsStructuredMap().entrySet()) {
+            final Object value = entry.getValue();
+            final String key = entry.getKey();
+            if (value instanceof String) {
+                builder.field(key, (String) value);
+            } else if (value instanceof Map) {
+                // lots of maps in flattened settings so far cheaper to check here then to have the XContent builder figure out the type
+                builder.field(key).map((Map<String, ?>) value);
+            } else {
+                // this should be rare, let the builder figure out the type
+                builder.field(key, value);
+            }
+        }
     }
 
     /**

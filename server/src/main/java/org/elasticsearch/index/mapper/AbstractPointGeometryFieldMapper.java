@@ -15,6 +15,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -25,9 +26,10 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
     public static <T> Parameter<T> nullValueParam(
         Function<FieldMapper, T> initializer,
         TriFunction<String, MappingParserContext, Object, T> parser,
-        Supplier<T> def
+        Supplier<T> def,
+        Serializer<T> serializer
     ) {
-        return new Parameter<T>("null_value", false, def, parser, initializer);
+        return new Parameter<T>("null_value", false, def, parser, initializer, serializer, Objects::toString);
     }
 
     protected final T nullValue;

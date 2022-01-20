@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -158,7 +159,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                         entry.getFailure(),
                         randomBoolean()
                     ),
-                    null
+                    createTestListener()
                 )
             );
         }
@@ -195,7 +196,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         {
             FailedShardUpdateTask failShardOnly = new FailedShardUpdateTask(
                 new FailedShardEntry(shardRoutingTable.shardId(), randomFrom(oldInSync), primaryTerm, "dummy", null, false),
-                null
+                createTestListener()
             );
             ClusterState appliedState = executor.execute(clusterState, List.of(failShardOnly)).resultingState;
             Set<String> newInSync = appliedState.metadata().index(INDEX).inSyncAllocationIds(0);
@@ -205,7 +206,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             final String failedAllocationId = randomFrom(oldInSync);
             FailedShardUpdateTask failAndMarkAsStale = new FailedShardUpdateTask(
                 new FailedShardEntry(shardRoutingTable.shardId(), failedAllocationId, primaryTerm, "dummy", null, true),
-                null
+                createTestListener()
             );
             ClusterState appliedState = executor.execute(clusterState, List.of(failAndMarkAsStale)).resultingState;
             Set<String> newInSync = appliedState.metadata().index(INDEX).inSyncAllocationIds(0);
@@ -266,7 +267,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                         entry.getFailure(),
                         randomBoolean()
                     ),
-                    null
+                    createTestListener()
                 )
             );
         }
@@ -283,7 +284,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                         new CorruptIndexException("simulated", nonExistentIndexUUID),
                         randomBoolean()
                     ),
-                    null
+                    createTestListener()
                 )
             )
         );
@@ -376,9 +377,13 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                         new CorruptIndexException("simulated", indexUUID),
                         randomBoolean()
                     ),
-                    null
+                    createTestListener()
                 )
             )
             .collect(Collectors.toList());
+    }
+
+    private static <T> ActionListener<T> createTestListener() {
+        return ActionListener.wrap(() -> { throw new AssertionError("task should not complete"); });
     }
 }

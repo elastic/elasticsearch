@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -173,7 +174,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
                         null,
                         true
                     ),
-                    null
+                    createTestListener()
                 )
             )
         ).resultingState;
@@ -201,13 +202,13 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         failureEntries.add(
             new FailedShardUpdateTask(
                 new FailedShardEntry(shardRoutingTable.shardId(), primaryShard.allocationId().getId(), 0L, "dummy", null, true),
-                null
+                createTestListener()
             )
         );
         failureEntries.add(
             new FailedShardUpdateTask(
                 new FailedShardEntry(shardRoutingTable.shardId(), replicaShard.allocationId().getId(), primaryTerm, "dummy", null, true),
-                null
+                createTestListener()
             )
         );
         Collections.shuffle(failureEntries, random());
@@ -358,7 +359,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             List.of(
                 new FailedShardUpdateTask(
                     new FailedShardEntry(shardRoutingTable.shardId(), primaryShard.allocationId().getId(), 0L, "dummy", null, true),
-                    null
+                    createTestListener()
                 )
             )
         ).resultingState;
@@ -400,5 +401,9 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(2));
         return clusterState;
+    }
+
+    private static <T> ActionListener<T> createTestListener() {
+        return ActionListener.wrap(() -> { throw new AssertionError("task should not complete"); });
     }
 }

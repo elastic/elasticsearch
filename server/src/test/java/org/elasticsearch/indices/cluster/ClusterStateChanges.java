@@ -403,7 +403,7 @@ public class ClusterStateChanges {
                         failedShard.getFailure(),
                         failedShard.markAsStale()
                     ),
-                    null
+                    ActionListener.wrap(() -> { throw new AssertionError("task should not complete"); })
                 )
             )
             .collect(Collectors.toList());

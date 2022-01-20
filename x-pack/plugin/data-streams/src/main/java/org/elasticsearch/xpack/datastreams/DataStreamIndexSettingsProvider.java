@@ -45,7 +45,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             }
             if (indexMode != null) {
                 Settings.Builder builder = Settings.builder();
-                builder.put(IndexSettings.MODE.getKey(), indexMode.name().toLowerCase(Locale.ROOT));
+                builder.put(IndexSettings.MODE.getKey(), indexMode);
 
                 if (indexMode == IndexMode.TIME_SERIES) {
                     TimeValue lookAheadTime = allSettings.getAsTime(
@@ -63,7 +63,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                                     Locale.ROOT,
                                     "backing index [%s] in tsdb mode doesn't have the [%s] index setting",
                                     currentLatestBackingIndex.getIndex().getName(),
-                                    IndexSettings.TIME_SERIES_START_TIME.getKey()
+                                    IndexSettings.TIME_SERIES_END_TIME.getKey()
                                 )
                             );
                         }

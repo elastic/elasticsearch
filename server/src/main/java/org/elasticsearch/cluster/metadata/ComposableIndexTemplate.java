@@ -313,7 +313,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             "data_stream_template",
             false,
             args -> {
-                IndexMode indexMode = args[2] != null ? IndexMode.valueOf(((String) args[2]).toUpperCase(Locale.ROOT)) : null;
+                IndexMode indexMode = args[2] != null ? IndexMode.fromString((String) args[2]) : null;
                 return new DataStreamTemplate(args[0] != null && (boolean) args[0], args[1] != null && (boolean) args[1], indexMode);
             }
         );
@@ -382,6 +382,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             return allowCustomRouting;
         }
 
+        @Nullable
         public IndexMode getIndexMode() {
             return indexMode;
         }

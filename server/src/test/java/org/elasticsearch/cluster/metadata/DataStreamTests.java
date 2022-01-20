@@ -14,6 +14,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -555,13 +556,22 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
                     List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
                 )
             );
+            var formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
             assertThat(
                 e.getMessage(),
                 equalTo(
                     "backing index ["
                         + DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())
+                        + "] with range ["
+                        + formatter.format(start1)
+                        + " TO "
+                        + formatter.format(end1)
                         + "] is overlapping with backing index ["
                         + DataStream.getDefaultBackingIndexName(dataStreamName, 2, start2.toEpochMilli())
+                        + "] with range ["
+                        + formatter.format(start2)
+                        + " TO "
+                        + formatter.format(end2)
                         + "]"
                 )
             );

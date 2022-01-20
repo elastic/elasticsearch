@@ -24,6 +24,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -182,8 +183,15 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return null;
     }
 
+    /**
+     * Validates this data stream. If this is a time serie data stream then this method validates that temporal range
+     * of backing indices (defined by index.time_series.start_time and index.time_series.end_time) do not overlap with each other.
+     *
+     * @param imSupplier Function that supplies {@link IndexMetadata} instances based on the provided index name
+     */
     public void validate(Function<String, IndexMetadata> imSupplier) {
         if (indexMode == IndexMode.TIME_SERIES) {
+            // Get a sorted overview of each backing index with there start and end time range:
             List<Tuple<String, Tuple<Instant, Instant>>> startAndEndTimes = indices.stream()
                 .map(index -> imSupplier.apply(index.getName()))
                 .map(im -> {
@@ -192,18 +200,30 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                     assert end.isAfter(start); // This is also validated by TIME_SERIES_END_TIME setting.
                     return new Tuple<>(im.getIndex().getName(), new Tuple<>(start, end));
                 })
-                .sorted(Comparator.comparing(entry -> entry.v2().v1()))
+                .sorted(Comparator.comparing(entry -> entry.v2().v1())) // Sort by start time
                 .collect(Collectors.toList());
 
             Tuple<String, Tuple<Instant, Instant>> previous = null;
-            for (Tuple<String, Tuple<Instant, Instant>> startAndEndTime : startAndEndTimes) {
+            for (Tuple<String, Tuple<Instant, Instant>> current : startAndEndTimes) {
                 if (previous == null) {
-                    previous = startAndEndTime;
+                    previous = current;
                 } else {
-                    // previous end time should be on or before current start time
-                    if (previous.v2().v2().compareTo(startAndEndTime.v2().v1()) > 0) {
+                    // The end_time of previous backing index should be equal or less than start_time of current backing index.
+                    // If previous.end_time > current.start_time then we should fail here:
+                    if (previous.v2().v2().compareTo(current.v2().v1()) > 0) {
+                        var formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+                        String range1 = formatter.format(previous.v2().v1()) + " TO " + formatter.format(previous.v2().v2());
+                        String range2 = formatter.format(current.v2().v1()) + " TO " + formatter.format(current.v2().v2());
                         throw new IllegalArgumentException(
-                            "backing index [" + previous.v1() + "] is overlapping with backing index [" + startAndEndTime.v1() + "]"
+                            "backing index ["
+                                + previous.v1()
+                                + "] with range ["
+                                + range1
+                                + "] is overlapping with backing index ["
+                                + current.v1()
+                                + "] with range ["
+                                + range2
+                                + "]"
                         );
                     }
                 }
@@ -238,6 +258,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return allowCustomRouting;
     }
 
+    @Nullable
     public IndexMode getIndexMode() {
         return indexMode;
     }
@@ -584,7 +605,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             args[6] != null && (boolean) args[6],
             args[7] != null && (boolean) args[7],
             args[8] != null && (boolean) args[8],
-            args[9] != null ? IndexMode.valueOf(((String) args[9]).toUpperCase(Locale.ROOT)) : null
+            args[9] != null ? IndexMode.fromString((String) args[9]) : null
         )
     );
 

@@ -298,7 +298,7 @@ public class MetadataRolloverService {
             systemDataStreamDescriptor,
             now
         );
-        createIndexClusterStateRequest.setMatchingTemplateV2(templateV2);
+        createIndexClusterStateRequest.setMatchingTemplate(templateV2);
         ClusterState newState = createIndexService.applyCreateIndexRequest(
             currentState,
             createIndexClusterStateRequest,

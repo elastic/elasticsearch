@@ -23,9 +23,11 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
@@ -38,7 +40,7 @@ import static java.util.stream.Collectors.toSet;
  * to be set or not set and by enabling extra fields in the mapping.
  */
 public enum IndexMode {
-    STANDARD {
+    STANDARD("standard") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
@@ -76,7 +78,7 @@ public enum IndexMode {
             return null;
         }
     },
-    TIME_SERIES {
+    TIME_SERIES("time_series") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             if (settings.get(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING) != Integer.valueOf(1)) {
@@ -180,6 +182,16 @@ public enum IndexMode {
         ).collect(toSet())
     );
 
+    private final String name;
+
+    IndexMode(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+
     abstract void validateWithOtherSettings(Map<Setting<?>, Object> settings);
 
     /**
@@ -209,4 +221,23 @@ public enum IndexMode {
      * field mappers for the index.
      */
     public abstract MetadataFieldMapper buildTimeSeriesIdFieldMapper();
+
+    public static IndexMode fromString(String value) {
+        return switch (value) {
+            case "standard" -> IndexMode.STANDARD;
+            case "time_series" -> IndexMode.TIME_SERIES;
+            default -> throw new IllegalArgumentException(
+                "["
+                    + value
+                    + "] is an invalid index mode, valid modes are: ["
+                    + Arrays.stream(IndexMode.values()).map(IndexMode::toString).collect(Collectors.joining())
+                    + "]"
+            );
+        };
+    }
+
+    @Override
+    public String toString() {
+        return getName();
+    }
 }

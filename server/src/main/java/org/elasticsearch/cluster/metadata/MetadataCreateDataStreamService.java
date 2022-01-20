@@ -216,7 +216,7 @@ public class MetadataCreateDataStreamService {
                 .systemDataStreamDescriptor(systemDataStreamDescriptor)
                 .nameResolvedInstant(request.startTime)
                 .performReroute(request.performReroute())
-                .setMatchingTemplateV2(template);
+                .setMatchingTemplate(template);
 
             if (isSystem) {
                 createIndexRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);

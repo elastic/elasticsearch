@@ -49,7 +49,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private boolean performReroute = true;
 
-    private ComposableIndexTemplate matchingTemplateV2;
+    private ComposableIndexTemplate matchingTemplate;
 
     public CreateIndexClusterStateUpdateRequest(String cause, String index, String providedName) {
         this.cause = cause;
@@ -189,12 +189,12 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
-    public ComposableIndexTemplate matchingTemplateV2() {
-        return matchingTemplateV2;
+    public ComposableIndexTemplate matchingTemplate() {
+        return matchingTemplate;
     }
 
-    public CreateIndexClusterStateUpdateRequest setMatchingTemplateV2(ComposableIndexTemplate matchingTemplateV2) {
-        this.matchingTemplateV2 = matchingTemplateV2;
+    public CreateIndexClusterStateUpdateRequest setMatchingTemplate(ComposableIndexTemplate matchingTemplate) {
+        this.matchingTemplate = matchingTemplate;
         return this;
     }
 

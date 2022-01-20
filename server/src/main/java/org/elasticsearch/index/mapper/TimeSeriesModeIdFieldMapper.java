@@ -111,6 +111,21 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
     @Override
     public void postParse(DocumentParserContext context) throws IOException {
         int routingHash = 0;
+        /*
+         * We use a 64 bit hash for non-routing fields because it is sort of
+         * our uniqueness of last resort. The routing hash and timestamp
+         * help with uniqueness, but we can't rely on them.
+         *
+         * It's entirely possible for the routing hash to be related to the
+         * non routing hash. Like, say, the routing hash is a data center
+         * and the non-routing hash is an ip of a node in the data center. In
+         * that case the routing hash isn't adding any uniqueness. So all it
+         * takes is a collision on the hash of the ip and the timestamp to
+         * cause trouble.
+         *
+         * We use XXHash64 here because it has a convenient interface and
+         * seems like a fine hash.
+         */
         StreamingXXHash64 nonRoutingHash = null;
         for (Map.Entry<BytesRef, DimensionInfo> entry : context.doc().getDimensions().entrySet()) {
             BytesReference bytes = entry.getValue().tsidBytes();
@@ -181,7 +196,7 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
             hash.update(r.bytes, r.offset, r.length);
         }
     }
-    
+
     public static int hash(BytesRef value) {
         return StringHelper.murmurhash3_x86_32(value, 0);
     }

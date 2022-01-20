@@ -46,7 +46,7 @@ final class ElasticServiceAccounts {
                     // - "monitor" privilege to be able to query index stats for the global checkpoint
                     // - "read" privilege to search the documents
                     .indices("traces-apm.sampled-*")
-                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")
+                    .privileges("read", "monitor", "maintenance")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-*")

@@ -85,6 +85,10 @@ public enum IndexMode {
             settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
             settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
             settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
+
+            if (IndexMetadata.INDEX_ROUTING_PATH.get(settings).isEmpty()) {
+                throw new IllegalArgumentException(tsdbMode() + " " + IndexMetadata.INDEX_ROUTING_PATH.getKey() + " can not be empty");
+            }
         }
 
         private void settingRequiresTimeSeries(Settings settings, Setting<?> setting) {

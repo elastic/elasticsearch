@@ -21,6 +21,7 @@ import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Map;
 
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
@@ -73,6 +74,13 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] requires [index.routing_path]"));
     }
 
+    public void testWithEmptyRoutingPath() {
+        Settings s = getSettings("");
+        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        assertThat(e.getMessage(), equalTo("[index.mode=time_series] index.routing_path can not be empty"));
+    }
+
     public void testWithoutStartTime() {
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
@@ -96,12 +104,12 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), Matchers.containsString("[index.mode=time_series] requires [index.time_series.end_time]"));
     }
 
-    public void testTimeSeriesTimeSetDefaultValue() {
+    public void testSetDefaultTimeRangeValue() {
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "")
-            .put(TIME_SERIES_START_TIME.getKey(), "1970-01-01T00:00:00Z")
-            .put(TIME_SERIES_END_TIME.getKey(), "9999-12-31T23:59:59.999Z")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .put(TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(0).toString())
+            .put(TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999).toString())
             .build();
         IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", settings);
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);

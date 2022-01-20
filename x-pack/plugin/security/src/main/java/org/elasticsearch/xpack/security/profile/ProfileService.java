@@ -22,6 +22,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
@@ -42,6 +43,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -125,6 +127,36 @@ public class ProfileService {
 
             }
         }, listener::onFailure));
+    }
+
+    public void updateProfileData(UpdateProfileDataRequest request, ActionListener<AcknowledgedResponse> listener) {
+        final XContentBuilder builder;
+        try {
+            builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            {
+                builder.field("user_profile");
+                builder.startObject();
+                {
+                    if (false == request.getAccess().isEmpty()) {
+                        builder.field("access", request.getAccess());
+                    }
+                    if (false == request.getData().isEmpty()) {
+                        builder.field("application_data", request.getData());
+                    }
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        doUpdate(
+            buildUpdateRequest(request.getUid(), builder, request.getRefreshPolicy(), request.getIfPrimaryTerm(), request.getIfSeqNo()),
+            listener.map(updateResponse -> AcknowledgedResponse.TRUE)
+        );
     }
 
     private void getVersionedDocument(String uid, ActionListener<VersionedDocument> listener) {

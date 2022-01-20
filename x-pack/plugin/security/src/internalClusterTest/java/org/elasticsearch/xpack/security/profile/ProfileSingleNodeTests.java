@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
@@ -23,12 +24,15 @@ import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileRequest;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -218,6 +222,65 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(profile5.access(), equalTo(Map.of("my_app", Map.of("tag", "prod"))));
         // Re-activate should not change application data
         assertThat(getProfile(profile5.uid(), Set.of("my_app")).applicationData(), equalTo(Map.of("my_app", Map.of("theme", "default"))));
+    }
+
+    public void testUpdateProfileData() {
+        final Profile profile1 = doActivateProfile(RAC_USER_NAME, TEST_PASSWORD_SECURE_STRING);
+
+        final UpdateProfileDataRequest updateProfileDataRequest1 = new UpdateProfileDataRequest(
+            profile1.uid(),
+            Map.of("app1", List.of("tab1", "tab2")),
+            Map.of("app1", Map.of("name", "app1", "type", "app")),
+            -1,
+            -1,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL
+        );
+        client().execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest1).actionGet();
+
+        final Profile profile2 = getProfile(profile1.uid(), Set.of("app1", "app2"));
+
+        assertThat(profile2.uid(), equalTo(profile1.uid()));
+        assertThat(profile2.access(), equalTo(Map.of("app1", List.of("tab1", "tab2"))));
+        assertThat(profile2.applicationData(), equalTo(Map.of("app1", Map.of("name", "app1", "type", "app"))));
+
+        // Update again should be incremental
+        final UpdateProfileDataRequest updateProfileDataRequest2 = new UpdateProfileDataRequest(
+            profile1.uid(),
+            null,
+            Map.of("app1", Map.of("name", "app1_take2", "active", false), "app2", Map.of("name", "app2")),
+            -1,
+            -1,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL
+        );
+        client().execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest2).actionGet();
+
+        final Profile profile3 = getProfile(profile1.uid(), Set.of("app1", "app2"));
+        assertThat(profile3.uid(), equalTo(profile1.uid()));
+        assertThat(profile3.access(), equalTo(profile2.access()));
+        assertThat(
+            profile3.applicationData(),
+            equalTo(Map.of("app1", Map.of("name", "app1_take2", "type", "app", "active", false), "app2", Map.of("name", "app2")))
+        );
+
+        // Activate profile again should not affect the data section
+        doActivateProfile(RAC_USER_NAME, TEST_PASSWORD_SECURE_STRING);
+        final Profile profile4 = getProfile(profile1.uid(), Set.of("app1", "app2"));
+        assertThat(profile4.access(), equalTo(profile3.access()));
+        assertThat(profile4.applicationData(), equalTo(profile3.applicationData()));
+
+        // Update non-existent profile should throw error
+        final UpdateProfileDataRequest updateProfileDataRequest3 = new UpdateProfileDataRequest(
+            "not-" + profile1.uid(),
+            null,
+            Map.of("foo", "bar"),
+            -1,
+            -1,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL
+        );
+        expectThrows(
+            DocumentMissingException.class,
+            () -> client().execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest3).actionGet()
+        );
     }
 
     private Profile doActivateProfile(String username, SecureString password) {

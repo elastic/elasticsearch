@@ -171,7 +171,7 @@ The epoch time stamp of the last inference call for the model on this node.
 `model_threads`:::
 (integer)
 The number of threads used when sending inference requests to the model.
-This number may be lower than the value of the `model_threads` setting
+This value is limited by the number of hardware threads on the node; 
 in the <<start-trained-model-deployment>> API if the requested value
 is greater than the number of hardware threads on the machine.
 

@@ -140,7 +140,10 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         final List<TestIpDataHolder> ipAddresses = Collections.emptyList();
 
         // WHEN
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {}, ipPrefix -> {
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+
+        }, agg -> {
+            final InternalIpPrefix ipPrefix = (InternalIpPrefix) agg;
             final Set<String> expectedSubnets = ipAddresses.stream()
                 .map(TestIpDataHolder::getSubnetAsString)
                 .collect(Collectors.toUnmodifiableSet());
@@ -185,13 +188,14 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         );
 
         // WHEN
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             for (TestIpDataHolder ipDataHolder : ipAddresses) {
                 iw.addDocument(
                     singleton(new SortedDocValuesField(field, new BytesRef(InetAddressPoint.encode(ipDataHolder.getIpAddress()))))
                 );
             }
-        }, ipPrefix -> {
+        }, agg -> {
+            final InternalIpPrefix ipPrefix = (InternalIpPrefix) agg;
             final Set<String> expectedSubnets = ipAddresses.stream()
                 .map(TestIpDataHolder::getSubnetAsString)
                 .collect(Collectors.toUnmodifiableSet());
@@ -234,13 +238,14 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         );
 
         // WHEN
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             for (TestIpDataHolder ipDataHolder : ipAddresses) {
                 iw.addDocument(
                     singleton(new SortedDocValuesField(field, new BytesRef(InetAddressPoint.encode(ipDataHolder.getIpAddress()))))
                 );
             }
-        }, ipPrefix -> {
+        }, agg -> {
+            final InternalIpPrefix ipPrefix = (InternalIpPrefix) agg;
             final Set<String> expectedSubnets = ipAddresses.stream()
                 .map(TestIpDataHolder::getSubnetAsString)
                 .collect(Collectors.toUnmodifiableSet());
@@ -284,13 +289,14 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         );
 
         // WHEN
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             for (TestIpDataHolder ipDataHolder : ipAddresses) {
                 iw.addDocument(
                     singleton(new SortedDocValuesField(field, new BytesRef(InetAddressPoint.encode(ipDataHolder.getIpAddress()))))
                 );
             }
-        }, ipPrefix -> {
+        }, agg -> {
+            final InternalIpPrefix ipPrefix = (InternalIpPrefix) agg;
             final Set<String> expectedSubnets = ipAddresses.stream()
                 .map(TestIpDataHolder::getSubnetAsString)
                 .collect(Collectors.toUnmodifiableSet());
@@ -335,13 +341,14 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         );
 
         // WHEN
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             for (TestIpDataHolder ipDataHolder : ipAddresses) {
                 iw.addDocument(
                     singleton(new SortedDocValuesField(field, new BytesRef(InetAddressPoint.encode(ipDataHolder.getIpAddress()))))
                 );
             }
-        }, ipPrefix -> {
+        }, agg -> {
+            final InternalIpPrefix ipPrefix = (InternalIpPrefix) agg;
             final Set<String> expectedSubnets = ipAddresses.stream()
                 .map(TestIpDataHolder::getSubnetAsString)
                 .collect(Collectors.toUnmodifiableSet());
@@ -384,13 +391,14 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         );
 
         // WHEN
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             for (TestIpDataHolder ipDataHolder : ipAddresses) {
                 iw.addDocument(
                     singleton(new SortedDocValuesField(field, new BytesRef(InetAddressPoint.encode(ipDataHolder.getIpAddress()))))
                 );
             }
-        }, ipPrefix -> {
+        }, agg -> {
+            final InternalIpPrefix ipPrefix = (InternalIpPrefix) agg;
             final Set<String> expectedSubnets = ipAddresses.stream()
                 .map(TestIpDataHolder::getSubnetAsString)
                 .collect(Collectors.toUnmodifiableSet());
@@ -436,7 +444,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         final String ipv6Value = "2001:db8:a4f8:112a:6001:0:12:7f2a";
 
         // WHEN
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             for (TestIpDataHolder ipDataHolder : ipAddresses) {
                 iw.addDocument(
                     List.of(
@@ -445,7 +453,8 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                     )
                 );
             }
-        }, ipPrefix -> {
+        }, agg -> {
+            final InternalIpPrefix ipPrefix = (InternalIpPrefix) agg;
             final Set<String> expectedSubnets = ipAddresses.stream()
                 .map(TestIpDataHolder::getSubnetAsString)
                 .collect(Collectors.toUnmodifiableSet());
@@ -490,7 +499,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         final String ipv4Value = "192.168.10.20";
 
         // WHEN
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             for (TestIpDataHolder ipDataHolder : ipAddresses) {
                 iw.addDocument(
                     List.of(
@@ -499,7 +508,8 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                     )
                 );
             }
-        }, ipPrefix -> {
+        }, agg -> {
+            final InternalIpPrefix ipPrefix = (InternalIpPrefix) agg;
             final Set<String> expectedSubnets = ipAddresses.stream()
                 .map(TestIpDataHolder::getSubnetAsString)
                 .collect(Collectors.toUnmodifiableSet());
@@ -804,13 +814,14 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         );
 
         // WHEN
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             for (TestIpDataHolder ipDataHolder : ipAddresses) {
                 iw.addDocument(
                     singleton(new SortedDocValuesField(field, new BytesRef(InetAddressPoint.encode(ipDataHolder.getIpAddress()))))
                 );
             }
-        }, ipPrefix -> {
+        }, agg -> {
+            final InternalIpPrefix ipPrefix = (InternalIpPrefix) agg;
             final Set<String> expectedSubnets = ipAddresses.stream()
                 .map(TestIpDataHolder::getSubnetAsString)
                 .map(appendPrefixLength(prefixLength))
@@ -855,13 +866,14 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         );
 
         // WHEN
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             for (TestIpDataHolder ipDataHolder : ipAddresses) {
                 iw.addDocument(
                     singleton(new SortedDocValuesField(field, new BytesRef(InetAddressPoint.encode(ipDataHolder.getIpAddress()))))
                 );
             }
-        }, ipPrefix -> {
+        }, agg -> {
+            final InternalIpPrefix ipPrefix = (InternalIpPrefix) agg;
             final Set<String> expectedSubnets = ipAddresses.stream()
                 .map(TestIpDataHolder::getSubnetAsString)
                 .map(appendPrefixLength(prefixLength))
@@ -907,13 +919,14 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         );
 
         // WHEN
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             for (TestIpDataHolder ipDataHolder : ipAddresses) {
                 iw.addDocument(
                     singleton(new SortedDocValuesField(field, new BytesRef(InetAddressPoint.encode(ipDataHolder.getIpAddress()))))
                 );
             }
-        }, ipPrefix -> {
+        }, agg -> {
+            final InternalIpPrefix ipPrefix = (InternalIpPrefix) agg;
             final Set<String> expectedSubnets = Set.of("192.168.0.0");
             final Set<String> ipAddressesAsString = ipPrefix.getBuckets()
                 .stream()
@@ -961,7 +974,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         );
 
         // WHEN
-        testAggregation(aggregationBuilder, query, iw -> {
+        testCase(aggregationBuilder, query, iw -> {
             for (TestIpDataHolder ipDataHolder : ipAddresses) {
                 iw.addDocument(
                     List.of(
@@ -970,7 +983,8 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                     )
                 );
             }
-        }, ipPrefix -> {
+        }, agg -> {
+            final InternalIpPrefix ipPrefix = (InternalIpPrefix) agg;
             final Set<String> expectedSubnets = ipAddresses.stream()
                 .map(TestIpDataHolder::getSubnetAsString)
                 .filter(subnet -> subnet.startsWith("192.168."))
@@ -1020,7 +1034,7 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
         );
 
         // WHEN
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             for (TestIpDataHolder ipDataHolder : ipAddresses) {
                 iw.addDocument(
                     List.of(
@@ -1029,7 +1043,8 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
                     )
                 );
             }
-        }, ipPrefix -> {
+        }, agg -> {
+            final InternalIpPrefix ipPrefix = (InternalIpPrefix) agg;
             final Set<String> expectedSubnets = ipAddresses.stream()
                 .map(TestIpDataHolder::getSubnetAsString)
                 .collect(Collectors.toUnmodifiableSet());
@@ -1061,15 +1076,5 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
 
     private long defaultTime() {
         return randomLongBetween(0, Long.MAX_VALUE);
-    }
-
-    private void testAggregation(
-        AggregationBuilder aggregationBuilder,
-        Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<InternalIpPrefix> verify,
-        MappedFieldType... fieldTypes
-    ) throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
     }
 }

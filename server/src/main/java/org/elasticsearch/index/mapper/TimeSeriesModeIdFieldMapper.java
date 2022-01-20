@@ -8,6 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import net.jpountz.xxhash.StreamingXXHash64;
+import net.jpountz.xxhash.XXHashFactory;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -108,13 +111,14 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
     @Override
     public void postParse(DocumentParserContext context) throws IOException {
         int routingHash = 0;
-        int nonRoutingHash = 0;
+        StreamingXXHash64 nonRoutingHash = XXHashFactory.fastestJavaInstance().newStreamingHash64(0);
         for (Map.Entry<BytesRef, DimensionInfo> entry : context.doc().getDimensions().entrySet()) {
-            int thisHash = hash(entry.getKey()) ^ hash(entry.getValue().tsidBytes());
+            BytesReference bytes = entry.getValue().tsidBytes();
             if (entry.getValue().isRoutingDimension()) {
+                int thisHash = hash(entry.getKey()) ^ hash(bytes);
                 routingHash = 31 * routingHash + thisHash;
             } else {
-                nonRoutingHash = 31 * nonRoutingHash + thisHash;
+                hash(nonRoutingHash, bytes);
             }
         }
         assert shardFromSource(context.indexSettings().getIndexMetadata(), context.sourceToParse()) == shardFromRoutingHash(
@@ -130,10 +134,10 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
         }
         long timestamp = timestampFields[0].numericValue().longValue();
 
-        byte[] encoded = new byte[16];
+        byte[] encoded = new byte[20];
         ByteUtils.writeIntLE(routingHash, encoded, 0);
-        ByteUtils.writeIntLE(nonRoutingHash, encoded, 4);
-        ByteUtils.writeLongLE(timestamp, encoded, 8);
+        ByteUtils.writeLongLE(nonRoutingHash.getValue(), encoded, 4);
+        ByteUtils.writeLongLE(timestamp, encoded, 12);
 
         /*
          * It'd be more efficient to use the encoded bytes above but everything else
@@ -155,6 +159,15 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
         return hash(value.toBytesRef());
     }
 
+    public static void hash(StreamingXXHash64 hash, BytesReference bytes) {
+        if (bytes.hasArray()) {
+            hash.update(bytes.array(), bytes.arrayOffset(), bytes.length());
+        } else {
+            BytesRef r = bytes.toBytesRef();
+            hash.update(r.bytes, r.offset, r.length);
+        }
+    }
+    
     public static int hash(BytesRef value) {
         return StringHelper.murmurhash3_x86_32(value, 0);
     }
@@ -170,7 +183,7 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
         } catch (IllegalArgumentException e) {
             throw new ResourceNotFoundException("invalid id [{}]", e, id);
         }
-        if (bytes.length != 16) {
+        if (bytes.length != 20) {
             throw new ResourceNotFoundException("invalid id [{}]: length was [{}]", id, bytes.length);
         }
         return ByteUtils.readIntLE(bytes, 0);

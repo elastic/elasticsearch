@@ -134,13 +134,14 @@ public final class IpPrefixAggregator extends BucketsAggregator {
 
         @Override
         public void collect(int doc, long owningBucketOrd) throws IOException {
+            BytesRef previousSubnet = null;
+            BytesRef subnet;
+            BytesRef ipAddress;
             if (values.advanceExact(doc)) {
                 int valuesCount = values.docValueCount();
 
-                BytesRef previousSubnet = null;
-                BytesRef subnet;
                 for (int i = 0; i < valuesCount; ++i) {
-                    BytesRef ipAddress = values.nextValue();
+                    ipAddress = values.nextValue();
                     subnet = maskIpAddress(ipAddress, ipPrefix.netmask);
                     if (previousSubnet != null && subnet.bytesEquals(previousSubnet)) {
                         continue;

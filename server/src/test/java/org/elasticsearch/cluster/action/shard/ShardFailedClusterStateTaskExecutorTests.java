@@ -155,8 +155,8 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                         entry.getShardId(),
                         entry.getAllocationId(),
                         randomIntBetween(1, (int) primaryTerm - 1),
-                        entry.getMessage(),
-                        entry.getFailure(),
+                        entry.message,
+                        entry.failure,
                         randomBoolean()
                     ),
                     createTestListener()
@@ -171,7 +171,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                         new ShardStateAction.NoLongerPrimaryShardException(
                             task.getEntry().getShardId(),
                             "primary term ["
-                                + task.getEntry().getPrimaryTerm()
+                                + task.getEntry().primaryTerm
                                 + "] did not match current primary term ["
                                 + currentState.metadata()
                                     .index(task.getEntry().getShardId().getIndex())
@@ -259,14 +259,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             FailedShardEntry entry = existingShard.getEntry();
             shardsWithMismatchedAllocationIds.add(
                 new FailedShardUpdateTask(
-                    new FailedShardEntry(
-                        entry.getShardId(),
-                        UUIDs.randomBase64UUID(),
-                        0L,
-                        entry.getMessage(),
-                        entry.getFailure(),
-                        randomBoolean()
-                    ),
+                    new FailedShardEntry(entry.getShardId(), UUIDs.randomBase64UUID(), 0L, entry.message, entry.failure, randomBoolean()),
                     createTestListener()
                 )
             );

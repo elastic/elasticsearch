@@ -557,16 +557,16 @@ public class ShardStateActionTests extends ESTestCase {
             final FailedShardEntry deserialized = new FailedShardEntry(in);
             assertThat(deserialized.getShardId(), equalTo(shardId));
             assertThat(deserialized.getAllocationId(), equalTo(allocationId));
-            assertThat(deserialized.getPrimaryTerm(), equalTo(primaryTerm));
-            assertThat(deserialized.getMessage(), equalTo(message));
+            assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
+            assertThat(deserialized.message, equalTo(message));
             if (failure != null) {
-                assertThat(deserialized.getFailure(), notNullValue());
-                assertThat(deserialized.getFailure().getClass(), equalTo(failure.getClass()));
-                assertThat(deserialized.getFailure().getMessage(), equalTo(failure.getMessage()));
+                assertThat(deserialized.failure, notNullValue());
+                assertThat(deserialized.failure.getClass(), equalTo(failure.getClass()));
+                assertThat(deserialized.failure.getMessage(), equalTo(failure.getMessage()));
             } else {
-                assertThat(deserialized.getFailure(), nullValue());
+                assertThat(deserialized.failure, nullValue());
             }
-            assertThat(deserialized.isMarkAsStale(), equalTo(markAsStale));
+            assertThat(deserialized.markAsStale, equalTo(markAsStale));
             assertEquals(failedShardEntry, deserialized);
         }
     }

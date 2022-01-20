@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.Key;
@@ -249,7 +248,7 @@ public class PemUtilsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(path.toAbsolutePath().toString()));
     }
 
-    public void testParsePKCS8PemString() throws Exception{
+    public void testParsePKCS8PemString() throws Exception {
         Key key = getKeyFromKeystore("EC");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));

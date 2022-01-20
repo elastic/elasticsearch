@@ -390,15 +390,12 @@ public final class NodeEnvironment implements Closeable {
             throw new IllegalStateException(message, e);
         }
 
-        try {
-            checkForIndexCompatibility(logger, legacyNodeLock.getNodePaths());
-        } finally {
-            legacyNodeLock.close();
-        }
-
         // move contents from legacy path to new path
         assert nodeLock.getNodePaths().length == legacyNodeLock.getNodePaths().length;
         try {
+            // first check if we are upgrading from an index compatible version
+            checkForIndexCompatibility(logger, legacyNodeLock.getNodePaths());
+
             final List<CheckedRunnable<IOException>> upgradeActions = new ArrayList<>();
             for (int i = 0; i < legacyNodeLock.getNodePaths().length; i++) {
                 final NodePath legacyNodePath = legacyNodeLock.getNodePaths()[i];

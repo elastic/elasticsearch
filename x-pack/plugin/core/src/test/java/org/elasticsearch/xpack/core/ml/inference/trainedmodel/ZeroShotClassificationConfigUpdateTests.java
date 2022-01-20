@@ -178,6 +178,30 @@ public class ZeroShotClassificationConfigUpdateTests extends InferenceConfigItem
 
     public void testIsNoop() {
         assertTrue(new ZeroShotClassificationConfigUpdate.Builder().build().isNoop(ZeroShotClassificationConfigTests.createRandom()));
+
+        var originalConfig = new ZeroShotClassificationConfig(
+            List.of("contradiction", "neutral", "entailment"),
+            randomBoolean() ? null : VocabularyConfigTests.createRandom(),
+            randomBoolean() ? null : BertTokenizationTests.createRandom(),
+            randomAlphaOfLength(10),
+            randomBoolean(),
+            null,
+            randomBoolean() ? null : randomAlphaOfLength(8)
+        );
+
+        var update = new ZeroShotClassificationConfigUpdate.Builder().setLabels(List.of("glad", "sad", "mad")).build();
+        assertFalse(update.isNoop(originalConfig));
+
+        originalConfig = new ZeroShotClassificationConfig(
+            List.of("contradiction", "neutral", "entailment"),
+            randomBoolean() ? null : VocabularyConfigTests.createRandom(),
+            randomBoolean() ? null : BertTokenizationTests.createRandom(),
+            randomAlphaOfLength(10),
+            randomBoolean(),
+            List.of("glad", "sad", "mad"),
+            randomBoolean() ? null : randomAlphaOfLength(8)
+        );
+        assertTrue(update.isNoop(originalConfig));
     }
 
     public static ZeroShotClassificationConfigUpdate createRandom() {

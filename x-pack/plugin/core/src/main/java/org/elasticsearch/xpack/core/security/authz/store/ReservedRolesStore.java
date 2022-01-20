@@ -711,10 +711,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTS_LEGACY_INDEX).privileges("all").build(),
                 // Used in Security Solution for value lists.
                 // Kibana user creates these indices; reads / writes to them.
-                RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.LISTS_INDEX).privileges("all").build(),
-                // Used in Security Solution for value lists.
-                // Kibana user creates these indices; reads / writes to them.
-                RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.LISTS_ITEMS_INDEX).privileges("all").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.LISTS_INDEX, ReservedRolesStore.LISTS_ITEMS_INDEX)
+                    .privileges("all")
+                    .build(),
                 // "Alerts as data" internal backing indices used in Security Solution, Observability, etc.
                 // Kibana system user creates these indices; reads / writes to them via the aliases (see below).
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTS_BACKING_INDEX).privileges("all").build(),

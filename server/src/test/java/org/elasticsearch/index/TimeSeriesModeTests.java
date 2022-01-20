@@ -190,14 +190,24 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         final Settings settings = getSettings("foo", "1969-01-01T00:00:00Z", "9999-12-31T23:59:59.999Z");
         IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", settings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
-        assertThat(e.getMessage(), Matchers.containsString("Failed to parse value [1969-01-01T00:00:00Z] for setting [index.time_series.start_time] must be >= 1970-01-01T00:00:00Z"));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                "Failed to parse value [1969-01-01T00:00:00Z] for setting [index.time_series.start_time] must be >= 1970-01-01T00:00:00Z"
+            )
+        );
     }
 
     public void testEndTimeOutOfBound() {
         final Settings settings = getSettings("foo", "1970-01-01T00:00:00Z", "253402300800000");
         IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", settings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
-        assertThat(e.getMessage(), Matchers.containsString("Failed to parse value [+10000-01-01T00:00:00Z] for setting [index.time_series.end_time] must be <= 9999-12-31T23:59:59.999Z"));
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString(
+                "Failed to parse value [+10000-01-01T00:00:00Z] for setting [index.time_series.end_time] must be <= 9999-12-31T23:59:59.999Z"
+            )
+        );
     }
 
     @Override

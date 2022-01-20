@@ -1439,7 +1439,10 @@ public class SettingTests extends ESTestCase {
 
         assertThat(dateSetting.get(Settings.EMPTY).toEpochMilli(), equalTo(300L));
         assertThat(dateSetting.get(Settings.builder().put("date.setting", 200L).build()).toEpochMilli(), equalTo(200L));
-        assertThat(dateSetting.get(Settings.builder().put("date.setting", Instant.ofEpochMilli(200).toString()).build()).toEpochMilli(), equalTo(200L));
+        assertThat(
+            dateSetting.get(Settings.builder().put("date.setting", Instant.ofEpochMilli(200).toString()).build()).toEpochMilli(),
+            equalTo(200L)
+        );
         assertThat(dateSetting.get(Settings.builder().put("date.setting", 100L).build()).toEpochMilli(), equalTo(100L));
         assertThat(dateSetting.get(Settings.builder().put("date.setting", 500L).build()).toEpochMilli(), equalTo(500L));
 

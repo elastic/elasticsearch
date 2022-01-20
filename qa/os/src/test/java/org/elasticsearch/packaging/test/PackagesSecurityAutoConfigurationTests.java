@@ -315,10 +315,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
             assertThat(installation.config("certs"), FileMatcher.file(Directory, "root", "elasticsearch", p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
                 .forEach(
-                    file -> assertThat(
-                        installation.config("certs").resolve(file),
-                        FileMatcher.file(File, "root", "elasticsearch", p660)
-                    )
+                    file -> assertThat(installation.config("certs").resolve(file), FileMatcher.file(File, "root", "elasticsearch", p660))
                 );
         }
     }

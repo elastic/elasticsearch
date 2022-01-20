@@ -413,14 +413,15 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             // read is ok
             final Request searchRequest = new Request("GET", ".security/_search");
             // Configure the warning to be optional due to #82837, it is ok since this test is for something else
-            searchRequest.setOptions(
-                expectVersionSpecificWarnings(
-                    v -> v.compatible(
-                        "this request accesses system indices: [.security-7], but in a future major "
-                            + "version, direct access to system indices will be prevented by default"
-                    )
-                ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
-            );
+            searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+                if (warnings.isEmpty()) {
+                    return false;
+                } else if (warnings.size() == 1) {
+                    return false == warnings.get(0).startsWith("this request accesses system indices: [.security-7]");
+                } else {
+                    return true;
+                }
+            }).addHeader("Authorization", apiKeyAuthHeader));
             assertOK(client().performRequest(searchRequest));
 
             // write must not be allowed

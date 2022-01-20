@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import com.carrotsearch.hppc.BitMixer;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Releasables;
@@ -113,7 +114,7 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
             }
             case 2 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

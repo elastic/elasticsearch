@@ -22,6 +22,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -384,7 +385,7 @@ public class CompletionFieldMapper extends FieldMapper {
         // parse
         XContentParser parser = context.parser();
         Token token = parser.currentToken();
-        Map<String, CompletionInputMetadata> inputMap = new HashMap<>(1);
+        Map<String, CompletionInputMetadata> inputMap = Maps.newMapWithExpectedSize(1);
 
         if (token == Token.VALUE_NULL) { // ignore null values
             return;

@@ -16,12 +16,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.Matchers;
+import org.mockito.Mockito;
 
 import java.util.Map;
 
@@ -41,6 +43,11 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     private static class DummyS3Service extends S3Service {
+
+        DummyS3Service(Environment environment) {
+            super(environment);
+        }
+
         @Override
         public AmazonS3Reference client(RepositoryMetadata repositoryMetadata) {
             return new AmazonS3Reference(new DummyS3Client());
@@ -117,7 +124,7 @@ public class S3RepositoryTests extends ESTestCase {
         return new S3Repository(
             metadata,
             NamedXContentRegistry.EMPTY,
-            new DummyS3Service(),
+            new DummyS3Service(Mockito.mock(Environment.class)),
             BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))

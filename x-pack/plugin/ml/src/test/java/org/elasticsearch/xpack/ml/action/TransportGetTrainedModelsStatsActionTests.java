@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -275,7 +276,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
     }
 
     private static ClusterState buildClusterStateWithModelReferences(String... modelId) throws IOException {
-        Map<String, PipelineConfiguration> configurations = new HashMap<>(modelId.length);
+        Map<String, PipelineConfiguration> configurations = Maps.newMapWithExpectedSize(modelId.length);
         for (String id : modelId) {
             configurations.put("pipeline_with_model_" + id + 0, newConfigurationWithInferenceProcessor(id, 0));
             configurations.put("pipeline_with_model_" + id + 1, newConfigurationWithInferenceProcessor(id, 1));

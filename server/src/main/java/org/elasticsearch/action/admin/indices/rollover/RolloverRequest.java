@@ -46,6 +46,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private static final ParseField MAX_DOCS_CONDITION = new ParseField(MaxDocsCondition.NAME);
     private static final ParseField MAX_SIZE_CONDITION = new ParseField(MaxSizeCondition.NAME);
     private static final ParseField MAX_PRIMARY_SHARD_SIZE_CONDITION = new ParseField(MaxPrimaryShardSizeCondition.NAME);
+    private static final ParseField MIN_AGE_CONDITION = new ParseField(MaxAgeCondition.NAME);
+    private static final ParseField MIN_DOCS_CONDITION = new ParseField(MaxDocsCondition.NAME);
+    private static final ParseField MIN_PRIMARY_SHARD_SIZE_CONDITION = new ParseField(MaxPrimaryShardSizeCondition.NAME);
 
     static {
         CONDITION_PARSER.declareString(
@@ -249,6 +252,39 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      * Adds a size-based condition to check if the size of the largest primary shard is at least <code>size</code>.
      */
     public void addMaxPrimaryShardSizeCondition(ByteSizeValue size) {
+        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(size);
+        if (this.conditions.containsKey(maxPrimaryShardSizeCondition.name)) {
+            throw new IllegalArgumentException(maxPrimaryShardSizeCondition + " condition is already set");
+        }
+        this.conditions.put(maxPrimaryShardSizeCondition.name, maxPrimaryShardSizeCondition);
+    }
+
+    /**
+     * Adds required condition to check if the index is at least <code>age</code> old
+     */
+    public void addMinIndexAgeCondition(TimeValue age) {
+        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(age);
+        if (this.conditions.containsKey(maxAgeCondition.name)) {
+            throw new IllegalArgumentException(maxAgeCondition.name + " condition is already set");
+        }
+        this.conditions.put(maxAgeCondition.name, maxAgeCondition);
+    }
+
+    /**
+     * Adds required condition to check if the index has at least <code>numDocs</code>
+     */
+    public void addMinIndexDocsCondition(long numDocs) {
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(numDocs);
+        if (this.conditions.containsKey(maxDocsCondition.name)) {
+            throw new IllegalArgumentException(maxDocsCondition.name + " condition is already set");
+        }
+        this.conditions.put(maxDocsCondition.name, maxDocsCondition);
+    }
+
+    /**
+     * Adds a size-based required condition to check if the size of the largest primary shard is at least <code>size</code>.
+     */
+    public void addMinPrimaryShardSizeCondition(ByteSizeValue size) {
         MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(size);
         if (this.conditions.containsKey(maxPrimaryShardSizeCondition.name)) {
             throw new IllegalArgumentException(maxPrimaryShardSizeCondition + " condition is already set");

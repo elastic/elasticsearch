@@ -10,33 +10,36 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
- * Condition for index minimum age. Evaluates to <code>true</code>
- * when the index is at least {@link #value} old
+ * Condition for maximum index docs. Evaluates to <code>true</code>
+ * when the index has at least {@link #value} docs
  */
-public class MaxAgeCondition extends Condition<TimeValue> {
-    public static final String NAME = "min_age";
+public class MinDocsCondition extends Condition<Long> {
+    public static final String NAME = "min_docs";
 
-    public MaxAgeCondition(TimeValue value) {
+    public MinDocsCondition(Long value) {
         super(NAME);
         this.value = value;
     }
 
-    public MaxAgeCondition(StreamInput in) throws IOException {
+    public MinDocsCondition(StreamInput in) throws IOException {
         super(NAME);
-        this.value = in.readTimeValue();
+        this.value = in.readLong();
     }
 
     @Override
     public Result evaluate(final Stats stats) {
-        long indexAge = System.currentTimeMillis() - stats.indexCreated;
-        return new Result(this, this.value.getMillis() <= indexAge);
+        return new Result(this, this.value <= stats.numDocs);
+    }
+
+    @Override
+    public boolean isRequired() {
+        return true;
     }
 
     @Override
@@ -46,17 +49,17 @@ public class MaxAgeCondition extends Condition<TimeValue> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeTimeValue(value);
+        out.writeLong(value);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.field(NAME, value.getStringRep());
+        return builder.field(NAME, value);
     }
 
-    public static MaxAgeCondition fromXContent(XContentParser parser) throws IOException {
-        if (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
-            return new MaxAgeCondition(TimeValue.parseTimeValue(parser.text(), NAME));
+    public static MinDocsCondition fromXContent(XContentParser parser) throws IOException {
+        if (parser.nextToken() == XContentParser.Token.VALUE_NUMBER) {
+            return new MinDocsCondition(parser.longValue());
         } else {
             throw new IllegalArgumentException("invalid token: " + parser.currentToken());
         }

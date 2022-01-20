@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,6 +38,9 @@ public class RolloverAction implements LifecycleAction {
     public static final ParseField MAX_PRIMARY_SHARD_SIZE_FIELD = new ParseField("max_primary_shard_size");
     public static final ParseField MAX_DOCS_FIELD = new ParseField("max_docs");
     public static final ParseField MAX_AGE_FIELD = new ParseField("max_age");
+    public static final ParseField MIN_PRIMARY_SHARD_SIZE_FIELD = new ParseField("min_primary_shard_size");
+    public static final ParseField MIN_DOCS_FIELD = new ParseField("min_docs");
+    public static final ParseField MIN_AGE_FIELD = new ParseField("min_age");
     public static final String LIFECYCLE_ROLLOVER_ALIAS = "index.lifecycle.rollover_alias";
     public static final Setting<String> LIFECYCLE_ROLLOVER_ALIAS_SETTING = Setting.simpleString(
         LIFECYCLE_ROLLOVER_ALIAS,
@@ -48,7 +52,8 @@ public class RolloverAction implements LifecycleAction {
 
     private static final ConstructingObjectParser<RolloverAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new RolloverAction((ByteSizeValue) a[0], (ByteSizeValue) a[1], (TimeValue) a[2], (Long) a[3])
+        a -> new RolloverAction((ByteSizeValue) a[0], (ByteSizeValue) a[1], (TimeValue) a[2], (Long) a[3], (ByteSizeValue) a[4],
+            (TimeValue) a[5], (Long) a[6])
     );
 
     static {
@@ -71,12 +76,28 @@ public class RolloverAction implements LifecycleAction {
             ValueType.VALUE
         );
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_DOCS_FIELD);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName()),
+            MIN_PRIMARY_SHARD_SIZE_FIELD,
+            ValueType.VALUE
+        );
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> TimeValue.parseTimeValue(p.text(), MIN_AGE_FIELD.getPreferredName()),
+            MIN_AGE_FIELD,
+            ValueType.VALUE
+        );
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MIN_DOCS_FIELD);
     }
 
     private final ByteSizeValue maxSize;
     private final ByteSizeValue maxPrimaryShardSize;
     private final Long maxDocs;
     private final TimeValue maxAge;
+    private final ByteSizeValue minPrimaryShardSize;
+    private final Long minDocs;
+    private final TimeValue minAge;
 
     public static RolloverAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -86,15 +107,21 @@ public class RolloverAction implements LifecycleAction {
         @Nullable ByteSizeValue maxSize,
         @Nullable ByteSizeValue maxPrimaryShardSize,
         @Nullable TimeValue maxAge,
-        @Nullable Long maxDocs
+        @Nullable Long maxDocs,
+        @Nullable ByteSizeValue minPrimaryShardSize,
+        @Nullable TimeValue minAge,
+        @Nullable Long minDocs
     ) {
         if (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null) {
-            throw new IllegalArgumentException("At least one rollover condition must be set.");
+            throw new IllegalArgumentException("At least one max_* rollover condition must be set.");
         }
         this.maxSize = maxSize;
         this.maxPrimaryShardSize = maxPrimaryShardSize;
         this.maxAge = maxAge;
         this.maxDocs = maxDocs;
+        this.minPrimaryShardSize = minPrimaryShardSize;
+        this.minAge = minAge;
+        this.minDocs = minDocs;
     }
 
     public RolloverAction(StreamInput in) throws IOException {
@@ -110,6 +137,19 @@ public class RolloverAction implements LifecycleAction {
         }
         maxAge = in.readOptionalTimeValue();
         maxDocs = in.readOptionalVLong();
+        if (in.getVersion().after(Version.V_8_1_0)) {
+            if (in.readBoolean()) {
+                minPrimaryShardSize = new ByteSizeValue(in);
+            } else {
+                minPrimaryShardSize = null;
+            }
+            minAge = in.readOptionalTimeValue();
+            minDocs = in.readOptionalVLong();
+        } else {
+            minAge = null;
+            minDocs = null;
+            minPrimaryShardSize = null;
+        }
     }
 
     @Override
@@ -126,6 +166,14 @@ public class RolloverAction implements LifecycleAction {
         }
         out.writeOptionalTimeValue(maxAge);
         out.writeOptionalVLong(maxDocs);
+        if (out.getVersion().after(Version.V_8_1_0)) {
+            out.writeBoolean(minPrimaryShardSize != null);
+            if (minPrimaryShardSize != null) {
+                minPrimaryShardSize.writeTo(out);
+            }
+            out.writeOptionalTimeValue(minAge);
+            out.writeOptionalVLong(minDocs);
+        }
     }
 
     @Override
@@ -149,6 +197,18 @@ public class RolloverAction implements LifecycleAction {
         return maxDocs;
     }
 
+    public ByteSizeValue getMinPrimaryShardSize() {
+        return minPrimaryShardSize;
+    }
+
+    public TimeValue getMinAge() {
+        return minAge;
+    }
+
+    public Long getMinDocs() {
+        return minDocs;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -163,6 +223,15 @@ public class RolloverAction implements LifecycleAction {
         }
         if (maxDocs != null) {
             builder.field(MAX_DOCS_FIELD.getPreferredName(), maxDocs);
+        }
+        if (minPrimaryShardSize != null) {
+            builder.field(MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(), minPrimaryShardSize.getStringRep());
+        }
+        if (minAge != null) {
+            builder.field(MIN_AGE_FIELD.getPreferredName(), minAge.getStringRep());
+        }
+        if (minDocs != null) {
+            builder.field(MIN_DOCS_FIELD.getPreferredName(), minDocs);
         }
         builder.endObject();
         return builder;

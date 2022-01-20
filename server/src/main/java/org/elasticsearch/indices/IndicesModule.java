@@ -13,6 +13,9 @@ import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MinAgeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MinDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MinPrimaryShardSizeCondition;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -90,6 +93,9 @@ public class IndicesModule extends AbstractModule {
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
+            new NamedWriteableRegistry.Entry(Condition.class, MinAgeCondition.NAME, MinAgeCondition::new),
+            new NamedWriteableRegistry.Entry(Condition.class, MinDocsCondition.NAME, MinDocsCondition::new),
+            new NamedWriteableRegistry.Entry(Condition.class, MinPrimaryShardSizeCondition.NAME, MinPrimaryShardSizeCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxAgeCondition.NAME, MaxAgeCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxDocsCondition.NAME, MaxDocsCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxSizeCondition.NAME, MaxSizeCondition::new),
@@ -99,6 +105,21 @@ public class IndicesModule extends AbstractModule {
 
     public static List<NamedXContentRegistry.Entry> getNamedXContents() {
         return Arrays.asList(
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MinAgeCondition.NAME),
+                (p, c) -> MinAgeCondition.fromXContent(p)
+            ),
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MinDocsCondition.NAME),
+                (p, c) -> MinDocsCondition.fromXContent(p)
+            ),
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MinPrimaryShardSizeCondition.NAME),
+                (p, c) -> MinPrimaryShardSizeCondition.fromXContent(p)
+            ),
             new NamedXContentRegistry.Entry(
                 Condition.class,
                 new ParseField(MaxAgeCondition.NAME),

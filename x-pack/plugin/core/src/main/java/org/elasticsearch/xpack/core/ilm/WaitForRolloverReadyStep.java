@@ -38,6 +38,9 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
     private final ByteSizeValue maxPrimaryShardSize;
     private final TimeValue maxAge;
     private final Long maxDocs;
+    private final ByteSizeValue minPrimaryShardSize;
+    private final TimeValue minAge;
+    private final Long minDocs;
 
     public WaitForRolloverReadyStep(
         StepKey key,
@@ -46,13 +49,19 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         ByteSizeValue maxSize,
         ByteSizeValue maxPrimaryShardSize,
         TimeValue maxAge,
-        Long maxDocs
+        Long maxDocs,
+        ByteSizeValue minPrimaryShardSize,
+        TimeValue minAge,
+        Long minDocs
     ) {
         super(key, nextStepKey, client);
         this.maxSize = maxSize;
         this.maxPrimaryShardSize = maxPrimaryShardSize;
         this.maxAge = maxAge;
         this.maxDocs = maxDocs;
+        this.minPrimaryShardSize = minPrimaryShardSize;
+        this.minAge = minAge;
+        this.minDocs = minDocs;
     }
 
     @Override
@@ -191,6 +200,15 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         }
         if (maxDocs != null) {
             rolloverRequest.addMaxIndexDocsCondition(maxDocs);
+        }
+        if (minPrimaryShardSize != null) {
+            rolloverRequest.addMinPrimaryShardSizeCondition(minPrimaryShardSize);
+        }
+        if (minAge != null) {
+            rolloverRequest.addMinIndexAgeCondition(minAge);
+        }
+        if (minDocs != null) {
+            rolloverRequest.addMinIndexDocsCondition(minDocs);
         }
         getClient().admin()
             .indices()

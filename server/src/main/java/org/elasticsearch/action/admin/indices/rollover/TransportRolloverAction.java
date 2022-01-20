@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -160,11 +161,17 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     return;
                 }
 
-                final List<Condition<?>> trialMetConditions = rolloverRequest.getConditions()
+                boolean allRequiredMet = rolloverRequest.getConditions()
                     .values()
                     .stream()
-                    .filter(condition -> trialConditionResults.get(condition.toString()))
-                    .collect(Collectors.toList());
+                    .filter(Condition::isRequired)
+                    .allMatch(c -> trialConditionResults.get(c.toString()));
+
+                boolean anyNonRequiredMet = rolloverRequest.getConditions()
+                    .values()
+                    .stream()
+                    .filter(Predicate.not(Condition::isRequired))
+                    .anyMatch(c -> trialConditionResults.get(c.toString()));
 
                 final RolloverResponse trialRolloverResponse = new RolloverResponse(
                     trialSourceIndexName,
@@ -177,7 +184,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 );
 
                 // Pre-check the conditions to see whether we should submit a new cluster state task
-                if (trialConditionResults.size() == 0 || trialMetConditions.size() > 0) {
+                if (trialConditionResults.size() == 0 || (allRequiredMet && anyNonRequiredMet)) {
                     String source = "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
                     RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, listener);
                     ClusterStateTaskConfig config = ClusterStateTaskConfig.build(Priority.NORMAL, rolloverRequest.masterNodeTimeout());

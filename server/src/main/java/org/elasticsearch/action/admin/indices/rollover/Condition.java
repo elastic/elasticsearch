@@ -67,6 +67,10 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
         return name;
     }
 
+    public boolean isRequired() {
+        return false;
+    }
+
     /**
      * Holder for index stats used to evaluate conditions
      */

@@ -270,9 +270,14 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
         int bytesCount = prefixLength / 8;
         int bitsCount = prefixLength % 8;
         int i = 0;
+        //NOTE: first set whole bytes to 255 (0xFF)
         for (; i < bytesCount; i++) {
             ipAddress[i] = (byte) 0xFF;
         }
+        //NOTE: then set the remaining bits to 1.
+        //Trailing bits are already set to 0 at initialization time.
+        //Example: for prefixLength = 20, we first set 16 bits (2 bytes)
+        //to 0xFF, then set the remaining 4 bits to 1.
         if (bitsCount > 0) {
             int rem = 0;
             for (int j = 0; j < bitsCount; j++) {

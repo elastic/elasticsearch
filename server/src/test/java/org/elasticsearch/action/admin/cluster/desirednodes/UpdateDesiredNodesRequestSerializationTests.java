@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
 import org.elasticsearch.cluster.desirednodes.DesiredNodeSerializationTests;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -27,8 +28,12 @@ public class UpdateDesiredNodesRequestSerializationTests extends AbstractWireSer
 
     @Override
     protected UpdateDesiredNodesRequest createTestInstance() {
+        return randomUpdateDesiredNodesRequest();
+    }
+
+    public static UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest() {
         return new UpdateDesiredNodesRequest(
-            randomAlphaOfLengthBetween(10, 20),
+            UUIDs.randomBase64UUID(),
             randomIntBetween(0, 1000),
             randomList(0, 100, DesiredNodeSerializationTests::randomDesiredNode)
         );

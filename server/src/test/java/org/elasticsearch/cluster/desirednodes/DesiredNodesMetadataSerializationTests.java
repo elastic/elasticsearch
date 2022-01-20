@@ -17,7 +17,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
+
+import static org.elasticsearch.cluster.desirednodes.DesiredNodesSerializationTests.randomDesiredNodes;
 
 public class DesiredNodesMetadataSerializationTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
     @Override
@@ -54,18 +55,17 @@ public class DesiredNodesMetadataSerializationTests extends AbstractDiffableSeri
 
     @Override
     protected Metadata.Custom createTestInstance() {
-        return getRandomDesiredNodesMetadata();
+        return randomDesiredNodesMetadata();
     }
 
-    private DesiredNodesMetadata getRandomDesiredNodesMetadata() {
-        List<DesiredNode> nodes = randomList(0, 10, DesiredNodeSerializationTests::randomDesiredNode);
-        return new DesiredNodesMetadata(new DesiredNodes(randomAlphaOfLength(10), randomIntBetween(1, 10), nodes));
+    public static DesiredNodesMetadata randomDesiredNodesMetadata() {
+        return new DesiredNodesMetadata(randomDesiredNodes());
     }
 
     private DesiredNodesMetadata mutate(DesiredNodesMetadata base) {
         // new historyID
         if (randomBoolean()) {
-            return getRandomDesiredNodesMetadata();
+            return randomDesiredNodesMetadata();
         }
         DesiredNodes currentDesiredNodes = base.getCurrentDesiredNodes();
         return new DesiredNodesMetadata(

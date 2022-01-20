@@ -41,6 +41,8 @@ setup:
                             analyzer: standard
                         rank:
                             type: integer
+                        flattended:
+                            type: flattened
 
 
     - do:
@@ -90,6 +92,8 @@ setup:
               byte: [16, 32, 64, 8, 4]
               double: [3.141592653588, 2.141592653587]
               float: [1.123, 2.234]
+              half_float: [1.123, 2.234]
+              scaled_float: [-3.5, 2.5]
 
 
     - do:
@@ -1305,6 +1309,9 @@ setup:
 
 ---
 "half_float":
+    - skip:
+        features: close_to
+
     - do:
         search:
             rest_total_hits_as_int: true
@@ -1314,7 +1321,7 @@ setup:
                     field:
                         script:
                             source: "doc['half_float'].get(0)"
-    - match: { hits.hits.0.fields.field.0: 3.140625 }
+    - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
 
     - do:
         search:
@@ -1325,7 +1332,72 @@ setup:
                     field:
                         script:
                             source: "doc['half_float'].value"
-    - match: { hits.hits.0.fields.field.0: 3.140625 }
+    - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('half_float').get(0.0)"
+    - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - close_to: { hits.hits.2.fields.field.0: { value: 1.123, error: 0.001 } }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid stash */ $('half_float', 0.0)"
+    - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - close_to: { hits.hits.2.fields.field.0: { value: 1.123, error: 0.001 } }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('half_float').get(1, 0.0)"
+    - match: { hits.hits.0.fields.field.0: 0.0 }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - close_to: { hits.hits.2.fields.field.0: { value: 2.234, error: 0.001 } }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('half_float').asDouble(0.0)"
+    - close_to: { hits.hits.0.fields.field.0: { value: 3.140625, error: 0.001 } }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - close_to: { hits.hits.2.fields.field.0: { value: 1.123, error: 0.0001 } }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('half_float').asDouble(1, 0.0)"
+    - match: { hits.hits.0.fields.field.0: 0.0 }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - close_to: { hits.hits.2.fields.field.0: { value: 2.234, error: 0.001 } }
 
 ---
 "scaled_float":
@@ -1339,6 +1411,45 @@ setup:
                         script:
                             source: "doc['scaled_float'].get(0)"
     - match: { hits.hits.0.fields.field.0: 3.14 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('scaled_float').get(0.0)"
+    - match: { hits.hits.0.fields.field.0: 3.14 }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - match: { hits.hits.2.fields.field.0: -3.5 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid stash */ $('scaled_float', 0.0)"
+    - match: { hits.hits.0.fields.field.0: 3.14 }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - match: { hits.hits.2.fields.field.0: -3.5 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('scaled_float').get(1, 0.0)"
+    - match: { hits.hits.0.fields.field.0: 0.0 }
+    - match: { hits.hits.1.fields.field.0: 0.0 }
+    - match: { hits.hits.2.fields.field.0: 2.5 }
 
     - do:
         search:
@@ -1406,3 +1517,182 @@ setup:
               script:
                 source: "int value = field('dne').get(1, 1); value"
   - match: { hits.hits.0.fields.field.0: 1 }
+
+---
+"version and sequence number":
+  - do:
+      indices.create:
+        index: versiontest
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+
+  - do:
+      index:
+        index: versiontest
+        id: 3000
+        version: 50
+        version_type: external
+        body:
+          keyword: "3k"
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: versiontest
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 3000 } }
+          script_fields:
+            ver:
+              script:
+                source: "field('_version').get(10000)"
+            seq:
+              script:
+                source: "field('_seq_no').get(10000)"
+  - match: { hits.hits.0.fields.ver.0: 50 }
+  - match: { hits.hits.0.fields.seq.0: 0 }
+
+  - do:
+      index:
+        index: versiontest
+        id: 3000
+        version: 60
+        version_type: external
+        body:
+          keyword: "3k+1"
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch:      conflict
+      index:
+        index: versiontest
+        id: 3000
+        version: 55
+        version_type: external
+        body:
+          keyword: "3k+2"
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: versiontest
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 3000 } }
+          script_fields:
+            ver:
+              script:
+                source: "field('_version').get(10000)"
+            seq:
+              script:
+                source: "field('_seq_no').get(10000)"
+  - match: { hits.hits.0.fields.ver.0: 60 }
+  - match: { hits.hits.0.fields.seq.0: 1 }
+
+---
+"flattened fields api":
+  - do:
+      indices.create:
+        index: flatindex
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              rank:
+                type: integer
+              flattened:
+                type: flattened
+
+  - do:
+      index:
+        index: flatindex
+        id: 40
+        body:
+          rank: 1
+          flattened:
+            top: 123
+            dict:
+              abc: def
+              hij: lmn
+            list: [true]
+
+  - do:
+      index:
+        index: flatindex
+        id: 41
+        body:
+          rank: 2
+          flattened:
+            top2: 876
+            dict2:
+              abc: def
+              opq: rst
+              hij: lmn
+              uvx: wyz
+            list2: [789, 1011, 1213]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: flatindex
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            f_root:
+              script:
+                source: "field('flattened').get('dne')"
+            f_root_index:
+              script:
+                source: "field('flattened').get(2, 'dne')"
+            f_top:
+              script:
+                source: "field('flattened.top').get('dne')"
+            f_top2:
+              script:
+                source: "field('flattened.top2').get('dne')"
+            f_dict:
+              script:
+                source: "field('flattened.dict.abc').get('dne')"
+            f_dict2:
+              script:
+                source: "field('flattened.dict2.uvx').get('dne')"
+            f_list:
+              script:
+                source: "field('flattened.list').get('dne')"
+            f_list2:
+              script:
+                source: "field('flattened.list2').get(2, 'dne')"
+            all:
+              script:
+                source: "String all = ''; for (String value : field('flattened')) { all += value } all"
+  - match: { hits.hits.0.fields.f_root.0: "123" }
+  - match: { hits.hits.0.fields.f_root_index.0: "lmn" }
+  - match: { hits.hits.0.fields.f_top.0: "123" }
+  - match: { hits.hits.0.fields.f_top2.0: "dne" }
+  - match: { hits.hits.0.fields.f_dict.0: "def" }
+  - match: { hits.hits.0.fields.f_dict2.0: "dne" }
+  - match: { hits.hits.0.fields.f_list.0: "true" }
+  - match: { hits.hits.0.fields.f_list2.0: "dne" }
+  - match: { hits.hits.0.fields.all.0: "123deflmntrue" }
+  - match: { hits.hits.1.fields.f_root.0: "1011" }
+  - match: { hits.hits.1.fields.f_root_index.0: "789" }
+  - match: { hits.hits.1.fields.f_top.0: "dne" }
+  - match: { hits.hits.1.fields.f_top2.0: "876" }
+  - match: { hits.hits.1.fields.f_dict.0: "dne" }
+  - match: { hits.hits.1.fields.f_dict2.0: "wyz" }
+  - match: { hits.hits.1.fields.f_list.0: "dne" }
+  - match: { hits.hits.1.fields.f_list2.0: "789" }
+  - match: { hits.hits.1.fields.all.0: "10111213789876deflmnrstwyz" }

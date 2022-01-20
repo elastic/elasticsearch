@@ -329,6 +329,8 @@ public class RBACEngineTests extends ESTestCase {
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
         when(authentication.getMetadata()).thenReturn(Map.of(AuthenticationField.API_KEY_ID_KEY, apiKeyId));
+        when(authentication.isAuthenticatedWithApiKey()).thenCallRealMethod();
+        when(authentication.isApiKey()).thenCallRealMethod();
 
         assertTrue(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
@@ -343,6 +345,8 @@ public class RBACEngineTests extends ESTestCase {
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authenticatedBy.getType()).thenReturn(AuthenticationField.API_KEY_REALM_TYPE);
         when(authentication.getMetadata()).thenReturn(Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
+        when(authentication.isAuthenticatedWithApiKey()).thenCallRealMethod();
+        when(authentication.isApiKey()).thenCallRealMethod();
 
         assertFalse(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
@@ -359,13 +363,10 @@ public class RBACEngineTests extends ESTestCase {
         when(authentication.getLookedUpBy()).thenReturn(lookedupBy);
         when(authentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
         when(authentication.getMetadata()).thenReturn(Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
+        when(authentication.isAuthenticatedWithApiKey()).thenCallRealMethod();
+        when(authentication.isApiKey()).thenCallRealMethod();
 
-        final AssertionError assertionError = expectThrows(
-            AssertionError.class,
-            () -> engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication)
-        );
-        assertNotNull(assertionError);
-        assertThat(assertionError.getLocalizedMessage(), is("runAs not supported for api key authentication"));
+        assertFalse(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
 
     /**
@@ -1389,7 +1390,7 @@ public class RBACEngineTests extends ESTestCase {
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices.add(DataStreamTestHelper.createBackingIndex(dataStreamName, k + 1).build());
         }
-        DataStream ds = new DataStream(
+        DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
             null,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
@@ -1430,7 +1431,7 @@ public class RBACEngineTests extends ESTestCase {
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices.add(DataStreamTestHelper.createBackingIndex(dataStreamName, k + 1).build());
         }
-        DataStream ds = new DataStream(
+        DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
             null,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())

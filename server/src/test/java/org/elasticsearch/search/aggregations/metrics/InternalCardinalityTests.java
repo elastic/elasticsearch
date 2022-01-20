@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import com.carrotsearch.hppc.BitMixer;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Releasables;
@@ -98,10 +99,8 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
         AbstractHyperLogLogPlusPlus state = instance.getState();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
                 HyperLogLogPlusPlus newState = new HyperLogLogPlusPlus(
                     state.precision(),
                     new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
@@ -112,17 +111,16 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
                 }
                 algos.add(newState);
                 state = newState;
-                break;
-            case 2:
+            }
+            case 2 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalCardinality(name, state, metadata);
     }

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.common.Strings;
@@ -24,8 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Generates a snapshot name for the given index and records it in the index metadata along with the provided snapshot repository.
@@ -55,15 +55,15 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
 
     @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
-        IndexMetadata indexMetaData = clusterState.metadata().index(index);
-        if (indexMetaData == null) {
+        IndexMetadata indexMetadata = clusterState.metadata().index(index);
+        if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
             return clusterState;
         }
 
-        String policy = indexMetaData.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-        LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetaData);
+        String policy = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
 
         // validate that the snapshot repository exists -- because policies are refreshed on later retries, and because
         // this fails prior to the snapshot repository being recorded in the ilm metadata, the policy can just be corrected
@@ -105,7 +105,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         return ClusterState.builder(clusterState)
             .metadata(
                 Metadata.builder(clusterState.getMetadata())
-                    .put(IndexMetadata.builder(indexMetaData).putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap()))
+                    .put(IndexMetadata.builder(indexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap()))
                     .build(false)
             )
             .build();

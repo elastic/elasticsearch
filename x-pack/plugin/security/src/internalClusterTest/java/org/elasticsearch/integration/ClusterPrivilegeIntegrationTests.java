@@ -127,9 +127,17 @@ public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase 
         assertAccessIsAllowed("user_b", "GET", "/_nodes/stats");
         assertAccessIsAllowed("user_b", "GET", "/_nodes/hot_threads");
         assertAccessIsAllowed("user_b", "GET", "/_nodes/infos");
+        // monitoring allows template retrieval (because it's implied by having read access to cluster state
+        assertAccessIsAllowed("user_b", "GET", "/_cat/templates/" + (randomBoolean() ? "" : randomAlphaOfLengthBetween(2, 8)));
+        assertAccessIsAllowed("user_b", "GET", "/_template/");
+        assertAccessIsAllowed("user_b", "GET", "/_index_template/");
+        assertAccessIsAllowed("user_b", "GET", "/_component_template/");
         // but no admin stuff
         assertAccessIsDenied("user_b", "POST", "/_cluster/reroute");
         assertAccessIsDenied("user_b", "PUT", "/_cluster/settings", "{ \"transient\" : { \"search.default_search_timeout\": \"1m\" } }");
+        assertAccessIsDenied("user_b", "DELETE", "/_template/" + randomAlphaOfLengthBetween(2, 8));
+        assertAccessIsDenied("user_b", "DELETE", "/_index_template/" + randomAlphaOfLengthBetween(2, 8));
+        assertAccessIsDenied("user_b", "DELETE", "/_component_template/" + randomAlphaOfLengthBetween(2, 8));
 
         // sorry user_c, you are not allowed anything
         assertAccessIsDenied("user_c", "GET", "/_cluster/state");

@@ -55,6 +55,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -100,7 +101,7 @@ public class JoinHelper {
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
         this.joinReasonService = joinReasonService;
-        this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(allocationService, logger, rerouteService) {
+        this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(allocationService, rerouteService) {
 
             private final long term = currentTermSupplier.getAsLong();
 
@@ -372,12 +373,12 @@ public class JoinHelper {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
+        public void onFailure(Exception e) {
             joinListener.onFailure(e);
         }
 
         @Override
-        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             joinListener.onResponse(null);
         }
 
@@ -396,15 +397,13 @@ public class JoinHelper {
     class LeaderJoinAccumulator implements JoinAccumulator {
         @Override
         public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
-            final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(sender, joinReasonService.getJoinReason(sender, Mode.LEADER));
-            assert joinTaskExecutor != null;
-            masterService.submitStateUpdateTask(
-                "node-join",
-                task,
-                ClusterStateTaskConfig.build(Priority.URGENT),
-                joinTaskExecutor,
-                new JoinTaskListener(task, joinListener)
+            final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(
+                sender,
+                joinReasonService.getJoinReason(sender, Mode.LEADER),
+                joinListener
             );
+            assert joinTaskExecutor != null;
+            masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor, task);
         }
 
         @Override
@@ -458,18 +457,17 @@ public class JoinHelper {
             closed = true;
             if (newMode == Mode.LEADER) {
                 final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new LinkedHashMap<>();
-                joinRequestAccumulator.forEach((node, listener) -> {
-                    final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(
-                        node,
-                        joinReasonService.getJoinReason(node, Mode.CANDIDATE)
-                    );
-                    pendingAsTasks.put(task, new JoinTaskListener(task, listener));
-                });
+                final Consumer<JoinTaskExecutor.Task> pendingTaskAdder = task -> pendingAsTasks.put(task, task);
+                joinRequestAccumulator.forEach(
+                    (node, listener) -> pendingTaskAdder.accept(
+                        new JoinTaskExecutor.Task(node, joinReasonService.getJoinReason(node, Mode.CANDIDATE), listener)
+                    )
+                );
 
                 final String stateUpdateSource = "elected-as-master ([" + pendingAsTasks.size() + "] nodes joined)";
 
-                pendingAsTasks.put(JoinTaskExecutor.newBecomeMasterTask(), (source, e) -> {});
-                pendingAsTasks.put(JoinTaskExecutor.newFinishElectionTask(), (source, e) -> {});
+                pendingTaskAdder.accept(JoinTaskExecutor.newBecomeMasterTask());
+                pendingTaskAdder.accept(JoinTaskExecutor.newFinishElectionTask());
                 joinTaskExecutor = joinTaskExecutorGenerator.get();
                 masterService.submitStateUpdateTasks(
                     stateUpdateSource,

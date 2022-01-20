@@ -840,8 +840,7 @@ public class CCSDuelIT extends ESRestTestCase {
         assertNotNull(response.getAggregations());
         List<Aggregation> aggregations = response.getAggregations().asList();
         for (Aggregation aggregation : aggregations) {
-            if (aggregation instanceof MultiBucketsAggregation) {
-                MultiBucketsAggregation multiBucketsAggregation = (MultiBucketsAggregation) aggregation;
+            if (aggregation instanceof MultiBucketsAggregation multiBucketsAggregation) {
                 assertThat(
                     "agg " + multiBucketsAggregation.getName() + " has 0 buckets",
                     multiBucketsAggregation.getBuckets().size(),

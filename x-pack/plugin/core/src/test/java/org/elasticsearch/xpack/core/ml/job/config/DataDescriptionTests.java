@@ -129,14 +129,9 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         String timeField = instance.getTimeField();
         String timeFormat = instance.getTimeFormat();
         switch (between(0, 1)) {
-            case 0:
-                timeField += randomAlphaOfLengthBetween(1, 10);
-                break;
-            case 1:
-                timeFormat = "yyyy-MM-dd-HH-mm-ss";
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> timeField += randomAlphaOfLengthBetween(1, 10);
+            case 1 -> timeFormat = "yyyy-MM-dd-HH-mm-ss";
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new DataDescription(timeField, timeFormat);
     }

@@ -301,8 +301,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             potentialCustomAnalyzer = ((NamedAnalyzer) analyzer).analyzer();
         }
 
-        if (potentialCustomAnalyzer instanceof AnalyzerComponentsProvider) {
-            AnalyzerComponentsProvider customAnalyzer = (AnalyzerComponentsProvider) potentialCustomAnalyzer;
+        if (potentialCustomAnalyzer instanceof AnalyzerComponentsProvider customAnalyzer) {
             // note: this is not field-name dependent in our cases so we can leave out the argument
             int positionIncrementGap = analyzer.getPositionIncrementGap("");
             int offsetGap = analyzer.getOffsetGap("");

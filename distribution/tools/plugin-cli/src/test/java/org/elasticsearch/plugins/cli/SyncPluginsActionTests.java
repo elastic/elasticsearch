@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -42,6 +43,7 @@ public class SyncPluginsActionTests extends ESTestCase {
     private Environment env;
     private SyncPluginsAction action;
     private PluginsConfig config;
+    private MockTerminal terminal;
 
     @Override
     @Before
@@ -55,7 +57,8 @@ public class SyncPluginsActionTests extends ESTestCase {
         Files.createDirectories(env.configFile());
         Files.createDirectories(env.pluginsFile());
 
-        action = new SyncPluginsAction(new MockTerminal(), env);
+        terminal = new MockTerminal();
+        action = new SyncPluginsAction(terminal, env);
         config = new PluginsConfig();
     }
 
@@ -185,6 +188,51 @@ public class SyncPluginsActionTests extends ESTestCase {
         assertThat(pluginChanges.remove, empty());
         assertThat(pluginChanges.upgrade, hasSize(1));
         assertThat(pluginChanges.upgrade.get(0).getId(), equalTo("my-plugin"));
+    }
+
+    /**
+     * Check that the config file can still specify plugins that have been migrated to modules, but
+     * they are ignored.
+     */
+    public void test_getPluginChanges_withModularisedPluginsToInstall_ignoresPlugins() throws Exception {
+        config.setPlugins(
+            List.of(new PluginDescriptor("repository-azure"), new PluginDescriptor("repository-gcs"), new PluginDescriptor("repository-s3"))
+        );
+
+        final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
+
+        assertThat(pluginChanges.isEmpty(), is(true));
+        for (String plugin : List.of("repository-azure", "repository-gcs", "repository-s3")) {
+            assertThat(
+                terminal.getErrorOutput(),
+                containsString(
+                    "[" + plugin + "] is no longer a plugin but instead a module packaged with this distribution of Elasticsearch"
+                )
+            );
+        }
+    }
+
+    /**
+     * Check that if there are plugins already installed that have been migrated to modules, then they are removed,
+     * even if they are specified in the config file.
+     */
+    public void test_getPluginChanges_withModularisedPluginsToRemove_removesPlugins() throws Exception {
+        createPlugin("repository-azure");
+        createPlugin("repository-gcs");
+        createPlugin("repository-s3");
+        config.setPlugins(
+            List.of(new PluginDescriptor("repository-azure"), new PluginDescriptor("repository-gcs"), new PluginDescriptor("repository-s3"))
+        );
+
+        final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
+
+        assertThat(pluginChanges.isEmpty(), is(false));
+        assertThat(pluginChanges.install, empty());
+        assertThat(pluginChanges.remove, hasSize(3));
+        assertThat(pluginChanges.upgrade, empty());
+        assertThat(pluginChanges.remove.get(0).getId(), equalTo("repository-azure"));
+        assertThat(pluginChanges.remove.get(1).getId(), equalTo("repository-gcs"));
+        assertThat(pluginChanges.remove.get(2).getId(), equalTo("repository-s3"));
     }
 
     /**

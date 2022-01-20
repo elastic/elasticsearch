@@ -1,5 +1,5 @@
 # Can specify scenarios to use when none are specified on the command line
-default-scenarios = ["buildConfiguration_master", "buildConfiguration_branch", "single_project_branch", "single_project_master", "precommit_master", "precommit_branch"]
+default-scenarios = ["buildConfiguration_master", "buildConfiguration_branch", "single_project_master", "single_project_branch", "precommit_master", "precommit_branch"]
 
 buildConfiguration_branch {
     title = "configuration phase (@testGitCommit@)"

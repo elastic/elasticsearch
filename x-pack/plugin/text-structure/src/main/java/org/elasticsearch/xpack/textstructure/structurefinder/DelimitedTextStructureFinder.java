@@ -785,26 +785,12 @@ public class DelimitedTextStructureFinder implements TextStructureFinder {
             if (columnMapping instanceof Map) {
                 String type = (String) ((Map<?, ?>) columnMapping).get(TextStructureUtils.MAPPING_TYPE_SETTING);
                 if (type != null) {
-                    String columnPattern;
-                    switch (type) {
-                        case "boolean":
-                            columnPattern = "(?:true|false)";
-                            break;
-                        case "byte":
-                        case "short":
-                        case "integer":
-                        case "long":
-                            columnPattern = "[+-]?\\d+";
-                            break;
-                        case "half_float":
-                        case "float":
-                        case "double":
-                            columnPattern = "[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:[eE][+-]?\\d+)?";
-                            break;
-                        default:
-                            columnPattern = null;
-                            break;
-                    }
+                    String columnPattern = switch (type) {
+                        case "boolean" -> "(?:true|false)";
+                        case "byte", "short", "integer", "long" -> "[+-]?\\d+";
+                        case "half_float", "float", "double" -> "[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:[eE][+-]?\\d+)?";
+                        default -> null;
+                    };
                     if (columnPattern != null) {
                         builder.append("(?:")
                             .append(columnPattern)

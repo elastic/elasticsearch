@@ -322,7 +322,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testSearchScroll() throws IOException {
         SearchResponse mockSearchResponse = new SearchResponse(
-            new SearchResponseSections(SearchHits.empty(), InternalAggregations.EMPTY, null, false, false, null, 1),
+            new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, InternalAggregations.EMPTY, null, false, false, null, 1),
             randomAlphaOfLengthBetween(5, 10),
             5,
             5,

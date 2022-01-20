@@ -140,7 +140,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             .filter(r -> r.name().equals(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME))
             .findFirst()
             .orElseThrow(() -> new AssertionError("expected the watch history template to be put"));
-        assertThat(req.indexTemplate().template().settings().get("index.lifecycle.name"), equalTo("watch-history-ilm-policy"));
+        assertThat(req.indexTemplate().template().settings().get("index.lifecycle.name"), equalTo("watch-history-ilm-policy-16"));
     }
 
     public void testThatNonExistingTemplatesAreAddedEvenWithILMUsageDisabled() {
@@ -254,6 +254,23 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             existingTemplates.put(".watches", INDEX_TEMPLATE_VERSION);
             assertThat(WatcherIndexTemplateRegistry.validate(createClusterState(existingTemplates)), is(true));
         }
+
+        {
+            Map<String, Integer> existingTemplates = new HashMap<>();
+            existingTemplates.put(".watch-history-11", 11);
+            existingTemplates.put(".triggered_watches", 11);
+            existingTemplates.put(".watches", 11);
+            assertThat(WatcherIndexTemplateRegistry.validate(createClusterState(existingTemplates)), is(false));
+        }
+
+        {
+            Map<String, Integer> existingTemplates = new HashMap<>();
+            existingTemplates.put(".watch-history-15", 15);
+            existingTemplates.put(".triggered_watches", 15);
+            existingTemplates.put(".watches", 15);
+            assertThat(WatcherIndexTemplateRegistry.validate(createClusterState(existingTemplates)), is(true));
+        }
+
         {
             Map<String, Integer> existingTemplates = new HashMap<>();
             existingTemplates.put(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);

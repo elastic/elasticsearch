@@ -58,7 +58,6 @@ import java.util.stream.Collectors;
 public class TransportRolloverAction extends TransportMasterNodeAction<RolloverRequest, RolloverResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportRolloverAction.class);
-    private static final ClusterStateTaskConfig ROLLOVER_TASK_CONFIG = ClusterStateTaskConfig.build(Priority.NORMAL);
 
     private final MetadataRolloverService rolloverService;
     private final ActiveShardsObserver activeShardsObserver;
@@ -181,7 +180,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 if (trialConditionResults.size() == 0 || trialMetConditions.size() > 0) {
                     String source = "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
                     RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, listener);
-                    clusterService.submitStateUpdateTask(source, rolloverTask, ROLLOVER_TASK_CONFIG, rolloverTaskExecutor, rolloverTask);
+                    ClusterStateTaskConfig config = ClusterStateTaskConfig.build(Priority.NORMAL, rolloverRequest.masterNodeTimeout());
+                    clusterService.submitStateUpdateTask(source, rolloverTask, config, rolloverTaskExecutor, rolloverTask);
                 } else {
                     // conditions not met
                     listener.onResponse(trialRolloverResponse);
@@ -316,12 +316,12 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
+        public void onFailure(Exception e) {
             listener.onFailure(e);
         }
 
         @Override
-        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             // Now assuming we have a new state and the name of the rolled over index, we need to wait for the
             // configured number of active shards, as well as return the names of the indices that were rolled/created
             if (clusterStateProcessed) {

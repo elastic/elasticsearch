@@ -273,15 +273,13 @@ public class AggregationsTests extends ESTestCase {
         List<InternalAggregation> aggs = new ArrayList<>(numAggs);
         for (int i = 0; i < numAggs; i++) {
             InternalAggregationTestCase<?> testCase = randomFrom(aggsTests);
-            if (testCase instanceof InternalMultiBucketAggregationTestCase) {
-                InternalMultiBucketAggregationTestCase<?> multiBucketAggTestCase = (InternalMultiBucketAggregationTestCase<?>) testCase;
+            if (testCase instanceof InternalMultiBucketAggregationTestCase<?> multiBucketAggTestCase) {
                 if (currentDepth < maxDepth) {
                     multiBucketAggTestCase.setSubAggregationsSupplier(() -> createTestInstance(0, currentDepth + 1, maxDepth));
                 } else {
                     multiBucketAggTestCase.setSubAggregationsSupplier(() -> InternalAggregations.EMPTY);
                 }
-            } else if (testCase instanceof InternalSingleBucketAggregationTestCase) {
-                InternalSingleBucketAggregationTestCase<?> singleBucketAggTestCase = (InternalSingleBucketAggregationTestCase<?>) testCase;
+            } else if (testCase instanceof InternalSingleBucketAggregationTestCase<?> singleBucketAggTestCase) {
                 if (currentDepth < maxDepth) {
                     singleBucketAggTestCase.subAggregationsSupplier = () -> createTestInstance(0, currentDepth + 1, maxDepth);
                 } else {

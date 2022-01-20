@@ -173,18 +173,13 @@ public class BooleanFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        switch (between(0, 3)) {
-            case 0:
-                return randomBoolean();
-            case 1:
-                return randomBoolean() ? "true" : "false";
-            case 2:
-                return randomBoolean() ? "true" : "";
-            case 3:
-                return randomBoolean() ? "true" : null;
-            default:
-                throw new IllegalStateException();
-        }
+        return switch (between(0, 3)) {
+            case 0 -> randomBoolean();
+            case 1 -> randomBoolean() ? "true" : "false";
+            case 2 -> randomBoolean() ? "true" : "";
+            case 3 -> randomBoolean() ? "true" : null;
+            default -> throw new IllegalStateException();
+        };
     }
 
     public void testScriptAndPrecludedParameters() {

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.elasticsearch.ExceptionsHelper;
@@ -26,15 +27,14 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -44,6 +44,8 @@ import org.elasticsearch.transport.TransportService;
 import java.io.Closeable;
 import java.io.IOError;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,7 +58,6 @@ import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -65,11 +66,9 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     private ClusterName clusterName;
     private Settings settings;
     private DiscoveryNode localNode;
-    private BigArrays bigArrays;
 
     @Override
     public void setUp() throws Exception {
-        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         nodeEnvironment = newNodeEnvironment();
         localNode = new DiscoveryNode(
             "node1",
@@ -79,7 +78,14 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             Version.CURRENT
         );
         clusterName = new ClusterName(randomAlphaOfLength(10));
-        settings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value()).build();
+        final Settings.Builder settingsBuilder = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName.value());
+        if (randomBoolean()) {
+            settingsBuilder.put(
+                PersistedClusterStateService.DOCUMENT_PAGE_SIZE.getKey(),
+                ByteSizeValue.ofBytes(randomLongBetween(1, 1024))
+            );
+        }
+        settings = settingsBuilder.build();
         super.setUp();
     }
 
@@ -90,7 +96,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     }
 
     private CoordinationState.PersistedState newGatewayPersistedState() {
-        final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode, bigArrays);
+        final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode);
         gateway.start(settings, nodeEnvironment, xContentRegistry());
         final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
         assertThat(persistedState, instanceOf(GatewayMetaState.LucenePersistedState.class));
@@ -322,7 +328,6 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
             nodeEnvironment,
             xContentRegistry(),
-            getBigArrays(),
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             () -> 0L
         );
@@ -354,7 +359,6 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 final PersistedClusterStateService newPersistedClusterStateService = new PersistedClusterStateService(
                     nodeEnvironment,
                     xContentRegistry(),
-                    getBigArrays(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L
                 );
@@ -388,7 +392,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 .put(nonMasterNode())
                 .put(Node.NODE_NAME_SETTING.getKey(), "test")
                 .build();
-            final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode, bigArrays);
+            final MockGatewayMetaState gateway = new MockGatewayMetaState(localNode);
             cleanup.add(gateway);
             final TransportService transportService = mock(TransportService.class);
             TestThreadPool threadPool = new TestThreadPool("testMarkAcceptedConfigAsCommittedOnDataOnlyNode");
@@ -401,7 +405,6 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
                 nodeEnvironment,
                 xContentRegistry(),
-                getBigArrays(),
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L
             );
@@ -521,7 +524,6 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
             nodeEnvironment,
             xContentRegistry(),
-            getBigArrays(),
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             () -> 0L
         ) {
@@ -609,7 +611,6 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 final PersistedClusterStateService newPersistedClusterStateService = new PersistedClusterStateService(
                     nodeEnvironment,
                     xContentRegistry(),
-                    getBigArrays(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L
                 );
@@ -628,68 +629,79 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
     }
 
     public void testStatePersistenceWithFatalError() throws IOException {
-        final AtomicBoolean throwError = new AtomicBoolean();
-        final BigArrays realBigArrays = getBigArrays();
-        final BigArrays mockBigArrays = mock(BigArrays.class);
-        when(mockBigArrays.newByteArray(anyLong())).thenAnswer(invocationOnMock -> {
-            if (throwError.get() && randomBoolean()) {
-                throw new TestError();
-            }
-            return realBigArrays.newByteArray((Long) invocationOnMock.getArguments()[0]);
-        });
-
-        final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
-            nodeEnvironment,
-            xContentRegistry(),
-            mockBigArrays,
-            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            () -> 0L
-        );
-        ClusterState state = createClusterState(randomNonNegativeLong(), Metadata.builder().clusterUUID(randomAlphaOfLength(10)).build());
         long currentTerm = 42L;
-        try (
-            GatewayMetaState.LucenePersistedState persistedState = new GatewayMetaState.LucenePersistedState(
-                persistedClusterStateService,
-                currentTerm,
-                state
-            )
-        ) {
+        ClusterState state = createClusterState(randomNonNegativeLong(), Metadata.builder().clusterUUID(randomAlphaOfLength(10)).build());
 
-            throwError.set(true);
-
-            for (int i = between(1, 5); 0 <= i; i--) {
-                if (randomBoolean()) {
-                    final ClusterState newState = createClusterState(
-                        randomNonNegativeLong(),
-                        Metadata.builder()
-                            .clusterUUID(randomAlphaOfLength(10))
-                            .coordinationMetadata(CoordinationMetadata.builder().term(currentTerm).build())
-                            .build()
-                    );
-                    try {
-                        persistedState.setLastAcceptedState(newState);
-                        state = newState;
-                    } catch (TestError e) {
-                        // ok
-                    }
-                } else {
-                    final long newTerm = currentTerm + 1;
-                    try {
-                        persistedState.setCurrentTerm(newTerm);
-                        currentTerm = newTerm;
-                    } catch (TestError e) {
-                        // ok
+        final AtomicBoolean throwError = new AtomicBoolean();
+        final AtomicBoolean openedFile = new AtomicBoolean();
+        PathUtilsForTesting.installMock(new FilterFileSystemProvider("throwerror://", PathUtils.getDefaultFileSystem()) {
+            @Override
+            public OutputStream newOutputStream(Path path, OpenOption... options) throws IOException {
+                if (throwError.get() && path.getFileName().toString().startsWith("pending_segments_")) {
+                    openedFile.set(true);
+                    if (randomBoolean()) {
+                        throw randomBoolean() ? new TestTragicError() : new TestComedicError();
                     }
                 }
+                return super.newOutputStream(path, options);
             }
+        }.getFileSystem(null));
 
-            assertEquals(state, persistedState.getLastAcceptedState());
-            assertEquals(currentTerm, persistedState.getCurrentTerm());
+        final Path[] dataPaths;
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment()) { // a new node environment is needed to pick up the fake filesystem
+            dataPaths = nodeEnvironment.nodeDataPaths();
+            try (
+                GatewayMetaState.LucenePersistedState persistedState = new GatewayMetaState.LucenePersistedState(
+                    new PersistedClusterStateService(
+                        nodeEnvironment,
+                        xContentRegistry(),
+                        new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                        () -> 0L
+                    ),
+                    currentTerm,
+                    state
+                )
+            ) {
+                throwError.set(true);
+                for (int i = between(1, 5); 0 <= i; i--) {
+                    if (randomBoolean()) {
+                        final ClusterState newState = createClusterState(
+                            randomNonNegativeLong(),
+                            Metadata.builder()
+                                .clusterUUID(randomAlphaOfLength(10))
+                                .coordinationMetadata(CoordinationMetadata.builder().term(currentTerm).build())
+                                .build()
+                        );
+                        try {
+                            persistedState.setLastAcceptedState(newState);
+                            state = newState;
+                        } catch (TestTragicError | TestComedicError e) {
+                            logger.info("--> test error", e);
+                            // ok
+                        }
+                    } else {
+                        final long newTerm = currentTerm + 1;
+                        try {
+                            persistedState.setCurrentTerm(newTerm);
+                            currentTerm = newTerm;
+                        } catch (TestTragicError | TestComedicError e) {
+                            logger.info("--> test error", e);
+                            // ok
+                        }
+                    }
+                }
+
+                assertEquals(state, persistedState.getLastAcceptedState());
+                assertEquals(currentTerm, persistedState.getCurrentTerm());
+            }
+        } finally {
+            PathUtilsForTesting.teardown();
         }
+        assertTrue(openedFile.get()); // make sure we had opportunity to throw an error
 
         nodeEnvironment.close();
 
-        for (Path path : nodeEnvironment.nodeDataPaths()) {
+        for (Path path : dataPaths) {
             Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .put(Environment.PATH_DATA_SETTING.getKey(), path.toString())
@@ -698,12 +710,11 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 final PersistedClusterStateService newPersistedClusterStateService = new PersistedClusterStateService(
                     nodeEnvironment,
                     xContentRegistry(),
-                    getBigArrays(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L
                 );
                 final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
-                assertFalse(onDiskState.empty());
+                assertFalse("loaded state from " + path, onDiskState.empty());
                 assertThat(onDiskState.currentTerm, equalTo(currentTerm));
                 assertClusterStateEqual(
                     state,
@@ -716,16 +727,21 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         }
     }
 
-    private static BigArrays getBigArrays() {
-        return usually()
-            ? BigArrays.NON_RECYCLING_INSTANCE
-            : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-    }
-
-    private static final class TestError extends Error {
-        TestError() {
-            super("test error");
+    /**
+     * An {@link Error} which is tragic.
+     */
+    private static final class TestTragicError extends VirtualMachineError {
+        TestTragicError() {
+            super("test tragic error");
         }
     }
 
+    /**
+     * An {@link Error} which is not tragic.
+     */
+    private static final class TestComedicError extends Error {
+        TestComedicError() {
+            super("test comedic error");
+        }
+    }
 }

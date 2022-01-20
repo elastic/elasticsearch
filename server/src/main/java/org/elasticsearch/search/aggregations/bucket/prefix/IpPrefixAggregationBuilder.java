@@ -46,9 +46,9 @@ public class IpPrefixAggregationBuilder extends ValuesSourceAggregationBuilder<I
         IpPrefixAggregationBuilder::new
     );
 
-    public static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_len");
+    public static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
     public static final ParseField IS_IPV6_FIELD = new ParseField("is_ipv6");
-    public static final ParseField APPEND_PREFIX_LENGTH_FIELD = new ParseField("append_prefix_len");
+    public static final ParseField APPEND_PREFIX_LENGTH_FIELD = new ParseField("append_prefix_length");
     public static final ParseField MIN_DOC_COUNT_FIELD = new ParseField("min_doc_count");
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
 

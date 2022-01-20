@@ -55,7 +55,7 @@ GET /network-traffic/_search
     "ipv4-subnets": {
       "ip_prefix": {
         "field": "ipv4",
-        "prefix_len": 24
+        "prefix_length": 24
       }
     }
   }
@@ -77,21 +77,21 @@ Response:
           "key": "192.168.1.0",
           "is_ipv6": false,
           "doc_count": 4,
-          "prefix_len": 24,
+          "prefix_length": 24,
           "netmask": "255.255.255.0"
         },
         {
           "key": "192.168.2.0",
           "is_ipv6": false,
           "doc_count": 3,
-          "prefix_len": 24,
+          "prefix_length": 24,
           "netmask": "255.255.255.0"
         },
         {
            "key": "192.168.3.0",
            "is_ipv6": false,
            "doc_count": 2,
-           "prefix_len": 24,
+           "prefix_length": 24,
            "netmask": "255.255.255.0"
         }
       ]
@@ -112,7 +112,7 @@ GET /network-traffic/_search
     "ipv6-subnets": {
       "ip_prefix": {
         "field": "ipv6",
-        "prefix_len": 64,
+        "prefix_length": 64,
         "is_ipv6": true
       }
     }
@@ -135,19 +135,19 @@ If `is_ipv6` is `true`, the response doesn't include a `netmask` for each bucket
           "key": "2001:db8:a4f8:112a::",
           "is_ipv6": true,
           "doc_count": 4,
-          "prefix_len": 64
+          "prefix_length": 64
         },
         {
           "key": "2001:db8:a4f8:112c::",
           "is_ipv6": true,
           "doc_count": 3,
-          "prefix_len": 64
+          "prefix_length": 64
         },
         {
           "key": "2001:db8:a4f8:114f::",
           "is_ipv6": true,
           "doc_count": 2,
-          "prefix_len": 64
+          "prefix_length": 64
         }
       ]
     }
@@ -164,15 +164,15 @@ If `is_ipv6` is `true`, the response doesn't include a `netmask` for each bucket
 (Required, string)
 The document IP address field to aggregate on. The field mapping type must be <<ip,`ip`>>.
 
-`prefix_len`::
+`prefix_length`::
 (Required, integer)
 Length of the network prefix. For IPv4 addresses, the accepted range is `[0, 32]`. For IPv6 addresses, the accepted range is `[0, 128]`.
 
 `is_ipv6`::
 (Optional, boolean)
-Defines whether the prefix applies to IPv6 addresses. Just specifying the `prefix_len` parameter is not enough to know if an IP prefix applies to IPv4 or IPv6 addresses. Defaults to `false`.
+Defines whether the prefix applies to IPv6 addresses. Just specifying the `prefix_length` parameter is not enough to know if an IP prefix applies to IPv4 or IPv6 addresses. Defaults to `false`.
 
-`append_prefix_len`::
+`append_prefix_length`::
 (Optional, boolean)
 Defines whether the prefix length is appended to IP address keys in the response. Defaults to `false`.
 
@@ -192,7 +192,7 @@ Defines the minimum number of documents for buckets to be included in the respon
 (string)
 The IPv6 or IPv4 subnet.
 
-`prefix_len`::
+`prefix_length`::
 (integer)
 The length of the prefix used to aggregate the bucket.
 
@@ -224,7 +224,7 @@ GET /network-traffic/_search
     "ipv4-subnets": {
       "ip_prefix": {
         "field": "ipv4",
-        "prefix_len": 24,
+        "prefix_length": 24,
         "keyed": true
       }
     }
@@ -246,19 +246,19 @@ Response:
         "192.168.1.0": {
           "is_ipv6": false,
           "doc_count": 4,
-          "prefix_len": 24,
+          "prefix_length": 24,
           "netmask": "255.255.255.0"
         },
         "192.168.2.0": {
           "is_ipv6": false,
           "doc_count": 3,
-          "prefix_len": 24,
+          "prefix_length": 24,
           "netmask": "255.255.255.0"
         },
         "192.168.3.0": {
           "is_ipv6": false,
           "doc_count": 2,
-          "prefix_len": 24,
+          "prefix_length": 24,
           "netmask": "255.255.255.0"
         }
       }
@@ -271,7 +271,7 @@ Response:
 [[ipprefix-agg-append-prefix-length]]
 ==== Append the prefix length to the IP address key
 
-Set the `append_prefix_len` flag to `true` to catenate IP address keys with the prefix length of the sub-network.
+Set the `append_prefix_length` flag to `true` to catenate IP address keys with the prefix length of the sub-network.
 
 Example:
 
@@ -284,8 +284,8 @@ GET /network-traffic/_search
     "ipv4-subnets": {
       "ip_prefix": {
         "field": "ipv4",
-        "prefix_len": 24,
-        "append_prefix_len": true
+        "prefix_length": 24,
+        "append_prefix_length": true
       }
     }
   }
@@ -307,21 +307,21 @@ Response:
           "key": "192.168.1.0/24",
           "is_ipv6": false,
           "doc_count": 4,
-          "prefix_len": 24,
+          "prefix_length": 24,
           "netmask": "255.255.255.0"
         },
         {
           "key": "192.168.2.0/24",
           "is_ipv6": false,
           "doc_count": 3,
-          "prefix_len": 24,
+          "prefix_length": 24,
           "netmask": "255.255.255.0"
         },
         {
           "key": "192.168.3.0/24",
           "is_ipv6": false,
           "doc_count": 2,
-          "prefix_len": 24,
+          "prefix_length": 24,
           "netmask": "255.255.255.0"
         }
       ]
@@ -345,7 +345,7 @@ GET /network-traffic/_search
     "ipv4-subnets": {
       "ip_prefix": {
         "field": "ipv4",
-        "prefix_len": 24,
+        "prefix_length": 24,
         "min_doc_count": 3
       }
     }
@@ -368,14 +368,14 @@ Response:
           "key": "192.168.1.0",
           "is_ipv6": false,
           "doc_count": 4,
-          "prefix_len": 24,
+          "prefix_length": 24,
           "netmask": "255.255.255.0"
         },
         {
           "key": "192.168.2.0",
           "is_ipv6": false,
           "doc_count": 3,
-          "prefix_len": 24,
+          "prefix_length": 24,
           "netmask": "255.255.255.0"
         }
       ]

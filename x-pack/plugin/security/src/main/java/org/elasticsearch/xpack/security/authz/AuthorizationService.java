@@ -417,7 +417,11 @@ public class AuthorizationService {
                                 action,
                                 request,
                                 metadata,
-                                new AvailableIndices(metadata, authzEngine.predicateForAuthorizedIndices(requestInfo, authzInfo, metadata), timeChecker)
+                                new AvailableIndices(
+                                    metadata,
+                                    authzEngine.predicateForAuthorizedIndices(requestInfo, authzInfo, metadata),
+                                    timeChecker
+                                )
                             )
                         );
                     } catch (Exception e) {

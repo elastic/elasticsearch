@@ -7,12 +7,12 @@
           "max_age": "30d"
         }
       }
-    }
-  },
-  "delete": {
-    "min_age": "30d",
-    "actions":{
-      "delete": {}
+    },
+    "delete": {
+      "min_age": "30d",
+      "actions": {
+        "delete": {}
+      }
     }
   },
   "_meta": {

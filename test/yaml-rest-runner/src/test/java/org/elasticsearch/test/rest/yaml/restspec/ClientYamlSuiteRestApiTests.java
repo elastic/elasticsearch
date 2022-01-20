@@ -277,10 +277,8 @@ public class ClientYamlSuiteRestApiTests extends ESTestCase {
               "version_type":{
                 "type":"enum",
                 "options":[
-                  "internal",
                   "external",
-                  "external_gte",
-                  "force"
+                  "external_gte"
                 ],
                 "description":"Specific version type"
               },

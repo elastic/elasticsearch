@@ -60,7 +60,6 @@
       "version_type":{
         "type":"enum",
         "options":[
-          "internal",
           "external",
           "external_gte"
         ],

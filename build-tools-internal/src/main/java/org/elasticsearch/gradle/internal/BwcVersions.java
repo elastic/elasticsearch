@@ -275,6 +275,10 @@ public class BwcVersions {
         return unmodifiableList(unreleasedWireCompatible);
     }
 
+    public Version getMinimumWireCompatibleVersion() {
+        return MINIMUM_WIRE_COMPATIBLE_VERSION;
+    }
+
     public record UnreleasedVersionInfo(Version version, String branch, String gradleProjectPath) {}
 
     public record VersionPair(Version elasticsearch, Version lucene) implements Comparable<VersionPair> {

@@ -566,7 +566,7 @@ public class ShardStateAction {
 
         @Override
         public String toString() {
-            return entry.toString();
+            return "FailedShardUpdateTask{entry=" + entry + ", listener=" + listener + "}";
         }
     }
 

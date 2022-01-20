@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -76,7 +76,7 @@ public class TransportFinalizeJobExecutionActionTests extends ESTestCase {
 
         assertTrue(ack.get().isAcknowledged());
         verify(client, times(2)).execute(eq(UpdateAction.INSTANCE), any(), any());
-        verify(clusterService, never()).submitStateUpdateTask(any(), any());
+        verify(clusterService, never()).submitStateUpdateTask(any(), any(), any());
     }
 
     private TransportFinalizeJobExecutionAction createAction(ClusterService clusterService) {

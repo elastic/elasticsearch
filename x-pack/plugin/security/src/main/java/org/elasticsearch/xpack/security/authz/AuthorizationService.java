@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.authz;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -51,7 +50,6 @@ import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRespon
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
@@ -91,7 +89,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -133,6 +130,7 @@ public class AuthorizationService {
     private final Set<RequestInterceptor> requestInterceptors;
     private final XPackLicenseState licenseState;
     private final OperatorPrivilegesService operatorPrivilegesService;
+    private final LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
@@ -164,6 +162,7 @@ public class AuthorizationService {
         this.settings = settings;
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
+        this.authzIndicesTimerFactory = new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings());
     }
 
     public void checkPrivileges(
@@ -412,12 +411,13 @@ public class AuthorizationService {
                     resolvedIndicesListener.onResponse(resolvedIndices);
                 } else {
                     try {
+                        Consumer<Collection<String>> timeChecker = authzIndicesTimerFactory.newTimer(requestInfo);
                         resolvedIndicesListener.onResponse(
                             indicesAndAliasesResolver.resolve(
                                 action,
                                 request,
                                 metadata,
-                                new AvailableIndices(metadata, authzEngine.predicateForAuthorizedIndices(requestInfo, authzInfo, metadata))
+                                new AvailableIndices(metadata, authzEngine.predicateForAuthorizedIndices(requestInfo, authzInfo, metadata), timeChecker)
                             )
                         );
                     } catch (Exception e) {
@@ -829,17 +829,12 @@ public class AuthorizationService {
 
     private static String getAction(BulkItemRequest item) {
         final DocWriteRequest<?> docWriteRequest = item.request();
-        switch (docWriteRequest.opType()) {
-            case INDEX:
-                return IMPLIED_INDEX_ACTION;
-            case CREATE:
-                return IMPLIED_CREATE_ACTION;
-            case UPDATE:
-                return UpdateAction.NAME;
-            case DELETE:
-                return DeleteAction.NAME;
-        }
-        throw new IllegalArgumentException("No equivalent action for opType [" + docWriteRequest.opType() + "]");
+        return switch (docWriteRequest.opType()) {
+            case INDEX -> IMPLIED_INDEX_ACTION;
+            case CREATE -> IMPLIED_CREATE_ACTION;
+            case UPDATE -> UpdateAction.NAME;
+            case DELETE -> DeleteAction.NAME;
+        };
     }
 
     private void putTransientIfNonExisting(String key, Object value) {
@@ -882,7 +877,7 @@ public class AuthorizationService {
             userText = userText + " run as [" + authentication.getUser().principal() + "]";
         }
         // check for authentication by API key
-        if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+        if (authentication.isAuthenticatedWithApiKey()) {
             final String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;
@@ -891,9 +886,7 @@ public class AuthorizationService {
         // The run-as user is always from a realm. So it must have roles that can be printed.
         // If the user is not run-as, we cannot print the roles if it's an API key or a service account (both do not have
         // roles, but privileges)
-        if (authentication.getUser().isRunAs()
-            || (false == authentication.isAuthenticatedWithServiceAccount()
-                && AuthenticationType.API_KEY != authentication.getAuthenticationType())) {
+        if (false == authentication.isServiceAccount() && false == authentication.isApiKey()) {
             userText = userText + " with roles [" + Strings.arrayToCommaDelimitedString(authentication.getUser().roles()) + "]";
         }
 
@@ -1012,58 +1005,8 @@ public class AuthorizationService {
         }
     }
 
-    static class LoadAuthorizedIndiciesTimeChecker {
-        private static final int WARN_THRESHOLD_MS = 200;
-        private static final int INFO_THRESHOLD_MS = 50;
-        private static final int DEBUG_THRESHOLD_MS = 10;
-
-        private final long startNanos;
-        private final RequestInfo requestInfo;
-
-        LoadAuthorizedIndiciesTimeChecker(long startNanos, RequestInfo requestInfo) {
-            this.startNanos = startNanos;
-            this.requestInfo = requestInfo;
-        }
-
-        public static LoadAuthorizedIndiciesTimeChecker start(RequestInfo requestInfo, AuthorizationInfo authzInfo) {
-            return new LoadAuthorizedIndiciesTimeChecker(System.nanoTime(), requestInfo);
-        }
-
-        public void done(Collection<String> indices) {
-            final long end = System.nanoTime();
-            final long millis = TimeUnit.NANOSECONDS.toMillis(end - startNanos);
-            if (millis > WARN_THRESHOLD_MS) {
-                logger.warn(
-                    "Resolving [{}] indices for action [{}] and user [{}] took [{}ms] which is greater than the threshold of {}ms;"
-                        + " The index privileges for this user may be too complex for this cluster.",
-                    indices.size(),
-                    requestInfo.getAction(),
-                    requestInfo.getAuthentication().getUser().principal(),
-                    millis,
-                    WARN_THRESHOLD_MS
-                );
-            } else {
-                final Level level;
-                if (millis > INFO_THRESHOLD_MS) {
-                    level = Level.INFO;
-                } else if (millis > DEBUG_THRESHOLD_MS) {
-                    level = Level.DEBUG;
-                } else {
-                    level = Level.TRACE;
-                }
-                logger.log(
-                    level,
-                    "Took [{}ms] to resolve [{}] indices for action [{}] and user [{}]",
-                    millis,
-                    indices.size(),
-                    requestInfo.getAction(),
-                    requestInfo.getAuthentication().getUser().principal()
-                );
-            }
-        }
-    }
-
     public static void addSettings(List<Setting<?>> settings) {
         settings.add(ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING);
+        settings.addAll(LoadAuthorizedIndicesTimeChecker.Factory.getSettings());
     }
 }

@@ -291,7 +291,7 @@ public class PkiRealm extends Realm implements CachingRealm {
             RealmSettings.realmSettingPrefix(realmConfig.identifier()),
             realmConfig.env()
         );
-        final SslTrustConfig trustConfig = sslConfiguration.getTrustConfig();
+        final SslTrustConfig trustConfig = sslConfiguration.trustConfig();
         if (trustConfig.isSystemDefault()) {
             return null;
         }

@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -60,7 +61,7 @@ public class WatchStatus implements ToXContentObject, Writeable {
         lastChecked = readOptionalDate(in);
         lastMetCondition = readOptionalDate(in);
         int count = in.readInt();
-        Map<String, ActionStatus> actions = new HashMap<>(count);
+        Map<String, ActionStatus> actions = Maps.newMapWithExpectedSize(count);
         for (int i = 0; i < count; i++) {
             actions.put(in.readString(), ActionStatus.readFrom(in));
         }

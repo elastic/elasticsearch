@@ -24,7 +24,7 @@ Requires the `monitor_ml` cluster privilege. This privilege is included in the
 == {api-description-title}
 
 For more information, see
-{ml-docs}/ml-ad-finding-anomalies.html#ml-ad-calendars[Calendars and scheduled events].
+{ml-docs}/ml-ad-run-jobs.html#ml-ad-calendars[Calendars and scheduled events].
 
 [[ml-get-calendar-path-parms]]
 == {api-path-parms-title}

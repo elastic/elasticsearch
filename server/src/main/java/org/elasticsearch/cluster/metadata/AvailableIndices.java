@@ -8,37 +8,43 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 public class AvailableIndices {
 
     private final Metadata metadata;
     private final Predicate<IndexAbstraction> predicate;
+    private final Consumer<Collection<String>> availableNamesConsumer;
     private Set<String> availableNames;
 
-    public AvailableIndices(Metadata metadata, Predicate<IndexAbstraction> predicate) {
+    public AvailableIndices(Metadata metadata, Predicate<IndexAbstraction> predicate, Consumer<Collection<String>> availableNamesConsumer) {
         this.metadata = Objects.requireNonNull(metadata);
         this.predicate = Objects.requireNonNull(predicate);
+        this.availableNamesConsumer = availableNamesConsumer;
     }
 
     public AvailableIndices(Set<String> availableNames) {
         this.availableNames = availableNames;
         this.metadata = null;
         this.predicate = null;
+        this.availableNamesConsumer = null;
     }
 
     public Set<String> getAvailableNames() {
         if (availableNames == null) {
             availableNames = new HashSet<>();
-            assert predicate != null && metadata != null;
+            assert predicate != null && metadata != null && availableNamesConsumer != null;
             for (IndexAbstraction indexAbstraction : metadata.getIndicesLookup().values()) {
                 if (predicate.test(indexAbstraction)) {
                     availableNames.add(indexAbstraction.getName());
                 }
             }
+            availableNamesConsumer.accept(availableNames);
         }
         return availableNames;
     }

@@ -39,9 +39,10 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -61,6 +62,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
@@ -126,6 +128,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -175,12 +178,10 @@ public final class TokenService {
     static final int IV_BYTES = 12;
     private static final int VERSION_BYTES = 4;
     private static final String ENCRYPTION_CIPHER = "AES/GCM/NoPadding";
-    private static final String EXPIRED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\""
-        + XPackField.SECURITY
-        + "\", error=\"invalid_token\", error_description=\"The access token expired\"";
-    private static final String MALFORMED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\""
-        + XPackField.SECURITY
-        + "\", error=\"invalid_token\", error_description=\"The access token is malformed\"";
+    private static final String EXPIRED_TOKEN_WWW_AUTH_VALUE = String.format(Locale.ROOT, """
+        Bearer realm="%s", error="invalid_token", error_description="The access token expired\"""", XPackField.SECURITY);
+    private static final String MALFORMED_TOKEN_WWW_AUTH_VALUE = String.format(Locale.ROOT, """
+        Bearer realm="%s", error="invalid_token", error_description="The access token is malformed\"""", XPackField.SECURITY);
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
 
     public static final String THREAD_POOL_NAME = XPackField.SECURITY + "-token-key";
@@ -1031,12 +1032,12 @@ public final class TokenService {
                     unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
                 } catch (IOException e) {
                     logger.debug(() -> new ParameterizedMessage("Could not decode refresh token [{}].", refreshToken), e);
-                    listener.onResponse(SearchHits.empty());
+                    listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
                     return;
                 }
                 if (refreshTokenVersion.before(VERSION_TOKENS_INDEX_INTRODUCED) || unencodedRefreshToken.length() != TOKEN_LENGTH) {
                     logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken, refreshTokenVersion);
-                    listener.onResponse(SearchHits.empty());
+                    listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
                 } else {
                     // TODO Remove this conditional after backporting to 7.x
                     if (refreshTokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
@@ -2345,7 +2346,7 @@ public final class TokenService {
         if (keyCache.cache.size() <= numKeysToKeep) {
             return getTokenMetadata(); // nothing to do
         }
-        Map<BytesKey, KeyAndCache> map = new HashMap<>(keyCache.cache.size() + 1);
+        Map<BytesKey, KeyAndCache> map = Maps.newMapWithExpectedSize(keyCache.cache.size() + 1);
         KeyAndCache currentKey = keyCache.get(keyCache.currentTokenKeyHash);
         ArrayList<KeyAndCache> entries = new ArrayList<>(keyCache.cache.values());
         Collections.sort(entries, (left, right) -> Long.compare(right.keyAndTimestamp.getTimestamp(), left.keyAndTimestamp.getTimestamp()));
@@ -2383,7 +2384,7 @@ public final class TokenService {
     synchronized void refreshMetadata(TokenMetadata metadata) {
         BytesKey currentUsedKeyHash = new BytesKey(metadata.getCurrentKeyHash());
         byte[] saltArr = new byte[SALT_BYTES];
-        Map<BytesKey, KeyAndCache> map = new HashMap<>(metadata.getKeys().size());
+        Map<BytesKey, KeyAndCache> map = Maps.newMapWithExpectedSize(metadata.getKeys().size());
         long maxTimestamp = createdTimeStamps.get();
         for (KeyAndTimestamp key : metadata.getKeys()) {
             secureRandom.nextBytes(saltArr);
@@ -2435,12 +2436,14 @@ public final class TokenService {
                     TokenMetadata metadata = rotateToSpareKey();
                     clusterService.submitStateUpdateTask(
                         "publish next key to prepare key rotation",
-                        new TokenMetadataPublishAction(metadata, listener)
+                        new TokenMetadataPublishAction(metadata, listener),
+                        ClusterStateTaskExecutor.unbatched()
                     );
                 } else {
                     listener.onFailure(new IllegalStateException("not acked"));
                 }
-            }, listener::onFailure))
+            }, listener::onFailure)),
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -2524,16 +2527,16 @@ public final class TokenService {
                     }
 
                     @Override
-                    public void onFailure(String source, Exception e) {
+                    public void onFailure(Exception e) {
                         installTokenMetadataInProgress.set(false);
                         logger.error("unable to install token metadata", e);
                     }
 
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         installTokenMetadataInProgress.set(false);
                     }
-                });
+                }, ClusterStateTaskExecutor.unbatched());
             }
         }
     }

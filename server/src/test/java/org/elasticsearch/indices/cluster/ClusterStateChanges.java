@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -19,7 +20,6 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -36,7 +36,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeActionUtils;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
@@ -77,6 +77,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -98,6 +99,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -122,7 +124,6 @@ public class ClusterStateChanges {
     private final ShardStateAction.ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
 
     // transport actions
-    private final TransportCloseIndexAction transportCloseIndexAction;
     private final TransportOpenIndexAction transportOpenIndexAction;
     private final TransportDeleteIndexAction transportDeleteIndexAction;
     private final TransportUpdateSettingsAction transportUpdateSettingsAction;
@@ -150,8 +151,8 @@ public class ClusterStateChanges {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE
         );
-        shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
-        shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null, logger);
+        shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null);
+        shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null);
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);
@@ -258,20 +259,10 @@ public class ClusterStateChanges {
             threadPool,
             xContentRegistry,
             EmptySystemIndices.INSTANCE,
-            true
+            true,
+            new IndexSettingProviders(Set.of())
         );
 
-        transportCloseIndexAction = new TransportCloseIndexAction(
-            SETTINGS,
-            transportService,
-            clusterService,
-            threadPool,
-            indexStateService,
-            clusterSettings,
-            actionFilters,
-            indexNameExpressionResolver,
-            destructiveOperations
-        );
         transportOpenIndexAction = new TransportOpenIndexAction(
             transportService,
             clusterService,
@@ -317,8 +308,8 @@ public class ClusterStateChanges {
             EmptySystemIndices.INSTANCE
         );
 
-        nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
-        joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, (s, p, r) -> {});
+        nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService);
+        joinTaskExecutor = new JoinTaskExecutor(allocationService, (s, p, r) -> {});
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {
@@ -361,7 +352,15 @@ public class ClusterStateChanges {
         return runTasks(
             joinTaskExecutor,
             clusterState,
-            nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason")).collect(Collectors.toList())
+            nodes.stream()
+                .map(
+                    node -> new JoinTaskExecutor.Task(
+                        node,
+                        "dummy reason",
+                        ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
+                    )
+                )
+                .collect(Collectors.toList())
         );
     }
 
@@ -369,7 +368,17 @@ public class ClusterStateChanges {
         List<JoinTaskExecutor.Task> joinNodes = new ArrayList<>();
         joinNodes.add(JoinTaskExecutor.newBecomeMasterTask());
         joinNodes.add(JoinTaskExecutor.newFinishElectionTask());
-        joinNodes.addAll(nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason")).collect(Collectors.toList()));
+        joinNodes.addAll(
+            nodes.stream()
+                .map(
+                    node -> new JoinTaskExecutor.Task(
+                        node,
+                        "dummy reason",
+                        ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
+                    )
+                )
+                .collect(Collectors.toList())
+        );
 
         return runTasks(joinTaskExecutor, clusterState, joinNodes);
     }
@@ -378,7 +387,7 @@ public class ClusterStateChanges {
         return runTasks(
             nodeRemovalExecutor,
             clusterState,
-            nodes.stream().map(n -> new NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason")).collect(Collectors.toList())
+            nodes.stream().map(n -> new NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason", () -> {})).collect(Collectors.toList())
         );
     }
 
@@ -459,7 +468,7 @@ public class ClusterStateChanges {
             ClusterStateUpdateTask task = (ClusterStateUpdateTask) invocationOnMock.getArguments()[1];
             result[0] = task.execute(state);
             return null;
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
         runnable.run();
         assertThat(result[0], notNullValue());
         return result[0];

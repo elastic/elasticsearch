@@ -7,18 +7,20 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
-import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
-import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,21 +36,26 @@ public class FillMaskProcessor implements NlpTask.Processor {
 
     @Override
     public void validateInputs(List<String> inputs) {
+        ValidationException ve = new ValidationException();
         if (inputs.isEmpty()) {
-            throw new IllegalArgumentException("input request is empty");
+            ve.addValidationError("input request is empty");
         }
 
         final String mask = tokenizer.getMaskToken();
         for (String input : inputs) {
             int maskIndex = input.indexOf(mask);
             if (maskIndex < 0) {
-                throw new IllegalArgumentException("no " + mask + " token could be found");
+                ve.addValidationError("no " + mask + " token could be found in the input");
             }
 
             maskIndex = input.indexOf(mask, maskIndex + mask.length());
             if (maskIndex > 0) {
-                throw new IllegalArgumentException("only one " + mask + " token should exist in the input");
+                throw ExceptionsHelper.badRequestException("only one {} token should exist in the input", mask);
             }
+        }
+
+        if (ve.validationErrors().isEmpty() == false) {
+            throw ve;
         }
     }
 
@@ -59,8 +66,7 @@ public class FillMaskProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
-        if (config instanceof FillMaskConfig) {
-            FillMaskConfig fillMaskConfig = (FillMaskConfig) config;
+        if (config instanceof FillMaskConfig fillMaskConfig) {
             return (tokenization, result) -> processResult(
                 tokenization,
                 result,
@@ -81,17 +87,17 @@ public class FillMaskProcessor implements NlpTask.Processor {
 
     static InferenceResults processResult(
         TokenizationResult tokenization,
-        PyTorchResult pyTorchResult,
+        PyTorchInferenceResult pyTorchResult,
         NlpTokenizer tokenizer,
         int numResults,
         String resultsField
     ) {
         if (tokenization.getTokenizations().isEmpty() || tokenization.getTokenizations().get(0).getTokenIds().length == 0) {
-            return new WarningInferenceResults("No valid tokens for inference");
+            throw new ElasticsearchStatusException("tokenization is empty", RestStatus.INTERNAL_SERVER_ERROR);
         }
 
         if (tokenizer.getMaskTokenId().isEmpty()) {
-            return new WarningInferenceResults(
+            throw ExceptionsHelper.conflictStatusException(
                 "The token id for the mask token {} is not known in the tokenizer. Check the vocabulary contains the mask token",
                 tokenizer.getMaskToken()
             );
@@ -106,10 +112,11 @@ public class FillMaskProcessor implements NlpTask.Processor {
             }
         }
         if (maskTokenIndex == -1) {
-            return new WarningInferenceResults(
+            throw new ElasticsearchStatusException(
                 "mask token id [{}] not found in the tokenization {}",
+                RestStatus.INTERNAL_SERVER_ERROR,
                 maskTokenId,
-                Arrays.asList(tokenization.getTokenizations().get(0).getTokenIds())
+                List.of(tokenization.getTokenizations().get(0).getTokenIds())
             );
         }
 

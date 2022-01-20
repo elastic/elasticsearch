@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
@@ -44,8 +45,8 @@ import org.elasticsearch.repositories.Repository;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -53,12 +54,13 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * This package private utility class encapsulates the logic to recover an index shard from either an existing index on
  * disk or from a snapshot in a repository.
  */
-final class StoreRecovery {
+public final class StoreRecovery {
 
     private final Logger logger;
     private final ShardId shardId;
@@ -191,7 +193,7 @@ final class StoreRecovery {
              * document-level semantics.
              */
             writer.setLiveCommitData(() -> {
-                final HashMap<String, String> liveCommitData = new HashMap<>(3);
+                final Map<String, String> liveCommitData = Maps.newMapWithExpectedSize(3);
                 liveCommitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
                 liveCommitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
                 liveCommitData.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp));
@@ -549,14 +551,17 @@ final class StoreRecovery {
         }
     }
 
-    private void bootstrap(final IndexShard indexShard, final Store store) throws IOException {
-        store.bootstrapNewHistory();
+    public static void bootstrap(final IndexShard indexShard, final Store store) throws IOException {
+        if (isSearchableSnapshotStore(indexShard.indexSettings().getSettings()) == false) {
+            // not bootstrapping new history for searchable snapshots (which are read-only) allows sequence-number based peer recoveries
+            store.bootstrapNewHistory();
+        }
         final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
         final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
         final String translogUUID = Translog.createEmptyTranslog(
             indexShard.shardPath().resolveTranslog(),
             localCheckpoint,
-            shardId,
+            indexShard.shardId(),
             indexShard.getPendingPrimaryTerm()
         );
         store.associateIndexWithNewTranslog(translogUUID);

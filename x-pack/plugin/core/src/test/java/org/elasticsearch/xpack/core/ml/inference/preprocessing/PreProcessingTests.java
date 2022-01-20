@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -86,7 +87,7 @@ public abstract class PreProcessingTests<T extends PreProcessor> extends Abstrac
 
     Map<String, Object> randomFieldValues() {
         int numFields = randomIntBetween(1, 5);
-        Map<String, Object> fieldValues = new HashMap<>(numFields);
+        Map<String, Object> fieldValues = Maps.newMapWithExpectedSize(numFields);
         for (int k = 0; k < numFields; k++) {
             fieldValues.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }

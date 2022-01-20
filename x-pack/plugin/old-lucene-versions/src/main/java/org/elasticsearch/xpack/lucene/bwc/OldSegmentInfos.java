@@ -14,6 +14,8 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * Modifications copyright (C) 2021 Elasticsearch B.V.
  */
 
 package org.elasticsearch.xpack.lucene.bwc;
@@ -36,6 +38,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.EOFException;
@@ -47,7 +50,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -60,6 +62,12 @@ import java.util.Set;
 @SuppressWarnings("CheckStyle")
 @SuppressForbidden(reason = "Lucene class")
 public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
+
+    /**
+     * Adds the {@link Version} that committed this segments_N file, as well as the {@link Version}
+     * of the oldest segment, since 5.3+
+     */
+    public static final int VERSION_53 = 6;
     /**
      * The version that added information about the Lucene version at the time when the index has been
      * created.
@@ -209,13 +217,16 @@ public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
             if (magic != CodecUtil.CODEC_MAGIC) {
                 throw new IndexFormatTooOldException(input, magic, CodecUtil.CODEC_MAGIC, CodecUtil.CODEC_MAGIC);
             }
-            format = CodecUtil.checkHeaderNoMagic(input, "segments", VERSION_70, VERSION_CURRENT);
+            format = CodecUtil.checkHeaderNoMagic(input, "segments", VERSION_53, VERSION_CURRENT);
             byte[] id = new byte[StringHelper.ID_LENGTH];
             input.readBytes(id, 0, id.length);
             CodecUtil.checkIndexHeaderSuffix(input, Long.toString(generation, Character.MAX_RADIX));
 
             Version luceneVersion = Version.fromBits(input.readVInt(), input.readVInt(), input.readVInt());
-            int indexCreatedVersion = input.readVInt();
+            int indexCreatedVersion = 6;
+            if (format >= VERSION_70) {
+                indexCreatedVersion = input.readVInt();
+            }
             if (luceneVersion.major < indexCreatedVersion) {
                 throw new CorruptIndexException(
                     "Creation version ["
@@ -252,7 +263,7 @@ public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
         } catch (Throwable t) {
             priorE = t;
         } finally {
-            if (format >= VERSION_70) { // oldest supported version
+            if (format >= VERSION_53) { // oldest supported version
                 CodecUtil.checkFooter(input, priorE);
             } else {
                 throw IOUtils.rethrowAlways(priorE);
@@ -283,6 +294,14 @@ public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
         long totalDocs = 0;
         for (int seg = 0; seg < numSegments; seg++) {
             String segName = input.readString();
+            if (format < VERSION_70) {
+                byte hasID = input.readByte();
+                if (hasID == 0) {
+                    throw new IndexFormatTooOldException(input, "Segment is from Lucene 4.x");
+                } else if (hasID != 1) {
+                    throw new CorruptIndexException("invalid hasID byte, got: " + hasID, input);
+                }
+            }
             byte[] segmentID = new byte[StringHelper.ID_LENGTH];
             input.readBytes(segmentID, 0, segmentID.length);
             Codec codec = readCodec(input);
@@ -310,15 +329,12 @@ public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
             if (format > VERSION_74) {
                 byte marker = input.readByte();
                 switch (marker) {
-                    case 1:
+                    case 1 -> {
                         sciId = new byte[StringHelper.ID_LENGTH];
                         input.readBytes(sciId, 0, sciId.length);
-                        break;
-                    case 0:
-                        sciId = null;
-                        break;
-                    default:
-                        throw new CorruptIndexException("invalid SegmentCommitInfo ID marker: " + marker, input);
+                    }
+                    case 0 -> sciId = null;
+                    default -> throw new CorruptIndexException("invalid SegmentCommitInfo ID marker: " + marker, input);
                 }
             } else {
                 sciId = null;
@@ -330,7 +346,7 @@ public class OldSegmentInfos implements Cloneable, Iterable<SegmentCommitInfo> {
             if (numDVFields == 0) {
                 dvUpdateFiles = Collections.emptyMap();
             } else {
-                Map<Integer, Set<String>> map = new HashMap<>(numDVFields);
+                Map<Integer, Set<String>> map = Maps.newMapWithExpectedSize(numDVFields);
                 for (int i = 0; i < numDVFields; i++) {
                     map.put(CodecUtil.readBEInt(input), input.readSetOfStrings());
                 }

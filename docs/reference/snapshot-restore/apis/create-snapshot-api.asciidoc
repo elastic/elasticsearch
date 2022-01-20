@@ -114,9 +114,12 @@ include::restore-snapshot-api.asciidoc[tag=cluster-state-contents]
 (Optional, string or array of strings)
 Comma-separated list of data streams and indices to include in the snapshot.
 Supports <<api-multi-index,multi-index syntax>>. Defaults to an empty array
-(`[]`), which includes all data streams and indices, including system indices.
+(`[]`), which includes all regular data streams and regular indices. To exclude
+all data streams and indices, use `-*` or `none`.
 +
-To exclude all data streams and indices, use `-*` or `none`.
+You can't use this parameter to include or exclude <<system-indices,system
+indices or system data streams>> from a snapshot. Use
+<<{page-id}-feature-states,`feature_states`>> instead.
 
 [id="{page-id}-feature-states"]
 `feature_states`::

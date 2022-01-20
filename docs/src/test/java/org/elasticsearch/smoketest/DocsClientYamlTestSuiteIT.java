@@ -20,6 +20,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlDocsTestClient;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -40,7 +41,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -297,7 +297,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                         .replace("$", "\\$")
                 );
             }
-            Map<String, Object> body = new HashMap<>(2);
+            Map<String, Object> body = Maps.newMapWithExpectedSize(2);
             body.put("analyzer", first);
             body.put("text", testText);
             ClientYamlTestResponse response = executionContext.callApi(
@@ -315,26 +315,10 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             Object previousSecond = null;
             while (firstTokens.hasNext()) {
                 if (false == secondTokens.hasNext()) {
-                    fail(
-                        second
-                            + " has fewer tokens than "
-                            + first
-                            + ". "
-                            + first
-                            + " has ["
-                            + firstTokens.next()
-                            + "] but "
-                            + second
-                            + " is out of tokens. "
-                            + first
-                            + "'s last token was ["
-                            + previousFirst
-                            + "] and "
-                            + second
-                            + "'s last token was' ["
-                            + previousSecond
-                            + "]"
-                    );
+                    fail("""
+                        %s has fewer tokens than %s. %s has [%s] but %s is out of tokens. \
+                        %s's last token was [%s] and %s's last token was' [%s]
+                        """.formatted(second, first, first, firstTokens.next(), second, first, previousFirst, second, previousSecond));
                 }
                 Map<?, ?> firstToken = (Map<?, ?>) firstTokens.next();
                 Map<?, ?> secondToken = (Map<?, ?>) secondTokens.next();
@@ -342,20 +326,11 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 String secondText = (String) secondToken.get("token");
                 // Check the text and produce an error message with the utf8 sequence if they don't match.
                 if (false == secondText.equals(firstText)) {
-                    fail(
-                        "text differs: "
-                            + first
-                            + " was ["
-                            + firstText
-                            + "] but "
-                            + second
-                            + " was ["
-                            + secondText
-                            + "]. In utf8 those are\n"
-                            + new BytesRef(firstText)
-                            + " and\n"
-                            + new BytesRef(secondText)
-                    );
+                    fail("""
+                        text differs: %s was [%s] but %s was [%s]. In utf8 those are
+                        %s and
+                        %s
+                        """.formatted(first, firstText, second, secondText, new BytesRef(firstText), new BytesRef(secondText)));
                 }
                 // Now check the whole map just in case the text matches but something else differs
                 assertEquals(firstToken, secondToken);
@@ -363,26 +338,10 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 previousSecond = secondToken;
             }
             if (secondTokens.hasNext()) {
-                fail(
-                    second
-                        + " has more tokens than "
-                        + first
-                        + ". "
-                        + second
-                        + " has ["
-                        + secondTokens.next()
-                        + "] but "
-                        + first
-                        + " is out of tokens. "
-                        + first
-                        + "'s last token was ["
-                        + previousFirst
-                        + "] and "
-                        + second
-                        + "'s last token was' ["
-                        + previousSecond
-                        + "]"
-                );
+                fail("""
+                    %s has more tokens than %s. %s has [%s] but %s is out of tokens. \
+                    %s's last token was [%s] and %s's last token was [%s]
+                    """.formatted(second, first, second, secondTokens.next(), first, first, previousFirst, second, previousSecond));
             }
         }
     }

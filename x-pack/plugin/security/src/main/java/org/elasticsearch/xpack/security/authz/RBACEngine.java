@@ -29,7 +29,6 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -469,12 +468,8 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public Predicate<IndexAbstraction> predicateForAuthorizedIndices(
-        RequestInfo requestInfo,
-        AuthorizationInfo authorizationInfo,
-        Metadata metadata
-    ) {
-        return buildPredicateForAuthorizedIndicesFromRole(ensureRBAC(authorizationInfo).getRole(), requestInfo, metadata);
+    public Predicate<IndexAbstraction> predicateForAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {
+        return buildPredicateForAuthorizedIndicesFromRole(ensureRBAC(authorizationInfo).getRole(), requestInfo);
     }
 
     @Override
@@ -701,7 +696,7 @@ public class RBACEngine implements AuthorizationEngine {
         return Collections.unmodifiableSet(indicesAndAliases);
     }
 
-    static Predicate<IndexAbstraction> buildPredicateForAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Metadata metadata) {
+    static Predicate<IndexAbstraction> buildPredicateForAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo) {
         final Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
 
         // do not include data streams for actions that do not operate on data streams

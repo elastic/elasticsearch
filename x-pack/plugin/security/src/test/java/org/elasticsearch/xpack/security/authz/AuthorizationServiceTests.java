@@ -2714,11 +2714,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
 
             @Override
-            public Predicate<IndexAbstraction> predicateForAuthorizedIndices(
-                RequestInfo requestInfo,
-                AuthorizationInfo authorizationInfo,
-                Metadata metadata
-            ) {
+            public Predicate<IndexAbstraction> predicateForAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {
                 throw new UnsupportedOperationException("not implemented");
             }
 

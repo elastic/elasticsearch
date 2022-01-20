@@ -419,7 +419,7 @@ public class AuthorizationService {
                                 metadata,
                                 new AvailableIndices(
                                     metadata,
-                                    authzEngine.predicateForAuthorizedIndices(requestInfo, authzInfo, metadata),
+                                    authzEngine.predicateForAuthorizedIndices(requestInfo, authzInfo),
                                     timeChecker
                                 )
                             )

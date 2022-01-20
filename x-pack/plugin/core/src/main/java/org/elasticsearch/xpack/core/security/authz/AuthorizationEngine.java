@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
@@ -162,11 +161,7 @@ public interface AuthorizationEngine {
         ActionListener<Set<String>> listener
     );
 
-    Predicate<IndexAbstraction> predicateForAuthorizedIndices(
-        RequestInfo requestInfo,
-        AuthorizationInfo authorizationInfo,
-        Metadata metadata
-    );
+    Predicate<IndexAbstraction> predicateForAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo);
 
     /**
      * Asynchronously checks that the permissions a user would have for a given list of names do

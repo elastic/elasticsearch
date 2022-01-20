@@ -122,6 +122,7 @@ public class PersistedClusterStateService {
     private static final String LAST_ACCEPTED_VERSION_KEY = "last_accepted_version";
     private static final String NODE_ID_KEY = "node_id";
     private static final String NODE_VERSION_KEY = "node_version";
+    private static final String OLDEST_INDEX_VERSION_KEY = "oldest_index_version";
     public static final String TYPE_FIELD_NAME = "type";
     public static final String GLOBAL_TYPE_NAME = "global";
     public static final String INDEX_TYPE_NAME = "index";
@@ -131,7 +132,7 @@ public class PersistedClusterStateService {
     public static final String LAST_PAGE_FIELD_NAME = "last_page";
     public static final int IS_LAST_PAGE = 1;
     public static final int IS_NOT_LAST_PAGE = 0;
-    private static final int COMMIT_DATA_SIZE = 4;
+    private static final int COMMIT_DATA_SIZE = 5;
 
     private static final MergePolicy NO_MERGE_POLICY = noMergePolicy();
     private static final MergePolicy DEFAULT_MERGE_POLICY = defaultMergePolicy();
@@ -289,6 +290,7 @@ public class PersistedClusterStateService {
     public static NodeMetadata nodeMetadata(Path... dataPaths) throws IOException {
         String nodeId = null;
         Version version = null;
+        Version oldestIndexVersion = Version.V_EMPTY;
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
             if (Files.exists(indexPath)) {
@@ -305,6 +307,11 @@ public class PersistedClusterStateService {
                     } else if (nodeId == null) {
                         nodeId = thisNodeId;
                         version = Version.fromId(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
+                        if (userData.containsKey(OLDEST_INDEX_VERSION_KEY)) {
+                            oldestIndexVersion = Version.fromId(Integer.parseInt(userData.get(OLDEST_INDEX_VERSION_KEY)));
+                        } else {
+                            oldestIndexVersion = Version.V_EMPTY;
+                        }
                     }
                 } catch (IndexNotFoundException e) {
                     logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
@@ -314,7 +321,7 @@ public class PersistedClusterStateService {
         if (nodeId == null) {
             return null;
         }
-        return new NodeMetadata(nodeId, version);
+        return new NodeMetadata(nodeId, version, oldestIndexVersion);
     }
 
     /**
@@ -673,7 +680,7 @@ public class PersistedClusterStateService {
             indexWriter.getConfig().setMergePolicy(NO_MERGE_POLICY);
         }
 
-        void prepareCommit(String nodeId, long currentTerm, long lastAcceptedVersion) throws IOException {
+        void prepareCommit(String nodeId, long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion) throws IOException {
             indexWriter.getConfig().setMergePolicy(DEFAULT_MERGE_POLICY);
             indexWriter.maybeMerge();
 
@@ -681,6 +688,7 @@ public class PersistedClusterStateService {
             commitData.put(CURRENT_TERM_KEY, Long.toString(currentTerm));
             commitData.put(LAST_ACCEPTED_VERSION_KEY, Long.toString(lastAcceptedVersion));
             commitData.put(NODE_VERSION_KEY, Integer.toString(Version.CURRENT.id));
+            commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id));
             commitData.put(NODE_ID_KEY, nodeId);
             indexWriter.setLiveCommitData(commitData.entrySet());
             indexWriter.prepareCommit();
@@ -756,7 +764,7 @@ public class PersistedClusterStateService {
                 }
 
                 final WriterStats stats = overwriteMetadata(clusterState.metadata());
-                commit(currentTerm, clusterState.version());
+                commit(currentTerm, clusterState.version(), clusterState.metadata().oldestIndexVersion());
                 fullStateWritten = true;
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
                 final TimeValue finalSlowWriteLoggingThreshold = slowWriteLoggingThresholdSupplier.get();
@@ -796,7 +804,7 @@ public class PersistedClusterStateService {
                 }
 
                 final WriterStats stats = updateMetadata(previousClusterState.metadata(), clusterState.metadata());
-                commit(currentTerm, clusterState.version());
+                commit(currentTerm, clusterState.version(), clusterState.metadata().oldestIndexVersion());
                 final long durationMillis = relativeTimeMillisSupplier.getAsLong() - startTimeMillis;
                 final TimeValue finalSlowWriteLoggingThreshold = slowWriteLoggingThresholdSupplier.get();
                 if (durationMillis >= finalSlowWriteLoggingThreshold.getMillis()) {
@@ -972,23 +980,24 @@ public class PersistedClusterStateService {
             return new WriterStats(true, metadata.indices().size(), 0);
         }
 
-        public void writeIncrementalTermUpdateAndCommit(long currentTerm, long lastAcceptedVersion) throws IOException {
+        public void writeIncrementalTermUpdateAndCommit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion)
+            throws IOException {
             ensureOpen();
             ensureFullStateWritten();
-            commit(currentTerm, lastAcceptedVersion);
+            commit(currentTerm, lastAcceptedVersion, oldestIndexVersion);
         }
 
-        void commit(long currentTerm, long lastAcceptedVersion) throws IOException {
+        void commit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion) throws IOException {
             ensureOpen();
-            prepareCommit(currentTerm, lastAcceptedVersion);
+            prepareCommit(currentTerm, lastAcceptedVersion, oldestIndexVersion);
             completeCommit();
         }
 
-        private void prepareCommit(long currentTerm, long lastAcceptedVersion) throws IOException {
+        private void prepareCommit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion) throws IOException {
             boolean prepareCommitSuccess = false;
             try {
                 for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
-                    metadataIndexWriter.prepareCommit(nodeId, currentTerm, lastAcceptedVersion);
+                    metadataIndexWriter.prepareCommit(nodeId, currentTerm, lastAcceptedVersion, oldestIndexVersion);
                 }
                 prepareCommitSuccess = true;
             } catch (Exception e) {

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -448,7 +449,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             });
         }
 
-        Map<String, Object> ingestUsage = new HashMap<>(6);
+        Map<String, Object> ingestUsage = Maps.newMapWithExpectedSize(6);
         ingestUsage.put("pipelines", createCountUsageEntry(pipelineCount));
         ingestUsage.put("num_docs_processed", getMinMaxSumAsLongsFromStats(docCountStats));
         ingestUsage.put("time_ms", getMinMaxSumAsLongsFromStats(timeStats));
@@ -457,7 +458,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
     }
 
     private Map<String, Object> getMinMaxSumAsLongsFromStats(StatsAccumulator stats) {
-        Map<String, Object> asMap = new HashMap<>(3);
+        Map<String, Object> asMap = Maps.newMapWithExpectedSize(3);
         asMap.put("sum", Double.valueOf(stats.getTotal()).longValue());
         asMap.put("min", Double.valueOf(stats.getMin()).longValue());
         asMap.put("max", Double.valueOf(stats.getMax()).longValue());

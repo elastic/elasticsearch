@@ -147,7 +147,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     void processDatabase(Map<String, Object> databaseInfo) {
         String name = databaseInfo.get("name").toString().replace(".tgz", "") + ".mmdb";
         String md5 = (String) databaseInfo.get("md5_hash");
-        if (state.contains(name) && Objects.equals(md5, state.get(name).getMd5())) {
+        if (state.contains(name) && Objects.equals(md5, state.get(name).md5())) {
             updateTimestamp(name, state.get(name));
             return;
         }
@@ -160,7 +160,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         }
         long start = System.currentTimeMillis();
         try (InputStream is = httpClient.get(url)) {
-            int firstChunk = state.contains(name) ? state.get(name).getLastChunk() + 1 : 0;
+            int firstChunk = state.contains(name) ? state.get(name).lastChunk() + 1 : 0;
             int lastChunk = indexChunks(name, is, firstChunk, md5, start);
             if (lastChunk > firstChunk) {
                 state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start));
@@ -192,10 +192,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     // visible for testing
     protected void updateTimestamp(String name, Metadata old) {
         logger.debug("geoip database [{}] is up to date, updated timestamp", name);
-        state = state.put(
-            name,
-            new Metadata(old.getLastUpdate(), old.getFirstChunk(), old.getLastChunk(), old.getMd5(), System.currentTimeMillis())
-        );
+        state = state.put(name, new Metadata(old.lastUpdate(), old.firstChunk(), old.lastChunk(), old.md5(), System.currentTimeMillis()));
         stats = stats.skippedDownload();
         updateTaskState();
     }
@@ -279,10 +276,10 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             .peek(e -> {
                 String name = e.getKey();
                 Metadata meta = e.getValue();
-                deleteOldChunks(name, meta.getLastChunk() + 1);
+                deleteOldChunks(name, meta.lastChunk() + 1);
                 state = state.put(
                     name,
-                    new Metadata(meta.getLastUpdate(), meta.getFirstChunk(), meta.getLastChunk(), meta.getMd5(), meta.getLastCheck() - 1)
+                    new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1)
                 );
                 updateTaskState();
             })

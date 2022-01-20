@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -104,7 +105,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             true,
             Collections::emptyList,
             (n, c, o) -> Relations.parse(o),
-            m -> toType(m).relations
+            m -> toType(m).relations,
+            XContentBuilder::field,
+            Objects::toString
         ).setMergeValidator(ParentJoinFieldMapper::checkRelationsConflicts);
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -129,7 +132,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             final Map<String, ParentIdFieldMapper> parentIdFields = new HashMap<>();
             relations.get()
                 .stream()
-                .map(relation -> new ParentIdFieldMapper(name + "#" + relation.parent, eagerGlobalOrdinals.get()))
+                .map(relation -> new ParentIdFieldMapper(name + "#" + relation.parent(), eagerGlobalOrdinals.get()))
                 .forEach(mapper -> parentIdFields.put(mapper.name(), mapper));
             Joiner joiner = new Joiner(name(), relations.get());
             return new ParentJoinFieldMapper(
@@ -310,10 +313,10 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         builder.field("eager_global_ordinals", eagerGlobalOrdinals);
         builder.startObject("relations");
         for (Relations relation : relations) {
-            if (relation.children.size() == 1) {
-                builder.field(relation.parent, relation.children.iterator().next());
+            if (relation.children().size() == 1) {
+                builder.field(relation.parent(), relation.children().iterator().next());
             } else {
-                builder.field(relation.parent, relation.children);
+                builder.field(relation.parent(), relation.children());
             }
         }
         builder.endObject();

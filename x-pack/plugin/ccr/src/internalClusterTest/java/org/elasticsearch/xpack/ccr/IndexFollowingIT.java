@@ -65,6 +65,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
@@ -1396,7 +1397,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final Consumer<Collection<ResourceNotFoundException>> exceptionConsumer
     ) throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
-        final Map<String, String> extraSettingsMap = new HashMap<>(2);
+        final Map<String, String> extraSettingsMap = Maps.newMapWithExpectedSize(2);
         extraSettingsMap.put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms");
         final String leaderIndexSettings = getIndexSettings(numberOfPrimaryShards, between(0, 1), extraSettingsMap);
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));

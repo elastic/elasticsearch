@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
@@ -75,7 +76,7 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
             case 2 -> sortVals[0] = sortVals[0] + 10000;
             case 3 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

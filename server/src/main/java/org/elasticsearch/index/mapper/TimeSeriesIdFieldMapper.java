@@ -9,19 +9,19 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.LuceneDocument.DimensionInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
@@ -140,21 +140,18 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) throws IOException {
         assert fieldType().isIndexed() == false;
 
-        SortedMap<BytesRef, DimensionInfo> dimensions = context.doc().getDimensions();
-        if (dimensions.isEmpty()) {
-            throw new IllegalArgumentException("Dimension fields are missing.");
-        }
+        BytesReference timeSeriesId = buildTsidField(context.doc().getDimensions());
+        context.doc().add(new SortedSetDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
+    }
 
-        IndexableField[] timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        if (timestampFields.length == 0) {
-            throw new IllegalArgumentException(
-                "data stream timestamp field [" + DataStreamTimestampFieldMapper.DEFAULT_PATH + "] is missing"
-            );
+    public static BytesReference buildTsidField(SortedMap<BytesRef, ? extends CheckedConsumer<StreamOutput, IOException>> dimensions) throws IOException {
+        if (dimensions == null || dimensions.isEmpty()) {
+            throw new IllegalArgumentException("Dimension fields are missing.");
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(dimensions.size());
-            for (Map.Entry<BytesRef, DimensionInfo> entry : dimensions.entrySet()) {
+            for (Map.Entry<BytesRef, ? extends CheckedConsumer<StreamOutput, IOException>> entry : dimensions.entrySet()) {
                 if (entry.getKey().length > DIMENSION_NAME_LIMIT) {
                     throw new IllegalArgumentException(
                         "Dimension name must be less than ["
@@ -168,13 +165,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                 }
                 // Write field name in utf-8 instead of writeString's utf-16-ish thing
                 out.writeBytesRef(entry.getKey());
-                entry.getValue().tsidBytes().writeTo(out);
+                entry.getValue().accept(out);
             }
 
             if (out.size() > LIMIT) {
                 throw new IllegalArgumentException(NAME + " longer than [" + LIMIT + "] bytes [" + out.size() + "].");
             }
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), out.bytes().toBytesRef()));
+            return out.bytes();
         }
     }
 
@@ -201,7 +198,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                     case (byte) 'l' -> // parse a long
                         result.put(name, in.readLong());
                     case (byte) 'u' -> { // parse an unsigned_long
-                        Object ul = DocValueFormat.UnsignedLongShiftedDocValueFormat.INSTANCE.format(in.readLong());
+                        Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(in.readLong());
                         result.put(name, ul);
                     }
                     default -> throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");

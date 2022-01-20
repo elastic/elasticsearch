@@ -140,7 +140,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             .filter(r -> r.name().equals(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME))
             .findFirst()
             .orElseThrow(() -> new AssertionError("expected the watch history template to be put"));
-        assertThat(req.indexTemplate().template().settings().get("index.lifecycle.name"), equalTo("watch-history-ilm-policy"));
+        assertThat(req.indexTemplate().template().settings().get("index.lifecycle.name"), equalTo("watch-history-ilm-policy-16"));
     }
 
     public void testThatNonExistingTemplatesAreAddedEvenWithILMUsageDisabled() {

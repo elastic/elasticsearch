@@ -11,7 +11,10 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.CheckedConsumer;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -177,5 +180,10 @@ public class LuceneDocument implements Iterable<IndexableField> {
         return null;
     }
 
-    static record DimensionInfo(BytesReference tsidBytes, boolean isRoutingDimension) {}
+    static record DimensionInfo(BytesReference tsidBytes, boolean isRoutingDimension) implements CheckedConsumer<StreamOutput, IOException> {
+        @Override
+        public void accept(StreamOutput t) throws IOException {
+            tsidBytes.writeTo(t);
+        }
+    }
 }

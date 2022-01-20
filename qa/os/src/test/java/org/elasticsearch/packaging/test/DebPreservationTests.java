@@ -82,6 +82,6 @@ public class DebPreservationTests extends PackagingTestCase {
 
         assertPathsDoNotExist(installation.config, installation.envFile);
 
-        assertThat(packageStatus(distribution()).exitCode, is(1));
+        assertThat(packageStatus(distribution()).exitCode(), is(1));
     }
 }

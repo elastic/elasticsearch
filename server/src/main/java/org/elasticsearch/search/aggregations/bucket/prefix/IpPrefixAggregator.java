@@ -13,7 +13,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -26,7 +25,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.BytesKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -87,8 +86,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
         }
     }
 
-    final ValuesSource.Bytes valuesSource;
-    final DocValueFormat format;
+    final ValuesSourceConfig config;
     final long minDocCount;
     final boolean keyed;
     final BytesKeyedBucketOrds bucketOrds;
@@ -97,8 +95,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
     public IpPrefixAggregator(
         String name,
         AggregatorFactories factories,
-        ValuesSource valuesSource,
-        DocValueFormat format,
+        ValuesSourceConfig config,
         boolean keyed,
         long minDocCount,
         IpPrefix ipPrefix,
@@ -108,8 +105,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
-        this.valuesSource = (ValuesSource.Bytes) valuesSource;
-        this.format = format;
+        this.config = config;
         this.keyed = keyed;
         this.minDocCount = minDocCount;
         this.bucketOrds = BytesKeyedBucketOrds.build(bigArrays(), cardinality);
@@ -118,9 +114,9 @@ public final class IpPrefixAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        return valuesSource == null
+        return config.getValuesSource() == null
             ? LeafBucketCollector.NO_OP_COLLECTOR
-            : new IpPrefixLeafCollector(sub, valuesSource.bytesValues(ctx), ipPrefix);
+            : new IpPrefixLeafCollector(sub, config.getValuesSource().bytesValues(ctx), ipPrefix);
     }
 
     private class IpPrefixLeafCollector extends LeafBucketCollectorBase {
@@ -238,7 +234,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
                 long docCount = bucketDocCount(ordinal);
                 buckets.add(
                     new InternalIpPrefix.Bucket(
-                        format,
+                        config.format(),
                         BytesRef.deepCopyOf(ipAddress),
                         keyed,
                         ipPrefix.isIpv6,
@@ -252,14 +248,14 @@ public final class IpPrefixAggregator extends BucketsAggregator {
                 // NOTE: the aggregator is expected to return sorted results
                 CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
             }
-            results[ordIdx] = new InternalIpPrefix(name, format, keyed, minDocCount, buckets, metadata());
+            results[ordIdx] = new InternalIpPrefix(name, config.format(), keyed, minDocCount, buckets, metadata());
         }
         return results;
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalIpPrefix(name, format, keyed, minDocCount, Collections.emptyList(), metadata());
+        return new InternalIpPrefix(name, config.format(), keyed, minDocCount, Collections.emptyList(), metadata());
     }
 
     @Override

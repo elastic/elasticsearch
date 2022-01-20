@@ -55,8 +55,7 @@ public class IpPrefixAggregatorFactory extends ValuesSourceAggregatorFactory {
         return new IpPrefixAggregator(
             name,
             factories,
-            null,
-            config.format(),
+            config,
             keyed,
             minDocCount,
             ipPrefix,
@@ -73,8 +72,7 @@ public class IpPrefixAggregatorFactory extends ValuesSourceAggregatorFactory {
         return aggregationSupplier.build(
             name,
             factories,
-            config.getValuesSource(),
-            config.format(),
+            config,
             keyed,
             minDocCount,
             ipPrefix,

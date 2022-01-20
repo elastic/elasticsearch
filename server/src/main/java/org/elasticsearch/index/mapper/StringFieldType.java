@@ -211,7 +211,11 @@ public abstract class StringFieldType extends TermBasedFieldType {
                     + "' is set to false."
             );
         }
-        failIfNotIndexedNorDocValuesFallback(context);
+        if (allowDocValueBasedQueries()) {
+            failIfNotIndexedNorDocValuesFallback(context);
+        } else {
+            failIfNotIndexed();
+        }
         if (isIndexed()) {
             return new TermRangeQuery(
                 name(),
@@ -226,7 +230,8 @@ public abstract class StringFieldType extends TermBasedFieldType {
                 lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
                 upperTerm == null ? null : indexedValueForSearch(upperTerm),
                 includeLower,
-                includeUpper);
+                includeUpper
+            );
         }
     }
 }

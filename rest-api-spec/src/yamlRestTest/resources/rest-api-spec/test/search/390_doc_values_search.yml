@@ -36,6 +36,9 @@ setup:
                 type: date
                 format: yyyy/MM/dd
                 index: false
+              keyword:
+                type: keyword
+                index: false
 
   - do:
       index:
@@ -50,6 +53,7 @@ setup:
           long: 1
           short: 1
           date: "2017/01/01"
+          keyword: "key1"
 
   - do:
       index:
@@ -64,6 +68,7 @@ setup:
           long: 2
           short: 2
           date: "2017/01/02"
+          keyword: "key2"
 
   - do:
       indices.refresh: {}
@@ -219,4 +224,31 @@ setup:
       search:
         index: test
         body: { query: { range: { date: { gte: "2017/01/01" } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test match query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { keyword: { query: "key1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test terms query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { keyword: [ "key1", "key2" ] } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test range query on keyword field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { keyword: { gte: "key1" } } } }
   - length:   { hits.hits: 2  }

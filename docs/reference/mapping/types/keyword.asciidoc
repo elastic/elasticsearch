@@ -80,7 +80,10 @@ The following parameters are accepted by `keyword` fields:
 
 <<mapping-index,`index`>>::
 
-    Should the field be searchable? Accepts `true` (default) or `false`.
+    Should the field be quickly searchable? Accepts `true` (default) and
+     `false`. `keyword` fields that only have <<doc-values,`doc_values`>>
+     enabled can still be queried using term or range-based queries,
+     albeit slower.
 
 <<index-options,`index_options`>>::
 

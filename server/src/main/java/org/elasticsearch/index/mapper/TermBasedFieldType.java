@@ -36,6 +36,10 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
         super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
     }
 
+    protected boolean allowDocValueBasedQueries() {
+        return false;
+    }
+
     /** Returns the indexed value used to construct search "values".
      *  This method is used for the default implementations of most
      *  query factory methods such as {@link #termQuery}. */
@@ -56,7 +60,11 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
-        failIfNotIndexedNorDocValuesFallback(context);
+        if (allowDocValueBasedQueries()) {
+            failIfNotIndexedNorDocValuesFallback(context);
+        } else {
+            failIfNotIndexed();
+        }
         if (isIndexed()) {
             return new TermQuery(new Term(name(), indexedValueForSearch(value)));
         } else {
@@ -67,7 +75,11 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
 
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-        failIfNotIndexedNorDocValuesFallback(context);
+        if (allowDocValueBasedQueries()) {
+            failIfNotIndexedNorDocValuesFallback(context);
+        } else {
+            failIfNotIndexed();
+        }
         BytesRef[] bytesRefs = values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new);
         if (isIndexed()) {
             return new TermInSetQuery(name(), bytesRefs);

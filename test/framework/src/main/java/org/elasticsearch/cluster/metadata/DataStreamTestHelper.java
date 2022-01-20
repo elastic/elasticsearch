@@ -433,7 +433,6 @@ public final class DataStreamTestHelper {
             clusterService,
             indicesService,
             allocationService,
-            null,
             shardLimitValidator,
             env,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
@@ -443,13 +442,7 @@ public final class DataStreamTestHelper {
             false,
             new IndexSettingProviders(providers)
         );
-        MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
-            clusterService,
-            indicesService,
-            new AliasValidator(),
-            null,
-            registry
-        );
+        MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService, null, registry);
         return new MetadataRolloverService(
             testThreadPool,
             createIndexService,

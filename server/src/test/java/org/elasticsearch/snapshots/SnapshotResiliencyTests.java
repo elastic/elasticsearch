@@ -100,7 +100,6 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
-import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -1857,7 +1856,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     clusterService,
                     indicesService,
                     allocationService,
-                    new AliasValidator(),
                     shardLimitValidator,
                     environment,
                     indexScopedSettings,

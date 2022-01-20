@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DiffableStringMap;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -110,65 +109,22 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
                 DeprecationIssue>> nodeSettingsChecks
     ) {
         Settings filteredNodeSettings = settings.filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false);
+
+        Metadata metadata = clusterService.state().metadata();
+        Settings transientSettings = metadata.transientSettings()
+            .filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false);
+        Settings persistentSettings = metadata.persistentSettings()
+            .filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false);
+        ClusterState filteredClusterState = ClusterState.builder(clusterService.state())
+            .metadata(Metadata.builder(metadata).transientSettings(transientSettings).persistentSettings(persistentSettings).build())
+            .build();
+
         List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(
             nodeSettingsChecks,
-            (c) -> c.apply(
-                filteredNodeSettings,
-                pluginsService.info(),
-                new FilteredClusterState(clusterService.state(), skipTheseDeprecations),
-                licenseState
-            )
+            (c) -> c.apply(filteredNodeSettings, pluginsService.info(), filteredClusterState, licenseState)
         );
 
         return new NodesDeprecationCheckAction.NodeResponse(transportService.getLocalNode(), issues);
-    }
-
-    private static final class FilteredClusterState extends ClusterState {
-        private final Metadata filteredMetadata;
-
-        FilteredClusterState(ClusterState state, List<String> skipTheseDeprecations) {
-            super(state.version(), state.stateUUID(), state);
-            this.filteredMetadata = new FilteredMetadata(super.metadata(), skipTheseDeprecations);
-        }
-
-        @Override
-        public Metadata metadata() {
-            return this.filteredMetadata;
-        }
-    }
-
-    private static final class FilteredMetadata extends Metadata {
-        FilteredMetadata(Metadata originalMetadata, List<String> skipTheseDeprecations) {
-            super(
-                originalMetadata.clusterUUID(),
-                originalMetadata.clusterUUIDCommitted(),
-                originalMetadata.version(),
-                originalMetadata.coordinationMetadata(),
-                originalMetadata.transientSettings() == null
-                    ? null
-                    : originalMetadata.transientSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false),
-                originalMetadata.persistentSettings() == null
-                    ? null
-                    : originalMetadata.persistentSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false),
-                originalMetadata.settings() == null
-                    ? null
-                    : originalMetadata.settings().filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false),
-                (DiffableStringMap) originalMetadata.hashesOfConsistentSettings(),
-                originalMetadata.getTotalNumberOfShards(),
-                originalMetadata.getTotalOpenIndexShards(),
-                originalMetadata.indices(),
-                originalMetadata.templates(),
-                originalMetadata.customs(),
-                originalMetadata.getConcreteAllIndices(),
-                originalMetadata.getConcreteVisibleIndices(),
-                originalMetadata.getConcreteAllOpenIndices(),
-                originalMetadata.getConcreteVisibleOpenIndices(),
-                originalMetadata.getConcreteAllClosedIndices(),
-                originalMetadata.getConcreteVisibleClosedIndices(),
-                originalMetadata.getIndicesLookup(),
-                originalMetadata.oldestIndexVersion()
-            );
-        }
     }
 
 }

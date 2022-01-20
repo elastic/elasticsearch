@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DiffableStringMap;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -47,11 +47,8 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         Settings dynamicSettings = settingsBuilder.build();
         ThreadPool threadPool = null;
         final XPackLicenseState licenseState = null;
-        Metadata metadata = Mockito.mock(Metadata.class);
-        Mockito.when(metadata.hashesOfConsistentSettings()).thenReturn(DiffableStringMap.EMPTY);
-        Mockito.when(metadata.settings()).thenReturn(dynamicSettings);
-        ClusterState clusterState = Mockito.mock(ClusterState.class);
-        Mockito.when(clusterState.metadata()).thenReturn(metadata);
+        Metadata metadata = Metadata.builder().transientSettings(dynamicSettings).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         Mockito.when(clusterService.state()).thenReturn(clusterState);
         ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, Set.of(DeprecationChecks.SKIP_DEPRECATIONS_SETTING));

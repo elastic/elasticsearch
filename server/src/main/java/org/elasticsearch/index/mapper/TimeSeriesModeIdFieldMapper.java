@@ -130,6 +130,7 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
         for (Map.Entry<BytesRef, DimensionInfo> entry : context.doc().getDimensions().entrySet()) {
             BytesReference bytes = entry.getValue().tsidBytes();
             if (entry.getValue().isRoutingDimension()) {
+                System.err.println("index time routing: " + entry.getKey().utf8ToString());
                 int thisHash = hash(entry.getKey()) ^ hash(bytes);
                 routingHash = 31 * routingHash + thisHash;
             } else {

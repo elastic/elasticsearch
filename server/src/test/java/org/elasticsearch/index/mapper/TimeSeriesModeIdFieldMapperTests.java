@@ -547,6 +547,37 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
         }
     }
 
+    public void testDotsInFieldNames() throws IOException {
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 100))
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "-9999-01-01T00:00:00Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "9999-01-01T00:00:00Z")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "o.*")
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("o.f1").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("o").startObject("properties");
+            {
+                b.startObject("f2").field("type", "keyword").field("time_series_dimension", true).endObject();
+            }
+            b.endObject().endObject();
+        }));
+        String f1 = randomAlphaOfLength(12);
+        String f2 = randomAlphaOfLength(12);
+        assertIdAligns(mapperService, b -> {
+            b.field("@timestamp", "2022-01-01T01:00:00Z");
+            b.field("o.f1", f1);
+            b.startObject("o");
+            {
+                b.field("f2", f2);
+            }
+            b.endObject();
+        });
+    }
+
     private ParsedDocument parse(MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> source) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())) {
             builder.startObject();

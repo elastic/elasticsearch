@@ -241,3 +241,34 @@ delete over _bulk:
   - match: {items.1.delete.result: deleted}
   - match: {items.2.delete.status: 404}
   - match: {items.2.delete.error.reason: "invalid id [not found]"}
+
+---
+routing field with dot in name:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+
+  - do:
+      indices.create:
+          index: test2
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [o.*]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+                number_of_replicas: 0
+                number_of_shards: 2
+
+  - do:
+      index:
+        refresh: true
+        index: test2
+        op_type: index
+        body:
+          "@timestamp": "2021-04-28T18:51:03.142Z"
+          o:
+            f: cat
+  - match: {_id: W1c4VWb-0Rl5AQAA}

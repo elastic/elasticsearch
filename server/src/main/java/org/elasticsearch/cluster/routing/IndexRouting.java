@@ -260,6 +260,7 @@ public abstract class IndexRouting {
                     source.nextToken();
                     break;
                 case VALUE_STRING:
+                    System.err.println("route time routing: " + path);
                     hashes.add(
                         new NameAndHash(path, TimeSeriesModeIdFieldMapper.hash(TimeSeriesIdFieldMapper.encodeTsidValue(source.text())))
                     );

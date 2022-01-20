@@ -99,13 +99,14 @@ The current number of nodes where the model is allocated.
 
 `error_count`:::
 (integer)
-The total number of errors when evaluating the trained model
-for all nodes in the deployment.
+The sum of `error_count` for all nodes in the deployment.
 
 `rejected_execution_count`:::
 (integer)
-The total number of inference requests that were not processed because
-the queue was full for all nodes in the deployment.
+The sum of `rejected_execution_count` for all nodes in the deployment.
+Individual nodes reject an inference request if the inference queue is full.
+The queue size is controlled by the `queue_capacity` setting in the
+<<start-trained-model-deployment>> API.
 
 `state`:::
 (string)
@@ -123,8 +124,7 @@ The desired number of nodes for model allocation.
 
 `timeout_count`:::
 (integer)
-The total number of inference requests that timed out before being
-processed for all nodes in the deployment.
+The sum of `timeout_count` for all nodes in the deployment.
 ======
 
 `inference_threads`:::
@@ -161,7 +161,7 @@ The total number of inference calls made against this node for this model.
 `inference_threads`:::
 (integer)
 The number of threads used by the inference process.
-This value is limited by the number of hardware threads on the node; 
+This value is limited by the number of hardware threads on the node;
 it might therefore differ from the `inference_threads` value in the <<start-trained-model-deployment>> API.
 
 `last_access`:::
@@ -171,7 +171,7 @@ The epoch time stamp of the last inference call for the model on this node.
 `model_threads`:::
 (integer)
 The number of threads used when sending inference requests to the model.
-This value is limited by the number of hardware threads on the node; 
+This value is limited by the number of hardware threads on the node;
 it might therefore differ from the `model_threads` value in the <<start-trained-model-deployment>> API.
 
 `node`:::

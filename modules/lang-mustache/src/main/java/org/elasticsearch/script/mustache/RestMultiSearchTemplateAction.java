@@ -66,8 +66,6 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         MultiSearchTemplateRequest multiRequest = parseRequest(request, allowExplicitIndex);
-        // TODO I think we need to move this to the transport actions execute because we don't resolve scripts that early
-        CCSVersionCheckHelper.checkCCSVersionCompatibility(request, multiRequest);
         return channel -> client.execute(MultiSearchTemplateAction.INSTANCE, multiRequest, new RestToXContentListener<>(channel));
     }
 
@@ -92,6 +90,9 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                 SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
                 if (searchTemplateRequest.getScript() != null) {
                     searchTemplateRequest.setRequest(searchRequest);
+                    searchTemplateRequest.setCcsCompatibilityCheck(
+                        restRequest.paramAsBoolean(CCSVersionCheckHelper.CCS_VERSION_CHECK_FLAG, false)
+                    );
                     multiRequest.add(searchTemplateRequest);
                 } else {
                     throw new IllegalArgumentException("Malformed search template");

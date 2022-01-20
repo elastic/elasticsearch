@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.rest.action.search.CCSVersionCheckHelper;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -68,6 +69,9 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
             }
             items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
             if (searchRequest != null) {
+                if (searchTemplateRequest.getCcsCompatibilityCheck()) {
+                    CCSVersionCheckHelper.checkCCSVersionCompatibility(searchRequest);
+                }
                 multiSearchRequest.add(searchRequest);
                 originalSlots.add(i);
             }

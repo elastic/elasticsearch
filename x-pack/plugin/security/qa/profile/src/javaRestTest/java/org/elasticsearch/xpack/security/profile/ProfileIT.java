@@ -18,6 +18,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -130,6 +131,7 @@ public class ProfileIT extends ESRestTestCase {
         assertOK(adminClient().performRequest(updateProfileRequest1));
 
         final Map<String, Object> profileMap1 = doGetProfile(uid, "app1");
+        assertThat(castToMap(profileMap1.get("access")), equalTo(Map.of("app1", Map.of("tags", List.of("prod", "east")))));
         assertThat(castToMap(profileMap1.get("data")), equalTo(Map.of("app1", Map.of("theme", "default"))));
     }
 

@@ -139,9 +139,7 @@ public class ProfileService {
                 builder.startObject();
                 {
                     if (false == request.getAccess().isEmpty()) {
-                        builder.startObject("access");
-                        builder.field("applications", request.getAccess());
-                        builder.endObject();
+                        builder.field("access", request.getAccess());
                     }
                     if (false == request.getData().isEmpty()) {
                         builder.field("application_data", request.getData());

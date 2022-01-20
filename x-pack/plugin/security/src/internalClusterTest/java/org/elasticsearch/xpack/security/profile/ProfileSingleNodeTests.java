@@ -240,7 +240,7 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         final Profile profile2 = getProfile(profile1.uid(), Set.of("app1", "app2"));
 
         assertThat(profile2.uid(), equalTo(profile1.uid()));
-        assertThat(profile2.access().applications(), equalTo(Map.of("app1", List.of("tab1", "tab2"))));
+        assertThat(profile2.access(), equalTo(Map.of("app1", List.of("tab1", "tab2"))));
         assertThat(profile2.applicationData(), equalTo(Map.of("app1", Map.of("name", "app1", "type", "app"))));
 
         // Update again should be incremental
@@ -256,7 +256,7 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
 
         final Profile profile3 = getProfile(profile1.uid(), Set.of("app1", "app2"));
         assertThat(profile3.uid(), equalTo(profile1.uid()));
-        assertThat(profile3.access().applications(), equalTo(profile2.access().applications()));
+        assertThat(profile3.access(), equalTo(profile2.access()));
         assertThat(
             profile3.applicationData(),
             equalTo(Map.of("app1", Map.of("name", "app1_take2", "type", "app", "active", false), "app2", Map.of("name", "app2")))
@@ -265,7 +265,7 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         // Activate profile again should not affect the data section
         doActivateProfile(RAC_USER_NAME, TEST_PASSWORD_SECURE_STRING);
         final Profile profile4 = getProfile(profile1.uid(), Set.of("app1", "app2"));
-        assertThat(profile4.access().applications(), equalTo(profile3.access().applications()));
+        assertThat(profile4.access(), equalTo(profile3.access()));
         assertThat(profile4.applicationData(), equalTo(profile3.applicationData()));
 
         // Update non-existent profile should throw error

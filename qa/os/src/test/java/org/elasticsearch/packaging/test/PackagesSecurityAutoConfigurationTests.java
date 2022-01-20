@@ -286,8 +286,8 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
                 Paths.get(getClass().getResource("transport.crt").toURI()).toAbsolutePath().normalize()
             ).stream().filter(l -> l.contains("-----") == false).collect(Collectors.joining());
             final XContentBuilder responseBuilder = jsonBuilder().startObject()
-                .field("http_ca_key", httpCaCertPemString)
-                .field("http_ca_cert", httpCaKeyPemString)
+                .field("http_ca_key", httpCaKeyPemString)
+                .field("http_ca_cert", httpCaCertPemString)
                 .field("transport_ca_cert", transportCaCertPemString)
                 .field("transport_key", transportKeyPemString)
                 .field("transport_cert", transportCertPemString)

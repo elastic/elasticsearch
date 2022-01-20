@@ -61,9 +61,6 @@ public class GatewayServiceIT extends ESIntegTestCase {
             return Map.of(ALLOCATOR_NAME, new ExistingShardsAllocator() {
                 @Override
                 public void beforeAllocation(RoutingAllocation allocation) {
-                    if (settingApplied.get() == false) {
-                        fail("boom");
-                    }
                     assertTrue(settingApplied.get());
                 }
 

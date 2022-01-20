@@ -14,9 +14,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.desirednodes.DesiredNode;
-import org.elasticsearch.cluster.desirednodes.DesiredNodes;
-import org.elasticsearch.cluster.desirednodes.DesiredNodesMetadata;
+import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
+import org.elasticsearch.cluster.metadata.DesiredNode;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
+import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -27,7 +28,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 
 import static org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequestSerializationTests.randomUpdateDesiredNodesRequest;
-import static org.elasticsearch.cluster.desirednodes.DesiredNodesMetadataSerializationTests.randomDesiredNodesMetadata;
+import static org.elasticsearch.cluster.metadata.DesiredNodesMetadataSerializationTests.randomDesiredNodesMetadata;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -36,13 +37,20 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
+
+    public static final DesiredNodesSettingsValidator NO_OP_SETTINGS_VALIDATOR = new DesiredNodesSettingsValidator(null, null, null) {
+        @Override
+        public void validateSettings(DesiredNode node) {}
+    };
+
     public void testWriteBlocks() {
         final TransportUpdateDesiredNodesAction action = new TransportUpdateDesiredNodesAction(
             mock(TransportService.class),
             mock(ClusterService.class),
             mock(ThreadPool.class),
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class)
+            mock(IndexNameExpressionResolver.class),
+            NO_OP_SETTINGS_VALIDATOR
         );
 
         final ClusterBlocks blocks = ClusterBlocks.builder()
@@ -65,7 +73,8 @@ public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
             mock(ClusterService.class),
             mock(ThreadPool.class),
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class)
+            mock(IndexNameExpressionResolver.class),
+            NO_OP_SETTINGS_VALIDATOR
         );
 
         final ClusterBlocks blocks = ClusterBlocks.builder().build();
@@ -98,7 +107,11 @@ public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
             request = new UpdateDesiredNodesRequest(desiredNodes.historyID(), desiredNodes.version() + 1, updatedNodes);
         }
 
-        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request);
+        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(
+            currentClusterState,
+            NO_OP_SETTINGS_VALIDATOR,
+            request
+        );
 
         final DesiredNodesMetadata desiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
         assertThat(desiredNodesMetadata, is(notNullValue()));
@@ -108,5 +121,30 @@ public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
         assertThat(desiredNodes.historyID(), is(equalTo(request.getHistoryID())));
         assertThat(desiredNodes.version(), is(equalTo(request.getVersion())));
         assertThat(desiredNodes.nodes(), is(equalTo(request.getNodes())));
+    }
+
+    public void testUpdatesAreIdempotent() {
+        final DesiredNodesMetadata desiredNodesMetadata = randomDesiredNodesMetadata();
+        final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10)))
+            .metadata(Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, desiredNodesMetadata).build())
+            .build();
+
+        final DesiredNodes currentDesiredNodes = desiredNodesMetadata.getCurrentDesiredNodes();
+        final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
+            currentDesiredNodes.historyID(),
+            currentDesiredNodes.version(),
+            currentDesiredNodes.nodes()
+        );
+
+        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(
+            currentClusterState,
+            NO_OP_SETTINGS_VALIDATOR,
+            request
+        );
+
+        final DesiredNodesMetadata updatedDesiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
+        assertThat(updatedDesiredNodesMetadata, is(notNullValue()));
+        assertThat(updatedDesiredNodesMetadata.getCurrentDesiredNodes(), is(notNullValue()));
+        assertThat(updatedDesiredNodesMetadata.getCurrentDesiredNodes(), is(equalTo(currentDesiredNodes)));
     }
 }

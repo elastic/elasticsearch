@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.cluster.desirednodes;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.cluster.desirednodes.DesiredNode;
+import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;

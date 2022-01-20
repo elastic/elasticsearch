@@ -20,12 +20,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.desirednodes.DesiredNode;
-import org.elasticsearch.cluster.desirednodes.DesiredNodes;
-import org.elasticsearch.cluster.desirednodes.DesiredNodesMetadata;
+import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
+import org.elasticsearch.cluster.metadata.DesiredNode;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
+import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -35,13 +37,16 @@ import java.util.List;
 
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, AcknowledgedResponse> {
     private final Logger logger = LogManager.getLogger(TransportUpdateDesiredNodesAction.class);
+    private final DesiredNodesSettingsValidator settingsValidator;
 
+    @Inject
     public TransportUpdateDesiredNodesAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        DesiredNodesSettingsValidator settingsValidator
     ) {
         super(
             UpdateDesiredNodesAction.NAME,
@@ -54,6 +59,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             AcknowledgedResponse::readFrom,
             ThreadPool.Names.SAME
         );
+        this.settingsValidator = settingsValidator;
     }
 
     @Override
@@ -71,17 +77,26 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         clusterService.submitStateUpdateTask("update-desired-nodes", new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                return updateDesiredNodes(currentState, request);
+                return updateDesiredNodes(currentState, settingsValidator, request);
             }
         }, ClusterStateTaskExecutor.unbatched());
     }
 
-    static ClusterState updateDesiredNodes(ClusterState currentState, UpdateDesiredNodesRequest request) {
+    static ClusterState updateDesiredNodes(
+        ClusterState currentState,
+        DesiredNodesSettingsValidator settingsValidator,
+        UpdateDesiredNodesRequest request
+    ) {
         DesiredNodesMetadata desiredNodesMetadata = getDesiredNodesMetadata(currentState);
         DesiredNodes currentDesiredNodes = desiredNodesMetadata.getCurrentDesiredNodes();
         DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
 
         if (currentDesiredNodes != null) {
+
+            if (currentDesiredNodes.equals(proposedDesiredNodes)) {
+                return currentState;
+            }
+
             if (currentDesiredNodes.hasSameVersion(proposedDesiredNodes) && currentDesiredNodes.equals(proposedDesiredNodes) == false) {
                 throw new IllegalArgumentException("not same version");
             }
@@ -91,7 +106,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             }
         }
 
-        validateSettings(proposedDesiredNodes);
+        validateSettings(proposedDesiredNodes, settingsValidator);
 
         return currentState.copyAndUpdateMetadata(
             metadata -> metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(proposedDesiredNodes))
@@ -108,11 +123,11 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         return currentDesiredNodesMetadata;
     }
 
-    private static void validateSettings(DesiredNodes desiredNodes) {
+    private static void validateSettings(DesiredNodes desiredNodes, DesiredNodesSettingsValidator settingsValidator) {
         final List<RuntimeException> exceptions = new ArrayList<>();
         for (DesiredNode node : desiredNodes.nodes()) {
             try {
-                validateSettings(node);
+                settingsValidator.validateSettings(node);
             } catch (RuntimeException e) {
                 // TODO: add nodeID
                 exceptions.add(e);
@@ -120,27 +135,5 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         }
 
         ExceptionsHelper.rethrowAndSuppress(exceptions);
-    }
-
-    private static void validateSettings(DesiredNode node) {
-        // ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        //
-        // Settings settingsToValidate = node.settings();
-        // if (node.version().after(Version.CURRENT)) {
-        // Settings.Builder knownSettingsBuilder = Settings.builder().put(node.settings());
-        // for (String settingKey : node.settings().keySet()) {
-        // Setting<?> setting = clusterSettings.get(settingKey);
-        // if (setting == null) {
-        // knownSettingsBuilder.remove(settingKey);
-        // logger.debug("Unknown setting {}", settingKey);
-        // }
-        // }
-        // settingsToValidate = knownSettingsBuilder.build();
-        // }
-        //
-        // //TODO: This takes into account current master setting limits
-        // // we need to implement a mechanism to validate the settings
-        // // using the specs provided in de desired node
-        // clusterSettings.validate(settingsToValidate, true);
     }
 }

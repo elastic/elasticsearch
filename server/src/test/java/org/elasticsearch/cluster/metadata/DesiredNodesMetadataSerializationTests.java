@@ -6,10 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.cluster.desirednodes;
+package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
@@ -18,7 +17,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.cluster.desirednodes.DesiredNodesSerializationTests.randomDesiredNodes;
+import static org.elasticsearch.cluster.metadata.DesiredNodesSerializationTests.randomDesiredNodes;
 
 public class DesiredNodesMetadataSerializationTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
     @Override

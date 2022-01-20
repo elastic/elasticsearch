@@ -1332,14 +1332,26 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
-    public static Setting<Instant> dateSetting(String key, Instant defaultValue, Validator<Instant> validator, Property... properties) {
-        return new Setting<>(
-            key,
-            defaultValue.toString(),
-            (s) -> Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(s)),
-            validator,
-            properties
-        );
+    public static Setting<Instant> dateSetting(
+        String key,
+        Instant defaultValue,
+        Instant minValue,
+        Instant maxValue,
+        Validator<Instant> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValue.toString(), (s) -> {
+            Instant value = Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(s));
+            if (value.toEpochMilli() < minValue.toEpochMilli()) {
+                String err = "Failed to parse value [" + value + "] for setting [" + key + "] must be >= " + minValue;
+                throw new IllegalArgumentException(err);
+            }
+            if (value.toEpochMilli() > maxValue.toEpochMilli()) {
+                String err = "Failed to parse value [" + value + "] for setting [" + key + "] must be <= " + maxValue;
+                throw new IllegalArgumentException(err);
+            }
+            return value;
+        }, validator, properties);
     }
 
     public static Setting<String> simpleString(String key, Property... properties) {

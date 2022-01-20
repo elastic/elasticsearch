@@ -477,6 +477,8 @@ public final class IndexSettings {
     public static final Setting<Instant> TIME_SERIES_START_TIME = Setting.dateSetting(
         "index.time_series.start_time",
         Instant.ofEpochMilli(0),
+        Instant.ofEpochMilli(0),
+        Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999),
         v -> {},
         Property.IndexScope,
         Property.Final
@@ -487,6 +489,8 @@ public final class IndexSettings {
      */
     public static final Setting<Instant> TIME_SERIES_END_TIME = Setting.dateSetting(
         "index.time_series.end_time",
+        Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999),
+        Instant.ofEpochMilli(0),
         Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999),
         new Setting.Validator<>() {
             @Override

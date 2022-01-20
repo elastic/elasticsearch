@@ -215,6 +215,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private SortedMap<String, IndexAbstraction> indicesLookup;
     private final Map<String, MappingMetadata> mappingsByHash;
 
+    private final Version oldestIndexVersion;
+
     private Metadata(
         String clusterUUID,
         boolean clusterUUIDCommitted,
@@ -236,7 +238,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         String[] allClosedIndices,
         String[] visibleClosedIndices,
         SortedMap<String, IndexAbstraction> indicesLookup,
-        Map<String, MappingMetadata> mappingsByHash
+        Map<String, MappingMetadata> mappingsByHash,
+        Version oldestIndexVersion
     ) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
@@ -259,6 +262,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.visibleClosedIndices = visibleClosedIndices;
         this.indicesLookup = indicesLookup;
         this.mappingsByHash = mappingsByHash;
+        this.oldestIndexVersion = oldestIndexVersion;
     }
 
     public Metadata withIncrementedVersion() {
@@ -283,7 +287,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             allClosedIndices,
             visibleClosedIndices,
             indicesLookup,
-            mappingsByHash
+            mappingsByHash,
+            oldestIndexVersion
         );
     }
 
@@ -324,6 +329,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     public CoordinationMetadata coordinationMetadata() {
         return this.coordinationMetadata;
+    }
+
+    public Version oldestIndexVersion() {
+        return this.oldestIndexVersion;
     }
 
     public boolean hasAlias(String alias) {
@@ -1062,6 +1071,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
             builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
         }
+
         return builder.build();
     }
 
@@ -1596,6 +1606,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             final List<String> visibleClosedIndices = new ArrayList<>();
             final Set<String> allAliases = new HashSet<>();
             final ImmutableOpenMap<String, IndexMetadata> indicesMap = indices.build();
+
+            int oldestIndexVersionId = Version.CURRENT.id;
+
             for (IndexMetadata indexMetadata : indicesMap.values()) {
                 final String name = indexMetadata.getIndex().getName();
                 boolean added = allIndices.add(name);
@@ -1616,6 +1629,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     }
                 }
                 indexMetadata.getAliases().keysIt().forEachRemaining(allAliases::add);
+                oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCreationVersion().id);
             }
 
             final ArrayList<String> duplicates = new ArrayList<>();
@@ -1738,7 +1752,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 allClosedIndicesArray,
                 visibleClosedIndicesArray,
                 indicesLookup,
-                Collections.unmodifiableMap(mappingsByHash)
+                Collections.unmodifiableMap(mappingsByHash),
+                Version.fromId(oldestIndexVersionId)
             );
         }
 
@@ -1888,6 +1903,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     builder.endObject();
                 }
             }
+
             builder.endObject();
         }
 

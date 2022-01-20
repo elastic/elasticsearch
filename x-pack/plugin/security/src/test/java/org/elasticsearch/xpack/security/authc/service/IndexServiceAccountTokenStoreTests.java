@@ -321,8 +321,7 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
     public void testDeleteToken() {
         final AtomicBoolean cacheCleared = new AtomicBoolean(false);
         responseProviderHolder.set((r, l) -> {
-            if (r instanceof DeleteRequest) {
-                final DeleteRequest dr = (DeleteRequest) r;
+            if (r instanceof final DeleteRequest dr) {
                 final boolean found = dr.id().equals(SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-elastic/fleet-server/token1");
                 l.onResponse(
                     new DeleteResponse(

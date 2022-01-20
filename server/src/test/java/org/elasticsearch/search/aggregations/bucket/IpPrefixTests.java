@@ -33,10 +33,15 @@ public class IpPrefixTests extends BaseAggregationTestCase<IpPrefixAggregationBu
 
     public void testNegativePrefixLength() {
         final IpPrefixAggregationBuilder factory = new IpPrefixAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
-        factory.isIpv6(randomBoolean());
-
+        boolean isIpv6 = randomBoolean();
+        final String rangeAsString = isIpv6 ? "[0, 128]" : "[0, 32]";
+        factory.isIpv6(isIpv6);
         int randomPrefixLength = randomIntBetween(-1000, -1);
+
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> factory.prefixLength(randomPrefixLength));
-        assertThat(ex.getMessage(), startsWith("[prefix_length] must be in range [0, 128] while value is [" + randomPrefixLength + "]"));
+        assertThat(
+            ex.getMessage(),
+            startsWith("[prefix_length] must be in range " + rangeAsString + " while value is [" + randomPrefixLength + "]")
+        );
     }
 }

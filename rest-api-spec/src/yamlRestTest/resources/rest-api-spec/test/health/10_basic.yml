@@ -5,3 +5,4 @@
 
   - is_true:   cluster_name
   - is_false:  timed_out
+  - match:     { status: "green" }

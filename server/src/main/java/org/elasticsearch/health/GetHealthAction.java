@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
@@ -57,7 +58,11 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
             builder.field("timed_out", false);
+            builder.field("status", "green");
             builder.field("cluster_name", clusterName.value());
+            builder.array("impacts", Collections.emptyList());
+            builder.startObject("components");
+            builder.endObject();
             return builder.endObject();
         }
     }

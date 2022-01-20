@@ -325,14 +325,15 @@ public class ShardStateAction {
             List<StaleShard> staleShardsToBeApplied = new ArrayList<>();
 
             for (FailedShardUpdateTask task : tasks) {
-                IndexMetadata indexMetadata = currentState.metadata().index(task.getShardId().getIndex());
+                FailedShardEntry entry = task.getEntry();
+                IndexMetadata indexMetadata = currentState.metadata().index(entry.getShardId().getIndex());
                 if (indexMetadata == null) {
                     // tasks that correspond to non-existent indices are marked as successful
                     logger.debug(
                         "{} ignoring shard failed task [{}] (unknown index {})",
-                        task.getShardId(),
-                        task,
-                        task.getShardId().getIndex()
+                        entry.getShardId(),
+                        entry,
+                        entry.getShardId().getIndex()
                     );
                     batchResultBuilder.success(task);
                 } else {
@@ -344,29 +345,29 @@ public class ShardStateAction {
                     // We check here that the primary to which the write happened was not already failed in an earlier cluster state update.
                     // This prevents situations where a new primary has already been selected and replication failures from an old stale
                     // primary unnecessarily fail currently active shards.
-                    if (task.getPrimaryTerm() > 0) {
-                        long currentPrimaryTerm = indexMetadata.primaryTerm(task.getShardId().id());
-                        if (currentPrimaryTerm != task.getPrimaryTerm()) {
-                            assert currentPrimaryTerm > task.getPrimaryTerm()
+                    if (entry.getPrimaryTerm() > 0) {
+                        long currentPrimaryTerm = indexMetadata.primaryTerm(entry.getShardId().id());
+                        if (currentPrimaryTerm != entry.getPrimaryTerm()) {
+                            assert currentPrimaryTerm > entry.getPrimaryTerm()
                                 : "received a primary term with a higher term than in the "
                                     + "current cluster state (received ["
-                                    + task.getPrimaryTerm()
+                                    + entry.getPrimaryTerm()
                                     + "] but current is ["
                                     + currentPrimaryTerm
                                     + "])";
                             logger.debug(
                                 "{} failing shard failed task [{}] (primary term {} does not match current term {})",
-                                task.getShardId(),
-                                task,
-                                task.getPrimaryTerm(),
-                                indexMetadata.primaryTerm(task.getShardId().id())
+                                entry.getShardId(),
+                                entry,
+                                entry.getPrimaryTerm(),
+                                indexMetadata.primaryTerm(entry.getShardId().id())
                             );
                             batchResultBuilder.failure(
                                 task,
                                 new NoLongerPrimaryShardException(
-                                    task.getShardId(),
+                                    entry.getShardId(),
                                     "primary term ["
-                                        + task.getPrimaryTerm()
+                                        + entry.getPrimaryTerm()
                                         + "] did not match current primary term ["
                                         + currentPrimaryTerm
                                         + "]"
@@ -376,31 +377,33 @@ public class ShardStateAction {
                         }
                     }
 
-                    ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.getShardId(), task.getAllocationId());
+                    ShardRouting matched = currentState.getRoutingTable().getByAllocationId(entry.getShardId(), entry.getAllocationId());
                     if (matched == null) {
-                        Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(task.getShardId().id());
+                        Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(entry.getShardId().id());
                         // mark shard copies without routing entries that are in in-sync allocations set only as stale if the reason why
                         // they were failed is because a write made it into the primary but not to this copy (which corresponds to
                         // the check "primaryTerm > 0").
-                        if (task.getPrimaryTerm() > 0 && inSyncAllocationIds.contains(task.getAllocationId())) {
+                        if (entry.getPrimaryTerm() > 0 && inSyncAllocationIds.contains(entry.getAllocationId())) {
                             logger.debug(
                                 "{} marking shard {} as stale (shard failed task: [{}])",
-                                task.getShardId(),
-                                task.getAllocationId(),
-                                task
+                                entry.getShardId(),
+                                entry.getAllocationId(),
+                                entry
                             );
                             tasksToBeApplied.add(task);
-                            staleShardsToBeApplied.add(new StaleShard(task.getShardId(), task.getAllocationId()));
+                            staleShardsToBeApplied.add(new StaleShard(entry.getShardId(), entry.getAllocationId()));
                         } else {
                             // tasks that correspond to non-existent shards are marked as successful
-                            logger.debug("{} ignoring shard failed task [{}] (shard does not exist anymore)", task.getShardId(), task);
+                            logger.debug("{} ignoring shard failed task [{}] (shard does not exist anymore)", entry.getShardId(), entry);
                             batchResultBuilder.success(task);
                         }
                     } else {
                         // failing a shard also possibly marks it as stale (see IndexMetadataUpdater)
-                        logger.debug("{} failing shard {} (shard failed task: [{}])", task.getShardId(), matched, task);
+                        logger.debug("{} failing shard {} (shard failed task: [{}])", entry.getShardId(), matched, task);
                         tasksToBeApplied.add(task);
-                        failedShardsToBeApplied.add(new FailedShard(matched, task.getMessage(), task.getFailure(), task.isMarkAsStale()));
+                        failedShardsToBeApplied.add(
+                            new FailedShard(matched, entry.getMessage(), entry.getFailure(), entry.isMarkAsStale())
+                        );
                     }
                 }
             }
@@ -558,28 +561,8 @@ public class ShardStateAction {
             this.listener = listener;
         }
 
-        public ShardId getShardId() {
-            return entry.getShardId();
-        }
-
-        public String getAllocationId() {
-            return entry.getAllocationId();
-        }
-
-        public long getPrimaryTerm() {
-            return entry.getPrimaryTerm();
-        }
-
-        public String getMessage() {
-            return entry.getMessage();
-        }
-
-        public Exception getFailure() {
-            return entry.getFailure();
-        }
-
-        public boolean isMarkAsStale() {
-            return entry.isMarkAsStale();
+        public FailedShardEntry getEntry() {
+            return entry;
         }
 
         @Override

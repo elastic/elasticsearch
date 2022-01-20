@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -89,7 +90,7 @@ public class RolloverResponseTests extends AbstractWireSerializingTestCase<Rollo
                 if (response.getConditionStatus().isEmpty()) {
                     results = randomResults(false);
                 } else {
-                    results = new HashMap<>(response.getConditionStatus().size());
+                    results = Maps.newMapWithExpectedSize(response.getConditionStatus().size());
                     List<String> keys = randomSubsetOf(
                         randomIntBetween(1, response.getConditionStatus().size()),
                         response.getConditionStatus().keySet()

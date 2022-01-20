@@ -10,9 +10,13 @@ package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
+import org.gradle.api.NamedDomainObjectSet;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.plugins.JavaPluginExtension;
+import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 
 public class LoggerUsagePrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
@@ -24,8 +28,23 @@ public class LoggerUsagePrecommitPlugin extends PrecommitPlugin implements Inter
         if (project.findProject(":test:logger-usage") != null) {
             project.getDependencies().add("loggerUsagePlugin", project.project(":test:logger-usage"));
         }
+
         TaskProvider<LoggerUsageTask> loggerUsage = project.getTasks().register("loggerUsageCheck", LoggerUsageTask.class);
         loggerUsage.configure(t -> t.setClasspath(loggerUsageConfig));
+        project.getPluginManager().withPlugin("java-base", appliedPlugin -> {
+            JavaPluginExtension byType = project.getExtensions().getByType(JavaPluginExtension.class);
+            NamedDomainObjectSet<SourceSet> matching = byType.getSourceSets()
+                // only check main and test sourceset
+                .matching(
+                    sourceSet -> sourceSet.getName().equals(SourceSet.MAIN_SOURCE_SET_NAME)
+                        || sourceSet.getName().equals(SourceSet.TEST_SOURCE_SET_NAME)
+                );
+            loggerUsage.configure(
+                loggerUsageTask -> loggerUsageTask.setClassDirectories(
+                    matching.stream().map(sourceSet -> sourceSet.getOutput().getClassesDirs()).reduce(FileCollection::plus).get()
+                )
+            );
+        });
         return loggerUsage;
     }
 }

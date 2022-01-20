@@ -52,16 +52,14 @@ public class IpPrefixAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new IpPrefixAggregator(
+        return new IpPrefixAggregator.Unmapped(
             name,
             factories,
             config,
             keyed,
             minDocCount,
-            ipPrefix,
             context,
             parent,
-            CardinalityUpperBound.NONE,
             metadata
         );
     }

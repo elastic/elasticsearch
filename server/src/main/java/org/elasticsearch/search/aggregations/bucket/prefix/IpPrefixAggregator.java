@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.BytesKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -256,5 +257,40 @@ public final class IpPrefixAggregator extends BucketsAggregator {
     @Override
     public void doClose() {
         Releasables.close(bucketOrds);
+    }
+
+    public static class Unmapped extends NonCollectingAggregator {
+
+        private final ValuesSourceConfig config;
+        private final boolean keyed;
+        private final long minDocCount;
+
+        protected Unmapped(
+            String name,
+            AggregatorFactories factories,
+            ValuesSourceConfig config,
+            boolean keyed,
+            long minDocCount,
+            AggregationContext context,
+            Aggregator parent,
+            Map<String, Object> metadata
+        ) throws IOException {
+            super(name, context, parent, factories, metadata);
+            this.config = config;
+            this.keyed = keyed;
+            this.minDocCount = minDocCount;
+        }
+
+        @Override
+        public InternalAggregation buildEmptyAggregation() {
+            return new InternalIpPrefix(
+                name,
+                config.format(),
+                keyed,
+                minDocCount,
+                Collections.emptyList(),
+                metadata()
+            );
+        }
     }
 }

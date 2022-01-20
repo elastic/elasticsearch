@@ -13,12 +13,12 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.core.Types.forciblyCast;
@@ -70,7 +70,7 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         this.bigArrays = bigArrays;
         this.maxSize = size;
         this.arrays = sources;
-        this.map = new HashMap<>(size);
+        this.map = Maps.newMapWithExpectedSize(size);
         this.docCounts = bigArrays.newLongArray(1, false);
     }
 

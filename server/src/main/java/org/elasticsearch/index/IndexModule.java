@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
@@ -378,7 +379,7 @@ public final class IndexModule {
         private static final Map<String, Type> TYPES;
 
         static {
-            final Map<String, Type> types = new HashMap<>(4);
+            final Map<String, Type> types = Maps.newMapWithExpectedSize(4);
             for (final Type type : values()) {
                 types.put(type.settingsKey, type);
             }

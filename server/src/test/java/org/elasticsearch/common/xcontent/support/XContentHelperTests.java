@@ -10,6 +10,7 @@ package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -40,7 +41,7 @@ public class XContentHelperTests extends ESTestCase {
     Map<String, Object> getNamedMap(String name, Object... keyValues) {
         Map<String, Object> map = getMap(keyValues);
 
-        Map<String, Object> namedMap = new HashMap<>(1);
+        Map<String, Object> namedMap = Maps.newMapWithExpectedSize(1);
         namedMap.put(name, map);
         return namedMap;
     }

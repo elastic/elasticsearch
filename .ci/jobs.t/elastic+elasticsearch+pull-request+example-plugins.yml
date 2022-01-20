@@ -18,8 +18,11 @@
           github-hooks: true
           status-context: elasticsearch-ci/example-plugins
           cancel-builds-on-update: true
-          white-list-labels:
-            - ':Delivery/Build'
+          included-regions:
+            - build-conventions/.*
+            - build-tools/.*
+            - build-tools-internal/.*
+            - plugins/examples/.*
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

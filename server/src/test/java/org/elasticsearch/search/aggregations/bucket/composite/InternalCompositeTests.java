@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -207,7 +208,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             }
             case 2 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

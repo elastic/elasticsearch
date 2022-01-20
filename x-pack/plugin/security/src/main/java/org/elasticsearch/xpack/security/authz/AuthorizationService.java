@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.authz;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -89,7 +88,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -131,6 +129,7 @@ public class AuthorizationService {
     private final Set<RequestInterceptor> requestInterceptors;
     private final XPackLicenseState licenseState;
     private final OperatorPrivilegesService operatorPrivilegesService;
+    private final LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
@@ -162,6 +161,7 @@ public class AuthorizationService {
         this.settings = settings;
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
+        this.authzIndicesTimerFactory = new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings());
     }
 
     public void checkPrivileges(
@@ -405,13 +405,13 @@ public class AuthorizationService {
         } else if (isIndexAction(action)) {
             final Metadata metadata = clusterService.state().metadata();
             final AsyncSupplier<Set<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(authzIndicesListener -> {
-                LoadAuthorizedIndiciesTimeChecker timeChecker = LoadAuthorizedIndiciesTimeChecker.start(requestInfo, authzInfo);
+                Consumer<Collection<String>> timeChecker = authzIndicesTimerFactory.newTimer(requestInfo);
                 authzEngine.loadAuthorizedIndices(
                     requestInfo,
                     authzInfo,
                     metadata.getIndicesLookup(),
                     authzIndicesListener.map(authzIndices -> {
-                        timeChecker.done(authzIndices);
+                        timeChecker.accept(authzIndices);
                         return authzIndices;
                     })
                 );
@@ -1013,58 +1013,8 @@ public class AuthorizationService {
         }
     }
 
-    static class LoadAuthorizedIndiciesTimeChecker {
-        private static final int WARN_THRESHOLD_MS = 200;
-        private static final int INFO_THRESHOLD_MS = 50;
-        private static final int DEBUG_THRESHOLD_MS = 10;
-
-        private final long startNanos;
-        private final RequestInfo requestInfo;
-
-        LoadAuthorizedIndiciesTimeChecker(long startNanos, RequestInfo requestInfo) {
-            this.startNanos = startNanos;
-            this.requestInfo = requestInfo;
-        }
-
-        public static LoadAuthorizedIndiciesTimeChecker start(RequestInfo requestInfo, AuthorizationInfo authzInfo) {
-            return new LoadAuthorizedIndiciesTimeChecker(System.nanoTime(), requestInfo);
-        }
-
-        public void done(Collection<String> indices) {
-            final long end = System.nanoTime();
-            final long millis = TimeUnit.NANOSECONDS.toMillis(end - startNanos);
-            if (millis > WARN_THRESHOLD_MS) {
-                logger.warn(
-                    "Resolving [{}] indices for action [{}] and user [{}] took [{}ms] which is greater than the threshold of {}ms;"
-                        + " The index privileges for this user may be too complex for this cluster.",
-                    indices.size(),
-                    requestInfo.getAction(),
-                    requestInfo.getAuthentication().getUser().principal(),
-                    millis,
-                    WARN_THRESHOLD_MS
-                );
-            } else {
-                final Level level;
-                if (millis > INFO_THRESHOLD_MS) {
-                    level = Level.INFO;
-                } else if (millis > DEBUG_THRESHOLD_MS) {
-                    level = Level.DEBUG;
-                } else {
-                    level = Level.TRACE;
-                }
-                logger.log(
-                    level,
-                    "Took [{}ms] to resolve [{}] indices for action [{}] and user [{}]",
-                    millis,
-                    indices.size(),
-                    requestInfo.getAction(),
-                    requestInfo.getAuthentication().getUser().principal()
-                );
-            }
-        }
-    }
-
     public static void addSettings(List<Setting<?>> settings) {
         settings.add(ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING);
+        settings.addAll(LoadAuthorizedIndicesTimeChecker.Factory.getSettings());
     }
 }

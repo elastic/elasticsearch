@@ -475,7 +475,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             } else {
                 formatted = format.format(value);
             }
-            parsed = format.parseBytesRef(formatted.toString());
+            parsed = format.parseBytesRef(formatted);
             if (parsed.equals(obj) == false) {
                 throw new IllegalArgumentException(
                     "Format ["

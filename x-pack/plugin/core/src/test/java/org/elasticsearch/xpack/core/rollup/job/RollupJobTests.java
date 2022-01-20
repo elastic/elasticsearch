@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 public class RollupJobTests extends AbstractDiffableSerializationTestCase<RollupJob> {
@@ -41,7 +41,7 @@ public class RollupJobTests extends AbstractDiffableSerializationTestCase<Rollup
 
         Map<String, String> headers = Collections.emptyMap();
         if (randomBoolean()) {
-            headers = new HashMap<>(1);
+            headers = Maps.newMapWithExpectedSize(1);
             headers.put("foo", "bar");
         }
         return new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), headers);
@@ -51,7 +51,7 @@ public class RollupJobTests extends AbstractDiffableSerializationTestCase<Rollup
     protected RollupJob makeTestChanges(RollupJob other) {
         if (randomBoolean()) {
             if (other.getHeaders().isEmpty()) {
-                Map<String, String> headers = new HashMap<>(1);
+                Map<String, String> headers = Maps.newMapWithExpectedSize(1);
                 headers.put("foo", "bar");
                 return new RollupJob(other.getConfig(), headers);
             } else {

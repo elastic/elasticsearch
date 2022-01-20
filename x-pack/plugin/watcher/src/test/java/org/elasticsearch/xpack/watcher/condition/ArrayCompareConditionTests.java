@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,7 +25,6 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -124,7 +124,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         }
         List<Object> values = new ArrayList<>(numberOfValues);
         for (int i = 0; i < numberOfValues; i++) {
-            Map<String, Object> map = new HashMap<>(1);
+            Map<String, Object> map = Maps.newMapWithExpectedSize(1);
             map.put("doc_count", docCounts.get(i));
             values.add(map);
         }

@@ -19,6 +19,7 @@ import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.FileSystemOperations;
+import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -57,6 +58,11 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     @Inject
     protected ExecOperations getExecOperations() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Inject
+    protected FileOperations getFileOperations() {
         throw new UnsupportedOperationException();
     }
 
@@ -116,6 +122,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 getFileSystemOperations(),
                 getArchiveOperations(),
                 getExecOperations(),
+                getFileOperations(),
                 new File(project.getBuildDir(), "testclusters"),
                 runtimeJavaProvider
             );

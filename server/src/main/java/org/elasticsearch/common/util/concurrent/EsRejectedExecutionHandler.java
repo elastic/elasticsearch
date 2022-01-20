@@ -29,6 +29,10 @@ public abstract class EsRejectedExecutionHandler implements RejectedExecutionHan
     }
 
     protected final EsRejectedExecutionException newRejectedException(Runnable r, ThreadPoolExecutor executor, boolean isExecutorShutdown) {
-        return new EsRejectedExecutionException("rejected execution of " + r + " on " + executor, isExecutorShutdown);
+        final StringBuilder builder = new StringBuilder("rejected execution of ").append(r).append(" on ").append(executor);
+        if (isExecutorShutdown) {
+            builder.append(" (shutdown)");
+        }
+        return new EsRejectedExecutionException(builder.toString(), isExecutorShutdown);
     }
 }

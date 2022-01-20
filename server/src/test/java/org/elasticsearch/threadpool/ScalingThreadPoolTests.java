@@ -31,8 +31,11 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
@@ -248,7 +251,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
             final Matcher<Long> executionsMatcher = rejectAfterShutdown
                 ? equalTo((long) max + queued)
-                : greaterThanOrEqualTo((long) max + queued);
+                : allOf(greaterThanOrEqualTo((long) max + queued), lessThanOrEqualTo((long) max + queued + queuedAfterShutdown));
             assertThat(scalingExecutor.getCompletedTaskCount(), executionsMatcher);
             assertThat(executed.get(), executionsMatcher);
 
@@ -271,6 +274,17 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
             assertThat(scalingExecutor.getQueue().size(), rejectAfterShutdown ? equalTo(0) : equalTo(queuedAfterTermination));
             assertThat(failed.get(), equalTo(0L));
+
+            if (rejectAfterShutdown) {
+                final EsRejectedExecutionException exception = expectThrows(
+                    EsRejectedExecutionException.class,
+                    () -> scalingExecutor.execute(() -> {
+                        throw new AssertionError("should be rejected");
+                    })
+                );
+                assertThat(exception.getLocalizedMessage(), allOf(containsString("rejected execution of "), containsString("(shutdown)")));
+                assertThat(exception.isExecutorShutdown(), equalTo(true));
+            }
 
         } finally {
             ThreadPool.terminate(scalingExecutor, 10, TimeUnit.SECONDS);
@@ -347,6 +361,8 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
             assertBusy(() -> assertTrue(scalingExecutor.isTerminated()));
             assertThat(scalingExecutor.getCompletedTaskCount(), greaterThanOrEqualTo((long) max));
+            assertThat(scalingExecutor.getCompletedTaskCount(), lessThanOrEqualTo((long) max + barrier.getParties() - 1L));
+            assertThat(scalingExecutor.getCompletedTaskCount() + rejected.get(), equalTo((long) max + barrier.getParties() - 1L));
             assertThat(scalingExecutor.getQueue().size(), equalTo(0));
             assertThat(scalingExecutor.getActiveCount(), equalTo(0));
 

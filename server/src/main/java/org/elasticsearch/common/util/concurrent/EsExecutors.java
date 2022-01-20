@@ -340,8 +340,10 @@ public class EsExecutors {
                 // force queue policy should only be used with a scaling queue
                 assert queue instanceof ExecutorScalingQueue;
                 queue.put(task);
-                if (rejectAfterShutdown) {
-                    if (executor.isShutdown() && executor.remove(task)) {
+                // we need to check again the executor state as it might have been concurrently shut down; in this case
+                // the executor's workers are shutting down and might have already picked up the task for execution.
+                if (rejectAfterShutdown && executor.isShutdown()) {
+                    if (executor.remove(task)) {
                         incrementRejections();
                         throw newRejectedException(task, executor, true);
                     }

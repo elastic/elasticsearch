@@ -21,6 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class PutPrivilegesResponseTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82831")
     public void testSerialization() throws IOException {
         final int applicationCount = randomInt(3);
         final Map<String, List<String>> map = Maps.newMapWithExpectedSize(applicationCount);

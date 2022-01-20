@@ -8,6 +8,7 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -42,6 +43,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
     private ScriptType scriptType;
     private String script;
     private Map<String, Object> scriptParams;
+    private boolean ccsCompatibilityCheck;
 
     public SearchTemplateRequest() {}
 
@@ -55,6 +57,9 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         script = in.readOptionalString();
         if (in.readBoolean()) {
             scriptParams = in.readMap();
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            ccsCompatibilityCheck = in.readBoolean();
         }
     }
 
@@ -81,12 +86,13 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
             && Objects.equals(request, request1.request)
             && scriptType == request1.scriptType
             && Objects.equals(script, request1.script)
-            && Objects.equals(scriptParams, request1.scriptParams);
+            && Objects.equals(scriptParams, request1.scriptParams)
+            && ccsCompatibilityCheck == request1.ccsCompatibilityCheck;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(request, simulate, explain, profile, scriptType, script, scriptParams);
+        return Objects.hash(request, simulate, explain, profile, scriptType, script, scriptParams, ccsCompatibilityCheck);
     }
 
     public boolean isSimulate() {
@@ -135,6 +141,14 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
 
     public void setScriptParams(Map<String, Object> scriptParams) {
         this.scriptParams = scriptParams;
+    }
+
+    public boolean getCcsCompatibilityCheck() {
+        return ccsCompatibilityCheck;
+    }
+
+    public void setCcsCompatibilityCheck(boolean ccsCompatibilityCheck) {
+        this.ccsCompatibilityCheck = ccsCompatibilityCheck;
     }
 
     @Override
@@ -229,6 +243,11 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         out.writeBoolean(hasParams);
         if (hasParams) {
             out.writeMap(scriptParams);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeBoolean(ccsCompatibilityCheck);
+        } else {
+            // TODO not sure if this is a case we now want to error on?
         }
     }
 }

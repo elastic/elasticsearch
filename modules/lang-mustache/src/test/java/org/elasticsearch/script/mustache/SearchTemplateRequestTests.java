@@ -52,6 +52,7 @@ public class SearchTemplateRequestTests extends AbstractWireSerializingTestCase<
         mutators.add(request -> request.setProfile(request.isProfile() == false));
         mutators.add(request -> request.setExplain(request.isExplain() == false));
         mutators.add(request -> request.setSimulate(request.isSimulate() == false));
+        mutators.add(request -> request.setCcsCompatibilityCheck(request.getCcsCompatibilityCheck() == false));
 
         mutators.add(
             request -> request.setRequest(
@@ -84,6 +85,7 @@ public class SearchTemplateRequestTests extends AbstractWireSerializingTestCase<
         request.setSimulate(randomBoolean());
 
         request.setRequest(RandomSearchRequestGenerator.randomSearchRequest(SearchSourceBuilder::searchSource));
+        request.setCcsCompatibilityCheck(randomBoolean());
         return request;
     }
 }

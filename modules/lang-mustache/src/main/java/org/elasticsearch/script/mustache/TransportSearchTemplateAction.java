@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.rest.action.search.CCSVersionCheckHelper;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -61,6 +62,9 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         try {
             SearchRequest searchRequest = convert(request, response, scriptService, xContentRegistry);
             if (searchRequest != null) {
+                if (request.getCcsCompatibilityCheck()) {
+                    CCSVersionCheckHelper.checkCCSVersionCompatibility(searchRequest);
+                }
                 client.search(searchRequest, listener.delegateFailure((l, searchResponse) -> {
                     try {
                         response.setResponse(searchResponse);

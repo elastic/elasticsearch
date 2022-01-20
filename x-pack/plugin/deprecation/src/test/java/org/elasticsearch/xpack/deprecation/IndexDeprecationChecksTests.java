@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
@@ -41,7 +40,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING;
@@ -81,87 +79,6 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             c -> c.apply(ClusterState.EMPTY_STATE, indexMetadata)
         );
         assertEquals(singletonList(expected), issues);
-    }
-
-    public void testTooManyFieldsCheck() throws IOException {
-        String simpleMapping = "{\n"
-            + "  \"properties\": {\n"
-            + "    \"some_field\": {\n"
-            + "      \"type\": \"text\"\n"
-            + "    },\n"
-            + "    \"other_field\": {\n"
-            + "      \"type\": \"text\",\n"
-            + "      \"properties\": {\n"
-            + "        \"raw\": {\"type\": \"keyword\"}\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
-
-        IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.V_7_0_0))
-            .numberOfShards(randomIntBetween(1, 100))
-            .numberOfReplicas(randomIntBetween(1, 100))
-            .putMapping("_doc", simpleMapping)
-            .build();
-        List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(
-            INDEX_SETTINGS_CHECKS,
-            c -> c.apply(ClusterState.EMPTY_STATE, simpleIndex)
-        );
-        assertEquals(0, noIssues.size());
-
-        // Test that it catches having too many fields
-        int fieldCount = randomIntBetween(1025, 10_000); // 10_000 is arbitrary
-
-        XContentBuilder mappingBuilder = jsonBuilder();
-        mappingBuilder.startObject();
-        {
-            mappingBuilder.startObject("properties");
-            {
-                addRandomFields(fieldCount, mappingBuilder);
-            }
-            mappingBuilder.endObject();
-        }
-        mappingBuilder.endObject();
-
-        IndexMetadata tooManyFieldsIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.V_7_0_0))
-            .numberOfShards(randomIntBetween(1, 100))
-            .numberOfReplicas(randomIntBetween(1, 100))
-            .putMapping("_doc", Strings.toString(mappingBuilder))
-            .build();
-        DeprecationIssue expected = new DeprecationIssue(
-            DeprecationIssue.Level.WARNING,
-            "Number of fields exceeds automatic field expansion limit",
-            "https://ela.st/es-deprecation-7-number-of-auto-expanded-fields",
-            "This index has "
-                + fieldCount
-                + " fields, which exceeds the automatic field expansion limit (1024). Set "
-                + IndexSettings.DEFAULT_FIELD_SETTING.getKey()
-                + " to prevent queries that support automatic field expansion from failing "
-                + "if no fields are specified. Otherwise, you must explicitly specify fields in all query_string, simple_query_string, and "
-                + "multi_match queries.",
-            false,
-            null
-        );
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            INDEX_SETTINGS_CHECKS,
-            c -> c.apply(ClusterState.EMPTY_STATE, tooManyFieldsIndex)
-        );
-        assertEquals(singletonList(expected), issues);
-
-        // Check that it's okay to have too many fields as long as `index.query.default_field` is set
-        IndexMetadata tooManyFieldsOk = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.V_7_0_0).put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), randomAlphaOfLength(5)))
-            .numberOfShards(randomIntBetween(1, 100))
-            .numberOfReplicas(randomIntBetween(1, 100))
-            .putMapping("_doc", Strings.toString(mappingBuilder))
-            .build();
-        List<DeprecationIssue> withDefaultFieldIssues = DeprecationChecks.filterChecks(
-            INDEX_SETTINGS_CHECKS,
-            c -> c.apply(ClusterState.EMPTY_STATE, tooManyFieldsOk)
-        );
-        assertEquals(0, withDefaultFieldIssues.size());
     }
 
     public void testChainedMultiFields() throws IOException {

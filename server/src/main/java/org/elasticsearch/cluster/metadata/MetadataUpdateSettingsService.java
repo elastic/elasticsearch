@@ -65,11 +65,11 @@ public class MetadataUpdateSettingsService {
         ThreadPool threadPool
     ) {
         this.clusterService = clusterService;
-        this.threadPool = threadPool;
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
+        this.threadPool = threadPool;
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {

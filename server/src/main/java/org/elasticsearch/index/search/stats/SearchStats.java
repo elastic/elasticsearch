@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.search.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,38 +50,6 @@ public class SearchStats implements Writeable, ToXContentFragment {
             // for internal use, initializes all counts to 0
         }
 
-        // left here for backward compatibility
-        public Stats(
-            long queryCount,
-            long queryTimeInMillis,
-            long queryCurrent,
-            long fetchCount,
-            long fetchTimeInMillis,
-            long fetchCurrent,
-            long scrollCount,
-            long scrollTimeInMillis,
-            long scrollCurrent,
-            long suggestCount,
-            long suggestTimeInMillis,
-            long suggestCurrent
-        ) {
-            this.queryCount = queryCount;
-            this.queryTimeInMillis = queryTimeInMillis;
-            this.queryCurrent = queryCurrent;
-
-            this.fetchCount = fetchCount;
-            this.fetchTimeInMillis = fetchTimeInMillis;
-            this.fetchCurrent = fetchCurrent;
-
-            this.scrollCount = scrollCount;
-            this.scrollTimeInMillis = scrollTimeInMillis;
-            this.scrollCurrent = scrollCurrent;
-
-            this.suggestCount = suggestCount;
-            this.suggestTimeInMillis = suggestTimeInMillis;
-            this.suggestCurrent = suggestCurrent;
-        }
-
         public Stats(
             long queryCount,
             long queryTimeInMillis,
@@ -120,12 +89,16 @@ public class SearchStats implements Writeable, ToXContentFragment {
             queryCount = in.readVLong();
             queryTimeInMillis = in.readVLong();
             queryCurrent = in.readVLong();
-            queryFailureCount = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+                queryFailureCount = in.readVLong();
+            }
 
             fetchCount = in.readVLong();
             fetchTimeInMillis = in.readVLong();
             fetchCurrent = in.readVLong();
-            fetchFailureCount = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+                fetchFailureCount = in.readVLong();
+            }
 
             scrollCount = in.readVLong();
             scrollTimeInMillis = in.readVLong();
@@ -255,12 +228,16 @@ public class SearchStats implements Writeable, ToXContentFragment {
             out.writeVLong(queryCount);
             out.writeVLong(queryTimeInMillis);
             out.writeVLong(queryCurrent);
-            out.writeVLong(queryFailureCount);
+            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                out.writeVLong(queryFailureCount);
+            }
 
             out.writeVLong(fetchCount);
             out.writeVLong(fetchTimeInMillis);
             out.writeVLong(fetchCurrent);
-            out.writeVLong(fetchFailureCount);
+            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                out.writeVLong(fetchFailureCount);
+            }
 
             out.writeVLong(scrollCount);
             out.writeVLong(scrollTimeInMillis);

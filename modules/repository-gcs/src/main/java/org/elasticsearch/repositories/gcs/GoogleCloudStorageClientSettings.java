@@ -14,15 +14,22 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -90,6 +97,29 @@ public class GoogleCloudStorageClientSettings {
         key -> new Setting<>(key, "repository-gcs", Function.identity(), Setting.Property.NodeScope, Setting.Property.DeprecatedWarning)
     );
 
+    /** The type of the proxy to connect to the GCS through. Can be DIRECT (aka no proxy), HTTP or SOCKS */
+    public static final Setting.AffixSetting<Proxy.Type> PROXY_TYPE_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.type",
+        (key) -> new Setting<>(key, "DIRECT", s -> Proxy.Type.valueOf(s.toUpperCase(Locale.ROOT)), Setting.Property.NodeScope)
+    );
+
+    /** The host name of a proxy to connect to the GCS through. */
+    static final Setting.AffixSetting<String> PROXY_HOST_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.host",
+        (key) -> Setting.simpleString(key, Setting.Property.NodeScope),
+        () -> PROXY_TYPE_SETTING
+    );
+
+    /** The port of a proxy to connect to the GCS through. */
+    static final Setting.AffixSetting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "proxy.port",
+        (key) -> Setting.intSetting(key, 0, 0, 65535, Setting.Property.NodeScope),
+        () -> PROXY_HOST_SETTING
+    );
+
     /** The credentials used by the client to connect to the Storage endpoint. */
     private final ServiceAccountCredentials credential;
 
@@ -111,6 +141,9 @@ public class GoogleCloudStorageClientSettings {
     /** The token server URI. This leases access tokens in the oauth flow. */
     private final URI tokenUri;
 
+    @Nullable
+    private final Proxy proxy;
+
     GoogleCloudStorageClientSettings(
         final ServiceAccountCredentials credential,
         final String endpoint,
@@ -118,7 +151,10 @@ public class GoogleCloudStorageClientSettings {
         final TimeValue connectTimeout,
         final TimeValue readTimeout,
         final String applicationName,
-        final URI tokenUri
+        final URI tokenUri,
+        final Proxy.Type proxyType,
+        final String proxyHost,
+        final Integer proxyPort
     ) {
         this.credential = credential;
         this.endpoint = endpoint;
@@ -127,6 +163,13 @@ public class GoogleCloudStorageClientSettings {
         this.readTimeout = readTimeout;
         this.applicationName = applicationName;
         this.tokenUri = tokenUri;
+        try {
+            proxy = proxyType.equals(Proxy.Type.DIRECT)
+                ? null
+                : new Proxy(proxyType, new InetSocketAddress(InetAddress.getByName(proxyHost), proxyPort));
+        } catch (UnknownHostException e) {
+            throw new SettingsException("GCS proxy host is unknown.", e);
+        }
     }
 
     public ServiceAccountCredentials getCredential() {
@@ -157,6 +200,11 @@ public class GoogleCloudStorageClientSettings {
         return tokenUri;
     }
 
+    @Nullable
+    public Proxy getProxy() {
+        return proxy;
+    }
+
     public static Map<String, GoogleCloudStorageClientSettings> load(final Settings settings) {
         final Map<String, GoogleCloudStorageClientSettings> clients = new HashMap<>();
         for (final String clientName : settings.getGroups(PREFIX).keySet()) {
@@ -178,7 +226,10 @@ public class GoogleCloudStorageClientSettings {
             getConfigValue(settings, clientName, CONNECT_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, READ_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, APPLICATION_NAME_SETTING),
-            getConfigValue(settings, clientName, TOKEN_URI_SETTING)
+            getConfigValue(settings, clientName, TOKEN_URI_SETTING),
+            getConfigValue(settings, clientName, PROXY_TYPE_SETTING),
+            getConfigValue(settings, clientName, PROXY_HOST_SETTING),
+            getConfigValue(settings, clientName, PROXY_PORT_SETTING)
         );
     }
 

@@ -69,7 +69,7 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Ack
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 for (String index : request.indices()) {
                     IndexMetadata idxMeta = newState.metadata().index(index);
                     LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();

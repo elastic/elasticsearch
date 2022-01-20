@@ -497,9 +497,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     if (executedTask) {
-                        updateTask.clusterStateProcessed(source, oldState, newState);
+                        updateTask.clusterStateProcessed(oldState, newState);
                     } else {
                         executeConsistentStateUpdate(createUpdateTask, source, onFailure);
                     }
@@ -1823,7 +1823,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                         }
 
                                         @Override
-                                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                                             logger.trace(
                                                 "[{}] initialized repository generation in cluster state to [{}]",
                                                 metadata.name(),
@@ -2080,7 +2080,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(null);
                 }
             },
@@ -2232,7 +2232,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 logger.trace("[{}] successfully set pending repository generation to [{}]", metadata.name(), newGen);
                 setPendingStep.onResponse(newGen);
             }
@@ -2354,7 +2354,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     logger.trace("[{}] successfully set safe repository generation to [{}]", metadata.name(), newGen);
                     cacheRepositoryData(newRepositoryData, version);
                     threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.supply(listener, () -> {

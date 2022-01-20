@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -51,7 +52,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -255,7 +255,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
-        Map<String, Object> usageStats = new HashMap<>(3);
+        Map<String, Object> usageStats = Maps.newMapWithExpectedSize(3);
         if (securityIndex.isAvailable() == false) {
             usageStats.put("size", 0L);
             usageStats.put("fls", false);
@@ -427,7 +427,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 if (dlsEnabled) {
                     unlicensedFeatures.add("dls");
                 }
-                Map<String, Object> transientMap = new HashMap<>(2);
+                Map<String, Object> transientMap = Maps.newMapWithExpectedSize(2);
                 transientMap.put("unlicensed_features", unlicensedFeatures);
                 transientMap.put("enabled", false);
                 return new RoleDescriptor(

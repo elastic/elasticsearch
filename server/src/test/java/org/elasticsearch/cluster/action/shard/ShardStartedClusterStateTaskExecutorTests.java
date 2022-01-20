@@ -60,8 +60,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         );
         executor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(
             allocationService,
-            ShardStartedClusterStateTaskExecutorTests::neverReroutes,
-            logger
+            ShardStartedClusterStateTaskExecutorTests::neverReroutes
         );
     }
 

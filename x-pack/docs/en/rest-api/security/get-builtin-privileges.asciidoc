@@ -88,6 +88,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "manage_slm",
     "manage_token",
     "manage_transform",
+    "manage_user_profile",
     "manage_watcher",
     "monitor",
     "monitor_data_frame_transforms",

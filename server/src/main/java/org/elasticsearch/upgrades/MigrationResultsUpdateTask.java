@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -56,7 +57,7 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
     public void submit(ClusterService clusterService) {
         String source = new ParameterizedMessage("record [{}] migration [{}]", featureName, status.succeeded() ? "success" : "failure")
             .getFormattedMessage();
-        clusterService.submitStateUpdateTask(source, this);
+        clusterService.submitStateUpdateTask(source, this, ClusterStateTaskExecutor.unbatched());
     }
 
     @Override
@@ -72,12 +73,12 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
         listener.onResponse(newState);
     }
 
     @Override
-    public void onFailure(String source, Exception clusterStateUpdateException) {
+    public void onFailure(Exception clusterStateUpdateException) {
         if (status.succeeded()) {
             logger.warn(
                 new ParameterizedMessage("failed to update cluster state after successful migration of feature [{}]", featureName),

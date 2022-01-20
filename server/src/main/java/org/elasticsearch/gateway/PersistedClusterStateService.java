@@ -54,6 +54,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
@@ -555,7 +556,7 @@ public class PersistedClusterStateService {
 
                         if (pageIndex == 0 && isLastPage) {
                             // common case: metadata fits in a single page
-                            bytesReferenceConsumer.accept(CompressorFactory.COMPRESSOR.uncompress(documentData));
+                            bytesReferenceConsumer.accept(uncompress(documentData));
                             continue;
                         }
 
@@ -577,7 +578,7 @@ public class PersistedClusterStateService {
                         final BytesReference bytesReference = reader.addPage(key, documentData, pageIndex, isLastPage);
                         if (bytesReference != null) {
                             documentReaders.remove(key);
-                            bytesReferenceConsumer.accept(CompressorFactory.COMPRESSOR.uncompress(bytesReference));
+                            bytesReferenceConsumer.accept(uncompress(bytesReference));
                         }
                     }
                 }
@@ -591,10 +592,19 @@ public class PersistedClusterStateService {
         }
     }
 
+    private static BytesReference uncompress(BytesReference bytesReference) throws IOException {
+        try {
+            return CompressorFactory.COMPRESSOR.uncompress(bytesReference);
+        } catch (IOException e) {
+            // no actual IO takes place, the data is all in-memory, so an exception indicates corruption
+            throw new CorruptStateException(e);
+        }
+    }
+
     private static final ToXContent.Params FORMAT_PARAMS;
 
     static {
-        Map<String, String> params = new HashMap<>(2);
+        Map<String, String> params = Maps.newMapWithExpectedSize(2);
         params.put("binary", "true");
         params.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
         FORMAT_PARAMS = new ToXContent.MapParams(params);
@@ -667,7 +677,7 @@ public class PersistedClusterStateService {
             indexWriter.getConfig().setMergePolicy(DEFAULT_MERGE_POLICY);
             indexWriter.maybeMerge();
 
-            final Map<String, String> commitData = new HashMap<>(COMMIT_DATA_SIZE);
+            final Map<String, String> commitData = Maps.newMapWithExpectedSize(COMMIT_DATA_SIZE);
             commitData.put(CURRENT_TERM_KEY, Long.toString(currentTerm));
             commitData.put(LAST_ACCEPTED_VERSION_KEY, Long.toString(lastAcceptedVersion));
             commitData.put(NODE_VERSION_KEY, Integer.toString(Version.CURRENT.id));
@@ -840,7 +850,7 @@ public class PersistedClusterStateService {
                 addGlobalMetadataDocuments(metadata);
             }
 
-            final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(previouslyWrittenMetadata.indices().size());
+            final Map<String, Long> indexMetadataVersionByUUID = Maps.newMapWithExpectedSize(previouslyWrittenMetadata.indices().size());
             for (IndexMetadata indexMetadata : previouslyWrittenMetadata.indices().values()) {
                 final Long previousValue = indexMetadataVersionByUUID.putIfAbsent(indexMetadata.getIndexUUID(), indexMetadata.getVersion());
                 assert previousValue == null : indexMetadata.getIndexUUID() + " already mapped to " + previousValue;

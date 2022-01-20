@@ -199,8 +199,7 @@ class IndicesAndAliasesResolver {
             assert indicesRequest.indices() == null || indicesRequest.indices().length == 0
                 : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
             resolvedIndicesBuilder.addLocal(getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices, metadata));
-        } else if (indicesRequest instanceof IndicesRequest.Replaceable) {
-            final IndicesRequest.Replaceable replaceable = (IndicesRequest.Replaceable) indicesRequest;
+        } else if (indicesRequest instanceof final IndicesRequest.Replaceable replaceable) {
             final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
             final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
 

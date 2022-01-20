@@ -437,6 +437,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return false;
+        }
+
+        @Override
         public Query prefixQuery(
             String value,
             MultiTermQuery.RewriteMethod method,
@@ -567,6 +572,11 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         void setPrefixFieldType(PrefixFieldType prefixFieldType) {
             this.prefixFieldType = prefixFieldType;
+        }
+
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return false;
         }
 
         @Override

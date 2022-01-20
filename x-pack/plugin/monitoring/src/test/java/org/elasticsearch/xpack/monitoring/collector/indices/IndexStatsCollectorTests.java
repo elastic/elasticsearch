@@ -20,13 +20,13 @@ import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -85,9 +85,9 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         // Total number of indices
         final int indices = existingIndices + createdIndices + deletedIndices;
 
-        final Map<String, IndexStats> indicesStats = new HashMap<>(indices);
-        final Map<String, IndexMetadata> indicesMetadata = new HashMap<>(indices);
-        final Map<String, IndexRoutingTable> indicesRoutingTable = new HashMap<>(indices);
+        final Map<String, IndexStats> indicesStats = Maps.newMapWithExpectedSize(indices);
+        final Map<String, IndexMetadata> indicesMetadata = Maps.newMapWithExpectedSize(indices);
+        final Map<String, IndexRoutingTable> indicesRoutingTable = Maps.newMapWithExpectedSize(indices);
 
         for (int i = 0; i < indices; i++) {
             final String index = "_index_" + i;

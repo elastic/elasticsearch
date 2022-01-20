@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -164,7 +165,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         @Override
         public void onResponse(MultiSearchResponse multiSearchResponse) {
             int responsePosition = 0;
-            Map<String, EvalQueryQuality> responseDetails = new HashMap<>(specifications.length);
+            Map<String, EvalQueryQuality> responseDetails = Maps.newMapWithExpectedSize(specifications.length);
             for (Item response : multiSearchResponse.getResponses()) {
                 RatedRequest specification = specifications[responsePosition];
                 if (response.isFailure() == false) {

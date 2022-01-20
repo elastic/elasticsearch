@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
@@ -389,7 +390,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         if (size == 0) {
             fields = emptyMap();
         } else {
-            fields = new HashMap<>(size);
+            fields = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 DocumentField field = new DocumentField(in);
                 fields.put(field.getName(), field);

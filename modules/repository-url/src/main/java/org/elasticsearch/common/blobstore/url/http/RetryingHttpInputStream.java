@@ -11,6 +11,7 @@ package org.elasticsearch.common.blobstore.url.http;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.rest.RestStatus;
 
@@ -23,7 +24,6 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -219,7 +219,7 @@ class RetryingHttpInputStream extends InputStream {
     private HttpResponseInputStream openInputStream() throws IOException {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<HttpResponseInputStream>) () -> {
-                final Map<String, String> headers = new HashMap<>(1);
+                final Map<String, String> headers = Maps.newMapWithExpectedSize(1);
 
                 if (isRangeRead()) {
                     headers.put("Range", getBytesRange(Math.addExact(start, totalBytesRead), end));

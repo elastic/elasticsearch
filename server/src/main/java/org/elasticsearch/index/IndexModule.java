@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
@@ -53,7 +54,7 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -378,7 +379,7 @@ public final class IndexModule {
         private static final Map<String, Type> TYPES;
 
         static {
-            final Map<String, Type> types = new HashMap<>(4);
+            final Map<String, Type> types = Maps.newMapWithExpectedSize(4);
             for (final Type type : values()) {
                 types.put(type.settingsKey, type);
             }
@@ -417,7 +418,7 @@ public final class IndexModule {
     public IndexService newIndexService(
         IndexService.IndexCreationContext indexCreationContext,
         NodeEnvironment environment,
-        NamedXContentRegistry xContentRegistry,
+        XContentParserConfiguration parserConfiguration,
         IndexService.ShardStoreDeleter shardStoreDeleter,
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
@@ -465,7 +466,7 @@ public final class IndexModule {
                 indexSettings,
                 indexCreationContext,
                 environment,
-                xContentRegistry,
+                parserConfiguration,
                 new SimilarityService(indexSettings, scriptService, similarities),
                 shardStoreDeleter,
                 indexAnalyzers,
@@ -569,14 +570,14 @@ public final class IndexModule {
      * doing so will result in an exception.
      */
     public MapperService newIndexMapperService(
-        NamedXContentRegistry xContentRegistry,
+        XContentParserConfiguration parserConfiguration,
         MapperRegistry mapperRegistry,
         ScriptService scriptService
     ) throws IOException {
         return new MapperService(
             indexSettings,
             analysisRegistry.build(indexSettings),
-            xContentRegistry,
+            parserConfiguration,
             new SimilarityService(indexSettings, scriptService, similarities),
             mapperRegistry,
             () -> { throw new UnsupportedOperationException("no index query shard context available"); },

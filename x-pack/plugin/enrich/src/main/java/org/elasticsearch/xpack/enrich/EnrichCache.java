@@ -14,13 +14,13 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -152,7 +152,7 @@ public class EnrichCache {
 
     private static Object innerDeepCopy(Object value, boolean unmodifiable) {
         if (value instanceof Map<?, ?> mapValue) {
-            Map<Object, Object> copy = new HashMap<>(mapValue.size());
+            Map<Object, Object> copy = Maps.newMapWithExpectedSize(mapValue.size());
             for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
                 copy.put(entry.getKey(), innerDeepCopy(entry.getValue(), unmodifiable));
             }

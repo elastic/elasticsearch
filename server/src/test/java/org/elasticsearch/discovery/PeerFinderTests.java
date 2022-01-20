@@ -548,7 +548,7 @@ public class PeerFinderTests extends ESTestCase {
 
         final CapturedRequest[] capturedRequests = capturingTransport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, is(1));
-        final PeersRequest peersRequest = (PeersRequest) capturedRequests[0].request;
+        final PeersRequest peersRequest = (PeersRequest) capturedRequests[0].request();
         assertThat(peersRequest.getKnownPeers(), contains(otherNode));
     }
 
@@ -892,11 +892,11 @@ public class PeerFinderTests extends ESTestCase {
     private void respondToRequests(Function<DiscoveryNode, PeersResponse> responseFactory) {
         final CapturedRequest[] capturedRequests = capturingTransport.getCapturedRequestsAndClear();
         for (final CapturedRequest capturedRequest : capturedRequests) {
-            assertThat(capturedRequest.action, is(REQUEST_PEERS_ACTION_NAME));
-            assertThat(capturedRequest.request, instanceOf(PeersRequest.class));
-            final PeersRequest peersRequest = (PeersRequest) capturedRequest.request;
+            assertThat(capturedRequest.action(), is(REQUEST_PEERS_ACTION_NAME));
+            assertThat(capturedRequest.request(), instanceOf(PeersRequest.class));
+            final PeersRequest peersRequest = (PeersRequest) capturedRequest.request();
             assertThat(peersRequest.getSourceNode(), is(localNode));
-            capturingTransport.handleResponse(capturedRequests[0].requestId, responseFactory.apply(capturedRequest.node));
+            capturingTransport.handleResponse(capturedRequests[0].requestId(), responseFactory.apply(capturedRequest.node()));
         }
     }
 

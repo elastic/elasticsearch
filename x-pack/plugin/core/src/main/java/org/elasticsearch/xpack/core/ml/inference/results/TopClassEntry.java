@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -20,7 +21,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -98,7 +98,7 @@ public class TopClassEntry implements Writeable, ToXContentObject {
     }
 
     public Map<String, Object> asValueMap() {
-        Map<String, Object> map = new HashMap<>(3, 1.0f);
+        Map<String, Object> map = Maps.newMapWithExpectedSize(3);
         map.put(CLASS_NAME.getPreferredName(), classification);
         map.put(CLASS_PROBABILITY.getPreferredName(), probability);
         map.put(CLASS_SCORE.getPreferredName(), score);

@@ -386,8 +386,8 @@ setup:
 ---
 "Range aggregation on date field":
   - skip:
-      version: " - 8.0.99"
-      reason: Fixed in 8.1.0
+      version: " - 7.16.99"
+      reason: Fixed in 8.1.0 and backported to 7.17.0
 
   - do:
       search:

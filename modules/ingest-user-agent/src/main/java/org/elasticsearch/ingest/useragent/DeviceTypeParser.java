@@ -92,18 +92,18 @@ public class DeviceTypeParser {
             String deviceType = null;
             switch (patternKey) {
                 case OS_PARSERS:
-                    if (os != null && os.name != null) {
-                        deviceType = findMatch(deviceTypePatterns.get(patternKey), os.name);
+                    if (os != null && os.name() != null) {
+                        deviceType = findMatch(deviceTypePatterns.get(patternKey), os.name());
                     }
                     break;
                 case BROWSER_PARSER:
-                    if (userAgent != null && userAgent.name != null) {
-                        deviceType = findMatch(deviceTypePatterns.get(patternKey), userAgent.name);
+                    if (userAgent != null && userAgent.name() != null) {
+                        deviceType = findMatch(deviceTypePatterns.get(patternKey), userAgent.name());
                     }
                     break;
                 case DEVICE_PARSER:
-                    if (device != null && device.name != null) {
-                        deviceType = findMatch(deviceTypePatterns.get(patternKey), device.name);
+                    if (device != null && device.name() != null) {
+                        deviceType = findMatch(deviceTypePatterns.get(patternKey), device.name());
                     }
                     break;
                 default:

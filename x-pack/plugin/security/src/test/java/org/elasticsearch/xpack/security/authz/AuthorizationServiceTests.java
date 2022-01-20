@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -95,11 +92,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -113,7 +110,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -187,12 +183,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -247,7 +241,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         rolesStore = mock(CompositeRolesStore.class);
         clusterService = mock(ClusterService.class);
         final Settings settings = Settings.builder().put("cluster.remote.other_cluster.seeds", "localhost:9999").build();
-        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Sets.union(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS, LoadAuthorizedIndicesTimeChecker.Factory.getSettings())
+        );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         auditTrail = mock(AuditTrail.class);
@@ -2840,46 +2837,6 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         // The operator related exception is verified in the authorize(...) call
         verifyNoMoreInteractions(auditTrail);
-    }
-
-    public void testAuthorizedIndiciesTimeChecker() throws Exception {
-        final Authentication authentication = createAuthentication(new User("slow-user", "slow-role"));
-        final long now = System.nanoTime();
-        final AuthorizationEngine.RequestInfo requestInfo = new AuthorizationEngine.RequestInfo(
-            authentication,
-            new SearchRequest(),
-            SearchAction.NAME,
-            null
-        );
-        final AuthorizationService.LoadAuthorizedIndiciesTimeChecker checker = new AuthorizationService.LoadAuthorizedIndiciesTimeChecker(
-            now - TimeUnit.MILLISECONDS.toNanos(210),
-            requestInfo
-        );
-        final Logger serviceLogger = LogManager.getLogger(AuthorizationService.class);
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(serviceLogger, mockAppender);
-
-            mockAppender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
-                    "WARN-Slow Index Resolution",
-                    serviceLogger.getName(),
-                    Level.WARN,
-                    Pattern.quote("Resolving [0] indices for action [" + SearchAction.NAME + "] and user [slow-user] took [")
-                        + "\\d{3}"
-                        + Pattern.quote(
-                            "ms] which is greater than the threshold of 200ms;"
-                                + " The index privileges for this user may be too complex for this cluster."
-                        )
-                )
-            );
-            checker.done(List.of());
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(serviceLogger, mockAppender);
-            mockAppender.stop();
-        }
     }
 
     static AuthorizationInfo authzInfoRoles(String[] expectedRoles) {

@@ -9,9 +9,11 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,6 +37,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.hamcrest.Matchers.lessThan;
 
 public class BatchedRerouteServiceTests extends ESTestCase {
@@ -74,6 +77,46 @@ public class BatchedRerouteServiceTests extends ESTestCase {
         }
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         assertThat(rerouteCountBeforeReroute, lessThan(rerouteCount.get()));
+    }
+
+    public void testSkipsRerouteBeforeStateRecovery() {
+        final BatchedRerouteService batchedRerouteService = new BatchedRerouteService(
+            clusterService,
+            (s, r) -> { throw new AssertionError("should not reroute"); }
+        );
+
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+
+        clusterService.submitStateUpdateTask("reset-recovery-block", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return ClusterState.builder(currentState)
+                    .blocks(ClusterBlocks.builder().blocks(currentState.blocks()).addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
+                    .build();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                future.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                batchedRerouteService.reroute("test-reroute", Priority.NORMAL, new ActionListener<>() {
+                    @Override
+                    public void onResponse(ClusterState clusterState) {
+                        future.onResponse(null);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        future.onFailure(e);
+                    }
+                });
+            }
+        }, ClusterStateTaskExecutor.unbatched());
+
+        future.actionGet(10, TimeUnit.SECONDS);
     }
 
     public void testBatchesReroutesTogetherAtPriorityOfHighestSubmittedReroute() throws BrokenBarrierException, InterruptedException {

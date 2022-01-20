@@ -25,6 +25,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
+
 /**
  * A {@link BatchedRerouteService} is a {@link RerouteService} that batches together reroute requests to avoid unnecessary extra reroutes.
  * This component only does meaningful work on the elected master node. Reroute requests will fail with a {@link NotMasterException} on
@@ -105,7 +107,10 @@ public class BatchedRerouteService implements RerouteService {
                             pendingRerouteListeners = null;
                         }
                     }
-                    if (currentListenersArePending) {
+                    if (currentState.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
+                        logger.trace("skipping reroute prior to state recovery [{}]", reason);
+                        return currentState;
+                    } else if (currentListenersArePending) {
                         logger.trace("performing batched reroute [{}]", reason);
                         return reroute.apply(currentState, reason);
                     } else {

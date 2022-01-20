@@ -1,6 +1,10 @@
 {
   "index_patterns": [".monitoring-beats-${xpack.stack.monitoring.template.version}-*"],
   "version": ${xpack.stack.monitoring.template.release.version},
+  "_meta": {
+    "description": "Template used by Enterprise Search Metricbeat module monitoring information for Stack Monitoring",
+    "managed": true
+  },
   "template": {
     "mappings": {
       "properties": {

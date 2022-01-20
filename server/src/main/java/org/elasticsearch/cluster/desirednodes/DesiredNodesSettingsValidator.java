@@ -39,6 +39,7 @@ public class DesiredNodesSettingsValidator {
 
     public void validateSettings(DesiredNode node) {
         final Settings nodeSettings = node.settings();
+        final Settings.Builder updatedSettingsBuilder = Settings.builder().put(nodeSettings);
         List<String> unknownSettings = null;
         final Set<Setting<?>> settingSet = new HashSet<>();
         for (String settingKey : nodeSettings.keySet()) {
@@ -47,6 +48,7 @@ public class DesiredNodesSettingsValidator {
                 if (unknownSettings == null) {
                     unknownSettings = new ArrayList<>();
                 }
+                updatedSettingsBuilder.remove(settingKey);
                 unknownSettings.add(settingKey);
                 continue;
             }
@@ -58,8 +60,9 @@ public class DesiredNodesSettingsValidator {
             throw new IllegalArgumentException("Unknown settings " + unknownSettings);
         }
 
-        final ClusterSettings desiredNodeSettings = new ClusterSettings(nodeSettings, settingSet, Collections.emptySet());
-        desiredNodeSettings.validate(nodeSettings, true);
+        final Settings updatedSettings = updatedSettingsBuilder.build();
+        final ClusterSettings desiredNodeSettings = new ClusterSettings(updatedSettings, settingSet, Collections.emptySet());
+        desiredNodeSettings.validate(updatedSettings, true);
     }
 
     private Setting<?> maybeOverride(Setting<?> setting, DesiredNode desiredNode) {

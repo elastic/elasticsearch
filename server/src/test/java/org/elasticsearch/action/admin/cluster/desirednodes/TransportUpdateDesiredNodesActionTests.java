@@ -223,10 +223,23 @@ public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
         final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10))).build();
         final UpdateDesiredNodesRequest request = randomUpdateDesiredNodesRequest(Version.fromString("99.9.0"));
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, desiredNodesSettingsValidator, request)
+        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(
+            currentClusterState,
+            desiredNodesSettingsValidator,
+            request
         );
-        assertThat(exception.getMessage(), containsString("Unknown settings"));
+
+        final DesiredNodesMetadata desiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
+        assertThat(desiredNodesMetadata, is(notNullValue()));
+
+        final DesiredNodes desiredNodes = desiredNodesMetadata.getCurrentDesiredNodes();
+        assertThat(desiredNodes, is(notNullValue()));
+        assertThat(desiredNodes.historyID(), is(equalTo(request.getHistoryID())));
+        assertThat(desiredNodes.version(), is(equalTo(request.getVersion())));
+        assertThat(desiredNodes.nodes(), is(equalTo(request.getNodes())));
+    }
+
+    public void testSettingsValidation() {
+        fail("todo");
     }
 }

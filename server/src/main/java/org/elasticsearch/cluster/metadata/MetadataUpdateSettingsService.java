@@ -222,8 +222,6 @@ public class MetadataUpdateSettingsService {
                     .blocks(changedBlocks ? blocks.build() : currentState.blocks())
                     .build();
 
-                // now, reroute in case things change that require it (like number of replicas)
-                updatedState = allocationService.reroute(updatedState, "settings update");
                 try {
                     for (Index index : openIndices) {
                         final IndexMetadata currentMetadata = currentState.metadata().getIndexSafe(index);
@@ -242,6 +240,10 @@ public class MetadataUpdateSettingsService {
                 } catch (IOException ex) {
                     throw ExceptionsHelper.convertToElastic(ex);
                 }
+
+                // now, reroute in case things change that require it (like number of replicas)
+                updatedState = allocationService.reroute(updatedState, "settings update");
+
                 return updatedState;
             }
         };

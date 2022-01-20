@@ -39,18 +39,22 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
         settingsBuilder.putList(
             DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
-            List.of("some.deprecated.property", "some.other.*.deprecated.property")
+            List.of("some.deprecated.property", "some.other.*.deprecated.property", "some.bad.dynamic.property")
         );
-        Settings inputSettings = settingsBuilder.build();
+        Settings nodeSettings = settingsBuilder.build();
+        settingsBuilder = Settings.builder();
+        settingsBuilder.put("some.bad.dynamic.property", "someValue1");
+        Settings dynamicSettings = settingsBuilder.build();
         ThreadPool threadPool = null;
         final XPackLicenseState licenseState = null;
         Metadata metadata = Mockito.mock(Metadata.class);
         Mockito.when(metadata.hashesOfConsistentSettings()).thenReturn(DiffableStringMap.EMPTY);
+        Mockito.when(metadata.settings()).thenReturn(dynamicSettings);
         ClusterState clusterState = Mockito.mock(ClusterState.class);
         Mockito.when(clusterState.metadata()).thenReturn(metadata);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         Mockito.when(clusterService.state()).thenReturn(clusterState);
-        ClusterSettings clusterSettings = new ClusterSettings(inputSettings, Set.of(DeprecationChecks.SKIP_DEPRECATIONS_SETTING));
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, Set.of(DeprecationChecks.SKIP_DEPRECATIONS_SETTING));
         Mockito.when((clusterService.getClusterSettings())).thenReturn(clusterSettings);
         DiscoveryNode node = Mockito.mock(DiscoveryNode.class);
         TransportService transportService = Mockito.mock(TransportService.class);
@@ -58,7 +62,7 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         PluginsService pluginsService = Mockito.mock(PluginsService.class);
         ActionFilters actionFilters = Mockito.mock(ActionFilters.class);
         TransportNodeDeprecationCheckAction transportNodeDeprecationCheckAction = new TransportNodeDeprecationCheckAction(
-            inputSettings,
+            nodeSettings,
             threadPool,
             licenseState,
             clusterService,
@@ -67,14 +71,16 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
             actionFilters
         );
         NodesDeprecationCheckAction.NodeRequest nodeRequest = null;
-        AtomicReference<Settings> visibleSettings = new AtomicReference<>();
+        AtomicReference<Settings> visibleNodeSettings = new AtomicReference<>();
+        AtomicReference<Settings> visibleClusterStateMetadataSettings = new AtomicReference<>();
         DeprecationChecks.NodeDeprecationCheck<
             Settings,
             PluginsAndModules,
             ClusterState,
             XPackLicenseState,
-            DeprecationIssue> nodeSettingCheck = (settings, p, c, l) -> {
-                visibleSettings.set(settings);
+            DeprecationIssue> nodeSettingCheck = (settings, p, clusterState1, l) -> {
+            visibleNodeSettings.set(settings);
+            visibleClusterStateMetadataSettings.set(clusterState1.getMetadata().settings());
                 return null;
             };
         java.util.List<
@@ -90,11 +96,13 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
         settingsBuilder.putList(
             DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
-            List.of("some.deprecated.property", "some.other.*.deprecated.property")
+            List.of("some.deprecated.property", "some.other.*.deprecated.property", "some.bad.dynamic.property")
         );
         Settings expectedSettings = settingsBuilder.build();
-        Assert.assertNotNull(visibleSettings.get());
-        Assert.assertEquals(expectedSettings, visibleSettings.get());
+        Assert.assertNotNull(visibleNodeSettings.get());
+        Assert.assertEquals(expectedSettings, visibleNodeSettings.get());
+        Assert.assertNotNull(visibleClusterStateMetadataSettings.get());
+        Assert.assertEquals(Settings.EMPTY, visibleClusterStateMetadataSettings.get());
 
         // Testing that the setting is dynamically updatable:
         Settings newSettings = Settings.builder()
@@ -109,11 +117,14 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         // This is the node setting (since this is the node deprecation check), not the cluster setting:
         settingsBuilder.putList(
             DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
-            List.of("some.deprecated.property", "some.other.*.deprecated.property")
+            List.of("some.deprecated.property", "some.other.*.deprecated.property", "some.bad.dynamic.property")
         );
         expectedSettings = settingsBuilder.build();
-        Assert.assertNotNull(visibleSettings.get());
-        Assert.assertEquals(expectedSettings, visibleSettings.get());
+        Assert.assertNotNull(visibleNodeSettings.get());
+        Assert.assertEquals(expectedSettings, visibleNodeSettings.get());
+        Assert.assertNotNull(visibleClusterStateMetadataSettings.get());
+        Assert.assertEquals(Settings.builder().put("some.bad.dynamic.property", "someValue1").build(),
+            visibleClusterStateMetadataSettings.get());
     }
 
 }

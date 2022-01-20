@@ -195,11 +195,6 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             bucketsInOrd[ordIdx] = (int) bucketCount;
             totalOrdsToCollect += bucketCount;
         }
-        if (totalOrdsToCollect > Integer.MAX_VALUE) {
-            throw new AggregationExecutionException(
-                "Can't collect more than [" + Integer.MAX_VALUE + "] buckets but attempted [" + totalOrdsToCollect + "]"
-            );
-        }
 
         long[] bucketOrdsToCollect = new long[(int) totalOrdsToCollect];
         int b = 0;

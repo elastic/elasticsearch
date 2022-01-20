@@ -6,11 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.health;
+package org.elasticsearch.plugins;
+
+import org.elasticsearch.health.HealthIndicatorService;
 
 import java.util.List;
 
-public interface HealthIndicatorService {
+public interface HealthIndicatorPlugin {
 
-    List<HealthIndicator> getIndicators();
+    List<HealthIndicatorService> getHealthIndicatorServices();
 }

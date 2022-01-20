@@ -17,7 +17,7 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -40,6 +40,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
@@ -353,7 +354,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             @Override
                             public void run() {
                                 final AtomicArray<SearchPhaseResult> atomicArray = results.getAtomicArray();
-                                sendSearchResponse(InternalSearchResponse.empty(), atomicArray);
+                                sendSearchResponse(InternalSearchResponse.EMPTY_WITH_TOTAL_HITS, atomicArray);
                             }
                         };
                     }
@@ -999,10 +1000,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // disable request cache if we have only suggest
             searchRequest.requestCache(false);
             switch (searchRequest.searchType()) {
-                case DFS_QUERY_THEN_FETCH:
+                case DFS_QUERY_THEN_FETCH ->
                     // convert to Q_T_F if we have only suggest
                     searchRequest.searchType(QUERY_THEN_FETCH);
-                    break;
             }
         }
         final DiscoveryNodes nodes = clusterState.nodes();
@@ -1192,49 +1192,42 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 shardIterators.size(),
                 exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]")
             );
-            AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
-            switch (searchRequest.searchType()) {
-                case DFS_QUERY_THEN_FETCH:
-                    searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(
-                        logger,
-                        searchTransportService,
-                        connectionLookup,
-                        aliasFilter,
-                        concreteIndexBoosts,
-                        searchPhaseController,
-                        executor,
-                        queryResultConsumer,
-                        searchRequest,
-                        listener,
-                        shardIterators,
-                        timeProvider,
-                        clusterState,
-                        task,
-                        clusters
-                    );
-                    break;
-                case QUERY_THEN_FETCH:
-                    searchAsyncAction = new SearchQueryThenFetchAsyncAction(
-                        logger,
-                        searchTransportService,
-                        connectionLookup,
-                        aliasFilter,
-                        concreteIndexBoosts,
-                        searchPhaseController,
-                        executor,
-                        queryResultConsumer,
-                        searchRequest,
-                        listener,
-                        shardIterators,
-                        timeProvider,
-                        clusterState,
-                        task,
-                        clusters
-                    );
-                    break;
-                default:
-                    throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
-            }
+            AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction = switch (searchRequest.searchType()) {
+                case DFS_QUERY_THEN_FETCH -> new SearchDfsQueryThenFetchAsyncAction(
+                    logger,
+                    searchTransportService,
+                    connectionLookup,
+                    aliasFilter,
+                    concreteIndexBoosts,
+                    searchPhaseController,
+                    executor,
+                    queryResultConsumer,
+                    searchRequest,
+                    listener,
+                    shardIterators,
+                    timeProvider,
+                    clusterState,
+                    task,
+                    clusters
+                );
+                case QUERY_THEN_FETCH -> new SearchQueryThenFetchAsyncAction(
+                    logger,
+                    searchTransportService,
+                    connectionLookup,
+                    aliasFilter,
+                    concreteIndexBoosts,
+                    searchPhaseController,
+                    executor,
+                    queryResultConsumer,
+                    searchRequest,
+                    listener,
+                    shardIterators,
+                    timeProvider,
+                    clusterState,
+                    task,
+                    clusters
+                );
+            };
             return searchAsyncAction;
         }
     }
@@ -1246,7 +1239,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         String[] concreteLocalIndices
     ) {
         HashSet<String> searchedIndices = new HashSet<>(Arrays.asList(concreteLocalIndices));
-        HashMap<String, long[]> newWaitForCheckpoints = new HashMap<>(searchRequest.getWaitForCheckpoints().size());
+        Map<String, long[]> newWaitForCheckpoints = Maps.newMapWithExpectedSize(searchRequest.getWaitForCheckpoints().size());
         for (Map.Entry<String, long[]> waitForCheckpointIndex : searchRequest.getWaitForCheckpoints().entrySet()) {
             long[] checkpoints = waitForCheckpointIndex.getValue();
             int checkpointsProvided = checkpoints.length;

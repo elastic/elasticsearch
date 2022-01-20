@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.client.ml;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -19,7 +19,7 @@ public class NodeAttributesTests extends AbstractXContentTestCase<NodeAttributes
 
     public static NodeAttributes createRandom() {
         int numberOfAttributes = randomIntBetween(1, 10);
-        Map<String, String> attributes = new HashMap<>(numberOfAttributes);
+        Map<String, String> attributes = Maps.newMapWithExpectedSize(numberOfAttributes);
         for (int i = 0; i < numberOfAttributes; i++) {
             String val = randomAlphaOfLength(10);
             attributes.put("key-" + i, val);

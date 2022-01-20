@@ -591,7 +591,8 @@ end::mappings[]
 tag::max_docs[]
 `max_docs`::
 (Optional, integer) Maximum number of documents to process. Defaults to all
-documents.
+documents. When set to a value less then or equal to `scroll_size` then a
+scroll will not be used to retrieve the results for the operation.
 end::max_docs[]
 
 tag::memory[]
@@ -1032,6 +1033,11 @@ is specified as a group source in the transform config. As an effect, less docum
 destination index will be performed thus improving overall performance.
 The default value is `true`, which means the checkpoint ranges will be optimized if possible.
 end::transform-settings-align-checkpoints[]
+
+tag::transform-settings-deduce-mappings[]
+Specifies whether the transform should deduce the destination index mappings from the transform config.
+The default value is `true`, which means the destination index mappings will be deduced if possible.
+end::transform-settings-deduce-mappings[]
 
 tag::transform-settings-max-page-search-size[]
 Defines the initial page size to use for the composite aggregation for each

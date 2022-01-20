@@ -93,7 +93,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         final Parameter<StringWrapper> wrapper = new Parameter<>("wrapper", false, () -> new StringWrapper("default"), (n, c, o) -> {
             if (o == null) return null;
             return new StringWrapper(o.toString());
-        }, m -> toType(m).wrapper).setSerializer((b, n, v) -> b.field(n, v.name), v -> "wrapper_" + v.name);
+        }, m -> toType(m).wrapper, (b, n, v) -> b.field(n, v.name), v -> "wrapper_" + v.name);
         final Parameter<Integer> intValue = Parameter.intParam("int_value", true, m -> toType(m).intValue, 5).addValidator(n -> {
             if (n > 50) {
                 throw new IllegalArgumentException("Value of [n] cannot be greater than 50");

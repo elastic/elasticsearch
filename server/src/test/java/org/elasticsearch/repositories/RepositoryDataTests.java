@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESTestCase;
@@ -132,8 +133,8 @@ public class RepositoryDataTests extends ESTestCase {
 
     public void testInitIndices() {
         final int numSnapshots = randomIntBetween(1, 30);
-        final Map<String, SnapshotId> snapshotIds = new HashMap<>(numSnapshots);
-        final Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = new HashMap<>(numSnapshots);
+        final Map<String, SnapshotId> snapshotIds = Maps.newMapWithExpectedSize(numSnapshots);
+        final Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = Maps.newMapWithExpectedSize(numSnapshots);
         for (int i = 0; i < numSnapshots; i++) {
             final SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
             snapshotIds.put(snapshotId.getUUID(), snapshotId);
@@ -471,7 +472,7 @@ public class RepositoryDataTests extends ESTestCase {
         final List<SnapshotId> snapshotIds = new ArrayList<>(snapshotIdsMap.values());
         final int totalSnapshots = snapshotIds.size();
         final int numIndices = randomIntBetween(1, 30);
-        final Map<IndexId, List<SnapshotId>> indices = new HashMap<>(numIndices);
+        final Map<IndexId, List<SnapshotId>> indices = Maps.newMapWithExpectedSize(numIndices);
         for (int i = 0; i < numIndices; i++) {
             final IndexId indexId = new IndexId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
             final Set<SnapshotId> indexSnapshots = new LinkedHashSet<>();

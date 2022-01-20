@@ -125,8 +125,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             if (value == null) {
                 return null;
             }
-            if (value instanceof BytesRef) {
-                value = ((BytesRef) value).utf8ToString();
+            if (value instanceof BytesRef bytesRef) {
+                value = bytesRef.utf8ToString();
             }
 
             if (collator != null) {
@@ -199,8 +199,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             }
 
             @Override
-            public BytesRef parseBytesRef(String value) {
-                char[] encoded = value.toCharArray();
+            public BytesRef parseBytesRef(Object value) {
+                char[] encoded = value.toString().toCharArray();
                 int decodedLength = IndexableBinaryStringTools.getDecodedLength(encoded, 0, encoded.length);
                 byte[] decoded = new byte[decodedLength];
                 IndexableBinaryStringTools.decode(encoded, 0, encoded.length, decoded, 0, decodedLength);

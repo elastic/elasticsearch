@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -1759,7 +1760,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .metadata(
                 Metadata.builder(state.metadata())
                     .put(
-                        new DataStream(
+                        DataStreamTestHelper.newInstance(
                             "unreferenced",
                             new DataStream.TimestampField("@timestamp"),
                             Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))
@@ -1797,7 +1798,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .metadata(
                 Metadata.builder(state.metadata())
                     .put(
-                        new DataStream(
+                        DataStreamTestHelper.newInstance(
                             "logs-mysql-default",
                             new DataStream.TimestampField("@timestamp"),
                             Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
@@ -1929,7 +1930,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             null,
             xContentRegistry,
             EmptySystemIndices.INSTANCE,
-            true
+            true,
+            new IndexSettingProviders(Set.of())
         );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(
             null,
@@ -1938,7 +1940,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             null,
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
             xContentRegistry,
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            new IndexSettingProviders(Set.of())
         );
 
         final List<Throwable> throwables = new ArrayList<>();
@@ -1992,7 +1995,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             null,
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
-            true
+            true,
+            new IndexSettingProviders(Set.of())
         );
         return new MetadataIndexTemplateService(
             clusterService,
@@ -2001,7 +2005,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             indicesService,
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
             xContentRegistry(),
-            EmptySystemIndices.INSTANCE
+            EmptySystemIndices.INSTANCE,
+            new IndexSettingProviders(Set.of())
         );
     }
 

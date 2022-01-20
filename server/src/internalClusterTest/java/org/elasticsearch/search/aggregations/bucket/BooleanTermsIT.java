@@ -43,24 +43,21 @@ public class BooleanTermsIT extends ESIntegTestCase {
             }
             final boolean[] multiValue;
             switch (randomInt(3)) {
-                case 0:
-                    multiValue = new boolean[0];
-                    break;
-                case 1:
+                case 0 -> multiValue = new boolean[0];
+                case 1 -> {
                     numMultiFalses++;
                     multiValue = new boolean[] { false };
-                    break;
-                case 2:
+                }
+                case 2 -> {
                     numMultiTrues++;
                     multiValue = new boolean[] { true };
-                    break;
-                case 3:
+                }
+                case 3 -> {
                     numMultiFalses++;
                     numMultiTrues++;
                     multiValue = new boolean[] { false, true };
-                    break;
-                default:
-                    throw new AssertionError();
+                }
+                default -> throw new AssertionError();
             }
             builders[i] = client().prepareIndex("idx")
                 .setSource(

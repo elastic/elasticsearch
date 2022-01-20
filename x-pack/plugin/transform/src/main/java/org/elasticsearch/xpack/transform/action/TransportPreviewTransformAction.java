@@ -15,7 +15,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -203,12 +203,23 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
 
         ActionListener<SimulatePipelineResponse> pipelineResponseActionListener = ActionListener.wrap(simulatePipelineResponse -> {
             List<Map<String, Object>> docs = new ArrayList<>(simulatePipelineResponse.getResults().size());
+            List<Map<String, Object>> errors = new ArrayList<>();
             for (var simulateDocumentResult : simulatePipelineResponse.getResults()) {
                 try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
                     XContentBuilder content = simulateDocumentResult.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
                     Map<String, Object> tempMap = XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON).v2();
-                    docs.add((Map<String, Object>) XContentMapValues.extractValue("doc._source", tempMap));
+                    Map<String, Object> doc = (Map<String, Object>) XContentMapValues.extractValue("doc._source", tempMap);
+                    if (doc != null) {
+                        docs.add(doc);
+                    }
+                    Map<String, Object> error = (Map<String, Object>) XContentMapValues.extractValue("error", tempMap);
+                    if (error != null) {
+                        errors.add(error);
+                    }
                 }
+            }
+            if (errors.isEmpty() == false) {
+                HeaderWarning.addWarning("Pipeline returned " + errors.size() + " errors, first error: " + errors.get(0));
             }
             TransformDestIndexSettings generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
                 mappings.get(),

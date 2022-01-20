@@ -25,6 +25,8 @@ import java.util.UUID;
 public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(StartupSelfGeneratedLicenseTask.class);
 
+    static final String TASK_SOURCE = "maybe generate license for cluster";
+
     /**
      * Max number of nodes licensed by generated trial license
      */
@@ -41,7 +43,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
         LicensesMetadata licensesMetadata = newState.metadata().custom(LicensesMetadata.TYPE);
         if (logger.isDebugEnabled()) {
             logger.debug("registered self generated license: {}", licensesMetadata);
@@ -98,8 +100,8 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void onFailure(String source, @Nullable Exception e) {
-        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+    public void onFailure(@Nullable Exception e) {
+        logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", TASK_SOURCE), e);
     }
 
     private ClusterState extendBasic(ClusterState currentState, LicensesMetadata currentLicenseMetadata) {

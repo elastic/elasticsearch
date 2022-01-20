@@ -123,7 +123,7 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
         }
 
         checkedVisit(userStatementNode, semanticScope);
-        Class<?> expressionValueType = semanticScope.getDecoration(userStatementNode, Decorations.ValueType.class).getValueType();
+        Class<?> expressionValueType = semanticScope.getDecoration(userStatementNode, Decorations.ValueType.class).valueType();
         boolean rtn = lastSource && isVoid == false && expressionValueType != void.class;
 
         if (rtn) {
@@ -203,8 +203,8 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
         ScriptClassInfo scriptClassInfo
     ) {
         Location location = userExpressionNode.getLocation();
-        Class<?> valueType = semanticScope.getDecoration(userExpressionNode, Decorations.ValueType.class).getValueType();
-        Class<?> targetType = semanticScope.getDecoration(userExpressionNode, TargetType.class).getTargetType();
+        Class<?> valueType = semanticScope.getDecoration(userExpressionNode, Decorations.ValueType.class).valueType();
+        Class<?> targetType = semanticScope.getDecoration(userExpressionNode, TargetType.class).targetType();
 
         PainlessCast painlessCast;
         if (valueType == def.class) {

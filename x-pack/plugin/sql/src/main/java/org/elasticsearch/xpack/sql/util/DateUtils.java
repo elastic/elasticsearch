@@ -198,16 +198,16 @@ public final class DateUtils {
     }
 
     public static TemporalAccessor atTimeZone(TemporalAccessor ta, ZoneId zoneId) {
-        if (ta instanceof LocalDateTime) {
-            return atTimeZone((LocalDateTime) ta, zoneId);
-        } else if (ta instanceof ZonedDateTime) {
-            return atTimeZone((ZonedDateTime) ta, zoneId);
-        } else if (ta instanceof OffsetTime) {
-            return atTimeZone((OffsetTime) ta, zoneId);
-        } else if (ta instanceof LocalTime) {
-            return atTimeZone((LocalTime) ta, zoneId);
-        } else if (ta instanceof LocalDate) {
-            return atTimeZone((LocalDate) ta, zoneId);
+        if (ta instanceof LocalDateTime localDateTime) {
+            return atTimeZone(localDateTime, zoneId);
+        } else if (ta instanceof ZonedDateTime zonedDateTime) {
+            return atTimeZone(zonedDateTime, zoneId);
+        } else if (ta instanceof OffsetTime offsetTime) {
+            return atTimeZone(offsetTime, zoneId);
+        } else if (ta instanceof LocalTime localTime) {
+            return atTimeZone(localTime, zoneId);
+        } else if (ta instanceof LocalDate localDate) {
+            return atTimeZone(localDate, zoneId);
         } else {
             return ta;
         }

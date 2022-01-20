@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -52,6 +53,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -105,7 +107,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 false,
                 () -> null,
                 (n, c, o) -> parseNullValueAsString(o),
-                m -> toType(m).nullValue
+                m -> toType(m).nullValue,
+                XContentBuilder::field,
+                Objects::toString
             ).acceptsNull();
 
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
@@ -216,6 +220,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name());
         }
 
         @Override
@@ -333,7 +342,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public Function<byte[], Number> pointReaderIfPossible() {
-            if (isSearchable()) {
+            if (isIndexed()) {
                 // convert from the shifted value back to the original value
                 return (value) -> convertUnsignedLongToDouble(LongPoint.decodeDimension(value, 0));
             }
@@ -359,8 +368,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     if (lv >= 0) {
                         return lv;
                     }
-                } else if (value instanceof BigInteger) {
-                    BigInteger bigIntegerValue = (BigInteger) value;
+                } else if (value instanceof BigInteger bigIntegerValue) {
                     if (bigIntegerValue.compareTo(BigInteger.ZERO) >= 0 && bigIntegerValue.compareTo(BIGINTEGER_2_64_MINUS_ONE) <= 0) {
                         return bigIntegerValue.longValue();
                     }
@@ -596,8 +604,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("Value \"" + value + "\" has a decimal part");
                 }
                 return parseUnsignedLong(v.longValue());
-            } else if (value instanceof BigInteger) {
-                BigInteger bigIntegerValue = (BigInteger) value;
+            } else if (value instanceof BigInteger bigIntegerValue) {
                 if (bigIntegerValue.compareTo(BIGINTEGER_2_64_MINUS_ONE) > 0 || bigIntegerValue.compareTo(BigInteger.ZERO) < 0) {
                     throw new IllegalArgumentException("Value [" + bigIntegerValue + "] is out of range for unsigned long");
                 }

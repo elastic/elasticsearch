@@ -7,12 +7,11 @@
  */
 package org.elasticsearch.indices.analysis;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.util.Maps;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 public class PreBuiltCacheFactory {
@@ -43,16 +42,11 @@ public class PreBuiltCacheFactory {
     private PreBuiltCacheFactory() {}
 
     public static <T> PreBuiltCache<T> getCache(CachingStrategy cachingStrategy) {
-        switch (cachingStrategy) {
-            case ONE:
-                return new PreBuiltCacheStrategyOne<>();
-            case LUCENE:
-                return new PreBuiltCacheStrategyLucene<>();
-            case ELASTICSEARCH:
-                return new PreBuiltCacheStrategyElasticsearch<>();
-            default:
-                throw new ElasticsearchException("No action configured for caching strategy[" + cachingStrategy + "]");
-        }
+        return switch (cachingStrategy) {
+            case ONE -> new PreBuiltCacheStrategyOne<>();
+            case LUCENE -> new PreBuiltCacheStrategyLucene<>();
+            case ELASTICSEARCH -> new PreBuiltCacheStrategyElasticsearch<>();
+        };
     }
 
     /**
@@ -83,7 +77,7 @@ public class PreBuiltCacheFactory {
      */
     private static class PreBuiltCacheStrategyElasticsearch<T> implements PreBuiltCache<T> {
 
-        Map<Version, T> mapModel = new HashMap<>(2);
+        Map<Version, T> mapModel = Maps.newMapWithExpectedSize(2);
 
         @Override
         public T get(Version version) {
@@ -106,7 +100,7 @@ public class PreBuiltCacheFactory {
      */
     private static class PreBuiltCacheStrategyLucene<T> implements PreBuiltCache<T> {
 
-        private Map<org.apache.lucene.util.Version, T> mapModel = new HashMap<>(2);
+        private Map<org.apache.lucene.util.Version, T> mapModel = Maps.newMapWithExpectedSize(2);
 
         @Override
         public T get(Version version) {

@@ -1720,8 +1720,7 @@ public class DataStreamIT extends ESIntegTestCase {
                 assertThat(e.getMessage(), equalTo(expectedErrorMessage));
             }
         } else {
-            if (requestBuilder instanceof SearchRequestBuilder) {
-                SearchRequestBuilder searchRequestBuilder = (SearchRequestBuilder) requestBuilder;
+            if (requestBuilder instanceof SearchRequestBuilder searchRequestBuilder) {
                 assertHitCount(searchRequestBuilder.get(), expectedCount);
             } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
@@ -1917,7 +1916,7 @@ public class DataStreamIT extends ESIntegTestCase {
         request.indexTemplate(
             new ComposableIndexTemplate(
                 patterns,
-                new Template(settings, mappings == null ? null : new CompressedXContent(mappings), aliases),
+                new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), aliases),
                 null,
                 null,
                 null,

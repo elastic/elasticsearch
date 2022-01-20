@@ -110,7 +110,8 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "write",
                     "monitor",
                     "create_index",
-                    "auto_configure"
+                    "auto_configure",
+                    "maintenance"
                   ],
                   "allow_restricted_indices": true
                 }

@@ -12,8 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -464,11 +464,11 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                                 }
 
                                 @Override
-                                public void onFailure(String source, Exception e) {
+                                public void onFailure(Exception e) {
                                     throw new AssertionError(e);
                                 }
 
-                            });
+                            }, ClusterStateTaskExecutor.unbatched());
                         }
                     }
                 }

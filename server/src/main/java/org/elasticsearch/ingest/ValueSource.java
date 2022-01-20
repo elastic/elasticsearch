@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
@@ -46,7 +47,7 @@ public interface ValueSource {
         if (value instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<Object, Object> mapValue = (Map) value;
-            Map<ValueSource, ValueSource> valueTypeMap = new HashMap<>(mapValue.size());
+            Map<ValueSource, ValueSource> valueTypeMap = Maps.newMapWithExpectedSize(mapValue.size());
             for (Map.Entry<Object, Object> entry : mapValue.entrySet()) {
                 valueTypeMap.put(wrap(entry.getKey(), scriptService, scriptOptions), wrap(entry.getValue(), scriptService, scriptOptions));
             }

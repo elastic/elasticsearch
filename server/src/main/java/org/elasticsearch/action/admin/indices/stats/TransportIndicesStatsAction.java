@@ -99,7 +99,8 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             totalShards,
             successfulShards,
             failedShards,
-            shardFailures
+            shardFailures,
+            clusterState
         );
     }
 

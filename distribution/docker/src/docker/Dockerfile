@@ -99,13 +99,15 @@ RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
 <% if (docker_base == "iron_bank") {
-  // Iron Bank always copies the local artifact
+  // Iron Bank always copies the local artifact. It uses `arch` from the
+  // template context variables.
 %>
-COPY elasticsearch-${version}-linux-x86_64.tar.gz /tmp/elasticsearch.tar.gz
+COPY elasticsearch-${version}-linux-${arch}.tar.gz /tmp/elasticsearch.tar.gz
 <% } else {
   // Fetch the appropriate Elasticsearch distribution for this architecture.
   // Keep this command on one line - it is replaced with a `COPY` during local builds.
-  // It uses the `arch` command to fetch the correct distro for the build machine.
+  // It uses the `arch` shell command to fetch the correct distro for the build machine,
+  // which is needed for Docker Hub builds.
 %>
 RUN curl --retry 10 -S -L --output /tmp/elasticsearch.tar.gz https://artifacts-no-kpi.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-\$(arch).tar.gz
 <% } %>
@@ -137,18 +139,6 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     find config -type f -exec chmod 0664 {} +
 
 <% if (docker_base == "cloud") { %>
-# Preinstall common plugins. Note that these are installed as root, meaning the `elasticsearch` user cannot delete them.
-COPY repository-s3-${version}.zip repository-gcs-${version}.zip repository-azure-${version}.zip /tmp/
-RUN bin/elasticsearch-plugin install --batch --verbose \\
-    file:/tmp/repository-s3-${version}.zip \\
-    file:/tmp/repository-gcs-${version}.zip \\
-    file:/tmp/repository-azure-${version}.zip
-# Generate a replacement example plugins config that reflects what is actually installed
-RUN echo "plugins:" > config/elasticsearch-plugins.example.yml && \\
-    echo "  - id: repository-azure" >> config/elasticsearch-plugins.example.yml && \\
-    echo "  - id: repository-gcs"   >> config/elasticsearch-plugins.example.yml && \\
-    echo "  - id: repository-s3"    >> config/elasticsearch-plugins.example.yml
-
 COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/
 RUN set -eux ; \\
     for beat in filebeat metricbeat ; do \\
@@ -191,7 +181,9 @@ RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
 
 <% } else if (docker_base == "default" || docker_base == "cloud") { %>
 
-RUN <%= retry.loop(
+# Change default shell to bash, then install required packages with retries.
+RUN yes no | dpkg-reconfigure dash && \\
+    <%= retry.loop(
     package_manager,
       "export DEBIAN_FRONTEND=noninteractive && \n" +
       "      ${package_manager} update && \n" +
@@ -315,7 +307,7 @@ ENTRYPOINT ["/bin/tini", "--"]
 CMD ["/app/elasticsearch.sh"]
 # Generate a stub command that will be overwritten at runtime
 RUN mkdir /app && \\
-    echo '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
+    echo -e '#!/bin/bash\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
     chmod 0555 /app/elasticsearch.sh
 
 <% } else { %>

@@ -11,7 +11,7 @@ package org.elasticsearch.painless;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -119,13 +119,12 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         Map<ScriptContext<?>, List<Whitelist>> contextsWithWhitelists = new HashMap<>();
         for (ScriptContext<?> context : contexts) {
             // we might have a context that only uses the base whitelists, so would not have been filled in by reloadSPI
+            List<Whitelist> mergedWhitelists = new ArrayList<>(BASE_WHITELISTS);
             List<Whitelist> contextWhitelists = whitelists.get(context);
-            if (contextWhitelists == null) {
-                contextWhitelists = new ArrayList<>(BASE_WHITELISTS);
-            } else {
-                contextWhitelists.addAll(BASE_WHITELISTS);
+            if (contextWhitelists != null) {
+                mergedWhitelists.addAll(contextWhitelists);
             }
-            contextsWithWhitelists.put(context, contextWhitelists);
+            contextsWithWhitelists.put(context, mergedWhitelists);
         }
         painlessScriptEngine.set(new PainlessScriptEngine(settings, contextsWithWhitelists));
         return painlessScriptEngine.get();

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
@@ -21,7 +22,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 
@@ -95,7 +95,7 @@ final class ExpandSearchPhase extends SearchPhase {
                         }
                         SearchHits innerHits = item.getResponse().getHits();
                         if (hit.getInnerHits() == null) {
-                            hit.setInnerHits(new HashMap<>(innerHitBuilders.size()));
+                            hit.setInnerHits(Maps.newMapWithExpectedSize(innerHitBuilders.size()));
                         }
                         hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
                     }

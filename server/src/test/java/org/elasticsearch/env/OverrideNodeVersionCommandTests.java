@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -51,7 +50,6 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
                     nodePaths,
                     nodeId,
                     xContentRegistry(),
-                    BigArrays.NON_RECYCLING_INSTANCE,
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L
                 ).createWriter()
@@ -78,7 +76,6 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
                     nodePaths,
                     nodeId,
                     xContentRegistry(),
-                    BigArrays.NON_RECYCLING_INSTANCE,
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L
                 ).loadBestOnDiskState().metadata.persistentSettings()
@@ -98,7 +95,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
     }
 
     public void testFailsIfUnnecessary() throws IOException {
-        final Version nodeVersion = Version.fromId(between(Version.CURRENT.minimumIndexCompatibilityVersion().id, Version.CURRENT.id));
+        final Version nodeVersion = Version.fromId(between(Version.CURRENT.minimumCompatibilityVersion().id, Version.CURRENT.id));
         PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
         final MockTerminal mockTerminal = new MockTerminal();
         final ElasticsearchException elasticsearchException = expectThrows(

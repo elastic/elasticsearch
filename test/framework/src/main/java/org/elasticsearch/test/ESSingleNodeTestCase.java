@@ -14,8 +14,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -242,9 +242,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
 
-        Collection<Class<? extends Plugin>> plugins = getPlugins();
+        Collection<Class<? extends Plugin>> plugins = new ArrayList<>(getPlugins());
         if (plugins.contains(getTestTransportPlugin()) == false) {
-            plugins = new ArrayList<>(plugins);
             plugins.add(getTestTransportPlugin());
         }
         if (addMockHttpTransport()) {

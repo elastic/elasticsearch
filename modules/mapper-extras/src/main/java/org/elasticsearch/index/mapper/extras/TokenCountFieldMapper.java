@@ -21,11 +21,13 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 
@@ -52,7 +54,9 @@ public class TokenCountFieldMapper extends FieldMapper {
             false,
             () -> null,
             (n, c, o) -> o == null ? null : nodeIntegerValue(o),
-            m -> toType(m).nullValue
+            m -> toType(m).nullValue,
+            XContentBuilder::field,
+            Objects::toString
         ).acceptsNull();
         private final Parameter<Boolean> enablePositionIncrements = Parameter.boolParam(
             "enable_position_increments",

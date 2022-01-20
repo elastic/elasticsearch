@@ -145,7 +145,7 @@ Discontinue use of the `type` parameter in `geo_bounding_box` queries.
 
 [discrete]
 [[implicitly-disabled-security]]
-.Disabling security on basic and trial licenses by default is deprecated.
+.Having security disabled by default on basic and trial licenses is deprecated.
 [%collapsible]
 ====
 *Details* +

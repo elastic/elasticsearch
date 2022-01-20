@@ -410,10 +410,10 @@
                     }
                   }
                 },
-                "ruleFailures": {
+                "failures": {
                   "type": "long"
                 },
-                "ruleExecutions": {
+                "executions": {
                   "type": "long"
                 }
               }

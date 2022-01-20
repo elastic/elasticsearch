@@ -23,7 +23,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.StandardIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TsdbIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesModeIdFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -160,12 +160,12 @@ public enum IndexMode {
 
         @Override
         public IdFieldMapper buildNoFieldDataIdFieldMapper() {
-            return TsdbIdFieldMapper.INSTANCE;
+            return TimeSeriesModeIdFieldMapper.INSTANCE;
         }
 
         @Override
         public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-            return TsdbIdFieldMapper.INSTANCE;
+            return TimeSeriesModeIdFieldMapper.INSTANCE;
         }
 
         @Override

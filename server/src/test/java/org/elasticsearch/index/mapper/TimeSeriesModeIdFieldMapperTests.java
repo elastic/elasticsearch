@@ -22,7 +22,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TsdbIdFieldMapperTests extends MetadataMapperTestCase {
+public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
     public void testAlignsWithIndexRouting() throws IOException {
         MapperService mapperService = createMapperService();
         assertIdAligns(mapperService, b -> {

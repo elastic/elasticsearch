@@ -38,7 +38,7 @@ import java.util.Map;
  * stored, but we need to keep it so that its FieldType can be used to generate
  * queries.
  */
-public class TsdbIdFieldMapper extends IdFieldMapper {
+public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
     public static class Defaults {
 
         public static final FieldType FIELD_TYPE = new FieldType();
@@ -52,7 +52,7 @@ public class TsdbIdFieldMapper extends IdFieldMapper {
         }
     }
 
-    public static final TsdbIdFieldMapper INSTANCE = new TsdbIdFieldMapper();
+    public static final TimeSeriesModeIdFieldMapper INSTANCE = new TimeSeriesModeIdFieldMapper();
 
     public static final TypeParser PARSER = new FixedTypeParser(MappingParserContext::idFieldMapper);
 
@@ -101,7 +101,7 @@ public class TsdbIdFieldMapper extends IdFieldMapper {
         }
     }
 
-    private TsdbIdFieldMapper() {
+    private TimeSeriesModeIdFieldMapper() {
         super(new IdFieldType(), Lucene.KEYWORD_ANALYZER);
     }
 

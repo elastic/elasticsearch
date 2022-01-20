@@ -16,7 +16,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TsdbIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesModeIdFieldMapper;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -260,7 +260,7 @@ public abstract class IndexRouting {
                     source.nextToken();
                     break;
                 case VALUE_STRING:
-                    hashes.add(new NameAndHash(path, TsdbIdFieldMapper.hash(TimeSeriesIdFieldMapper.encodeTsidValue(source.text()))));
+                    hashes.add(new NameAndHash(path, TimeSeriesModeIdFieldMapper.hash(TimeSeriesIdFieldMapper.encodeTsidValue(source.text()))));
                     source.nextToken();
                     break;
                 case VALUE_NULL:
@@ -296,7 +296,7 @@ public abstract class IndexRouting {
         }
 
         private static int hashFieldName(String fieldName) {
-            return TsdbIdFieldMapper.hash(new BytesRef(fieldName)); // Hash the field name in utf-8
+            return TimeSeriesModeIdFieldMapper.hash(new BytesRef(fieldName)); // Hash the field name in utf-8
         }
 
         @Override
@@ -316,7 +316,7 @@ public abstract class IndexRouting {
 
         private int readShard(String id, @Nullable String routing) {
             checkNoRouting(routing);
-            return hashToShardId(TsdbIdFieldMapper.decodeRoutingHash(id));
+            return hashToShardId(TimeSeriesModeIdFieldMapper.decodeRoutingHash(id));
         }
 
         @Override

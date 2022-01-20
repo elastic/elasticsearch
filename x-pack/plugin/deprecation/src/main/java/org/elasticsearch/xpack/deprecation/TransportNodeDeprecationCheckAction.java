@@ -12,6 +12,8 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DiffableStringMap;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -107,13 +109,66 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
                 XPackLicenseState,
                 DeprecationIssue>> nodeSettingsChecks
     ) {
-        Settings filteredSettings = settings.filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false);
+        Settings filteredNodeSettings = settings.filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false);
         List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(
             nodeSettingsChecks,
-            (c) -> c.apply(filteredSettings, pluginsService.info(), clusterService.state(), licenseState)
+            (c) -> c.apply(
+                filteredNodeSettings,
+                pluginsService.info(),
+                new FilteredClusterState(clusterService.state(), skipTheseDeprecations),
+                licenseState
+            )
         );
 
         return new NodesDeprecationCheckAction.NodeResponse(transportService.getLocalNode(), issues);
+    }
+
+    private static final class FilteredClusterState extends ClusterState {
+        private final Metadata filteredMetadata;
+
+        public FilteredClusterState(ClusterState state, List<String> skipTheseDeprecations) {
+            super(state.version(), state.stateUUID(), state);
+            this.filteredMetadata = new FilteredMetadata(super.metadata(), skipTheseDeprecations);
+        }
+
+        @Override
+        public Metadata metadata() {
+            return this.filteredMetadata;
+        }
+    }
+
+    private static final class FilteredMetadata extends Metadata {
+        public FilteredMetadata(Metadata originalMetadata, List<String> skipTheseDeprecations) {
+            super(
+                originalMetadata.clusterUUID(),
+                originalMetadata.clusterUUIDCommitted(),
+                originalMetadata.version(),
+                originalMetadata.coordinationMetadata(),
+                originalMetadata.transientSettings() == null
+                    ? null
+                    : originalMetadata.transientSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false),
+                originalMetadata.persistentSettings() == null
+                    ? null
+                    : originalMetadata.persistentSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false),
+                originalMetadata.settings() == null
+                    ? null
+                    : originalMetadata.settings().filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false),
+                (DiffableStringMap) originalMetadata.hashesOfConsistentSettings(),
+                originalMetadata.getTotalNumberOfShards(),
+                originalMetadata.getTotalOpenIndexShards(),
+                originalMetadata.indices(),
+                originalMetadata.templates(),
+                originalMetadata.customs(),
+                originalMetadata.getConcreteAllIndices(),
+                originalMetadata.getConcreteVisibleIndices(),
+                originalMetadata.getConcreteAllOpenIndices(),
+                originalMetadata.getConcreteVisibleOpenIndices(),
+                originalMetadata.getConcreteAllClosedIndices(),
+                originalMetadata.getConcreteVisibleClosedIndices(),
+                originalMetadata.getIndicesLookup(),
+                originalMetadata.oldestIndexVersion()
+            );
+        }
     }
 
 }

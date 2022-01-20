@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DiffableStringMap;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -44,6 +45,7 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         ThreadPool threadPool = null;
         final XPackLicenseState licenseState = null;
         Metadata metadata = Mockito.mock(Metadata.class);
+        Mockito.when(metadata.hashesOfConsistentSettings()).thenReturn(DiffableStringMap.EMPTY);
         ClusterState clusterState = Mockito.mock(ClusterState.class);
         Mockito.when(clusterState.metadata()).thenReturn(metadata);
         ClusterService clusterService = Mockito.mock(ClusterService.class);
@@ -113,4 +115,5 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         Assert.assertNotNull(visibleSettings.get());
         Assert.assertEquals(expectedSettings, visibleSettings.get());
     }
+
 }

@@ -213,7 +213,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     private final Version oldestIndexVersion;
 
-    private Metadata(
+    protected Metadata(
         String clusterUUID,
         boolean clusterUUIDCommitted,
         long version,

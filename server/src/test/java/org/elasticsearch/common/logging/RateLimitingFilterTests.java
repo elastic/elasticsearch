@@ -179,8 +179,8 @@ public class RateLimitingFilterTests extends ESTestCase {
         Message message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 0", "opaque-id 0", "kibana", "msg 0");
         assertThat(filter.filter(message), equalTo(Result.ACCEPT));
 
-        // Should NOT be rate-limited even though the x-opaque-id is unique because it originates from kibana
+        // Should be rate-limited even though the x-opaque-id is unique because it originates from kibana
         message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 0", "opaque-id 1", "kibana", "msg 0");
-        assertThat(filter.filter(message), equalTo(Result.ACCEPT));
+        assertThat(filter.filter(message), equalTo(Result.DENY));
     }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -48,7 +49,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
         this.totalStats = new Stats(in);
         int size = in.readVInt();
         this.pipelineStats = new ArrayList<>(size);
-        this.processorStats = new HashMap<>(size);
+        this.processorStats = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             String pipelineId = in.readString();
             Stats pipelineStat = new Stats(in);

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.core.security.support.CacheKey;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -286,7 +286,7 @@ public class IndicesAccessControl {
         Set<String> otherIndexes = limitedByIndicesAccessControl.indexPermissions.keySet();
         Set<String> commonIndexes = Sets.intersection(indexes, otherIndexes);
 
-        Map<String, IndexAccessControl> indexPermissionsMap = new HashMap<>(commonIndexes.size());
+        Map<String, IndexAccessControl> indexPermissionsMap = Maps.newMapWithExpectedSize(commonIndexes.size());
         for (String index : commonIndexes) {
             IndexAccessControl indexAccessControl = getIndexPermissions(index);
             IndexAccessControl limitedByIndexAccessControl = limitedByIndicesAccessControl.getIndexPermissions(index);

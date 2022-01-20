@@ -111,13 +111,16 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
     @Override
     public void postParse(DocumentParserContext context) throws IOException {
         int routingHash = 0;
-        StreamingXXHash64 nonRoutingHash = XXHashFactory.fastestJavaInstance().newStreamingHash64(0);
+        StreamingXXHash64 nonRoutingHash = null;
         for (Map.Entry<BytesRef, DimensionInfo> entry : context.doc().getDimensions().entrySet()) {
             BytesReference bytes = entry.getValue().tsidBytes();
             if (entry.getValue().isRoutingDimension()) {
                 int thisHash = hash(entry.getKey()) ^ hash(bytes);
                 routingHash = 31 * routingHash + thisHash;
             } else {
+                if (nonRoutingHash == null) {
+                    nonRoutingHash = XXHashFactory.fastestJavaInstance().newStreamingHash64(0);
+                }
                 hash(nonRoutingHash, bytes);
             }
         }
@@ -134,10 +137,7 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
         }
         long timestamp = timestampFields[0].numericValue().longValue();
 
-        byte[] encoded = new byte[20];
-        ByteUtils.writeIntLE(routingHash, encoded, 0);
-        ByteUtils.writeLongLE(nonRoutingHash.getValue(), encoded, 4);
-        ByteUtils.writeLongLE(timestamp, encoded, 12);
+        byte[] encoded = encode(routingHash, nonRoutingHash, timestamp);
 
         /*
          * It'd be more efficient to use the encoded bytes above but everything else
@@ -150,6 +150,20 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
         BytesRef uidEncoded = Uid.encodeId(context.id());
         context.doc().add(new Field(NAME, uidEncoded, Defaults.FIELD_TYPE));
         assert routingHash == decodeRoutingHash(uidEncoded);
+    }
+
+    private static byte[] encode(int routingHash, StreamingXXHash64 nonRoutingHash, long timestamp) {
+        if (nonRoutingHash == null) {
+            byte[] encoded = new byte[12];
+            ByteUtils.writeIntLE(routingHash, encoded, 0);
+            ByteUtils.writeLongLE(timestamp, encoded, 4);
+            return encoded;
+        }
+        byte[] encoded = new byte[20];
+        ByteUtils.writeIntLE(routingHash, encoded, 0);
+        ByteUtils.writeLongLE(nonRoutingHash.getValue(), encoded, 4);
+        ByteUtils.writeLongLE(timestamp, encoded, 12);   // TODO compare disk usage for LE and BE on timestamp
+        return encoded;
     }
 
     public static int hash(BytesReference value) {
@@ -183,7 +197,13 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
         } catch (IllegalArgumentException e) {
             throw new ResourceNotFoundException("invalid id [{}]", e, id);
         }
-        if (bytes.length != 20) {
+        if (bytes.length < 4) {
+            /*
+             * Right now _ids are either 12 or 20 bytes, but we don't need
+             * to be super restrictive here. All we really need is our 4
+             * bytes. That'll let us change the id a fair bit later without
+             * worying about how old nodes will interpret the data.
+             */
             throw new ResourceNotFoundException("invalid id [{}]: length was [{}]", id, bytes.length);
         }
         return ByteUtils.readIntLE(bytes, 0);

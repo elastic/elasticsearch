@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -19,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Base64;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -233,47 +235,47 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
-        }).id(), equalTo("f8MTSAAAAACAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSICKJhN-AQAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:01Z");
             b.field("r1", "cat");
-        }).id(), equalTo("f8MTSAAAAABojiYTfgEAAA"));
+        }).id(), equalTo("f8MTSGiOJhN-AQAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "1970-01-01T00:00:00Z");
             b.field("r1", "cat");
-        }).id(), equalTo("f8MTSAAAAAAAAAAAAAAAAA"));
+        }).id(), equalTo("f8MTSAAAAAAAAAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "-9998-01-01T00:00:00Z");
             b.field("r1", "cat");
-        }).id(), equalTo("f8MTSAAAAAAAGGAEgqj-_w"));
+        }).id(), equalTo("f8MTSAAYYASCqP7_"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "9998-01-01T00:00:00Z");
             b.field("r1", "cat");
-        }).id(), equalTo("f8MTSAAAAAAAhL0iaeYAAA"));
+        }).id(), equalTo("f8MTSACEvSJp5gAA"));
 
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r2", "cat");
-        }).id(), equalTo("9i3PXAAAAACAiiYTfgEAAA"));
+        }).id(), equalTo("9i3PXICKJhN-AQAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.startObject("o").field("r3", "cat").endObject();
-        }).id(), equalTo("7xxG4AAAAACAiiYTfgEAAA"));
+        }).id(), equalTo("7xxG4ICKJhN-AQAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("k1", "dog");
-        }).id(), equalTo("f8MTSIOpi8GAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSA8TCv6N_KPKgIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("k2", "dog");
-        }).id(), equalTo("f8MTSGG2e-SAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSA8TCv6N_KPKgIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.startObject("o").field("k3", "dog").endObject();
-        }).id(), equalTo("f8MTSNI9HjqAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSA8TCv6N_KPKgIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.startObject("o");
@@ -282,23 +284,23 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
                 b.field("k3", "dog");
             }
             b.endObject();
-        }).id(), equalTo("7xxG4NI9HjqAiiYTfgEAAA"));
+        }).id(), equalTo("7xxG4A8TCv6N_KPKgIomE34BAAA"));
 
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("L1", 1);
-        }).id(), equalTo("f8MTSOnsnjSAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSKA3J6lMbOO6gIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("L1", Long.MIN_VALUE);
-        }).id(), equalTo("f8MTSFgfjoiAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSOgPbAtkKkaQgIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("L2", 1324);
-        }).id(), equalTo("f8MTSLWOnAyAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSP7hPHJ00thfgIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.startObject("o");
@@ -307,23 +309,23 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
                 b.field("L3", Long.MAX_VALUE);
             }
             b.endObject();
-        }).id(), equalTo("7xxG4MqfAs2AiiYTfgEAAA"));
+        }).id(), equalTo("7xxG4KhLbeYnn2qQgIomE34BAAA"));
 
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("i1", 1);
-        }).id(), equalTo("f8MTSNqNadGAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSKA3J6lMbOO6gIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("i1", Integer.MIN_VALUE);
-        }).id(), equalTo("f8MTSKLk9e6AiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSAO0LS9aNDwzgIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("i2", 1324);
-        }).id(), equalTo("f8MTSCRzWuKAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSP7hPHJ00thfgIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.startObject("o");
@@ -332,23 +334,23 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
                 b.field("i3", Integer.MAX_VALUE);
             }
             b.endObject();
-        }).id(), equalTo("7xxG4F8JUG2AiiYTfgEAAA"));
+        }).id(), equalTo("7xxG4K3p9AKXnSRLgIomE34BAAA"));
 
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("s1", 1);
-        }).id(), equalTo("f8MTSL4xi0KAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSKA3J6lMbOO6gIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("s1", Short.MIN_VALUE);
-        }).id(), equalTo("f8MTSDWqX6KAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSOZUYWhlC2cOgIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("s2", 1324);
-        }).id(), equalTo("f8MTSLOkLeCAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSP7hPHJ00thfgIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.startObject("o");
@@ -357,23 +359,23 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
                 b.field("s3", Short.MAX_VALUE);
             }
             b.endObject();
-        }).id(), equalTo("7xxG4DESZU6AiiYTfgEAAA"));
+        }).id(), equalTo("7xxG4ABVWSMsn1zsgIomE34BAAA"));
 
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("b1", 1);
-        }).id(), equalTo("f8MTSA5vdrSAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSKA3J6lMbOO6gIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("b1", Byte.MIN_VALUE);
-        }).id(), equalTo("f8MTSIvfUVyAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSA79KC-r3-xMgIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("b2", 12);
-        }).id(), equalTo("f8MTSOHWJ9mAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSNP-cU9HAafVgIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.startObject("o");
@@ -382,23 +384,23 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
                 b.field("b3", Byte.MAX_VALUE);
             }
             b.endObject();
-        }).id(), equalTo("7xxG4H6hmUSAiiYTfgEAAA"));
+        }).id(), equalTo("7xxG4DO5sh27uY5vgIomE34BAAA"));
 
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("ip1", "192.168.0.1");
-        }).id(), equalTo("f8MTSOpX0veAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSCUi2DehpjZEgIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("ip1", "12.12.45.254");
-        }).id(), equalTo("f8MTSIDcdLKAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSNzyR3PLgUExgIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("r1", "cat");
             b.field("ip2", "FE80:CD00:0000:0CDE:1257:0000:211E:729C");
-        }).id(), equalTo("f8MTSC17BjyAiiYTfgEAAA"));
+        }).id(), equalTo("f8MTSOEpCg-I_nF4gIomE34BAAA"));
         assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.startObject("o");
@@ -407,7 +409,7 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
                 b.field("ip3", "2001:db8:85a3:8d3:1319:8a2e:370:7348");
             }
             b.endObject();
-        }).id(), equalTo("7xxG4KdsAaSAiiYTfgEAAA"));
+        }).id(), equalTo("7xxG4AGhm-k_iHIXgIomE34BAAA"));
     }
 
     public void testNullRouting() throws IOException {
@@ -513,6 +515,36 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
             b.field("r1", str);
         }).id();
         assertThat(withNull, equalTo(withoutField));
+    }
+
+    public void testDecodeRoutingHashFunnyLengths() throws IOException {
+        MapperService mapperService = createMapperService();
+        String id = parse(mapperService, b -> {
+            b.field("@timestamp", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomMillisUpToYear9999()));
+            b.field("r1", randomAlphaOfLength(5));
+            if (randomBoolean()) {
+                b.field("k1", randomAlphaOfLength(10));
+            }
+        }).id();
+        byte[] bytes = Base64.getUrlDecoder().decode(id);
+
+        for (int l = 0; l < 4; l++) {
+            byte[] subset = new byte[l];
+            System.arraycopy(bytes, 0, subset, 0, l);
+            String subsetStr = Base64.getUrlEncoder().encodeToString(subset);
+            Exception e = expectThrows(ResourceNotFoundException.class, () -> TimeSeriesModeIdFieldMapper.decodeRoutingHash(subsetStr));
+            assertThat(e.getMessage(), equalTo("invalid id [" + subsetStr + "]: length was [" + l + "]"));
+        }
+
+        for (int l = 4; l < bytes.length - 1; l++) {
+            byte[] subset = new byte[l];
+            System.arraycopy(bytes, 0, subset, 0, l);
+            String subsetStr = Base64.getUrlEncoder().encodeToString(subset);
+            assertThat(
+                TimeSeriesModeIdFieldMapper.decodeRoutingHash(subsetStr),
+                equalTo(TimeSeriesModeIdFieldMapper.decodeRoutingHash(id))
+            );
+        }
     }
 
     private ParsedDocument parse(MapperService mapperService, CheckedConsumer<XContentBuilder, IOException> source) throws IOException {

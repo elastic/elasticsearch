@@ -76,7 +76,7 @@ generates a consistent id:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:52:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
-  - match: {items.0.index._id: j5DBhJnp2FE320bv8-3SGXkBAAA}
+  - match: {items.0.index._id: j5DBhPPt0hl5AQAA}
 
 ---
 index a new document on top of an old one:
@@ -115,7 +115,7 @@ index a new document on top of an old one:
               network:
                 tx: 111434595272
                 rx: 430605511
-  - match: {_id: W1c4VZnp2FE320bvZv7RGXkBAAA}
+  - match: {_id: W1c4VWb-0Rl5AQAA}
 
   - do:
       search:
@@ -160,7 +160,7 @@ index a new document on top of an old one over bulk:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
-  - match: {items.0.index._id: W1c4VZnp2FE320bvZv7RGXkBAAA}
+  - match: {items.0.index._id: W1c4VWb-0Rl5AQAA}
 
   - do:
       search:
@@ -191,13 +191,13 @@ ids query:
             - field: k8s.pod.network.tx
           query:
             ids:
-              values: ["W1c4VZnp2FE320bvZv7RGXkBAAA", "j5DBhJnp2FE320bvkwPSGXkBAAA"]
+              values: ["W1c4VWb-0Rl5AQAA", "j5DBhJMD0hl5AQAA"]
           sort: ["@timestamp"]
 
   - match: {hits.total.value: 2}
-  - match: {hits.hits.0._id: "W1c4VZnp2FE320bvZv7RGXkBAAA"}
+  - match: {hits.hits.0._id: "W1c4VWb-0Rl5AQAA"}
   - match: {hits.hits.0.fields.k8s\.pod\.network\.tx: [1434595272]}
-  - match: {hits.hits.1._id: "j5DBhJnp2FE320bvkwPSGXkBAAA"}
+  - match: {hits.hits.1._id: "j5DBhJMD0hl5AQAA"}
   - match: {hits.hits.1.fields.k8s\.pod\.network\.tx: [2012916202]}
 
 ---
@@ -209,7 +209,7 @@ delete:
   - do:
       delete:
         index:   test
-        id:      W1c4VZnp2FE320bvZv7RGXkBAAA
+        id:      W1c4VWb-0Rl5AQAA
   - match: {result: deleted}
 
 ---
@@ -234,8 +234,8 @@ delete over _bulk:
       bulk:
         index:   test
         body:
-          - '{"delete": {"_id": "W1c4VZnp2FE320bvZv7RGXkBAAA"}}'
-          - '{"delete": {"_id": "j5DBhJnp2FE320bvkwPSGXkBAAA"}}'
+          - '{"delete": {"_id": "W1c4VWb-0Rl5AQAA"}}'
+          - '{"delete": {"_id": "j5DBhJMD0hl5AQAA"}}'
           - '{"delete": {"_id": "not found"}}'
   - match: {items.0.delete.result: deleted}
   - match: {items.1.delete.result: deleted}

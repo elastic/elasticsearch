@@ -301,7 +301,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
                 List.of(mockNode.getHostName() + ":" + mockNode.getPort())
             );
             Shell.Result result = installation.executables().nodeReconfigureTool.run(
-                "--enrollment-token " + enrollmentToken.getEncoded(),
+                "-v --enrollment-token " + enrollmentToken.getEncoded(),
                 "y",
                 true
             );

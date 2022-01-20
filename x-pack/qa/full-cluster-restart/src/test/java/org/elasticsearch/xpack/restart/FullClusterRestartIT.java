@@ -392,7 +392,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     {
                       "doc_type": "foo"
                     }""");
-                if (getOldClusterVersion().onOrAfter(Version.V_7_13_0)) {
+                if (getOldClusterVersion().onOrAfter(Version.V_7_10_0)) {
                     indexRequest.setOptions(
                         expectWarnings(
                             "this request accesses system indices: [.security-7], but in a future major "

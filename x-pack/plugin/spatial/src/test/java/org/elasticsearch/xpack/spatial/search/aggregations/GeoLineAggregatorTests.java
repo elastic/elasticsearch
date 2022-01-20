@@ -20,6 +20,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Point;
@@ -39,7 +40,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -202,7 +202,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("group_id")
             .subAggregation(lineAggregationBuilder);
 
-        Map<String, InternalGeoLine> lines = new HashMap<>(1);
+        Map<String, InternalGeoLine> lines = Maps.newMapWithExpectedSize(1);
         String groupOrd = "0";
         long[] points = new long[numPoints];
         double[] sortValues = new double[numPoints];
@@ -275,9 +275,9 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .subAggregation(lineAggregationBuilder);
 
         int numGroups = randomIntBetween(1, 2);
-        Map<String, InternalGeoLine> lines = new HashMap<>(numGroups);
-        Map<Integer, long[]> indexedPoints = new HashMap<>(numGroups);
-        Map<Integer, double[]> indexedSortValues = new HashMap<>(numGroups);
+        Map<String, InternalGeoLine> lines = Maps.newMapWithExpectedSize(numGroups);
+        Map<Integer, long[]> indexedPoints = Maps.newMapWithExpectedSize(numGroups);
+        Map<Integer, double[]> indexedSortValues = Maps.newMapWithExpectedSize(numGroups);
         for (int groupOrd = 0; groupOrd < numGroups; groupOrd++) {
             int numPoints = randomIntBetween(2, 2 * size);
             boolean complete = numPoints <= size;

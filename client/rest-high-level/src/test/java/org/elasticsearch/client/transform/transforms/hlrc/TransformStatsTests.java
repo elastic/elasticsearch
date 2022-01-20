@@ -16,11 +16,11 @@ import org.elasticsearch.client.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.client.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.client.transform.transforms.TransformProgress;
 import org.elasticsearch.client.transform.transforms.TransformStats;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -31,7 +31,7 @@ public class TransformStatsTests extends AbstractResponseTestCase<
 
     public static org.elasticsearch.xpack.core.transform.transforms.NodeAttributes randomNodeAttributes() {
         int numberOfAttributes = randomIntBetween(1, 10);
-        Map<String, String> attributes = new HashMap<>(numberOfAttributes);
+        Map<String, String> attributes = Maps.newMapWithExpectedSize(numberOfAttributes);
         for (int i = 0; i < numberOfAttributes; i++) {
             String val = randomAlphaOfLength(10);
             attributes.put("key-" + i, val);

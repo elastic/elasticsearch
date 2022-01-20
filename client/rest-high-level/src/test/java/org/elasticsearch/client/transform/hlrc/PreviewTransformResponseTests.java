@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.transform.PreviewTransformResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
@@ -20,7 +21,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSetti
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +48,7 @@ public class PreviewTransformResponseTests extends AbstractResponseTestCase<
         Map<String, Object> mappings = null;
 
         if (randomBoolean()) {
-            mappings = new HashMap<>(size);
+            mappings = Maps.newMapWithExpectedSize(size);
 
             for (int i = 0; i < size; i++) {
                 mappings.put(randomAlphaOfLength(10), Map.of("type", randomAlphaOfLength(10)));

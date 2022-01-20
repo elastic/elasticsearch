@@ -112,7 +112,7 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         final ProfileService profileService = node().injector().getInstance(ProfileService.class);
         final Authentication authentication = new Authentication(
             new User("foo"),
-            new Authentication.RealmRef("realm_name", "realm_type", randomAlphaOfLengthBetween(3, 8)),
+            new Authentication.RealmRef("realm_name_1", "realm_type_1", randomAlphaOfLengthBetween(3, 8)),
             null
         );
 
@@ -170,7 +170,35 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(profile3.uid(), not(equalTo(profile1.uid())));
         assertThat(profile3.user().email(), equalTo(RAC_USER_NAME + "@example.com"));
         assertThat(profile3.user().fullName(), nullValue());
-        assertThat(profile3.access().roles(), containsInAnyOrder("rac_role"));
+        assertThat(profile3.user().roles(), containsInAnyOrder("rac_role"));
+        assertThat(profile3.access(), anEmptyMap());
+
+        // Manually inserting some application data
+        client().prepareUpdate(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS), "profile_" + profile3.uid())
+            .setDoc("""
+                {
+                    "user_profile": {
+                      "access": {
+                        "my_app": {
+                          "tag": "prod"
+                        }
+                      },
+                      "application_data": {
+                        "my_app": {
+                          "theme": "default"
+                        }
+                      }
+                    }
+                  }
+                """, XContentType.JSON)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+            .get();
+
+        // Above manual update should be successful
+        final Profile profile4 = getProfile(profile3.uid(), Set.of("my_app"));
+        assertThat(profile4.uid(), equalTo(profile3.uid()));
+        assertThat(profile4.access(), equalTo(Map.of("my_app", Map.of("tag", "prod"))));
+        assertThat(profile4.applicationData(), equalTo(Map.of("my_app", Map.of("theme", "default"))));
 
         // Update native rac user
         final PutUserRequest putUserRequest2 = new PutUserRequest();
@@ -181,11 +209,15 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(client().execute(PutUserAction.INSTANCE, putUserRequest2).actionGet().created(), is(false));
 
         // Activate again should see the updated user info
-        final Profile profile4 = doActivateProfile(RAC_USER_NAME, nativeRacUserPassword);
-        assertThat(profile4.uid(), equalTo(profile3.uid()));
-        assertThat(profile4.user().email(), nullValue());
-        assertThat(profile4.user().fullName(), equalTo("Native RAC User"));
-        assertThat(profile4.access().roles(), containsInAnyOrder("rac_role", "superuser"));
+        final Profile profile5 = doActivateProfile(RAC_USER_NAME, nativeRacUserPassword);
+        assertThat(profile5.uid(), equalTo(profile3.uid()));
+        assertThat(profile5.user().email(), nullValue());
+        assertThat(profile5.user().fullName(), equalTo("Native RAC User"));
+        assertThat(profile5.user().roles(), containsInAnyOrder("rac_role", "superuser"));
+        // Re-activate should not change access
+        assertThat(profile5.access(), equalTo(Map.of("my_app", Map.of("tag", "prod"))));
+        // Re-activate should not change application data
+        assertThat(getProfile(profile5.uid(), Set.of("my_app")).applicationData(), equalTo(Map.of("my_app", Map.of("theme", "default"))));
     }
 
     private Profile doActivateProfile(String username, SecureString password) {

@@ -32,9 +32,20 @@ public class ProfileIT extends ESRestTestCase {
             "enabled": true,
             "user": {
               "username": "foo",
+              "roles": [
+                "role1",
+                "role2"
+              ],
               "realm": {
-                "name": "realm_name",
-                "type": "realm_type",
+                "name": "realm_name_1",
+                "type": "realm_type_1",
+                "domain": {
+                  "name": "domainA",
+                  "realms": [
+                    { "name": "realm_name_1", "type": "realm_type_1" },
+                    { "name": "realm_name_2", "type": "realm_type_2" }
+                  ]
+                },
                 "node_name": "node1"
               },
               "email": "foo@example.com",
@@ -44,11 +55,6 @@ public class ProfileIT extends ESRestTestCase {
             },
             "last_synchronized": %s,
             "access": {
-              "roles": [
-                "role1",
-                "role2"
-              ],
-              "applications": {}
             },
             "application_data": {
               "app1": { "name": "app1" },

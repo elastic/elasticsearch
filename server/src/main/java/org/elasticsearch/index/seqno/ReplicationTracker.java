@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexSettings;
@@ -948,7 +949,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         this.handoffInProgress = false;
         this.appliedClusterStateVersion = -1L;
         this.globalCheckpoint = globalCheckpoint;
-        this.checkpoints = new HashMap<>(1 + indexSettings.getNumberOfReplicas());
+        this.checkpoints = Maps.newMapWithExpectedSize(1 + indexSettings.getNumberOfReplicas());
         this.onGlobalCheckpointUpdated = Objects.requireNonNull(onGlobalCheckpointUpdated);
         this.currentTimeMillisSupplier = Objects.requireNonNull(currentTimeMillisSupplier);
         this.onSyncRetentionLeases = Objects.requireNonNull(onSyncRetentionLeases);

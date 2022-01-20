@@ -27,6 +27,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
@@ -646,7 +647,7 @@ public abstract class StreamInput extends InputStream {
         if (size == 0) {
             return Collections.emptyMap();
         }
-        final Map<K, List<V>> map = new HashMap<>(size);
+        final Map<K, List<V>> map = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; ++i) {
             map.put(keyReader.read(this), readList(valueReader));
         }
@@ -795,7 +796,7 @@ public abstract class StreamInput extends InputStream {
         if (size10 == 0) {
             return Collections.emptyMap();
         }
-        Map<String, Object> map10 = new HashMap<>(size10);
+        Map<String, Object> map10 = Maps.newMapWithExpectedSize(size10);
         for (int i = 0; i < size10; i++) {
             map10.put(readString(), readGenericValue());
         }

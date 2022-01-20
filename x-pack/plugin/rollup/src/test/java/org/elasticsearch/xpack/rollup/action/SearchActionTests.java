@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -64,7 +65,6 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -719,7 +719,7 @@ public class SearchActionTests extends ESTestCase {
         InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
-        Map<String, Object> metadata = new HashMap<>(1);
+        Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);
@@ -855,7 +855,7 @@ public class SearchActionTests extends ESTestCase {
         InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
-        Map<String, Object> metadata = new HashMap<>(1);
+        Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);

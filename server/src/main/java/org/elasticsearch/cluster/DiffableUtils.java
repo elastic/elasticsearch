@@ -14,6 +14,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.Maps;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -432,14 +433,14 @@ public final class DiffableUtils {
             this.valueSerializer = valueSerializer;
             deletes = in.readList(keySerializer::readKey);
             int diffsCount = in.readVInt();
-            diffs = diffsCount == 0 ? Collections.emptyMap() : new HashMap<>(diffsCount);
+            diffs = diffsCount == 0 ? Collections.emptyMap() : Maps.newMapWithExpectedSize(diffsCount);
             for (int i = 0; i < diffsCount; i++) {
                 K key = keySerializer.readKey(in);
                 Diff<T> diff = valueSerializer.readDiff(in, key);
                 diffs.put(key, diff);
             }
             int upsertsCount = in.readVInt();
-            upserts = upsertsCount == 0 ? Collections.emptyMap() : new HashMap<>(upsertsCount);
+            upserts = upsertsCount == 0 ? Collections.emptyMap() : Maps.newMapWithExpectedSize(upsertsCount);
             for (int i = 0; i < upsertsCount; i++) {
                 K key = keySerializer.readKey(in);
                 T newValue = valueSerializer.read(in, key);

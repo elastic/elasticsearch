@@ -40,8 +40,16 @@ public class AvailableIndices {
             availableNames = new HashSet<>();
             assert predicate != null && metadata != null && availableNamesConsumer != null;
             for (IndexAbstraction indexAbstraction : metadata.getIndicesLookup().values()) {
+                // Short circuit if it is already authorized. This can happen for data stream backing indices
+                if (availableNames.contains(indexAbstraction.getName())) {
+                    continue;
+                }
                 if (predicate.test(indexAbstraction)) {
                     availableNames.add(indexAbstraction.getName());
+                    // Data stream guarantees access to its underlying indices
+                    if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+                        indexAbstraction.getIndices().forEach(index -> availableNames.add(index.getName()));
+                    }
                 }
             }
             availableNamesConsumer.accept(availableNames);

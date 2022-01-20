@@ -126,7 +126,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
     private static final class FilteredClusterState extends ClusterState {
         private final Metadata filteredMetadata;
 
-        public FilteredClusterState(ClusterState state, List<String> skipTheseDeprecations) {
+        FilteredClusterState(ClusterState state, List<String> skipTheseDeprecations) {
             super(state.version(), state.stateUUID(), state);
             this.filteredMetadata = new FilteredMetadata(super.metadata(), skipTheseDeprecations);
         }
@@ -138,7 +138,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
     }
 
     private static final class FilteredMetadata extends Metadata {
-        public FilteredMetadata(Metadata originalMetadata, List<String> skipTheseDeprecations) {
+        FilteredMetadata(Metadata originalMetadata, List<String> skipTheseDeprecations) {
             super(
                 originalMetadata.clusterUUID(),
                 originalMetadata.clusterUUIDCommitted(),

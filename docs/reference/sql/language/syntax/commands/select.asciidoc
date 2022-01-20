@@ -123,6 +123,17 @@ The name can be a <<multi-index, pattern>> pointing to multiple indices (likely 
 include-tagged::{sql-specs}/docs/docs.csv-spec[fromTablePatternQuoted]
 ----
 
+experimental:[] To run a <<modules-cross-cluster-search,{ccs}>>, specify a
+cluster name using the `<remote_cluster>:<target>` syntax, where
+`<remote_cluster>` maps to a SQL catalog (cluster) and `<target>` to a table
+(index or data stream). The `<remote_cluster>` supports wildcards (`*`)
+and `<target>` can be an <<sql-index-patterns, index pattern>>.
+
+[source, sql]
+----
+include-tagged::{sql-specs}/multi-cluster-with-security/multi-cluster-docs.csv-spec[fromQualifiedTableQuoted]
+----
+
 `alias`::
 A substitute name for the `FROM` item containing the alias. An alias is used for brevity or to eliminate ambiguity. When an alias is provided, it completely hides the actual name of the table and must be used in its place.
 
@@ -334,7 +345,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[orderByBasic]
 [[sql-syntax-order-by-grouping]]
 ==== Order By and Grouping
 
-For queries that perform grouping, ordering can be applied either on the grouping columns (by default ascending) or on aggregate functions. 
+For queries that perform grouping, ordering can be applied either on the grouping columns (by default ascending) or on aggregate functions.
 
 NOTE: With `GROUP BY`, make sure the ordering targets the resulting group - applying it to individual elements inside the group will have no impact on the results since regardless of the order, values inside the group are aggregated.
 
@@ -370,7 +381,7 @@ When doing full-text queries in the `WHERE` clause, results can be returned base
 
 NOTE: When doing multiple text queries in the `WHERE` clause then, their scores will be
 combined using the same rules as {es}'s
-<<query-dsl-bool-query,bool query>>. 
+<<query-dsl-bool-query,bool query>>.
 
 To sort based on the `score`, use the special function `SCORE()`:
 

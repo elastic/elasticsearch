@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -159,10 +160,10 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
 
         String[] secondCycleShrinkIndexName = new String[1];
         assertBusy(() -> {

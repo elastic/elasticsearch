@@ -78,7 +78,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
 
         public Builder ignoreZValue(boolean ignoreZValue) {
-            this.ignoreZValue.setValue(new Explicit<>(ignoreZValue, true));
+            this.ignoreZValue.setValue(Explicit.explicitBoolean(ignoreZValue));
             return this;
         }
 

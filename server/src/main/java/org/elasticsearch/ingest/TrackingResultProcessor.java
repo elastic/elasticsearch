@@ -63,8 +63,7 @@ public final class TrackingResultProcessor implements Processor {
             conditionalWithResult = null; // no condition
         }
 
-        if (actualProcessor instanceof PipelineProcessor) {
-            PipelineProcessor pipelineProcessor = ((PipelineProcessor) actualProcessor);
+        if (actualProcessor instanceof PipelineProcessor pipelineProcessor) {
             Pipeline pipeline = pipelineProcessor.getPipeline(ingestDocument);
             // runtime check for cycles against a copy of the document. This is needed to properly handle conditionals around pipelines
             IngestDocument ingestDocumentCopy = new IngestDocument(ingestDocument);

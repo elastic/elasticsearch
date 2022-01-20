@@ -87,22 +87,12 @@ public class Lucene62SegmentInfoFormat extends SegmentInfoFormat {
                         SortedSetSelector.Type sortedSetSelector = null;
                         SortedNumericSelector.Type sortedNumericSelector = null;
                         switch (sortTypeID) {
-                            case 0:
-                                sortType = SortField.Type.STRING;
-                                break;
-                            case 1:
-                                sortType = SortField.Type.LONG;
-                                break;
-                            case 2:
-                                sortType = SortField.Type.INT;
-                                break;
-                            case 3:
-                                sortType = SortField.Type.DOUBLE;
-                                break;
-                            case 4:
-                                sortType = SortField.Type.FLOAT;
-                                break;
-                            case 5:
+                            case 0 -> sortType = SortField.Type.STRING;
+                            case 1 -> sortType = SortField.Type.LONG;
+                            case 2 -> sortType = SortField.Type.INT;
+                            case 3 -> sortType = SortField.Type.DOUBLE;
+                            case 4 -> sortType = SortField.Type.FLOAT;
+                            case 5 -> {
                                 sortType = SortField.Type.STRING;
                                 byte selector = input.readByte();
                                 if (selector == 0) {
@@ -116,8 +106,8 @@ public class Lucene62SegmentInfoFormat extends SegmentInfoFormat {
                                 } else {
                                     throw new CorruptIndexException("invalid index SortedSetSelector ID: " + selector, input);
                                 }
-                                break;
-                            case 6:
+                            }
+                            case 6 -> {
                                 byte type = input.readByte();
                                 if (type == 0) {
                                     sortType = SortField.Type.LONG;
@@ -138,9 +128,8 @@ public class Lucene62SegmentInfoFormat extends SegmentInfoFormat {
                                 } else {
                                     throw new CorruptIndexException("invalid index SortedNumericSelector ID: " + numericSelector, input);
                                 }
-                                break;
-                            default:
-                                throw new CorruptIndexException("invalid index sort field type ID: " + sortTypeID, input);
+                            }
+                            default -> throw new CorruptIndexException("invalid index sort field type ID: " + sortTypeID, input);
                         }
                         byte b = input.readByte();
                         boolean reverse;

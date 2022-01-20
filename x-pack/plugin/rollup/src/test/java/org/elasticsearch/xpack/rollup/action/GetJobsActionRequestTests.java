@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction.Request;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 public class GetJobsActionRequestTests extends AbstractWireSerializingTestCase<Request> {
@@ -105,7 +105,7 @@ public class GetJobsActionRequestTests extends AbstractWireSerializingTestCase<R
         GetRollupJobsAction.Request request = new GetRollupJobsAction.Request("_all");
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "foo"), Collections.emptyMap());
         RollupJob job2 = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random(), "bar"), Collections.emptyMap());
-        Map<String, PersistentTasksCustomMetadata.PersistentTask<?>> tasks = new HashMap<>(2);
+        Map<String, PersistentTasksCustomMetadata.PersistentTask<?>> tasks = Maps.newMapWithExpectedSize(2);
         tasks.put("foo", new PersistentTasksCustomMetadata.PersistentTask<>("foo", RollupJob.NAME, job, 1, null));
         tasks.put("bar", new PersistentTasksCustomMetadata.PersistentTask<>("bar", RollupJob.NAME, job2, 1, null));
         ClusterState state = ClusterState.builder(new ClusterName("_name"))

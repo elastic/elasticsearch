@@ -107,14 +107,9 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             switch (parser.currentName()) {
-                case "settings":
-                    indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
-                    break;
-                case "defaults":
-                    indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
-                    break;
-                default:
-                    parser.skipChildren();
+                case "settings" -> indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
+                case "defaults" -> indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
+                default -> parser.skipChildren();
             }
         } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
             parser.skipChildren();

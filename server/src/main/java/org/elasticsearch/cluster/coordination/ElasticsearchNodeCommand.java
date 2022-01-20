@@ -30,7 +30,6 @@ import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -112,7 +111,6 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
             dataPaths,
             nodeId,
             namedXContentRegistry,
-            BigArrays.NON_RECYCLING_INSTANCE,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             () -> 0L
         );

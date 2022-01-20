@@ -153,6 +153,13 @@ public class InstallPluginAction implements Closeable {
         }
     }
 
+    /**
+     * IDs of plugins that have been migrated to modules and do not require installation. This data is
+     * maintained so that existing user workflows that install these plugins do not need to be updated
+     * immediately.
+     */
+    public static final Set<String> PLUGINS_CONVERTED_TO_MODULES = Set.of("repository-azure", "repository-gcs", "repository-s3");
+
     static final Set<PosixFilePermission> BIN_DIR_PERMS;
     static final Set<PosixFilePermission> BIN_FILES_PERMS;
     static final Set<PosixFilePermission> CONFIG_DIR_PERMS;
@@ -219,6 +226,15 @@ public class InstallPluginAction implements Closeable {
                     handleInstallXPack(buildFlavor());
                 }
 
+                if (PLUGINS_CONVERTED_TO_MODULES.contains(pluginId)) {
+                    // This deliberately does not throw an exception in order to avoid failing automation that relies on installing this
+                    // plugin during deployment.
+                    terminal.errorPrintln(
+                        "[" + pluginId + "] is no longer a plugin but instead a module packaged with this distribution of Elasticsearch"
+                    );
+                    continue;
+                }
+
                 final List<Path> deleteOnFailure = new ArrayList<>();
                 deleteOnFailures.put(pluginId, deleteOnFailure);
 
@@ -264,15 +280,12 @@ public class InstallPluginAction implements Closeable {
 
     private static void handleInstallXPack(final Build.Flavor flavor) throws UserException {
         switch (flavor) {
-            case DEFAULT:
-                throw new UserException(ExitCodes.CONFIG, "this distribution of Elasticsearch contains X-Pack by default");
-            case OSS:
-                throw new UserException(
-                    ExitCodes.CONFIG,
-                    "X-Pack is not available with the oss distribution; to use X-Pack features use the default distribution"
-                );
-            case UNKNOWN:
-                throw new IllegalStateException("your distribution is broken");
+            case DEFAULT -> throw new UserException(ExitCodes.CONFIG, "this distribution of Elasticsearch contains X-Pack by default");
+            case OSS -> throw new UserException(
+                ExitCodes.CONFIG,
+                "X-Pack is not available with the oss distribution; to use X-Pack features use the default distribution"
+            );
+            case UNKNOWN -> throw new IllegalStateException("your distribution is broken");
         }
     }
 

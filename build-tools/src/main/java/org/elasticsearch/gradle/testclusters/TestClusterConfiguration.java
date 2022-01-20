@@ -95,6 +95,8 @@ public interface TestClusterConfiguration {
 
     void user(Map<String, String> userSpec);
 
+    void rolesFile(File rolesYml);
+
     String getHttpSocketURI();
 
     String getTransportPortURI();

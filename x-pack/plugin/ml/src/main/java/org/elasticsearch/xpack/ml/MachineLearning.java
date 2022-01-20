@@ -23,6 +23,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -426,6 +427,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -1599,6 +1601,25 @@ public class MachineLearning extends Plugin
 
     public static String[] getMlHiddenIndexPatterns() {
         return ASSOCIATED_INDEX_DESCRIPTORS.stream().map(AssociatedIndexDescriptor::getIndexPattern).toArray(String[]::new);
+    }
+
+    @Override
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
+        return templates -> {
+            // These are all legacy templates that were created in old versions. None are needed now. The
+            // indices they were associated with either became system indices or now use composable templates.
+            templates.remove(".ml-anomalies-");
+            templates.remove(".ml-config");
+            templates.remove(".ml-inference-000001");
+            templates.remove(".ml-inference-000002");
+            templates.remove(".ml-inference-000003");
+            templates.remove(".ml-meta");
+            templates.remove(".ml-notifications");
+            templates.remove(".ml-notifications-000001");
+            templates.remove(".ml-state");
+            templates.remove(".ml-stats");
+            return templates;
+        };
     }
 
     @Override

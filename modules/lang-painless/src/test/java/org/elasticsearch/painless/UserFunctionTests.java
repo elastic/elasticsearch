@@ -163,4 +163,40 @@ public class UserFunctionTests extends ScriptTestCase {
         assertEquals(List.of(100, 1, -100), exec(source, Map.of("a", 1), false));
         assertBytecodeExists(source, "public static synthetic lambda$synthetic$0(ILjava/lang/Object;Ljava/lang/Object;)I");
     }
+
+    public void testCallUserMethodFromStatementWithinLambda() {
+        String source = ""
+            + "int test1() { return 1; }"
+            + "void test(Map params) { "
+            + "  int i = 0;"
+            + "  params.forEach("
+            + "      (k, v) -> { if (i == 0) { test1() } else { 20 } }"
+            + "    );"
+            + "}"
+            + "test(params)";
+        assertNull(exec(source, Map.of("a", 5), false));
+        assertBytecodeExists(source, "public synthetic lambda$synthetic$0(ILjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+    }
+
+    public void testCallUserMethodFromStatementWithinNestedLambda() {
+        String source = ""
+            + "int test1() { return 1; }"
+            + "void test(Map params) { "
+            + "  int i = 0;"
+            + "  int j = 5;"
+            + "  params.replaceAll( "
+            + "    (n, m) -> {"
+            + "      m.forEach("
+            + "        (k, v) -> { if (i == 0) { test1() } else { 20 } }"
+            + "      );"
+            + "      return ['aaa': j];"
+            + "    }"
+            + "  );"
+            + "}"
+            + "Map myParams = new HashMap(params);"
+            + "test(myParams);"
+            + "myParams['a']['aaa']";
+        assertEquals(5, exec(source, Map.of("a", Map.of("b", 1)), false));
+        assertBytecodeExists(source, "public synthetic lambda$synthetic$1(IILjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+    }
 }

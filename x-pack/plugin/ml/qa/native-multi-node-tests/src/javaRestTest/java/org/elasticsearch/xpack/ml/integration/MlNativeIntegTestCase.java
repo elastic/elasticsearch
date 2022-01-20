@@ -172,7 +172,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             throw new UncheckedIOException(e);
         }
         writeFile(xpackConf, "users", "x_pack_rest_user" + ":" + SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING + "\n");
-        writeFile(xpackConf, "users_roles", "superuser:x_pack_rest_user\n");
+        writeFile(xpackConf, "users_roles", SecuritySettingsSourceField.ES_TEST_ROOT_ROLE + ":x_pack_rest_user\n");
+        writeFile(xpackConf, "roles.yml", SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML);
 
         Path key;
         Path certificate;

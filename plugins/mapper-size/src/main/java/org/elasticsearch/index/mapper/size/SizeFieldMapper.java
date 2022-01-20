@@ -63,7 +63,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new SizeFieldMapper(new Explicit<>(false, false), new SizeFieldType()),
+        c -> new SizeFieldMapper(Explicit.IMPLICIT_FALSE, new SizeFieldType()),
         c -> new Builder()
     );
 

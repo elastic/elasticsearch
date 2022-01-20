@@ -1916,7 +1916,7 @@ public class DataStreamIT extends ESIntegTestCase {
         request.indexTemplate(
             new ComposableIndexTemplate(
                 patterns,
-                new Template(settings, mappings == null ? null : new CompressedXContent(mappings), aliases),
+                new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), aliases),
                 null,
                 null,
                 null,

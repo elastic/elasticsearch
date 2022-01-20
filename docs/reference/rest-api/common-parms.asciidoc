@@ -1034,6 +1034,11 @@ destination index will be performed thus improving overall performance.
 The default value is `true`, which means the checkpoint ranges will be optimized if possible.
 end::transform-settings-align-checkpoints[]
 
+tag::transform-settings-deduce-mappings[]
+Specifies whether the transform should deduce the destination index mappings from the transform config.
+The default value is `true`, which means the destination index mappings will be deduced if possible.
+end::transform-settings-deduce-mappings[]
+
 tag::transform-settings-max-page-search-size[]
 Defines the initial page size to use for the composite aggregation for each
 checkpoint. If circuit breaker exceptions occur, the page size is dynamically

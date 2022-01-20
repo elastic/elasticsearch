@@ -114,13 +114,9 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         String nodeName = mutateInstance.getNodeName();
         ClusterName clusterName = mutateInstance.getClusterName();
         switch (randomIntBetween(0, 4)) {
-            case 0:
-                clusterUuid = clusterUuid + randomAlphaOfLength(5);
-                break;
-            case 1:
-                nodeName = nodeName + randomAlphaOfLength(5);
-                break;
-            case 2:
+            case 0 -> clusterUuid = clusterUuid + randomAlphaOfLength(5);
+            case 1 -> nodeName = nodeName + randomAlphaOfLength(5);
+            case 2 ->
                 // toggle the snapshot flag of the original Build parameter
                 build = new Build(
                     Build.Flavor.UNKNOWN,
@@ -130,13 +126,8 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                     build.isSnapshot() == false,
                     build.getQualifiedVersion()
                 );
-                break;
-            case 3:
-                version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));
-                break;
-            case 4:
-                clusterName = new ClusterName(clusterName + randomAlphaOfLength(5));
-                break;
+            case 3 -> version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));
+            case 4 -> clusterName = new ClusterName(clusterName + randomAlphaOfLength(5));
         }
         return new MainResponse(nodeName, version, clusterName, clusterUuid, build);
     }

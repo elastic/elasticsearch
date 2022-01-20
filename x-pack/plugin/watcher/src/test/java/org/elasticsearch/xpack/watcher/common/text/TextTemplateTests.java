@@ -175,11 +175,8 @@ public class TextTemplateTests extends ESTestCase {
         TextTemplate template = templateBuilder(type, "_template", singletonMap("param_key", "param_val"));
         XContentBuilder builder = jsonBuilder().startObject();
         switch (type) {
-            case INLINE:
-                builder.field("source", template.getTemplate());
-                break;
-            case STORED:
-                builder.field("id", template.getTemplate());
+            case INLINE -> builder.field("source", template.getTemplate());
+            case STORED -> builder.field("id", template.getTemplate());
         }
         builder.field("params", template.getParams());
         builder.endObject();

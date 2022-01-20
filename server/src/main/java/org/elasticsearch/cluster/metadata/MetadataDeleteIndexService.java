@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpda
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -67,7 +68,8 @@ public class MetadataDeleteIndexService {
                 public ClusterState execute(final ClusterState currentState) {
                     return deleteIndices(currentState, Sets.newHashSet(request.indices()));
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

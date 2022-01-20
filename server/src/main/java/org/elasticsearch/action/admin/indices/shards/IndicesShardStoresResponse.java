@@ -69,29 +69,21 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             }
 
             private static AllocationStatus fromId(byte id) {
-                switch (id) {
-                    case 0:
-                        return PRIMARY;
-                    case 1:
-                        return REPLICA;
-                    case 2:
-                        return UNUSED;
-                    default:
-                        throw new IllegalArgumentException("unknown id for allocation status [" + id + "]");
-                }
+                return switch (id) {
+                    case 0 -> PRIMARY;
+                    case 1 -> REPLICA;
+                    case 2 -> UNUSED;
+                    default -> throw new IllegalArgumentException("unknown id for allocation status [" + id + "]");
+                };
             }
 
             public String value() {
-                switch (id) {
-                    case 0:
-                        return "primary";
-                    case 1:
-                        return "replica";
-                    case 2:
-                        return "unused";
-                    default:
-                        throw new IllegalArgumentException("unknown id for allocation status [" + id + "]");
-                }
+                return switch (id) {
+                    case 0 -> "primary";
+                    case 1 -> "replica";
+                    case 2 -> "unused";
+                    default -> throw new IllegalArgumentException("unknown id for allocation status [" + id + "]");
+                };
             }
 
             private static AllocationStatus readFrom(StreamInput in) throws IOException {

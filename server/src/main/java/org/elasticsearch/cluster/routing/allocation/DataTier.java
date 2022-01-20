@@ -190,6 +190,37 @@ public class DataTier {
     }
 
     /**
+     * Compares the provided tiers for coldness order (eg. warm is colder than hot).
+     *
+     * Similar to {@link java.util.Comparator#compare(Object, Object)} returns
+     *   -1 if tier1 is colder than tier2 (ie. compare("data_cold", "data_hot"))
+     *   0 if tier1 is as cold as tier2 (ie. tier1.equals(tier2) )
+     *   1 if tier1 is warmer than tier2 (ie. compare("data_hot", "data_cold"))
+     *
+     * The provided tiers parameters must be valid data tiers values (ie. {@link #ALL_DATA_TIERS}.
+     * NOTE: `data_content` is treated as "equal to data_hot" in the tiers hierarchy.
+     * If invalid tier names are passed the result is non-deterministic.
+     */
+    public static int compare(String tier1, String tier2) {
+        if (tier1.equals(DATA_CONTENT)) {
+            tier1 = DATA_HOT;
+        }
+        if (tier2.equals(DATA_CONTENT)) {
+            tier2 = DATA_HOT;
+        }
+        int indexOfTier1 = ORDERED_FROZEN_TO_HOT_TIERS.indexOf(tier1);
+        assert indexOfTier1 >= 0 : "expecting a valid tier to compare but got:" + tier1;
+        int indexOfTier2 = ORDERED_FROZEN_TO_HOT_TIERS.indexOf(tier2);
+        assert indexOfTier2 >= 0 : "expecting a valid tier to compare but got:" + tier2;
+
+        if (indexOfTier1 == indexOfTier2) {
+            return 0;
+        } else {
+            return indexOfTier1 < indexOfTier2 ? -1 : 1;
+        }
+    }
+
+    /**
      * This setting provider injects the setting allocating all newly created indices with
      * {@code index.routing.allocation.include._tier_preference: "data_hot"} for a data stream index
      * or {@code index.routing.allocation.include._tier_preference: "data_content"} for an index not part of

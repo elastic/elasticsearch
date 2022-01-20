@@ -235,16 +235,12 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     @Override
     protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         // Builds a random range query that doesn't degenerate into match none
-        switch (randomInt(2)) {
-            case 0:
-                return ft.rangeQuery(true, true, true, true, null, null, null, ctx);
-            case 1:
-                return ft.rangeQuery(false, true, true, true, null, null, null, ctx);
-            case 2:
-                return ft.rangeQuery(false, true, false, true, null, null, null, ctx);
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (randomInt(2)) {
+            case 0 -> ft.rangeQuery(true, true, true, true, null, null, null, ctx);
+            case 1 -> ft.rangeQuery(false, true, true, true, null, null, null, ctx);
+            case 2 -> ft.rangeQuery(false, true, false, true, null, null, null, ctx);
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     @Override
@@ -308,16 +304,12 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
 
     @Override
     protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        switch (randomInt(2)) {
-            case 0:
-                return ft.termsQuery(List.of(true), ctx);
-            case 1:
-                return ft.termsQuery(List.of(false), ctx);
-            case 2:
-                return ft.termsQuery(List.of(false, true), ctx);
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (randomInt(2)) {
+            case 0 -> ft.termsQuery(List.of(true), ctx);
+            case 1 -> ft.termsQuery(List.of(false), ctx);
+            case 2 -> ft.termsQuery(List.of(false, true), ctx);
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
     public void testDualingQueries() throws IOException {
@@ -417,34 +409,30 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     }
 
     private static BooleanFieldScript.Factory factory(Script script) {
-        switch (script.getIdOrCode()) {
-            case "read_foo":
-                return (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                            emit((Boolean) foo);
-                        }
+        return switch (script.getIdOrCode()) {
+            case "read_foo" -> (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                        emit((Boolean) foo);
                     }
-                };
-            case "xor_param":
-                return (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                            emit((Boolean) foo ^ ((Boolean) getParams().get("param")));
-                        }
+                }
+            };
+            case "xor_param" -> (fieldName, params, lookup) -> (ctx) -> new BooleanFieldScript(fieldName, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                        emit((Boolean) foo ^ ((Boolean) getParams().get("param")));
                     }
-                };
-            case "loop":
-                return (fieldName, params, lookup) -> {
-                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                    lookup.forkAndTrackFieldReferences("test");
-                    throw new IllegalStateException("should have thrown on the line above");
-                };
-            default:
-                throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
-        }
+                }
+            };
+            case "loop" -> (fieldName, params, lookup) -> {
+                // Indicate that this script wants the field call "test", which *is* the name of this field
+                lookup.forkAndTrackFieldReferences("test");
+                throw new IllegalStateException("should have thrown on the line above");
+            };
+            default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
+        };
     }
 
     private static BooleanScriptFieldType build(Script script) {

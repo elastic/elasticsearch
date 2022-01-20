@@ -107,20 +107,12 @@ public class AggConstructionContentionBenchmark {
 
     @Setup
     public void setup() {
-        switch (breaker) {
-            case "real":
-                breakerService = new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings);
-                break;
-            case "preallocate":
-                preallocateBreaker = true;
-                breakerService = new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings);
-                break;
-            case "noop":
-                breakerService = new NoneCircuitBreakerService();
-                break;
-            default:
-                throw new UnsupportedOperationException();
-        }
+        breakerService = switch (breaker) {
+            case "real", "preallocate" -> new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings);
+            case "noop" -> new NoneCircuitBreakerService();
+            default -> throw new UnsupportedOperationException();
+        };
+        preallocateBreaker = breaker.equals("preallocate");
         bigArrays = new BigArrays(recycler, breakerService, "request");
     }
 

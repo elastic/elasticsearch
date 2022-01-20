@@ -10,7 +10,10 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -24,7 +27,6 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -58,7 +60,6 @@ import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -99,6 +100,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final IndexSearcher searcher;
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
+    private Set<String> fieldsInIndex = null;
 
     private final Index fullyQualifiedIndex;
     private final Predicate<String> indexNameMatcher;
@@ -125,7 +127,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         MappingLookup mappingLookup,
         SimilarityService similarityService,
         ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
+        XContentParserConfiguration parserConfiguration,
         NamedWriteableRegistry namedWriteableRegistry,
         Client client,
         IndexSearcher searcher,
@@ -146,8 +148,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             mappingLookup,
             similarityService,
             scriptService,
-            // TODO pass the parser configuration into this method?
-            XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE).withRegistry(xContentRegistry),
+            parserConfiguration,
             namedWriteableRegistry,
             client,
             searcher,
@@ -646,6 +647,25 @@ public class SearchExecutionContext extends QueryRewriteContext {
      *  for instance if this rewrite context is used to index queries (percolation). */
     public IndexSearcher searcher() {
         return searcher;
+    }
+
+    /**
+     * Is this field present in the underlying lucene index for the current shard?
+     */
+    public boolean fieldExistsInIndex(String fieldname) {
+        if (searcher == null) {
+            return false;
+        }
+        if (fieldsInIndex == null) {
+            fieldsInIndex = new HashSet<>();
+            for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
+                FieldInfos fis = ctx.reader().getFieldInfos();
+                for (FieldInfo fi : fis) {
+                    fieldsInIndex.add(fi.name);
+                }
+            }
+        }
+        return fieldsInIndex.contains(fieldname);
     }
 
     /**

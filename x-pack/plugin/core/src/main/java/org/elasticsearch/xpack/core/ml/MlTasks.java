@@ -441,15 +441,11 @@ public final class MlTasks {
 
     public static MemoryTrackedTaskState getMemoryTrackedTaskState(PersistentTasksCustomMetadata.PersistentTask<?> task) {
         String taskName = task.getTaskName();
-        switch (taskName) {
-            case JOB_TASK_NAME:
-                return getJobStateModifiedForReassignments(task);
-            case JOB_SNAPSHOT_UPGRADE_TASK_NAME:
-                return getSnapshotUpgradeState(task);
-            case DATA_FRAME_ANALYTICS_TASK_NAME:
-                return getDataFrameAnalyticsState(task);
-            default:
-                throw new IllegalStateException("unexpected task type [" + task.getTaskName() + "]");
-        }
+        return switch (taskName) {
+            case JOB_TASK_NAME -> getJobStateModifiedForReassignments(task);
+            case JOB_SNAPSHOT_UPGRADE_TASK_NAME -> getSnapshotUpgradeState(task);
+            case DATA_FRAME_ANALYTICS_TASK_NAME -> getDataFrameAnalyticsState(task);
+            default -> throw new IllegalStateException("unexpected task type [" + task.getTaskName() + "]");
+        };
     }
 }

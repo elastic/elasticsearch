@@ -25,7 +25,7 @@ bin{slash}elasticsearch --enrollment-token <enrollment-token>
 +
 ["source","sh",subs="attributes"]
 ----
-config{slash}tls_auto_config_node_<timestamp>
+config{slash}certs
 ----
 
 . Repeat the previous step for any new nodes that you want to enroll.

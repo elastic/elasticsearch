@@ -231,8 +231,7 @@ public enum DistanceUnit implements Writeable {
         public boolean equals(Object obj) {
             if (obj == null) {
                 return false;
-            } else if (obj instanceof Distance) {
-                Distance other = (Distance) obj;
+            } else if (obj instanceof Distance other) {
                 return DistanceUnit.convert(value, unit, other.unit) == other.value;
             } else {
                 return false;

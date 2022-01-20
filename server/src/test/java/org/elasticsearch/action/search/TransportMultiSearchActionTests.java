@@ -169,7 +169,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
                     counter.decrementAndGet();
                     listener.onResponse(
                         new SearchResponse(
-                            InternalSearchResponse.empty(),
+                            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
                             null,
                             0,
                             0,

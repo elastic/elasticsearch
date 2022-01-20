@@ -40,7 +40,7 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     );
 
     public static final LifecyclePolicyConfig POLICY_WATCH_HISTORY = new LifecyclePolicyConfig(
-        "watch-history-ilm-policy",
+        "watch-history-ilm-policy-16",
         "/watch-history-ilm-policy.json"
     );
 

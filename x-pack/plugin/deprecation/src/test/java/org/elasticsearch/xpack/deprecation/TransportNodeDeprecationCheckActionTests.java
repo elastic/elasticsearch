@@ -79,8 +79,8 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
             ClusterState,
             XPackLicenseState,
             DeprecationIssue> nodeSettingCheck = (settings, p, clusterState1, l) -> {
-            visibleNodeSettings.set(settings);
-            visibleClusterStateMetadataSettings.set(clusterState1.getMetadata().settings());
+                visibleNodeSettings.set(settings);
+                visibleClusterStateMetadataSettings.set(clusterState1.getMetadata().settings());
                 return null;
             };
         java.util.List<
@@ -123,8 +123,10 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         Assert.assertNotNull(visibleNodeSettings.get());
         Assert.assertEquals(expectedSettings, visibleNodeSettings.get());
         Assert.assertNotNull(visibleClusterStateMetadataSettings.get());
-        Assert.assertEquals(Settings.builder().put("some.bad.dynamic.property", "someValue1").build(),
-            visibleClusterStateMetadataSettings.get());
+        Assert.assertEquals(
+            Settings.builder().put("some.bad.dynamic.property", "someValue1").build(),
+            visibleClusterStateMetadataSettings.get()
+        );
     }
 
 }

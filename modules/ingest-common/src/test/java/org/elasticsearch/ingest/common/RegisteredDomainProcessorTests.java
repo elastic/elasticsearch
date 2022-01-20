@@ -41,20 +41,8 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
             "1"
         );
         testRegisteredDomainProcessor(buildEvent("www.books.amazon.co.uk"), "www.books.amazon.co.uk", "amazon.co.uk", "co.uk", "www.books");
-        testRegisteredDomainProcessor(
-            buildEvent("example.com"),
-            "example.com",
-            "example.com",
-            "com",
-            null
-        );
-        testRegisteredDomainProcessor(
-            buildEvent("googleapis.com"),
-            "googleapis.com",
-            null,
-            "googleapis.com",
-            null
-        );
+        testRegisteredDomainProcessor(buildEvent("example.com"), "example.com", "example.com", "com", null);
+        testRegisteredDomainProcessor(buildEvent("googleapis.com"), "googleapis.com", null, "googleapis.com", null);
         testRegisteredDomainProcessor(
             buildEvent("content-autofill.googleapis.com"),
             "content-autofill.googleapis.com",

@@ -205,7 +205,8 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             Matchers.containsString(
-                "Failed to parse value [+10000-01-01T00:00:00Z] for setting [index.time_series.end_time] must be <= 9999-12-31T23:59:59.999Z"
+                "Failed to parse value [+10000-01-01T00:00:00Z] for "
+                    + "setting [index.time_series.end_time] must be <= 9999-12-31T23:59:59.999Z"
             )
         );
     }

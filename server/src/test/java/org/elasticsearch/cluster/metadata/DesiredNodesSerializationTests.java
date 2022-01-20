@@ -35,6 +35,6 @@ public class DesiredNodesSerializationTests extends AbstractWireSerializingTestC
 
     public static DesiredNodes randomDesiredNodes() {
         List<DesiredNode> nodes = randomList(0, 10, DesiredNodeSerializationTests::randomDesiredNode);
-        return new DesiredNodes(randomAlphaOfLength(10), randomIntBetween(1, 10), nodes);
+        return new DesiredNodes(randomAlphaOfLength(10), randomIntBetween(2, 10), nodes);
     }
 }

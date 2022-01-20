@@ -8,12 +8,14 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
-import org.elasticsearch.cluster.metadata.DesiredNodeSerializationTests;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+
+import static org.elasticsearch.cluster.metadata.DesiredNodeSerializationTests.randomDesiredNode;
 
 public class UpdateDesiredNodesRequestSerializationTests extends AbstractWireSerializingTestCase<UpdateDesiredNodesRequest> {
     @Override
@@ -32,10 +34,14 @@ public class UpdateDesiredNodesRequestSerializationTests extends AbstractWireSer
     }
 
     public static UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest() {
+        return randomUpdateDesiredNodesRequest(Version.CURRENT);
+    }
+
+    public static UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest(Version nodesVersion) {
         return new UpdateDesiredNodesRequest(
             UUIDs.randomBase64UUID(),
             randomIntBetween(0, 1000),
-            randomList(0, 100, DesiredNodeSerializationTests::randomDesiredNode)
+            randomList(0, 100, () -> randomDesiredNode(nodesVersion))
         );
     }
 }

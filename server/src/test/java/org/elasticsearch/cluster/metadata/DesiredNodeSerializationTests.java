@@ -35,13 +35,17 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
     }
 
     public static DesiredNode randomDesiredNode() {
+        return randomDesiredNode(Version.CURRENT);
+    }
+
+    public static DesiredNode randomDesiredNode(Version version) {
         return new DesiredNode(
             randomSetting(),
             randomAlphaOfLength(20),
             randomIntBetween(1, 256),
             ByteSizeValue.ofGb(randomIntBetween(1, 1024)),
             ByteSizeValue.ofTb(randomIntBetween(1, 40)),
-            Version.CURRENT
+            version
         );
     }
 

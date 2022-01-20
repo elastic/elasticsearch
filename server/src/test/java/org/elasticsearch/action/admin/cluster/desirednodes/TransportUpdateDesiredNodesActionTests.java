@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -16,19 +17,24 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.DesiredNode;
+import org.elasticsearch.cluster.metadata.DesiredNodeSerializationTests;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequestSerializationTests.randomUpdateDesiredNodesRequest;
 import static org.elasticsearch.cluster.metadata.DesiredNodesMetadataSerializationTests.randomDesiredNodesMetadata;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -146,5 +152,81 @@ public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
         assertThat(updatedDesiredNodesMetadata, is(notNullValue()));
         assertThat(updatedDesiredNodesMetadata.getCurrentDesiredNodes(), is(notNullValue()));
         assertThat(updatedDesiredNodesMetadata.getCurrentDesiredNodes(), is(equalTo(currentDesiredNodes)));
+    }
+
+    public void testUpdateSameHistoryAndVersionWithDifferentContentsFails() {
+        final DesiredNodesMetadata desiredNodesMetadata = randomDesiredNodesMetadata();
+        final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10)))
+            .metadata(Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, desiredNodesMetadata).build())
+            .build();
+
+        final DesiredNodes currentDesiredNodes = desiredNodesMetadata.getCurrentDesiredNodes();
+        final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
+            currentDesiredNodes.historyID(),
+            currentDesiredNodes.version(),
+            randomList(1, 10, DesiredNodeSerializationTests::randomDesiredNode)
+        );
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, NO_OP_SETTINGS_VALIDATOR, request)
+        );
+        assertThat(exception.getMessage(), containsString("todo"));
+    }
+
+    public void testBackwardUpdatesFails() {
+        final DesiredNodesMetadata desiredNodesMetadata = randomDesiredNodesMetadata();
+        final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10)))
+            .metadata(Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, desiredNodesMetadata).build())
+            .build();
+
+        final DesiredNodes currentDesiredNodes = desiredNodesMetadata.getCurrentDesiredNodes();
+        final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
+            currentDesiredNodes.historyID(),
+            currentDesiredNodes.version() - 1,
+            currentDesiredNodes.nodes()
+        );
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, NO_OP_SETTINGS_VALIDATOR, request)
+        );
+        assertThat(exception.getMessage(), containsString("todo"));
+    }
+
+    public void testUnknownSettingsInKnownVersionsFails() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet(), Collections.emptySet());
+        final DesiredNodesSettingsValidator desiredNodesSettingsValidator = new DesiredNodesSettingsValidator(
+            clusterSettings,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
+
+        final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10))).build();
+        final UpdateDesiredNodesRequest request = randomUpdateDesiredNodesRequest();
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, desiredNodesSettingsValidator, request)
+        );
+        assertThat(exception.getMessage(), containsString("Unknown settings"));
+    }
+
+    public void testUnknownSettingsInUnknownVersions() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet(), Collections.emptySet());
+        final DesiredNodesSettingsValidator desiredNodesSettingsValidator = new DesiredNodesSettingsValidator(
+            clusterSettings,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
+
+        final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10))).build();
+        final UpdateDesiredNodesRequest request = randomUpdateDesiredNodesRequest(Version.fromString("99.9.0"));
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, desiredNodesSettingsValidator, request)
+        );
+        assertThat(exception.getMessage(), containsString("Unknown settings"));
     }
 }

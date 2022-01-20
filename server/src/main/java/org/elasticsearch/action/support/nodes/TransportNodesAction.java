@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IntermediateNodeResponses;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -34,8 +35,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
 public abstract class TransportNodesAction<
     NodesRequest extends BaseNodesRequest<NodesRequest>,
@@ -128,14 +127,14 @@ public abstract class TransportNodesAction<
      * pass it to the listener. Fails the listener with a {@link NullPointerException} if {@code nodesResponses} is null.
      *
      * @param request The associated request.
-     * @param nodesResponses All node-level responses
+     * @param responseCollector All node-level responses collected so far
      * @throws NullPointerException if {@code nodesResponses} is {@code null}
      * @see #newResponseAsync(Task, BaseNodesRequest, List, List, ActionListener)
      */
     // exposed for tests
-    void newResponse(Task task, NodesRequest request, AtomicReferenceArray<?> nodesResponses, ActionListener<NodesResponse> listener) {
+    void newResponse(Task task, NodesRequest request, IntermediateNodeResponses responseCollector, ActionListener<NodesResponse> listener) {
 
-        if (nodesResponses == null) {
+        if (responseCollector == null) {
             listener.onFailure(new NullPointerException("nodesResponses"));
             return;
         }
@@ -143,17 +142,20 @@ public abstract class TransportNodesAction<
         final List<NodeResponse> responses = new ArrayList<>();
         final List<FailedNodeException> failures = new ArrayList<>();
 
-        for (int i = 0; i < nodesResponses.length(); ++i) {
-            Object response = nodesResponses.get(i);
-
-            if (response instanceof FailedNodeException) {
-                failures.add((FailedNodeException) response);
-            } else {
-                responses.add(nodeResponseClass.cast(response));
+        try {
+            for (int i = 0; i < responseCollector.size(); ++i) {
+                Object response = responseCollector.getResponse(i);
+                if (responseCollector.getResponse(i)instanceof FailedNodeException failedNodeException) {
+                    failures.add(failedNodeException);
+                } else {
+                    responses.add(nodeResponseClass.cast(response));
+                }
             }
-        }
 
-        newResponseAsync(task, request, responses, failures, listener);
+            newResponseAsync(task, request, responses, failures, listener);
+        } catch (IntermediateNodeResponses.AlreadyDiscardedException exception) {
+            logger.debug("Task was already cancelled");
+        }
     }
 
     /**
@@ -207,10 +209,8 @@ public abstract class TransportNodesAction<
 
         private final NodesRequest request;
         private final ActionListener<NodesResponse> listener;
-        private final AtomicReferenceArray<Object> responses;
-        private final AtomicInteger counter = new AtomicInteger();
+        private final IntermediateNodeResponses responseCollector;
         private final Task task;
-        private volatile boolean cancelled = false;
 
         AsyncAction(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
             this.task = task;
@@ -220,13 +220,14 @@ public abstract class TransportNodesAction<
                 resolveRequest(request, clusterService.state());
                 assert request.concreteNodes() != null;
             }
-            this.responses = new AtomicReferenceArray<>(request.concreteNodes().length);
+            this.responseCollector = new IntermediateNodeResponses(request.concreteNodes().length);
         }
 
         void start() {
             if (task instanceof CancellableTask cancellableTask) {
                 if (cancellableTask.registerListener(this) == false) {
                     cancellableTask.notifyIfCancelled(listener);
+                    responseCollector.discard();
                     return;
                 }
             }
@@ -275,47 +276,32 @@ public abstract class TransportNodesAction<
         }
 
         // For testing purposes
-        AtomicReferenceArray<Object> getResponses() {
-            return responses;
+        IntermediateNodeResponses getResponseCollector() {
+            return responseCollector;
         }
 
         private void onOperation(int idx, NodeResponse nodeResponse) {
-            if (cancelled) {
-                return;
-            }
-
-            responses.set(idx, nodeResponse);
-            if (counter.incrementAndGet() == responses.length()) {
+            if (responseCollector.maybeAddResponse(idx, nodeResponse) && responseCollector.isComplete()) {
                 finishHim();
             }
         }
 
         private void onFailure(int idx, String nodeId, Throwable t) {
-            if (cancelled) {
-                return;
-            }
-
             logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
-            responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
-            if (counter.incrementAndGet() == responses.length()) {
+            if (responseCollector.maybeAddResponse(idx, t) && responseCollector.isComplete()) {
                 finishHim();
             }
         }
 
         private void finishHim() {
-            if (cancelled) {
-                return;
-            }
-
             final String executor = finalExecutor.equals(ThreadPool.Names.SAME) ? ThreadPool.Names.GENERIC : finalExecutor;
-            threadPool.executor(executor).execute(() -> newResponse(task, request, responses, listener));
+            threadPool.executor(executor).execute(() -> newResponse(task, request, responseCollector, listener));
         }
 
         @Override
         public void onCancelled() {
-            cancelled = (task instanceof CancellableTask t) && t.notifyIfCancelled(listener);
-            for (int i = 0; i < responses.length(); i++) {
-                responses.set(i, null);
+            if ((task instanceof CancellableTask t) && t.notifyIfCancelled(listener)) {
+                responseCollector.discard();
             }
         }
     }

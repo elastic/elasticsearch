@@ -11,6 +11,7 @@ package org.elasticsearch.action.support.nodes;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IntermediateNodeResponses;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeActionTests;
 import org.elasticsearch.cluster.ClusterName;
@@ -47,7 +48,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -120,10 +120,10 @@ public class TransportNodesActionTests extends ESTestCase {
 
         Collections.shuffle(allResponses, random());
 
-        AtomicReferenceArray<?> atomicArray = new AtomicReferenceArray<>(allResponses.toArray());
+        IntermediateNodeResponses nodeResponseCollector = new IntermediateNodeResponses(allResponses);
 
         final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
-        action.newResponse(new Task(1, "test", "test", "", null, emptyMap()), request, atomicArray, future);
+        action.newResponse(new Task(1, "test", "test", "", null, emptyMap()), request, nodeResponseCollector, future);
         TestNodesResponse response = future.actionGet();
 
         assertSame(request, response.request);
@@ -177,9 +177,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         assertTrue(listener.isDone());
-        for (int i = 0; i < asyncAction.getResponses().length(); i++) {
-            assertNull(asyncAction.getResponses().get(i));
-        }
+        assertTrue(asyncAction.getResponseCollector().isDiscarded());
         expectThrows(ExecutionException.class, TaskCancelledException.class, listener::get);
     }
 

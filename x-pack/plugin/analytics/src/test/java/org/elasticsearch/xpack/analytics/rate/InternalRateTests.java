@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.analytics.rate;
 
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -73,7 +74,7 @@ public class InternalRateTests extends InternalAggregationTestCase<InternalRate>
             case 2 -> divider = randomDouble();
             case 3 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

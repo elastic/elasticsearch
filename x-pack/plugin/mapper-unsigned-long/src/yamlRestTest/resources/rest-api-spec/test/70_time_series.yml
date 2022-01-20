@@ -122,3 +122,42 @@ default sort:
   - match: {hits.hits.5.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
   - match: {hits.hits.6.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
   - match: {hits.hits.7.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
+
+---
+composite aggregation on tsid:
+  - skip:
+      version: " - 8.0.99"
+      reason: _tsid introduced in 8.1.0
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggregations:
+            tsids:
+              composite:
+                sources: [
+                    "tsid": {
+                      "terms": {
+                        "field": "_tsid"
+                      }
+                    }
+                ]
+
+  - match:  { hits.total.value: 8 }
+  - length: { aggregations.tsids.buckets: 4 }
+  - match:  { aggregations.tsids.buckets.0.key.tsid.ul: 9223372036854775808 }
+  - match:  { aggregations.tsids.buckets.0.key.tsid.metricset: "aa" }
+  - match:  { aggregations.tsids.buckets.0.doc_count: 3 }
+  - match:  { aggregations.tsids.buckets.1.key.tsid.ul: 18446744073709551614 }
+  - match:  { aggregations.tsids.buckets.1.key.tsid.metricset: "aa" }
+  - match:  { aggregations.tsids.buckets.1.doc_count: 1 }
+  - match:  { aggregations.tsids.buckets.2.key.tsid.ul: 18446744073709551615 }
+  - match:  { aggregations.tsids.buckets.2.key.tsid.metricset: "aa" }
+  - match:  { aggregations.tsids.buckets.2.doc_count: 1 }
+  - match:  { aggregations.tsids.buckets.3.key.tsid.ul: 9223372036854775807 }
+  - match:  { aggregations.tsids.buckets.3.key.tsid.metricset: "aa" }
+  - match:  { aggregations.tsids.buckets.3.doc_count: 3 }
+  - match:  { aggregations.tsids.after_key.tsid.ul: 9223372036854775807 }
+  - match:  { aggregations.tsids.after_key.tsid.metricset: "aa" }

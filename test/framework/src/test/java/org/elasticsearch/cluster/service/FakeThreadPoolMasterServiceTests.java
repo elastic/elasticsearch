@@ -86,7 +86,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 assertFalse(firstTaskCompleted.get());
                 firstTaskCompleted.set(true);
             }
@@ -126,7 +126,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 assertFalse(secondTaskCompleted.get());
                 secondTaskCompleted.set(true);
             }

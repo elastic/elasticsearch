@@ -7,9 +7,11 @@
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -19,17 +21,20 @@ import java.util.List;
 
 public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task> {
 
-    private final AllocationService allocationService;
-    private final Logger logger;
+    private static final Logger logger = LogManager.getLogger(NodeRemovalClusterStateTaskExecutor.class);
 
-    public static class Task {
+    private final AllocationService allocationService;
+
+    public static class Task implements ClusterStateTaskListener {
 
         private final DiscoveryNode node;
         private final String reason;
+        private final Runnable onClusterStateProcessed;
 
-        public Task(final DiscoveryNode node, final String reason) {
+        public Task(DiscoveryNode node, String reason, Runnable onClusterStateProcessed) {
             this.node = node;
             this.reason = reason;
+            this.onClusterStateProcessed = onClusterStateProcessed;
         }
 
         public DiscoveryNode node() {
@@ -41,6 +46,21 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
         }
 
         @Override
+        public void onFailure(final Exception e) {
+            logger.error("unexpected failure during [node-left]", e);
+        }
+
+        @Override
+        public void onNoLongerMaster() {
+            logger.debug("no longer master while processing node removal [node-left]");
+        }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            onClusterStateProcessed.run();
+        }
+
+        @Override
         public String toString() {
             final StringBuilder stringBuilder = new StringBuilder();
             node.appendDescriptionWithoutAttributes(stringBuilder);
@@ -49,9 +69,8 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
         }
     }
 
-    public NodeRemovalClusterStateTaskExecutor(final AllocationService allocationService, final Logger logger) {
+    public NodeRemovalClusterStateTaskExecutor(AllocationService allocationService) {
         this.allocationService = allocationService;
-        this.logger = logger;
     }
 
     @Override

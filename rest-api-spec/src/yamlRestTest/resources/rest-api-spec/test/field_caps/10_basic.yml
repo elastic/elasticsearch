@@ -83,6 +83,9 @@ setup:
                     type:     long
                   date:
                     type:     date
+                  non_indexed_date:
+                    type:     date
+                    index:    false
                   geo:
                     type:     keyword
                   object:
@@ -209,6 +212,18 @@ setup:
         fields: object*
 
   - match: {fields.object\.nested1.long.searchable:                       true}
+
+---
+"Field caps for date field with only doc values":
+  - skip:
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: non_indexed_date
+
+  - match: {fields.non_indexed_date.date.searchable:                       true}
 
 ---
 "Get object and nested field caps":

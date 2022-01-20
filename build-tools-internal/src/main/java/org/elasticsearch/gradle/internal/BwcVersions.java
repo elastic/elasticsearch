@@ -18,7 +18,6 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -280,39 +279,9 @@ public class BwcVersions {
         return MINIMUM_WIRE_COMPATIBLE_VERSION;
     }
 
-    public static class UnreleasedVersionInfo {
-        public final Version version;
-        public final String branch;
-        public final String gradleProjectPath;
+    public record UnreleasedVersionInfo(Version version, String branch, String gradleProjectPath) {}
 
-        public UnreleasedVersionInfo(Version version, String branch, String gradleProjectPath) {
-            this.version = version;
-            this.branch = branch;
-            this.gradleProjectPath = gradleProjectPath;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            UnreleasedVersionInfo that = (UnreleasedVersionInfo) o;
-            return version.equals(that.version) && branch.equals(that.branch) && gradleProjectPath.equals(that.gradleProjectPath);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(version, branch, gradleProjectPath);
-        }
-    }
-
-    public static class VersionPair implements Comparable<VersionPair> {
-        public final Version elasticsearch;
-        public final Version lucene;
-
-        public VersionPair(Version elasticsearch, Version lucene) {
-            this.elasticsearch = elasticsearch;
-            this.lucene = lucene;
-        }
+    public record VersionPair(Version elasticsearch, Version lucene) implements Comparable<VersionPair> {
 
         @Override
         public int compareTo(@NotNull VersionPair o) {

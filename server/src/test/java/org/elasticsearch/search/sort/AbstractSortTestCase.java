@@ -205,7 +205,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             null,
             null,
             scriptService,
-            xContentRegistry(),
+            parserConfig(),
             namedWriteableRegistry,
             null,
             searcher,

@@ -32,6 +32,10 @@ setup:
               short:
                 type: short
                 index: false
+              date:
+                type: date
+                format: yyyy/MM/dd
+                index: false
 
   - do:
       index:
@@ -45,6 +49,7 @@ setup:
           integer: 1
           long: 1
           short: 1
+          date: "2017/01/01"
 
   - do:
       index:
@@ -58,6 +63,7 @@ setup:
           integer: 2
           long: 2
           short: 2
+          date: "2017/01/02"
 
   - do:
       indices.refresh: {}
@@ -195,4 +201,22 @@ setup:
       search:
         index: test
         body: { query: { range: { short: { gte: 0 } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test match query on date field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { date: { query: "2017/01/01" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test range query on date field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { date: { gte: "2017/01/01" } } } }
   - length:   { hits.hits: 2  }

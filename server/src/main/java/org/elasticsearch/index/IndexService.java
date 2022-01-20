@@ -74,7 +74,7 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -113,7 +113,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final IndexCache indexCache;
     private final MapperService mapperService;
-    private final NamedXContentRegistry xContentRegistry;
+    private final XContentParserConfiguration parserConfiguration;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final SimilarityService similarityService;
     private final EngineFactory engineFactory;
@@ -148,7 +148,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexSettings indexSettings,
         IndexCreationContext indexCreationContext,
         NodeEnvironment nodeEnv,
-        NamedXContentRegistry xContentRegistry,
+        XContentParserConfiguration parserConfiguration,
         SimilarityService similarityService,
         ShardStoreDeleter shardStoreDeleter,
         IndexAnalyzers indexAnalyzers,
@@ -179,7 +179,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
-        this.xContentRegistry = xContentRegistry;
+        this.parserConfiguration = parserConfiguration;
         this.similarityService = similarityService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.circuitBreakerService = circuitBreakerService;
@@ -191,7 +191,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.mapperService = new MapperService(
                 indexSettings,
                 indexAnalyzers,
-                xContentRegistry,
+                parserConfiguration,
                 similarityService,
                 mapperRegistry,
                 // we parse all percolator queries as they would be parsed on shard 0
@@ -310,10 +310,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public MapperService mapperService() {
         return mapperService;
-    }
-
-    public NamedXContentRegistry xContentRegistry() {
-        return xContentRegistry;
     }
 
     public SimilarityService similarityService() {
@@ -639,7 +635,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             mapperService().mappingLookup(),
             similarityService(),
             scriptService,
-            xContentRegistry,
+            parserConfiguration,
             namedWriteableRegistry,
             client,
             searcher,

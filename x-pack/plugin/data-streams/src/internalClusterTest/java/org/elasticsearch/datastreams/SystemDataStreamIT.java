@@ -76,7 +76,6 @@ public class SystemDataStreamIT extends ESIntegTestCase {
         plugins.add(NioTransportPlugin.class);
         plugins.add(DataStreamsPlugin.class);
         plugins.add(TestSystemDataStreamPlugin.class);
-        plugins.add(Netty4Plugin.class);
         return plugins;
     }
 

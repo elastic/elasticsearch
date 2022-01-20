@@ -314,7 +314,7 @@ class IndexLifecycleRunner {
                     }
 
                     @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         if (oldState.equals(newState) == false) {
                             IndexMetadata newIndexMeta = newState.metadata().index(index);
                             Step indexMetaCurrentStep = getCurrentStep(stepRegistry, policy, newIndexMeta);

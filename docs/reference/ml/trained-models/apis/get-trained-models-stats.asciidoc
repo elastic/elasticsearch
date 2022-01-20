@@ -162,7 +162,7 @@ The total number of inference calls made against this node for this model.
 (integer)
 The number of threads used by the inference process.
 This value is limited by the number of hardware threads on the node; 
-in the <<start-trained-model-deployment>> API if the requested value
+it might therefore differ from the `inference_threads` value in the <<start-trained-model-deployment>> API.
 
 `last_access`:::
 (long)

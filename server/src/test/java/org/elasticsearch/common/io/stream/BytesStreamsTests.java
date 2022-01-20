@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -497,7 +498,7 @@ public class BytesStreamsTests extends ESTestCase {
 
     public void testWriteMap() throws IOException {
         final int size = randomIntBetween(0, 100);
-        final Map<String, String> expected = new HashMap<>(randomIntBetween(0, 100));
+        final Map<String, String> expected = Maps.newMapWithExpectedSize(randomIntBetween(0, 100));
         for (int i = 0; i < size; ++i) {
             expected.put(randomAlphaOfLength(2), randomAlphaOfLength(5));
         }
@@ -545,7 +546,7 @@ public class BytesStreamsTests extends ESTestCase {
 
     public void testWriteMapOfLists() throws IOException {
         final int size = randomIntBetween(0, 5);
-        final Map<String, List<String>> expected = new HashMap<>(size);
+        final Map<String, List<String>> expected = Maps.newMapWithExpectedSize(size);
 
         for (int i = 0; i < size; ++i) {
             int listSize = randomIntBetween(0, 5);

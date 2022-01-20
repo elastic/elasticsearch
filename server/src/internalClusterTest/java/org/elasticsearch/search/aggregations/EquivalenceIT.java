@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -175,7 +176,7 @@ public class EquivalenceIT extends ESIntegTestCase {
         Range range = resp.getAggregations().get("range");
         List<? extends Bucket> buckets = range.getBuckets();
 
-        HashMap<String, Bucket> bucketMap = new HashMap<>(buckets.size());
+        Map<String, Bucket> bucketMap = Maps.newMapWithExpectedSize(buckets.size());
         for (Bucket bucket : buckets) {
             bucketMap.put(bucket.getKeyAsString(), bucket);
         }

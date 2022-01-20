@@ -282,8 +282,7 @@ public class RealmSettingsTests extends ESTestCase {
         if (settings == null) {
             return null;
         }
-        if (settings instanceof MockSecureSettings) {
-            final MockSecureSettings source = (MockSecureSettings) settings;
+        if (settings instanceof final MockSecureSettings source) {
             final MockSecureSettings target = new MockSecureSettings();
             for (String key : settings.getSettingNames()) {
                 target.setString(prefix + key, source.getString(key).toString());

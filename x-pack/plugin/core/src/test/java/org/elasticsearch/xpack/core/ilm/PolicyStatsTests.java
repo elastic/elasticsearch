@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PhaseStats;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PolicyStats;
@@ -25,7 +26,7 @@ public class PolicyStatsTests extends AbstractWireSerializingTestCase<PolicyStat
 
     public static PolicyStats createRandomInstance() {
         int size = randomIntBetween(0, 10);
-        Map<String, PhaseStats> phaseStats = new HashMap<>(size);
+        Map<String, PhaseStats> phaseStats = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             phaseStats.put(randomAlphaOfLengthBetween(1, 20), PhaseStatsTests.createRandomInstance());
         }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -753,7 +754,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (source == null) {
                 assert shardStatusByRepoShardId == null || shardStatusByRepoShardId.isEmpty()
                     : "Provided explict repo shard id statuses [" + shardStatusByRepoShardId + "] but no source";
-                final Map<String, Index> res = new HashMap<>(indices.size());
+                final Map<String, Index> res = Maps.newMapWithExpectedSize(indices.size());
                 final ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> byRepoShardIdBuilder = ImmutableOpenMap.builder(
                     shards.size()
                 );
@@ -785,7 +786,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (indexCount == 0) {
                 indices = Collections.emptyMap();
             } else {
-                final Map<String, IndexId> idx = new HashMap<>(indexCount);
+                final Map<String, IndexId> idx = Maps.newMapWithExpectedSize(indexCount);
                 for (int i = 0; i < indexCount; i++) {
                     final IndexId indexId = new IndexId(in);
                     idx.put(indexId.getName(), indexId);

@@ -243,4 +243,20 @@ public class Maps {
         );
     }
 
+    /**
+     * Returns a map with a capacity sufficient to keep expectedSize elements without being resized.
+     *
+     * @param expectedSize the expected amount of elements in the map
+     * @param <K> the key type
+     * @param <V> the value type
+     * @return a new pre-sized {@link HashMap}
+     */
+    public static <K, V> Map<K, V> newMapWithExpectedSize(int expectedSize) {
+        return new HashMap<>(capacity(expectedSize));
+    }
+
+    static int capacity(int expectedSize) {
+        assert expectedSize >= 0;
+        return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);
+    }
 }

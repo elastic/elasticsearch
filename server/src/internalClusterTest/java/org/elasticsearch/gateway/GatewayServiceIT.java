@@ -61,13 +61,14 @@ public class GatewayServiceIT extends ESIntegTestCase {
             return Map.of(ALLOCATOR_NAME, new ExistingShardsAllocator() {
                 @Override
                 public void beforeAllocation(RoutingAllocation allocation) {
-                    assertTrue(settingApplied.get());
+                    if (allocation.routingTable().iterator().hasNext()) {
+                        // state is recovered so we must have applied the setting
+                        assertTrue(settingApplied.get());
+                    }
                 }
 
                 @Override
-                public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
-
-                }
+                public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {}
 
                 @Override
                 public void allocateUnassigned(
@@ -87,19 +88,13 @@ public class GatewayServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void cleanCaches() {
-
-                }
+                public void cleanCaches() {}
 
                 @Override
-                public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {
-
-                }
+                public void applyStartedShards(List<ShardRouting> startedShards, RoutingAllocation allocation) {}
 
                 @Override
-                public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {
-
-                }
+                public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {}
 
                 @Override
                 public int getNumberOfInFlightFetches() {

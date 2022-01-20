@@ -20,7 +20,6 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
-import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.TransportVerifyShardBeforeCloseAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -44,7 +43,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdateTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
@@ -125,7 +124,6 @@ public class ClusterStateChanges {
     private final ShardStateAction.ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
 
     // transport actions
-    private final TransportCloseIndexAction transportCloseIndexAction;
     private final TransportOpenIndexAction transportOpenIndexAction;
     private final TransportDeleteIndexAction transportDeleteIndexAction;
     private final TransportUpdateSettingsAction transportUpdateSettingsAction;
@@ -153,8 +151,8 @@ public class ClusterStateChanges {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE
         );
-        shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
-        shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null, logger);
+        shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null);
+        shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null);
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);
@@ -265,17 +263,6 @@ public class ClusterStateChanges {
             new IndexSettingProviders(Set.of())
         );
 
-        transportCloseIndexAction = new TransportCloseIndexAction(
-            SETTINGS,
-            transportService,
-            clusterService,
-            threadPool,
-            indexStateService,
-            clusterSettings,
-            actionFilters,
-            indexNameExpressionResolver,
-            destructiveOperations
-        );
         transportOpenIndexAction = new TransportOpenIndexAction(
             transportService,
             clusterService,
@@ -321,8 +308,8 @@ public class ClusterStateChanges {
             EmptySystemIndices.INSTANCE
         );
 
-        nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
-        joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, (s, p, r) -> {});
+        nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService);
+        joinTaskExecutor = new JoinTaskExecutor(allocationService, (s, p, r) -> {});
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {
@@ -400,20 +387,23 @@ public class ClusterStateChanges {
         return runTasks(
             nodeRemovalExecutor,
             clusterState,
-            nodes.stream().map(n -> new NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason")).collect(Collectors.toList())
+            nodes.stream().map(n -> new NodeRemovalClusterStateTaskExecutor.Task(n, "dummy reason", () -> {})).collect(Collectors.toList())
         );
     }
 
     public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {
-        List<FailedShardEntry> entries = failedShards.stream()
+        List<FailedShardUpdateTask> entries = failedShards.stream()
             .map(
-                failedShard -> new FailedShardEntry(
-                    failedShard.getRoutingEntry().shardId(),
-                    failedShard.getRoutingEntry().allocationId().getId(),
-                    0L,
-                    failedShard.getMessage(),
-                    failedShard.getFailure(),
-                    failedShard.markAsStale()
+                failedShard -> new FailedShardUpdateTask(
+                    new ShardStateAction.FailedShardEntry(
+                        failedShard.getRoutingEntry().shardId(),
+                        failedShard.getRoutingEntry().allocationId().getId(),
+                        0L,
+                        failedShard.getMessage(),
+                        failedShard.getFailure(),
+                        failedShard.markAsStale()
+                    ),
+                    ActionListener.wrap(() -> { throw new AssertionError("task should not complete"); })
                 )
             )
             .collect(Collectors.toList());

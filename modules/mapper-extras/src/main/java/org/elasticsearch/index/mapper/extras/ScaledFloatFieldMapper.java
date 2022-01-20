@@ -44,6 +44,7 @@ import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
@@ -55,6 +56,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for scaled floats. Values are internally multiplied
@@ -84,7 +86,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             false,
             () -> null,
             (n, c, o) -> XContentMapValues.nodeDoubleValue(o),
-            m -> toType(m).scalingFactor
+            m -> toType(m).scalingFactor,
+            XContentBuilder::field,
+            Objects::toString
         ).addValidator(v -> {
             if (v == null) {
                 throw new IllegalArgumentException("Field [scaling_factor] is required");
@@ -98,7 +102,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             false,
             () -> null,
             (n, c, o) -> o == null ? null : XContentMapValues.nodeDoubleValue(o),
-            m -> toType(m).nullValue
+            m -> toType(m).nullValue,
+            XContentBuilder::field,
+            Objects::toString
         ).acceptsNull();
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -212,6 +218,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name());
         }
 
         @Override

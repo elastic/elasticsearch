@@ -10,6 +10,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -118,7 +119,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
      */
     public static LifecyclePolicy randomTimeseriesLifecyclePolicyWithAllPhases(@Nullable String lifecycleName) {
         List<String> phaseNames = TimeseriesLifecycleType.ORDERED_VALID_PHASES;
-        Map<String, Phase> phases = new HashMap<>(phaseNames.size());
+        Map<String, Phase> phases = Maps.newMapWithExpectedSize(phaseNames.size());
         Function<String, Set<String>> validActions = getPhaseToValidActions();
         Function<String, LifecycleAction> randomAction = getNameToActionFunction();
         TimeValue prev = null;
@@ -150,7 +151,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             // Remove the frozen phase, we'll randomly re-add it later
             .filter(pn -> TimeseriesLifecycleType.FROZEN_PHASE.equals(pn) == false)
             .collect(Collectors.toList());
-        Map<String, Phase> phases = new HashMap<>(phaseNames.size());
+        Map<String, Phase> phases = Maps.newMapWithExpectedSize(phaseNames.size());
         Function<String, Set<String>> validActions = getPhaseToValidActions();
         Function<String, LifecycleAction> randomAction = getNameToActionFunction();
         // as what actions end up in the hot phase influence what actions are allowed in the subsequent phases we'll move the hot phase
@@ -265,7 +266,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
 
     public static LifecyclePolicy randomTestLifecyclePolicy(@Nullable String lifecycleName) {
         int numberPhases = randomInt(5);
-        Map<String, Phase> phases = new HashMap<>(numberPhases);
+        Map<String, Phase> phases = Maps.newMapWithExpectedSize(numberPhases);
         for (int i = 0; i < numberPhases; i++) {
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 10000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();

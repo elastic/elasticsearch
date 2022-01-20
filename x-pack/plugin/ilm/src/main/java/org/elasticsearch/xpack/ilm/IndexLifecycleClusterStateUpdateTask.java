@@ -53,10 +53,10 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
     protected abstract ClusterState doExecute(ClusterState currentState) throws Exception;
 
     @Override
-    public final void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public final void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
         listener.onResponse(null);
         if (executed) {
-            onClusterStateProcessed(source, oldState, newState);
+            onClusterStateProcessed(oldState, newState);
         }
     }
 
@@ -68,7 +68,7 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
 
     /**
      * Add a listener that is resolved once this update has been processed or failed and before either the
-     * {@link #onClusterStateProcessed(String, ClusterState, ClusterState)} or the {@link #handleFailure(Exception)} hooks are
+     * {@link #onClusterStateProcessed(ClusterState, ClusterState)} or the {@link #handleFailure(Exception)} hooks are
      * executed.
      */
     public final void addListener(ActionListener<Void> actionListener) {
@@ -76,13 +76,13 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
     }
 
     /**
-     * This method is functionally the same as {@link ClusterStateTaskListener#clusterStateProcessed(String, ClusterState, ClusterState)}
+     * This method is functionally the same as {@link ClusterStateTaskListener#clusterStateProcessed(ClusterState, ClusterState)}
      * and implementations can override it as they would override {@code ClusterStateUpdateTask#clusterStateProcessed}.
      * The only difference to  {@code ClusterStateUpdateTask#clusterStateProcessed} is that if the {@link #execute(ClusterState)}
      * implementation was a noop and returned the input cluster state, then this method will not be invoked. It is therefore guaranteed
      * that {@code oldState} is always different from {@code newState}.
      */
-    protected void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
+    protected void onClusterStateProcessed(ClusterState oldState, ClusterState newState) {}
 
     @Override
     public abstract boolean equals(Object other);

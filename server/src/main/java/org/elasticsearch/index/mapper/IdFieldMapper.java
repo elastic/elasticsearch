@@ -107,6 +107,17 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean isSearchable() {
+            // The _id field is always searchable.
+            return true;
+        }
+
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return true;
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return new StoredValueFetcher(context.lookup(), NAME);
         }

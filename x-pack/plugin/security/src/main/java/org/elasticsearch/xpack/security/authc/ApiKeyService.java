@@ -138,7 +138,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 
@@ -791,17 +790,6 @@ public class ApiKeyService {
         return null;
     }
 
-    public static boolean isApiKeyAuthentication(Authentication authentication) {
-        final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
-        if (Authentication.AuthenticationType.API_KEY == authType) {
-            assert AuthenticationField.API_KEY_REALM_TYPE.equals(authentication.getAuthenticatedBy().getType())
-                : "API key authentication must have API key realm type";
-            return true;
-        } else {
-            return false;
-        }
-    }
-
     void computeHashForApiKey(SecureString apiKey, ActionListener<char[]> listener) {
         threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> hasher.hash(apiKey)));
     }
@@ -1153,8 +1141,7 @@ public class ApiKeyService {
      */
     private <E extends Throwable> E traceLog(String action, String identifier, E exception) {
         if (logger.isTraceEnabled()) {
-            if (exception instanceof ElasticsearchException) {
-                final ElasticsearchException esEx = (ElasticsearchException) exception;
+            if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
                     logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}] - [{}]", action, identifier, detail), esEx);
@@ -1173,8 +1160,7 @@ public class ApiKeyService {
      */
     private <E extends Throwable> E traceLog(String action, E exception) {
         if (logger.isTraceEnabled()) {
-            if (exception instanceof ElasticsearchException) {
-                final ElasticsearchException esEx = (ElasticsearchException) exception;
+            if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
                     logger.trace(() -> new ParameterizedMessage("Failure in [{}] - [{}]", action, detail), esEx);
@@ -1357,7 +1343,7 @@ public class ApiKeyService {
      * @return realm name
      */
     public static String getCreatorRealmName(final Authentication authentication) {
-        if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+        if (authentication.isAuthenticatedWithApiKey()) {
             return (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
         } else {
             return authentication.getSourceRealm().getName();
@@ -1373,7 +1359,7 @@ public class ApiKeyService {
      * @return realm type
      */
     public static String getCreatorRealmType(final Authentication authentication) {
-        if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+        if (authentication.isAuthenticatedWithApiKey()) {
             return (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
         } else {
             return authentication.getSourceRealm().getType();
@@ -1387,7 +1373,7 @@ public class ApiKeyService {
      * @return A map for the metadata or an empty map if no metadata is found.
      */
     public static Map<String, Object> getApiKeyMetadata(Authentication authentication) {
-        if (AuthenticationType.API_KEY != authentication.getAuthenticationType()) {
+        if (false == authentication.isAuthenticatedWithApiKey()) {
             throw new IllegalArgumentException(
                 "authentication type must be [api_key], got ["
                     + authentication.getAuthenticationType().name().toLowerCase(Locale.ROOT)

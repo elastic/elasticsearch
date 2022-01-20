@@ -225,7 +225,9 @@ public final class DateFieldMapper extends FieldMapper {
             false,
             () -> Locale.ROOT,
             (n, c, o) -> LocaleUtils.parse(o.toString()),
-            m -> toType(m).locale
+            m -> toType(m).locale,
+            (xContentBuilder, n, v) -> xContentBuilder.field(n, v.toString()),
+            Objects::toString
         );
 
         private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null)
@@ -442,6 +444,11 @@ public final class DateFieldMapper extends FieldMapper {
         static {
             NUMBER_FORMAT.setGroupingUsed(false);
             NUMBER_FORMAT.setMaximumFractionDigits(6);
+        }
+
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(this.name());
         }
 
         @Override

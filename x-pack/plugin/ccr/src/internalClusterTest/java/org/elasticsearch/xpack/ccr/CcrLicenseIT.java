@@ -192,7 +192,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     latch.countDown();
                 }
 

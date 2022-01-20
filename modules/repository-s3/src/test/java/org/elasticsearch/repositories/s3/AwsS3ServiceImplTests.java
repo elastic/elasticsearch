@@ -10,12 +10,17 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
+import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSCredentialsProviderChain;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mockito;
 
 import java.util.Locale;
 import java.util.Map;
@@ -26,11 +31,39 @@ import static org.hamcrest.Matchers.is;
 
 public class AwsS3ServiceImplTests extends ESTestCase {
 
+    private final S3Service.CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider = Mockito.mock(
+        S3Service.CustomWebIdentityTokenCredentialsProvider.class
+    );
+
     public void testAWSCredentialsDefaultToInstanceProviders() {
         final String inexistentClientName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, inexistentClientName);
-        final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, clientSettings);
-        assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
+        final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(
+            logger,
+            clientSettings,
+            webIdentityTokenCredentialsProvider
+        );
+        assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedAWSCredentialsProvider.class));
+        var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAWSCredentialsProvider) credentialsProvider;
+        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(EC2ContainerCredentialsProviderWrapper.class));
+    }
+
+    public void testSupportsWebIdentityTokenCredentials() {
+        Mockito.when(webIdentityTokenCredentialsProvider.getCredentials())
+            .thenReturn(new BasicAWSCredentials("sts_access_key_id", "sts_secret_key"));
+        Mockito.when(webIdentityTokenCredentialsProvider.isActive()).thenReturn(true);
+
+        AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(
+            logger,
+            S3ClientSettings.getClientSettings(Settings.EMPTY, randomAlphaOfLength(8).toLowerCase(Locale.ROOT)),
+            webIdentityTokenCredentialsProvider
+        );
+        assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedAWSCredentialsProvider.class));
+        var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAWSCredentialsProvider) credentialsProvider;
+        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(AWSCredentialsProviderChain.class));
+        AWSCredentials credentials = privilegedAWSCredentialsProvider.getCredentials();
+        assertEquals("sts_access_key_id", credentials.getAWSAccessKeyId());
+        assertEquals("sts_secret_key", credentials.getAWSSecretKey());
     }
 
     public void testAWSCredentialsFromKeystore() {
@@ -49,15 +82,25 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         for (int i = 0; i < clientsCount; i++) {
             final String clientName = clientNamePrefix + i;
             final S3ClientSettings someClientSettings = allClientsSettings.get(clientName);
-            final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
+            final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(
+                logger,
+                someClientSettings,
+                webIdentityTokenCredentialsProvider
+            );
             assertThat(credentialsProvider, instanceOf(AWSStaticCredentialsProvider.class));
             assertThat(credentialsProvider.getCredentials().getAWSAccessKeyId(), is(clientName + "_aws_access_key"));
             assertThat(credentialsProvider.getCredentials().getAWSSecretKey(), is(clientName + "_aws_secret_key"));
         }
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
-        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
-        assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
+        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(
+            logger,
+            defaultClientSettings,
+            webIdentityTokenCredentialsProvider
+        );
+        assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedAWSCredentialsProvider.class));
+        var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAWSCredentialsProvider) defaultCredentialsProvider;
+        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(EC2ContainerCredentialsProviderWrapper.class));
     }
 
     public void testSetDefaultCredential() {
@@ -71,7 +114,11 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(allClientsSettings.size(), is(1));
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
-        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
+        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(
+            logger,
+            defaultClientSettings,
+            webIdentityTokenCredentialsProvider
+        );
         assertThat(defaultCredentialsProvider, instanceOf(AWSStaticCredentialsProvider.class));
         assertThat(defaultCredentialsProvider.getCredentials().getAWSAccessKeyId(), is(awsAccessKey));
         assertThat(defaultCredentialsProvider.getCredentials().getAWSSecretKey(), is(awsSecretKey));

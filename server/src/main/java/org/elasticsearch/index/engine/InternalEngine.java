@@ -52,6 +52,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -88,7 +89,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1359,6 +1359,7 @@ public class InternalEngine extends Engine {
             }
         } else {
             try (Searcher searcher = acquireSearcher("assert doc doesn't exist", SearcherScope.INTERNAL)) {
+                searcher.setQueryCache(null); // so that it does not interfere with tests that check caching behavior
                 final long docsWithId = searcher.count(new TermQuery(index.uid()));
                 if (docsWithId > 0) {
                     throw new AssertionError("doc [" + index.id() + "] exists [" + docsWithId + "] times in index");
@@ -2559,7 +2560,7 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> commitData = new HashMap<>(8);
+                final Map<String, String> commitData = Maps.newMapWithExpectedSize(8);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translog.getTranslogUUID());
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
@@ -2804,7 +2805,7 @@ public class InternalEngine extends Engine {
      * Gets the commit data from {@link IndexWriter} as a map.
      */
     private static Map<String, String> commitDataAsMap(final IndexWriter indexWriter) {
-        final Map<String, String> commitData = new HashMap<>(8);
+        final Map<String, String> commitData = Maps.newMapWithExpectedSize(8);
         for (Map.Entry<String, String> entry : indexWriter.getLiveCommitData()) {
             commitData.put(entry.getKey(), entry.getValue());
         }

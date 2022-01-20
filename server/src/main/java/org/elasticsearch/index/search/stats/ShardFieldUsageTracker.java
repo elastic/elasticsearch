@@ -10,13 +10,13 @@ package org.elasticsearch.index.search.stats;
 
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.search.stats.FieldUsageStats.PerFieldUsageStats;
 import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader.FieldUsageNotifier;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,7 +44,7 @@ public class ShardFieldUsageTracker {
      * returns information for all fields.
      */
     public FieldUsageStats stats(String... fields) {
-        final Map<String, PerFieldUsageStats> stats = new HashMap<>(perFieldStats.size());
+        final Map<String, PerFieldUsageStats> stats = Maps.newMapWithExpectedSize(perFieldStats.size());
         for (Map.Entry<String, InternalFieldStats> entry : perFieldStats.entrySet()) {
             InternalFieldStats ifs = entry.getValue();
             if (CollectionUtils.isEmpty(fields) || Regex.simpleMatch(fields, entry.getKey())) {

@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -60,8 +59,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         protected boolean extendedCheck(String action, TransportRequest request, Authentication authentication) {
             if (request instanceof CreateApiKeyRequest) {
                 return true;
-            } else if (request instanceof GetApiKeyRequest) {
-                final GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
+            } else if (request instanceof final GetApiKeyRequest getApiKeyRequest) {
                 return checkIfUserIsOwnerOfApiKeys(
                     authentication,
                     getApiKeyRequest.getApiKeyId(),
@@ -69,8 +67,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                     getApiKeyRequest.getRealmName(),
                     getApiKeyRequest.ownedByAuthenticatedUser()
                 );
-            } else if (request instanceof InvalidateApiKeyRequest) {
-                final InvalidateApiKeyRequest invalidateApiKeyRequest = (InvalidateApiKeyRequest) request;
+            } else if (request instanceof final InvalidateApiKeyRequest invalidateApiKeyRequest) {
                 final String[] apiKeyIds = invalidateApiKeyRequest.getIds();
                 if (apiKeyIds == null) {
                     return checkIfUserIsOwnerOfApiKeys(
@@ -92,8 +89,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                             )
                         );
                 }
-            } else if (request instanceof QueryApiKeyRequest) {
-                final QueryApiKeyRequest queryApiKeyRequest = (QueryApiKeyRequest) request;
+            } else if (request instanceof final QueryApiKeyRequest queryApiKeyRequest) {
                 return queryApiKeyRequest.isFilterForCurrentUser();
             }
             throw new IllegalArgumentException(
@@ -120,7 +116,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                  * TODO bizybot we need to think on how we can propagate appropriate error message to the end user when username, realm name
                  *   is missing. This is similar to the problem of propagating right error messages in case of access denied.
                  */
-                if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+                if (authentication.isApiKey()) {
                     // API key cannot own any other API key so deny access
                     return false;
                 } else if (ownedByAuthenticatedUser) {
@@ -135,7 +131,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         }
 
         private boolean isCurrentAuthenticationUsingSameApiKeyIdFromRequest(Authentication authentication, String apiKeyId) {
-            if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+            if (authentication.isApiKey()) {
                 // API key id from authentication must match the id from request
                 final String authenticatedApiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
                 if (Strings.hasText(apiKeyId)) {

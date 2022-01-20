@@ -25,6 +25,7 @@ public class SettingsConfigTests extends AbstractResponseTestCase<
             randomBoolean() ? null : randomFloat(),
             randomBoolean() ? null : randomIntBetween(0, 1),
             randomBoolean() ? null : randomIntBetween(0, 1),
+            randomBoolean() ? null : randomIntBetween(0, 1),
             randomBoolean() ? null : randomIntBetween(0, 1)
         );
     }
@@ -38,6 +39,7 @@ public class SettingsConfigTests extends AbstractResponseTestCase<
         assertEquals(serverTestInstance.getDatesAsEpochMillis(), clientInstance.getDatesAsEpochMillis());
         assertEquals(serverTestInstance.getAlignCheckpoints(), clientInstance.getAlignCheckpoints());
         assertEquals(serverTestInstance.getUsePit(), clientInstance.getUsePit());
+        assertEquals(serverTestInstance.getDeduceMappings(), clientInstance.getDeduceMappings());
     }
 
     @Override

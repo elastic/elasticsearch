@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.common.Strings;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -33,6 +35,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -40,11 +43,13 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -1070,6 +1075,20 @@ public class MetadataTests extends ESTestCase {
 
         assertThat(copy, not(sameInstance(metadata)));
         assertThat(copy.clusterUUID(), equalTo(newClusterUuid));
+    }
+
+    public void testBuilderRemoveCustomIf() {
+        var custom1 = new TestCustomMetadata();
+        var custom2 = new TestCustomMetadata();
+        var builder = Metadata.builder();
+        builder.putCustom("custom1", custom1);
+        builder.putCustom("custom2", custom2);
+
+        builder.removeCustomIf((key, value) -> Objects.equals(key, "custom1"));
+
+        var metadata = builder.build();
+        assertThat(metadata.custom("custom1"), nullValue());
+        assertThat(metadata.custom("custom2"), sameInstance(custom2));
     }
 
     public void testBuilderRejectsDataStreamThatConflictsWithIndex() {
@@ -2253,6 +2272,38 @@ public class MetadataTests extends ESTestCase {
             this.indices = indices;
             this.backingIndices = backingIndices;
             this.metadata = metadata;
+        }
+    }
+
+    private static class TestCustomMetadata implements Metadata.Custom {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            return null;
+        }
+
+        @Override
+        public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+            return null;
+        }
+
+        @Override
+        public EnumSet<Metadata.XContentContext> context() {
+            return null;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return null;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+
         }
     }
 }

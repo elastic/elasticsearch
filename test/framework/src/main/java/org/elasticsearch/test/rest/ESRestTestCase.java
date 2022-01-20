@@ -571,6 +571,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             "ilm-history-ilm-policy",
             "slm-history-ilm-policy",
             "watch-history-ilm-policy",
+            "watch-history-ilm-policy-16",
             "ml-size-based-ilm-policy",
             "logs",
             "metrics",

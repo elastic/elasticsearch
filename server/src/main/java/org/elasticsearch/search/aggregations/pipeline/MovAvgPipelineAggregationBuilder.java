@@ -21,6 +21,15 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * The actual moving_avg aggregation was removed as a breaking change in 8.0. This class exists to provide a friendlier error message
+ * if somebody attempts to use the moving_avg aggregation via the compatible-with=7 mechanism.
+ *
+ * We can remove this class entirely when v7 rest api compatibility is dropped.
+ *
+ * @deprecated Only for 7.x rest compat
+ */
+@Deprecated
 public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<MovAvgPipelineAggregationBuilder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(CommonTermsQueryBuilder.class);
     public static final String MOVING_AVG_AGG_DEPRECATION_MSG = "Moving Average aggregation usage is not supported. "

@@ -35,7 +35,8 @@ public class IpPrefixTests extends BaseAggregationTestCase<IpPrefixAggregationBu
         final IpPrefixAggregationBuilder factory = new IpPrefixAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         factory.isIpv6(randomBoolean());
 
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> factory.prefixLength(randomIntBetween(-1000, -1)));
-        assertThat(ex.getMessage(), startsWith("[prefix_len] must not be less than 0"));
+        int randomPrefixLength = randomIntBetween(-1000, -1);
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> factory.prefixLength(randomPrefixLength));
+        assertThat(ex.getMessage(), startsWith("[prefix_length] must be in range [0, 128] while value is [" + randomPrefixLength + "]"));
     }
 }

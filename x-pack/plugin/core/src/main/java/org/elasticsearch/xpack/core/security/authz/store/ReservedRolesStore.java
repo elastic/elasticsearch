@@ -44,7 +44,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     public static final String ALERTS_BACKING_INDEX = ".internal.alerts*";
     public static final String ALERTS_INDEX_ALIAS = ".alerts*";
     public static final String PREVIEW_ALERTS_INDEX_ALIAS = ".preview.alerts*";
+    public static final String PERCOLATOR_ALERTS_INDEX_ALIAS = ".percolator.alerts*";
     public static final String PREVIEW_ALERTS_BACKING_INDEX_ALIAS = ".internal.preview.alerts*";
+    public static final String PERCOLATOR_ALERTS_BACKING_INDEX_ALIAS = ".percolator.preview.alerts*";
 
     public static final RoleDescriptor SUPERUSER_ROLE_DESCRIPTOR = new RoleDescriptor(
         "superuser",
@@ -584,7 +586,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.ALERTS_BACKING_INDEX,
                         ReservedRolesStore.ALERTS_INDEX_ALIAS,
                         ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_ALIAS,
-                        ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS
+                        ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS,
+                        ReservedRolesStore.PERCOLATOR_ALERTS_BACKING_INDEX_ALIAS,
+                        ReservedRolesStore.PERCOLATOR_ALERTS_INDEX_ALIAS
                     )
                     .privileges("read", "view_index_metadata", "write")
                     .build() },

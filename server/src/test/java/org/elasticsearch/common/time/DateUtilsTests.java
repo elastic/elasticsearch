@@ -48,11 +48,22 @@ public class DateUtilsTests extends ESTestCase {
         )
     );
 
+    // A temporary list of zones and JDKs, where Joda and the JDK timezone data are out of sync, until either Joda or the JDK
+    // are updated, see https://github.com/elastic/elasticsearch/issues/82356
+    private static final Set<String> IGNORE_IDS = new HashSet<>(Arrays.asList("Pacific/Niue"));
+
+    private static boolean maybeIgnore(String jodaId) {
+        if (IGNORE_IDS.contains(jodaId)) {
+            return true;
+        }
+        return false;
+    }
+
     public void testTimezoneIds() {
         assertNull(DateUtils.dateTimeZoneToZoneId(null));
         assertNull(DateUtils.zoneIdToDateTimeZone(null));
         for (String jodaId : DateTimeZone.getAvailableIDs()) {
-            if (IGNORE.contains(jodaId)) continue;
+            if (IGNORE.contains(jodaId) || maybeIgnore(jodaId)) continue;
             DateTimeZone jodaTz = DateTimeZone.forID(jodaId);
             ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(jodaTz); // does not throw
             long now = 0;

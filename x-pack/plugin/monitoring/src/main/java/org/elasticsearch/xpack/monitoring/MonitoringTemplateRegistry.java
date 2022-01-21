@@ -18,9 +18,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
+import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -29,6 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.monitoring.MonitoringField.HISTORY_DURATION;
 
 /**
  * Template registry for monitoring templates. Templates are loaded and installed shortly after cluster startup.
@@ -60,6 +64,16 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
     private static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of(TEMPLATE_VERSION_VARIABLE, TEMPLATE_VERSION);
 
     /**
+     * The stack monitoring ILM policy information. The template variables for the ILM policy are generated when the
+     * registry is created so that we can pick a default retention value that is sensitive to legacy monitoring settings.
+     */
+    public static final String MONITORING_POLICY_NAME = ".monitoring-8-ilm-policy";
+    private static final String MONITORING_POLICY_NAME_VARIABLE = "xpack.stack.monitoring.policy.name";
+    public static final String MONITORING_POLICY_DEFAULT_RETENTION = "3d";
+    private static final String MONITORING_POLICY_RETENTION_VARIABLE = "xpack.stack.monitoring.history.duration";
+    private static final String MONITORING_POLICY_RETENTION_REASON_VARIABLE = "xpack.stack.monitoring.history.duration.reason";
+
+    /**
      * The stack monitoring template registry version. This is the version id for templates used by Metricbeat in version 8.x. Metricbeat
      * writes monitoring data in ECS format as of 8.0. These templates define the ECS schema as well as alias fields for the old monitoring
      * mappings that point to the corresponding ECS fields.
@@ -68,7 +82,12 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
     private static final String STACK_MONITORING_REGISTRY_VERSION_VARIABLE = "xpack.stack.monitoring.template.release.version";
     private static final String STACK_TEMPLATE_VERSION = "8";
     private static final String STACK_TEMPLATE_VERSION_VARIABLE = "xpack.stack.monitoring.template.version";
-    private static final Map<String, String> STACK_TEMPLATE_VARIABLES = Map.of(STACK_TEMPLATE_VERSION_VARIABLE, STACK_TEMPLATE_VERSION);
+    private static final Map<String, String> STACK_TEMPLATE_VARIABLES = Map.of(
+        STACK_TEMPLATE_VERSION_VARIABLE,
+        STACK_TEMPLATE_VERSION,
+        MONITORING_POLICY_NAME_VARIABLE,
+        MONITORING_POLICY_NAME
+    );
 
     public static final Setting<Boolean> MONITORING_TEMPLATES_ENABLED = Setting.boolSetting(
         "xpack.monitoring.templates.enabled",
@@ -208,6 +227,8 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
             .orElseThrow(() -> new IllegalArgumentException("Invalid system [" + system + "]"));
     }
 
+    private final List<LifecyclePolicy> ilmPolicies;
+
     public MonitoringTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
@@ -218,6 +239,24 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         this.clusterService = clusterService;
         this.monitoringTemplatesEnabled = MONITORING_TEMPLATES_ENABLED.get(nodeSettings);
+        this.ilmPolicies = loadPolicies(nodeSettings);
+    }
+
+    private List<LifecyclePolicy> loadPolicies(Settings nodeSettings) {
+        Map<String, String> templateVars = new HashMap<>();
+        if (HISTORY_DURATION.exists(nodeSettings)) {
+            templateVars.put(MONITORING_POLICY_RETENTION_VARIABLE, HISTORY_DURATION.get(nodeSettings).getStringRep());
+            templateVars.put(
+                MONITORING_POLICY_RETENTION_REASON_VARIABLE,
+                "the value of the [" + HISTORY_DURATION.getKey() + "] setting at node startup"
+            );
+        } else {
+            templateVars.put(MONITORING_POLICY_RETENTION_VARIABLE, MONITORING_POLICY_DEFAULT_RETENTION);
+            templateVars.put(MONITORING_POLICY_RETENTION_REASON_VARIABLE, "the monitoring plugin default");
+        }
+        LifecyclePolicy monitoringPolicy = new LifecyclePolicyConfig(MONITORING_POLICY_NAME, "/monitoring-mb-ilm-policy.json", templateVars)
+            .load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY);
+        return Collections.singletonList(monitoringPolicy);
     }
 
     @Override
@@ -263,6 +302,15 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         return monitoringTemplatesEnabled ? COMPOSABLE_INDEX_TEMPLATE_CONFIGS : Map.of();
+    }
+
+    @Override
+    protected List<LifecyclePolicy> getPolicyConfigs() {
+        if (monitoringTemplatesEnabled) {
+            return ilmPolicies;
+        } else {
+            return Collections.emptyList();
+        }
     }
 
     @Override

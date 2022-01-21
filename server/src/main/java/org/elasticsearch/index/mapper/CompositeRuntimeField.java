@@ -19,6 +19,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -36,7 +37,9 @@ public class CompositeRuntimeField implements RuntimeField {
             false,
             () -> null,
             RuntimeField::parseScript,
-            RuntimeField.initializerNotSupported()
+            RuntimeField.initializerNotSupported(),
+            XContentBuilder::field,
+            Objects::toString
         ).addValidator(s -> {
             if (s == null) {
                 throw new IllegalArgumentException("composite runtime field [" + name + "] must declare a [script]");
@@ -48,7 +51,9 @@ public class CompositeRuntimeField implements RuntimeField {
             false,
             Collections::emptyMap,
             (f, p, o) -> parseFields(f, o),
-            RuntimeField.initializerNotSupported()
+            RuntimeField.initializerNotSupported(),
+            XContentBuilder::field,
+            Objects::toString
         ).addValidator(objectMap -> {
             if (objectMap == null || objectMap.isEmpty()) {
                 throw new IllegalArgumentException("composite runtime field [" + name + "] must declare its [fields]");

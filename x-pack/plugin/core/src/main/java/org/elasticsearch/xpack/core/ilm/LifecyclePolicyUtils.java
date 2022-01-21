@@ -28,6 +28,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -40,9 +42,15 @@ public class LifecyclePolicyUtils {
     /**
      * Loads a built-in index lifecycle policy and returns its source.
      */
-    public static LifecyclePolicy loadPolicy(String name, String resource, NamedXContentRegistry xContentRegistry) {
+    public static LifecyclePolicy loadPolicy(
+        String name,
+        String resource,
+        Map<String, String> variables,
+        NamedXContentRegistry xContentRegistry
+    ) {
         try {
             BytesReference source = load(resource);
+            source = replaceVariables(source, variables);
             validate(source);
 
             try (
@@ -68,6 +76,21 @@ public class LifecyclePolicyUtils {
                 return new BytesArray(out.toByteArray());
             }
         }
+    }
+
+    private static BytesReference replaceVariables(BytesReference input, Map<String, String> variables) {
+        String template = input.utf8ToString();
+        for (Map.Entry<String, String> variable : variables.entrySet()) {
+            template = replaceVariable(template, variable.getKey(), variable.getValue());
+        }
+        return new BytesArray(template);
+    }
+
+    /**
+     * Replaces all occurrences of given variable with the value
+     */
+    public static String replaceVariable(String input, String variable, String value) {
+        return Pattern.compile("${" + variable + "}", Pattern.LITERAL).matcher(input).replaceAll(value);
     }
 
     /**

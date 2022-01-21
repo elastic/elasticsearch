@@ -883,6 +883,42 @@ public class MetadataTests extends ESTestCase {
         }
     }
 
+    public void testOldestIndexComputation() {
+        Metadata metadata = buildIndicesWithVersions(
+            new Version[] { Version.V_7_0_0, Version.CURRENT, Version.fromId(Version.CURRENT.id + 1) }
+        ).build();
+
+        assertEquals(Version.V_7_0_0, metadata.oldestIndexVersion());
+
+        Metadata.Builder b = Metadata.builder();
+        assertEquals(Version.CURRENT, b.build().oldestIndexVersion());
+
+        Throwable ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> buildIndicesWithVersions(new Version[] { Version.V_7_0_0, Version.V_EMPTY, Version.fromId(Version.CURRENT.id + 1) })
+                .build()
+        );
+
+        assertEquals("[index.version.created] is not present in the index settings for index with UUID [null]", ex.getMessage());
+    }
+
+    private Metadata.Builder buildIndicesWithVersions(Version... indexVersions) {
+
+        int lastIndexNum = randomIntBetween(9, 50);
+        Metadata.Builder b = Metadata.builder();
+        for (Version indexVersion : indexVersions) {
+            IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
+                .settings(settings(indexVersion))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            b.put(im, false);
+            lastIndexNum = randomIntBetween(lastIndexNum + 1, lastIndexNum + 50);
+        }
+
+        return b;
+    }
+
     private static IndexMetadata.Builder buildIndexMetadata(String name, String alias, Boolean writeIndex) {
         return IndexMetadata.builder(name)
             .settings(settings(Version.CURRENT))

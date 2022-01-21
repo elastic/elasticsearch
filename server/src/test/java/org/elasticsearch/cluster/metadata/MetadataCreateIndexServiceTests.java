@@ -40,6 +40,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -106,7 +107,6 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class MetadataCreateIndexServiceTests extends ESTestCase {
 
-    private AliasValidator aliasValidator;
     private CreateIndexClusterStateUpdateRequest request;
     private SearchExecutionContext searchExecutionContext;
     private IndexNameExpressionResolver indexNameExpressionResolver;
@@ -114,7 +114,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     @Before
     public void setupCreateIndexRequestAndAliasValidator() {
         indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
-        aliasValidator = new AliasValidator();
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         Settings indexSettings = Settings.builder()
             .put(SETTING_VERSION_CREATED, Version.CURRENT)
@@ -131,7 +130,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             null,
             null,
             null,
-            xContentRegistry(),
+            parserConfig(),
             writableRegistry(),
             null,
             null,
@@ -570,14 +569,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 clusterService,
                 null,
                 null,
-                null,
                 createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
                 null,
                 null,
                 threadPool,
                 null,
                 EmptySystemIndices.INSTANCE,
-                false
+                false,
+                new IndexSettingProviders(Set.of())
             );
             validateIndexName(checkerService, "index?name", "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
 
@@ -647,7 +646,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 clusterService,
                 null,
                 null,
-                null,
                 createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
                 null,
                 null,
@@ -656,7 +654,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 new SystemIndices(
                     Collections.singletonMap("foo", new SystemIndices.Feature("foo", "test feature", systemIndexDescriptors))
                 ),
-                false
+                false,
+                new IndexSettingProviders(Set.of())
             );
             // Check deprecations
             assertFalse(checkerService.validateDotIndex(".test2", false));
@@ -740,7 +739,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 request.aliases(),
                 List.of(),
                 Metadata.builder().build(),
-                aliasValidator,
                 xContentRegistry(),
                 searchExecutionContext,
                 indexNameExpressionResolver::resolveDateMathExpression,
@@ -759,7 +757,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request.aliases(),
             List.of(),
             Metadata.builder().build(),
-            aliasValidator,
             xContentRegistry(),
             searchExecutionContext,
             indexNameExpressionResolver::resolveDateMathExpression,
@@ -794,7 +791,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request.aliases(),
             MetadataIndexTemplateService.resolveAliases(List.of(templateMetadata)),
             Metadata.builder().build(),
-            aliasValidator,
             xContentRegistry(),
             searchExecutionContext,
             indexNameExpressionResolver::resolveDateMathExpression,
@@ -891,7 +887,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request.aliases(),
             MetadataIndexTemplateService.resolveAliases(templates),
             Metadata.builder().build(),
-            aliasValidator,
             xContentRegistry(),
             searchExecutionContext,
             indexNameExpressionResolver::resolveDateMathExpression,
@@ -933,7 +928,6 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             request.aliases(),
             MetadataIndexTemplateService.resolveAliases(templates),
             Metadata.builder().build(),
-            aliasValidator,
             xContentRegistry(),
             searchExecutionContext,
             indexNameExpressionResolver::resolveDateMathExpression,

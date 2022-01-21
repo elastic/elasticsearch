@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorF
 
 import java.time.ZonedDateTime;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -136,7 +136,7 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             SearchResponse response = client.execute(SearchAction.INSTANCE, searchRequest).actionGet();
             List<? extends Histogram.Bucket> buckets = ((Histogram) response.getAggregations().get(DATE_BUCKETS)).getBuckets();
-            Map<Long, Long> hashMap = new HashMap<>(buckets.size());
+            Map<Long, Long> hashMap = Maps.newMapWithExpectedSize(buckets.size());
             for (Histogram.Bucket bucket : buckets) {
                 long bucketTime = toHistogramKeyToEpoch(bucket.getKey());
                 if (bucketTime < 0) {

@@ -12,7 +12,7 @@ dependencies {
 }
 
 // Only run tests for 7.9+, since the node.roles setting was introduced in 7.9.0
-BuildParams.bwcVersions.withWireCompatiple(v -> v.onOrAfter("7.9.0") &&
+BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.9.0") &&
         v != VersionProperties.getElasticsearchVersion()) { bwcVersion, baseName ->
 
   def baseCluster = testClusters.register(baseName) {

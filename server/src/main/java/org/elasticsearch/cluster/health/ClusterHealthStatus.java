@@ -41,16 +41,12 @@ public enum ClusterHealthStatus implements Writeable {
      */
     public static ClusterHealthStatus readFrom(StreamInput in) throws IOException {
         byte value = in.readByte();
-        switch (value) {
-            case 0:
-                return GREEN;
-            case 1:
-                return YELLOW;
-            case 2:
-                return RED;
-            default:
-                throw new IllegalArgumentException("No cluster health status for value [" + value + "]");
-        }
+        return switch (value) {
+            case 0 -> GREEN;
+            case 1 -> YELLOW;
+            case 2 -> RED;
+            default -> throw new IllegalArgumentException("No cluster health status for value [" + value + "]");
+        };
     }
 
     public static ClusterHealthStatus fromString(String status) {

@@ -72,22 +72,17 @@ public class CreateApiKeyResponseTests extends AbstractXContentTestCase<CreateAp
     }
 
     private static CreateApiKeyResponse mutateTestItem(CreateApiKeyResponse original) {
-        switch (randomIntBetween(0, 3)) {
-            case 0:
-                return new CreateApiKeyResponse(randomAlphaOfLength(5), original.getId(), original.getKey(), original.getExpiration());
-            case 1:
-                return new CreateApiKeyResponse(original.getName(), randomAlphaOfLength(5), original.getKey(), original.getExpiration());
-            case 2:
-                return new CreateApiKeyResponse(
-                    original.getName(),
-                    original.getId(),
-                    new SecureString(UUIDs.randomBase64UUID().toCharArray()),
-                    original.getExpiration()
-                );
-            case 3:
-                return new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), Instant.now());
-            default:
-                return new CreateApiKeyResponse(randomAlphaOfLength(5), original.getId(), original.getKey(), original.getExpiration());
-        }
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> new CreateApiKeyResponse(randomAlphaOfLength(5), original.getId(), original.getKey(), original.getExpiration());
+            case 1 -> new CreateApiKeyResponse(original.getName(), randomAlphaOfLength(5), original.getKey(), original.getExpiration());
+            case 2 -> new CreateApiKeyResponse(
+                original.getName(),
+                original.getId(),
+                new SecureString(UUIDs.randomBase64UUID().toCharArray()),
+                original.getExpiration()
+            );
+            case 3 -> new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), Instant.now());
+            default -> new CreateApiKeyResponse(randomAlphaOfLength(5), original.getId(), original.getKey(), original.getExpiration());
+        };
     }
 }

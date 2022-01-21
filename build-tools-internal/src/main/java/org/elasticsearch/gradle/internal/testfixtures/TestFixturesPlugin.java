@@ -169,7 +169,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
     private void maybeSkipTask(Provider<DockerSupportService> dockerSupport, Task task) {
         task.onlyIf(spec -> {
-            boolean isComposeAvailable = dockerSupport.get().getDockerAvailability().isComposeAvailable;
+            boolean isComposeAvailable = dockerSupport.get().getDockerAvailability().isComposeAvailable();
             if (isComposeAvailable == false) {
                 LOGGER.info("Task {} requires docker-compose but it is unavailable. Task will be skipped.", task.getPath());
             }

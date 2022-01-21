@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.License;
@@ -25,7 +26,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -297,7 +297,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
         private final Map<String, FeatureSet> featureSets;
 
         public FeatureSetsInfo(Set<FeatureSet> featureSets) {
-            Map<String, FeatureSet> map = new HashMap<>(featureSets.size());
+            Map<String, FeatureSet> map = Maps.newMapWithExpectedSize(featureSets.size());
             for (FeatureSet featureSet : featureSets) {
                 map.put(featureSet.name, featureSet);
             }
@@ -306,7 +306,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
         public FeatureSetsInfo(StreamInput in) throws IOException {
             int size = in.readVInt();
-            Map<String, FeatureSet> featureSets = new HashMap<>(size);
+            Map<String, FeatureSet> featureSets = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 FeatureSet featureSet = new FeatureSet(in);
                 featureSets.put(featureSet.name, featureSet);

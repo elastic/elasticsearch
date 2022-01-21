@@ -568,20 +568,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        switch (between(0, 3)) {
-            case 0:
-                return randomAlphaOfLengthBetween(1, 100);
-            case 1:
-                return randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100);
-            case 2:
-                return randomLong();
-            case 3:
-                return randomDouble();
-            case 4:
-                return randomBoolean();
-            default:
-                throw new IllegalStateException();
-        }
+        return switch (between(0, 3)) {
+            case 0 -> randomAlphaOfLengthBetween(1, 100);
+            case 1 -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100);
+            case 2 -> randomLong();
+            case 3 -> randomDouble();
+            case 4 -> randomBoolean();
+            default -> throw new IllegalStateException();
+        };
     }
 
     @Override

@@ -31,7 +31,8 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -153,14 +154,15 @@ public class SeedHostsResolverTests extends ESTestCase {
     public void testRemovingLocalAddresses() {
         final NetworkService networkService = new NetworkService(Collections.emptyList());
         final InetAddress loopbackAddress = InetAddress.getLoopbackAddress();
-        final Transport transport = new MockNioTransport(
+        final Transport transport = new Netty4Transport(
             Settings.EMPTY,
             Version.CURRENT,
             threadPool,
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(Settings.EMPTY)
         ) {
 
             @Override
@@ -200,14 +202,15 @@ public class SeedHostsResolverTests extends ESTestCase {
         final NetworkService networkService = new NetworkService(Collections.emptyList());
         final String hostname = randomAlphaOfLength(8);
         final UnknownHostException unknownHostException = new UnknownHostException(hostname);
-        final Transport transport = new MockNioTransport(
+        final Transport transport = new Netty4Transport(
             Settings.EMPTY,
             Version.CURRENT,
             threadPool,
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(Settings.EMPTY)
         ) {
 
             @Override
@@ -267,14 +270,15 @@ public class SeedHostsResolverTests extends ESTestCase {
     public void testResolveTimeout() throws IllegalAccessException {
         final NetworkService networkService = new NetworkService(Collections.emptyList());
         final CountDownLatch latch = new CountDownLatch(1);
-        final Transport transport = new MockNioTransport(
+        final Transport transport = new Netty4Transport(
             Settings.EMPTY,
             Version.CURRENT,
             threadPool,
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(Settings.EMPTY)
         ) {
 
             @Override
@@ -347,14 +351,15 @@ public class SeedHostsResolverTests extends ESTestCase {
         final NetworkService networkService = new NetworkService(Collections.emptyList());
         final CountDownLatch latch = new CountDownLatch(1);
         final CountDownLatch conditionLatch = new CountDownLatch(1);
-        final Transport transport = new MockNioTransport(
+        final Transport transport = new Netty4Transport(
             Settings.EMPTY,
             Version.CURRENT,
             threadPool,
             networkService,
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(Settings.EMPTY)
         ) {
 
             @Override
@@ -409,14 +414,15 @@ public class SeedHostsResolverTests extends ESTestCase {
     }
 
     public void testInvalidHosts() throws IllegalAccessException {
-        final Transport transport = new MockNioTransport(
+        final Transport transport = new Netty4Transport(
             Settings.EMPTY,
             Version.CURRENT,
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(Settings.EMPTY)
         ) {
             @Override
             public BoundTransportAddress boundAddress() {

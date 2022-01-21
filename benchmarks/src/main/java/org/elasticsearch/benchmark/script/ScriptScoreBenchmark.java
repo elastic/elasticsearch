@@ -101,28 +101,19 @@ public class ScriptScoreBenchmark {
 
     @Setup
     public void setupScript() {
-        switch (script) {
-            case "expression":
-                factory = scriptModule.engines.get("expression").compile("test", "doc['n'].value", ScoreScript.CONTEXT, Map.of());
-                break;
-            case "metal":
-                factory = bareMetalScript();
-                break;
-            case "painless_cast":
-                factory = scriptModule.engines.get("painless")
-                    .compile(
-                        "test",
-                        "((org.elasticsearch.index.fielddata.ScriptDocValues.Longs)doc['n']).value",
-                        ScoreScript.CONTEXT,
-                        Map.of()
-                    );
-                break;
-            case "painless_def":
-                factory = scriptModule.engines.get("painless").compile("test", "doc['n'].value", ScoreScript.CONTEXT, Map.of());
-                break;
-            default:
-                throw new IllegalArgumentException("Don't know how to implement script [" + script + "]");
-        }
+        factory = switch (script) {
+            case "expression" -> scriptModule.engines.get("expression").compile("test", "doc['n'].value", ScoreScript.CONTEXT, Map.of());
+            case "metal" -> bareMetalScript();
+            case "painless_cast" -> scriptModule.engines.get("painless")
+                .compile(
+                    "test",
+                    "((org.elasticsearch.index.fielddata.ScriptDocValues.Longs)doc['n']).value",
+                    ScoreScript.CONTEXT,
+                    Map.of()
+                );
+            case "painless_def" -> scriptModule.engines.get("painless").compile("test", "doc['n'].value", ScoreScript.CONTEXT, Map.of());
+            default -> throw new IllegalArgumentException("Don't know how to implement script [" + script + "]");
+        };
     }
 
     @Setup

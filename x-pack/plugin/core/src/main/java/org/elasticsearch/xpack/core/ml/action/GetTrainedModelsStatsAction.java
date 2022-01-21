@@ -112,7 +112,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
 
             public TrainedModelStats(StreamInput in) throws IOException {
                 modelId = in.readString();
-                if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+                if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
                     modelSizeStats = in.readOptionalWriteable(TrainedModelSizeStats::new);
                 } else {
                     modelSizeStats = null;
@@ -176,7 +176,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(modelId);
-                if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
                     out.writeOptionalWriteable(modelSizeStats);
                 }
                 ingestStats.writeTo(out);

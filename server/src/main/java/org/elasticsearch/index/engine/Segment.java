@@ -193,23 +193,13 @@ public class Segment implements Writeable {
                 Object missing = in.readGenericValue();
                 boolean max = in.readBoolean();
                 boolean reverse = in.readBoolean();
-                final SortField.Type numericType;
-                switch (type) {
-                    case 1:
-                        numericType = SortField.Type.INT;
-                        break;
-                    case 2:
-                        numericType = SortField.Type.FLOAT;
-                        break;
-                    case 3:
-                        numericType = SortField.Type.DOUBLE;
-                        break;
-                    case 4:
-                        numericType = SortField.Type.LONG;
-                        break;
-                    default:
-                        throw new IOException("invalid index sort type:[" + type + "] for numeric field:[" + field + "]");
-                }
+                final SortField.Type numericType = switch (type) {
+                    case 1 -> SortField.Type.INT;
+                    case 2 -> SortField.Type.FLOAT;
+                    case 3 -> SortField.Type.DOUBLE;
+                    case 4 -> SortField.Type.LONG;
+                    default -> throw new IOException("invalid index sort type:[" + type + "] for numeric field:[" + field + "]");
+                };
                 fields[i] = new SortedNumericSortField(
                     field,
                     numericType,
@@ -239,20 +229,11 @@ public class Segment implements Writeable {
                 out.writeBoolean(field.getReverse());
             } else if (field instanceof SortedNumericSortField) {
                 switch (((SortedNumericSortField) field).getNumericType()) {
-                    case INT:
-                        out.writeByte((byte) 1);
-                        break;
-                    case FLOAT:
-                        out.writeByte((byte) 2);
-                        break;
-                    case DOUBLE:
-                        out.writeByte((byte) 3);
-                        break;
-                    case LONG:
-                        out.writeByte((byte) 4);
-                        break;
-                    default:
-                        throw new IOException("invalid index sort field:" + field);
+                    case INT -> out.writeByte((byte) 1);
+                    case FLOAT -> out.writeByte((byte) 2);
+                    case DOUBLE -> out.writeByte((byte) 3);
+                    case LONG -> out.writeByte((byte) 4);
+                    default -> throw new IOException("invalid index sort field:" + field);
                 }
                 out.writeGenericValue(field.getMissingValue());
                 out.writeBoolean(((SortedNumericSortField) field).getSelector() == SortedNumericSelector.Type.MAX);

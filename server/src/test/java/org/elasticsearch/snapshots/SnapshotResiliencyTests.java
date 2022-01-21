@@ -100,7 +100,6 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
-import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -138,6 +137,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -1856,14 +1856,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     clusterService,
                     indicesService,
                     allocationService,
-                    new AliasValidator(),
                     shardLimitValidator,
                     environment,
                     indexScopedSettings,
                     threadPool,
                     namedXContentRegistry,
                     EmptySystemIndices.INSTANCE,
-                    false
+                    false,
+                    new IndexSettingProviders(Set.of())
                 );
                 actions.put(
                     CreateIndexAction.INSTANCE,

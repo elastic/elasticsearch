@@ -54,26 +54,13 @@ public class StringScriptFieldFuzzyQueryTests extends AbstractStringScriptFieldQ
         int prefixLength = orig.delegate().getPrefixLength();
         boolean transpositions = orig.delegate().getTranspositions();
         switch (randomInt(5)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
-                term += "modified";
-                break;
-            case 3:
-                maxEdits = randomValueOtherThan(maxEdits, () -> randomIntBetween(0, 2));
-                break;
-            case 4:
-                prefixLength += 1;
-                break;
-            case 5:
-                transpositions = transpositions == false;
-                break;
-            default:
-                fail();
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> term += "modified";
+            case 3 -> maxEdits = randomValueOtherThan(maxEdits, () -> randomIntBetween(0, 2));
+            case 4 -> prefixLength += 1;
+            case 5 -> transpositions = transpositions == false;
+            default -> fail();
         }
         return StringScriptFieldFuzzyQuery.build(script, leafFactory, fieldName, term, maxEdits, prefixLength, transpositions);
     }

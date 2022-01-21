@@ -1968,6 +1968,8 @@ Total number of HTTP connections opened for the node.
 `clients`::
 (array of objects)
 Information on current and recently-closed HTTP client connections.
+Clients that have been closed longer than the <<http-settings,http.client_stats.closed_channels.max_age>>
+setting will not be represented here.
 +
 .Properties of `clients`
 [%collapsible%open]

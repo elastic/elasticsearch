@@ -74,7 +74,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiConsumer;
@@ -197,6 +196,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         final ClusterState state = event.state();
+
+        final DiscoveryNode currentMaster = state.nodes().getMasterNode();
+        if (currentMaster != null && currentMaster.equals(event.previousState().nodes().getMasterNode()) == false) {
+            // master node changed, clear request deduplicator so we send out new state update requests right away without waiting for
+            // the in-flight ones to fail first
+            shardStateAction.clearRemoteShardRequestDeduplicator();
+        }
 
         // we need to clean the shards and indices we have on this node, since we
         // are going to recover them again once state persistence is disabled (no master / not recovered)
@@ -522,11 +528,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexMetadata newIndexMetadata = state.metadata().index(index);
             assert newIndexMetadata != null : "index " + index + " should have been removed by deleteIndices";
             if (ClusterChangedEvent.indexMetadataChanged(currentIndexMetadata, newIndexMetadata)) {
-                assert Objects.equals(event.previousState().nodes().getMasterNode(), state.getNodes().getMasterNode()) == false
-                    || newIndexMetadata.equals(currentIndexMetadata) == false
-                    : "index metadata instance must not change if unchanged unless there was a master failover but saw change for ["
-                        + index
-                        + "]";
                 String reason = null;
                 try {
                     reason = "metadata update failed";

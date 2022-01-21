@@ -217,8 +217,7 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         if (order instanceof Aggregation) {
             AggregationPath path = ((Aggregation) order).path();
             aggsUsedForSorting.add(path.resolveTopmostAggregator(root));
-        } else if (order instanceof CompoundOrder) {
-            CompoundOrder compoundOrder = (CompoundOrder) order;
+        } else if (order instanceof CompoundOrder compoundOrder) {
             for (BucketOrder orderElement : compoundOrder.orderElements()) {
                 if (orderElement instanceof Aggregation) {
                     AggregationPath path = ((Aggregation) orderElement).path();

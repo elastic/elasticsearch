@@ -131,7 +131,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 }).collect(Collectors.toList());
                 concreteIndices = nonBackingIndices.toArray(Index[]::new);
                 switch (action.actionType()) {
-                    case ADD:
+                    case ADD -> {
                         // Fail if parameters are used that data stream aliases don't support:
                         if (action.routing() != null) {
                             throw new IllegalArgumentException("aliases that point to data streams don't support routing");
@@ -159,7 +159,8 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                             }
                         }
                         continue;
-                    case REMOVE:
+                    }
+                    case REMOVE -> {
                         for (String dataStreamName : concreteDataStreams) {
                             for (String alias : concreteDataStreamAliases(action, state.metadata(), dataStreamName)) {
                                 finalActions.add(new AliasAction.RemoveDataStreamAlias(alias, dataStreamName, action.mustExist()));
@@ -168,12 +169,11 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                         if (nonBackingIndices.isEmpty() == false) {
                             // Regular aliases/indices match as well with the provided expression.
                             // (Only when adding new aliases, matching both data streams and indices is disallowed)
-                            break;
                         } else {
                             continue;
                         }
-                    default:
-                        throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
+                    }
+                    default -> throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
                 }
             } else {
                 concreteIndices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), false, action.indices());

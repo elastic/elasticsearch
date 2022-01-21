@@ -12,10 +12,16 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -26,8 +32,11 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -37,6 +46,7 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -271,5 +281,123 @@ public class IndexRequestTests extends ESTestCase {
         ActionRequestValidationException validate = request.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.getMessage(), containsString("pipeline cannot be an empty string"));
+    }
+
+    public void testGetConcreteWriteIndex() {
+        Instant currentTime = Instant.now();
+        Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
+        Instant end1 = currentTime.minus(2, ChronoUnit.HOURS);
+        Instant start2 = currentTime.minus(2, ChronoUnit.HOURS);
+        Instant end2 = currentTime.plus(2, ChronoUnit.HOURS);
+
+        String tsdbDataStream = "logs_my-app_prod";
+        var clusterState = DataStreamTestHelper.getClusterStateWithDataStream(
+            tsdbDataStream,
+            List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
+        );
+        var metadata = clusterState.getMetadata();
+
+        String source = """
+            {
+                "@timestamp": $time
+            }""";
+        {
+            // Not a create request => resolve to the latest backing index
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.source(renderSource(source, start1), XContentType.JSON);
+
+            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
+            assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(1)));
+        }
+        {
+            // Target is a regular index => resolve to this index only
+            String indexName = metadata.getIndices().keySet().iterator().next();
+            IndexRequest request = new IndexRequest(indexName);
+            request.source(renderSource(source, randomFrom(start1, end1, start2, end2)), XContentType.JSON);
+
+            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(indexName), metadata);
+            assertThat(result.getName(), equalTo(indexName));
+        }
+        {
+            String regularDataStream = "logs_another-app_prod";
+            var backingIndex1 = DataStreamTestHelper.createBackingIndex(regularDataStream, 1).build();
+            var backingIndex2 = DataStreamTestHelper.createBackingIndex(regularDataStream, 2).build();
+            var metadata2 = Metadata.builder(metadata)
+                .put(backingIndex1, true)
+                .put(backingIndex2, true)
+                .put(
+                    DataStreamTestHelper.newInstance(
+                        regularDataStream,
+                        new DataStream.TimestampField("@timestamp"),
+                        List.of(backingIndex1.getIndex(), backingIndex2.getIndex()),
+                        2,
+                        null
+                    )
+                )
+                .build();
+            // Target is a regular data stream => always resolve to the latest backing index
+            IndexRequest request = new IndexRequest(regularDataStream);
+            request.source(renderSource(source, randomFrom(start1, end1, start2, end2)), XContentType.JSON);
+
+            var result = request.getConcreteWriteIndex(metadata2.getIndicesLookup().get(regularDataStream), metadata2);
+            assertThat(result.getName(), equalTo(backingIndex2.getIndex().getName()));
+        }
+        {
+            // provided timestamp resolves to the first backing index
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(renderSource(source, start1), XContentType.JSON);
+
+            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
+            assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(0)));
+        }
+        {
+            // provided timestamp as millis since epoch resolves to the first backing index
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(source.replace("$time", "" + start1.toEpochMilli()), XContentType.JSON);
+
+            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
+            assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(0)));
+        }
+        {
+            // provided timestamp resolves to the latest backing index
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(renderSource(source, start2), XContentType.JSON);
+
+            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
+            assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(1)));
+        }
+        {
+            // provided timestamp resolves to no index => fail with an exception
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(renderSource(source, end2), XContentType.JSON);
+
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "the document timestamp [$time] is outside of ranges of currently writable indices [[$start1,$end1][$start2,$end2]]"
+                        .replace("$time", formatInstant(end2))
+                        .replace("$start1", formatInstant(start1))
+                        .replace("$end1", formatInstant(end1))
+                        .replace("$start2", formatInstant(start2))
+                        .replace("$end2", formatInstant(end2))
+                )
+            );
+        }
+    }
+
+    static String renderSource(String sourceTemplate, Instant instant) {
+        return sourceTemplate.replace("$time", "\"" + formatInstant(instant) + "\"");
+    }
+
+    static String formatInstant(Instant instant) {
+        return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
     }
 }

@@ -218,6 +218,8 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   // sync_id is no longer available in SegmentInfos.userData // "indices.flush/10_basic/Index synced flush rest test"
   task.replaceIsTrue("indices.testing.shards.0.0.commit.user_data.sync_id", "indices.testing.shards.0.0.commit.user_data")
 
+  // we can now search using doc values only
+  task.replaceValueInMatch("fields.object\\.nested1.long.searchable", true)
 }
 
 tasks.register('enforceYamlTestConvention').configure {

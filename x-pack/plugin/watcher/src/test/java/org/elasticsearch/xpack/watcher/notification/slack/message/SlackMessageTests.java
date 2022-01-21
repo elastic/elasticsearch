@@ -246,21 +246,11 @@ public class SlackMessageTests extends ESTestCase {
                                         currentFieldName = parser.currentName();
                                     } else if (token.isValue()) {
                                         switch (currentFieldName) {
-                                            case "url":
-                                                action.setUrl(new TextTemplate(parser.text()));
-                                                break;
-                                            case "name":
-                                                action.setName(new TextTemplate(parser.text()));
-                                                break;
-                                            case "style":
-                                                action.setStyle(new TextTemplate(parser.text()));
-                                                break;
-                                            case "text":
-                                                action.setText(new TextTemplate(parser.text()));
-                                                break;
-                                            case "type":
-                                                action.setType(new TextTemplate(parser.text()));
-                                                break;
+                                            case "url" -> action.setUrl(new TextTemplate(parser.text()));
+                                            case "name" -> action.setName(new TextTemplate(parser.text()));
+                                            case "style" -> action.setStyle(new TextTemplate(parser.text()));
+                                            case "text" -> action.setText(new TextTemplate(parser.text()));
+                                            case "type" -> action.setType(new TextTemplate(parser.text()));
                                         }
                                     }
 

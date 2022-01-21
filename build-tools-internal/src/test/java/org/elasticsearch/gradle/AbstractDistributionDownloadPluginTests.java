@@ -31,19 +31,19 @@ public class AbstractDistributionDownloadPluginTests extends GradleUnitTestCase 
     protected static final VersionPair BWC_MAINTENANCE_VERSION = new VersionPair(Version.fromString("0.90.1"), Version.fromString("1.1.3"));
 
     protected static final BwcVersions BWC_MINOR = new BwcVersions(
-        BWC_MAJOR_VERSION.elasticsearch,
+        BWC_MAJOR_VERSION.elasticsearch(),
         Arrays.asList(BWC_BUGFIX_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION)
     );
     protected static final BwcVersions BWC_STAGED = new BwcVersions(
-        BWC_MAJOR_VERSION.elasticsearch,
+        BWC_MAJOR_VERSION.elasticsearch(),
         Arrays.asList(BWC_MAINTENANCE_VERSION, BWC_STAGED_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION)
     );
     protected static final BwcVersions BWC_BUGFIX = new BwcVersions(
-        BWC_MAJOR_VERSION.elasticsearch,
+        BWC_MAJOR_VERSION.elasticsearch(),
         Arrays.asList(BWC_BUGFIX_VERSION, BWC_MINOR_VERSION, BWC_MAJOR_VERSION)
     );
     protected static final BwcVersions BWC_MAINTENANCE = new BwcVersions(
-        BWC_MINOR_VERSION.elasticsearch,
+        BWC_MINOR_VERSION.elasticsearch(),
         Arrays.asList(BWC_MAINTENANCE_VERSION, BWC_BUGFIX_VERSION, BWC_MINOR_VERSION)
     );
 

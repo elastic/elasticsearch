@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Transpo
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -176,7 +177,7 @@ public class ResolveIndexTests extends ESTestCase {
             builder.put(index, false);
         }
 
-        DataStream ds = new DataStream(
+        DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
             createTimestampField("@timestamp"),
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
@@ -302,7 +303,7 @@ public class ResolveIndexTests extends ESTestCase {
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(
+            DataStream ds = DataStreamTestHelper.newInstance(
                 dataStreamName,
                 createTimestampField(timestampField),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())

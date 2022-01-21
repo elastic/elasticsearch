@@ -226,6 +226,7 @@ public class SysColumnsTestCase extends JdbcIntegrationTestCase {
                 .startObject("raw")
                 .field("type", "integer")
                 .field("index", false)
+                .field("doc_values", false)
                 .endObject()
                 .endObject()
                 .endObject();

@@ -51,18 +51,13 @@ public class ByteArrayIndexInputTests extends ESIndexInputTestCase {
             randomReadAndSlice(indexInput, firstReadLen);
             try {
                 switch (randomIntBetween(0, 2)) {
-                    case 0:
-                        indexInput.seek(Integer.MAX_VALUE + 4L);
-                        break;
-                    case 1:
-                        indexInput.seek(-randomIntBetween(1, 10));
-                        break;
-                    case 2:
+                    case 0 -> indexInput.seek(Integer.MAX_VALUE + 4L);
+                    case 1 -> indexInput.seek(-randomIntBetween(1, 10));
+                    case 2 -> {
                         int seek = input.length + randomIntBetween(1, 100);
                         indexInput.seek(seek);
-                        break;
-                    default:
-                        fail();
+                    }
+                    default -> fail();
                 }
                 fail();
             } catch (IOException ex) {

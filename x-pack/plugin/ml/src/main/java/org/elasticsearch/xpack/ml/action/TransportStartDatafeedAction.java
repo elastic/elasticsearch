@@ -539,16 +539,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 return;
             }
             switch (datafeedTask.setDatafeedRunner(datafeedRunner)) {
-                case NEITHER:
-                    datafeedRunner.run(datafeedTask, datafeedTask::completeOrFailIfRequired);
-                    break;
-                case ISOLATED:
-                    logger.info("[{}] datafeed isolated immediately after reassignment.", params.getDatafeedId());
-                    break;
-                case STOPPED:
+                case NEITHER -> datafeedRunner.run(datafeedTask, datafeedTask::completeOrFailIfRequired);
+                case ISOLATED -> logger.info("[{}] datafeed isolated immediately after reassignment.", params.getDatafeedId());
+                case STOPPED -> {
                     logger.info("[{}] datafeed stopped immediately after reassignment. Marking as completed", params.getDatafeedId());
                     datafeedTask.completeOrFailIfRequired(null);
-                    break;
+                }
             }
         }
 
@@ -694,10 +690,14 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     // reasonable to say real-time running hasn't started yet. The state will quickly
                     // change once the datafeed runner gets going and determines where the datafeed is up
                     // to.
-                    return new GetDatafeedRunningStateAction.Response.RunningState(endTime == null, false);
+                    return new GetDatafeedRunningStateAction.Response.RunningState(endTime == null, false, null);
                 }
             }
-            return new GetDatafeedRunningStateAction.Response.RunningState(endTime == null, datafeedRunner.finishedLookBack(this));
+            return new GetDatafeedRunningStateAction.Response.RunningState(
+                endTime == null,
+                datafeedRunner.finishedLookBack(this),
+                datafeedRunner.getSearchInterval(this)
+            );
         }
     }
 

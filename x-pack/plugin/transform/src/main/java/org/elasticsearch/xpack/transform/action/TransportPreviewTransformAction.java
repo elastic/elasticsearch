@@ -203,12 +203,23 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
 
         ActionListener<SimulatePipelineResponse> pipelineResponseActionListener = ActionListener.wrap(simulatePipelineResponse -> {
             List<Map<String, Object>> docs = new ArrayList<>(simulatePipelineResponse.getResults().size());
+            List<Map<String, Object>> errors = new ArrayList<>();
             for (var simulateDocumentResult : simulatePipelineResponse.getResults()) {
                 try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
                     XContentBuilder content = simulateDocumentResult.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
                     Map<String, Object> tempMap = XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON).v2();
-                    docs.add((Map<String, Object>) XContentMapValues.extractValue("doc._source", tempMap));
+                    Map<String, Object> doc = (Map<String, Object>) XContentMapValues.extractValue("doc._source", tempMap);
+                    if (doc != null) {
+                        docs.add(doc);
+                    }
+                    Map<String, Object> error = (Map<String, Object>) XContentMapValues.extractValue("error", tempMap);
+                    if (error != null) {
+                        errors.add(error);
+                    }
                 }
+            }
+            if (errors.isEmpty() == false) {
+                HeaderWarning.addWarning("Pipeline returned " + errors.size() + " errors, first error: " + errors.get(0));
             }
             TransformDestIndexSettings generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
                 mappings.get(),

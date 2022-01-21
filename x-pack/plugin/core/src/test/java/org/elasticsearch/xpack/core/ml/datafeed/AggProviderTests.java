@@ -184,16 +184,11 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
         Exception parsingException = instance.getParsingException();
         AggregatorFactories.Builder parsedAggs = instance.getParsedAggs();
         switch (between(0, 1)) {
-            case 0:
-                parsingException = parsingException == null ? new IOException("failed parsing") : null;
-                break;
-            case 1:
-                parsedAggs = parsedAggs == null
-                    ? XContentObjectTransformer.aggregatorTransformer(xContentRegistry()).fromMap(instance.getAggs())
-                    : null;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> parsingException = parsingException == null ? new IOException("failed parsing") : null;
+            case 1 -> parsedAggs = parsedAggs == null
+                ? XContentObjectTransformer.aggregatorTransformer(xContentRegistry()).fromMap(instance.getAggs())
+                : null;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new AggProvider(instance.getAggs(), parsedAggs, parsingException, false);
     }

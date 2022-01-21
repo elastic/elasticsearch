@@ -104,7 +104,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                         .map(
                             stats -> new Response.TrainedModelStats(
                                 stats.getModelId(),
-                                null,
+                                stats.getModelSizeStats(),
                                 stats.getIngestStats(),
                                 stats.getPipelineCount(),
                                 stats.getInferenceStats(),

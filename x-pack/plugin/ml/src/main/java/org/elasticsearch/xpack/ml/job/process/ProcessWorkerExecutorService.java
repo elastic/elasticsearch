@@ -104,7 +104,11 @@ public class ProcessWorkerExecutorService extends AbstractExecutorService {
 
         boolean added = queue.offer(contextHolder.preserveContext(command));
         if (added == false) {
-            throw new ElasticsearchStatusException("Unable to execute on [{}] as queue is full", RestStatus.TOO_MANY_REQUESTS, processName);
+            throw new ElasticsearchStatusException(
+                processName + " queue is full. Unable to execute command",
+                RestStatus.TOO_MANY_REQUESTS,
+                processName
+            );
         }
     }
 

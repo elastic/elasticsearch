@@ -87,8 +87,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
         Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mergedResponses = new HashMap<>();
         for (int i = 0; i < indexResponses.length(); i++) {
             Object element = indexResponses.get(i);
-            if (element instanceof GetFieldMappingsResponse) {
-                GetFieldMappingsResponse response = (GetFieldMappingsResponse) element;
+            if (element instanceof GetFieldMappingsResponse response) {
                 mergedResponses.putAll(response.mappings());
             }
         }

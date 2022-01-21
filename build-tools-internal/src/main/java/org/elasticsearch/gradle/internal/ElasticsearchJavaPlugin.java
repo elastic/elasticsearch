@@ -39,7 +39,6 @@ import static org.elasticsearch.gradle.internal.conventions.util.Util.toStringab
  * common configuration for production code.
  */
 public class ElasticsearchJavaPlugin implements Plugin<Project> {
-
     @Override
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);

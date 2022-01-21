@@ -17,8 +17,6 @@ import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.ResolutionStrategy;
-import org.gradle.api.logging.Logger;
-import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
@@ -36,8 +34,6 @@ import java.util.List;
  * common configuration for production code.
  */
 public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
-
-    private static final Logger logger = Logging.getLogger(ElasticsearchJavaBasePlugin.class);
 
     @Override
     public void apply(Project project) {
@@ -119,8 +115,6 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
             CompileOptions compileOptions = compileTask.getOptions();
-            List<String> compilerArgs = compileOptions.getCompilerArgs();
-
             /*
              * -path because gradle will send in paths that don't always exist.
              * -missing because we have tons of missing @returns and @param.
@@ -129,6 +123,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
             // fail on all javac warnings.
             // TODO Discuss moving compileOptions.getCompilerArgs() to use provider api with Gradle team.
+            List<String> compilerArgs = compileOptions.getCompilerArgs();
             compilerArgs.add("-Werror");
             compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try,-removal");
             compilerArgs.add("-Xlint:-exports"); // TODO: server has a lot of exports warnings, first reduce exports then fix remains

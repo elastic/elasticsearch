@@ -74,7 +74,6 @@ public class InternalDistributionModuleCheckTaskProvider {
     private static void assertAllESJarsAreModular(Path libsPath) {
         try {
             Files.walk(libsPath, 1).filter(Files::isRegularFile).filter(isESJar).filter(isNotExcluded).sorted().forEach(path -> {
-                System.out.println("CHECKING assertAllESJarsAreModular " + path);
                 try (JarFile jf = new JarFile(path.toFile())) {
                     JarEntry entry = jf.getJarEntry(MODULE_INFO);
                     if (entry == null) {

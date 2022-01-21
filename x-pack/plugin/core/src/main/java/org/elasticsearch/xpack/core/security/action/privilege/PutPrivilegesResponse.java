@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
 /**
  * Response when adding one or more application privileges to the security index.
@@ -45,7 +44,7 @@ public final class PutPrivilegesResponse extends ActionResponse implements ToXCo
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject().field("created", new TreeMap<>(created)).endObject();
+        builder.startObject().field("created", created).endObject();
         return builder;
     }
 

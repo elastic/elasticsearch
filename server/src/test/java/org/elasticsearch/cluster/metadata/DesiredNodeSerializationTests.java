@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -18,6 +19,8 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 
 public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<DesiredNode> {
     @Override
@@ -45,8 +48,7 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
 
     public static DesiredNode randomDesiredNode(Version version, Consumer<Settings.Builder> settingsProvider) {
         return new DesiredNode(
-            randomSetting(settingsProvider),
-            randomAlphaOfLength(20),
+            randomSettings(settingsProvider),
             randomIntBetween(1, 256),
             ByteSizeValue.ofGb(randomIntBetween(1, 1024)),
             ByteSizeValue.ofTb(randomIntBetween(1, 40)),
@@ -54,9 +56,10 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
         );
     }
 
-    private static Settings randomSetting(Consumer<Settings.Builder> settingsProvider) {
+    private static Settings randomSettings(Consumer<Settings.Builder> settingsProvider) {
         int numSettings = randomIntBetween(0, 20);
         Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(NODE_EXTERNAL_ID_SETTING.getKey(), UUIDs.randomBase64UUID());
 
         for (int i = 0; i < numSettings; i++) {
             settingsProvider.accept(settingsBuilder);

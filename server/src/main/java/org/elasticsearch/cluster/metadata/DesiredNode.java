@@ -23,39 +23,24 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public record DesiredNode(
-    Settings settings,
-    String externalID,
-    int processors,
-    ByteSizeValue memory,
-    ByteSizeValue storage,
-    Version version
-) implements Writeable, ToXContentObject {
+import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
+
+public record DesiredNode(Settings settings, int processors, ByteSizeValue memory, ByteSizeValue storage, Version version)
+    implements
+        Writeable,
+        ToXContentObject {
 
     private static final ParseField SETTINGS_FIELD = new ParseField("settings");
-    private static final ParseField EXTERNAL_ID_FIELD = new ParseField("external_id");
     private static final ParseField PROCESSORS_FIELD = new ParseField("processors");
     private static final ParseField MEMORY_FIELD = new ParseField("memory");
     private static final ParseField STORAGE_FIELD = new ParseField("storage");
     private static final ParseField VERSION_FIELD = new ParseField("version");
-
-    public DesiredNode(StreamInput in) throws IOException {
-        this(
-            Settings.readSettingsFromStream(in),
-            in.readString(),
-            in.readInt(),
-            new ByteSizeValue(in),
-            new ByteSizeValue(in),
-            Version.readVersion(in)
-        );
-    }
 
     public static final ConstructingObjectParser<DesiredNode, String> PARSER = new ConstructingObjectParser<>(
         "desired_node",
         false,
         (args, name) -> new DesiredNode(
             (Settings) args[0],
-            (String) args[1],
             (int) args[2],
             (ByteSizeValue) args[3],
             (ByteSizeValue) args[4],
@@ -65,7 +50,6 @@ public record DesiredNode(
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), EXTERNAL_ID_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), PROCESSORS_FIELD);
         PARSER.declareField(
             ConstructingObjectParser.constructorArg(),
@@ -87,6 +71,19 @@ public record DesiredNode(
         );
     }
 
+    public DesiredNode(StreamInput in) throws IOException {
+        this(Settings.readSettingsFromStream(in), in.readInt(), new ByteSizeValue(in), new ByteSizeValue(in), Version.readVersion(in));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        Settings.writeSettingsToStream(settings, out);
+        out.writeInt(processors);
+        memory.writeTo(out);
+        storage.writeTo(out);
+        Version.writeVersion(version, out);
+    }
+
     public static DesiredNode fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
@@ -97,7 +94,6 @@ public record DesiredNode(
         builder.startObject(SETTINGS_FIELD.getPreferredName());
         settings.toXContent(builder, params);
         builder.endObject();
-        builder.field(EXTERNAL_ID_FIELD.getPreferredName(), externalID);
         builder.field(PROCESSORS_FIELD.getPreferredName(), processors);
         builder.field(MEMORY_FIELD.getPreferredName(), memory);
         builder.field(STORAGE_FIELD.getPreferredName(), storage);
@@ -106,13 +102,7 @@ public record DesiredNode(
         return builder;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        Settings.writeSettingsToStream(settings, out);
-        out.writeString(externalID);
-        out.writeInt(processors);
-        memory.writeTo(out);
-        storage.writeTo(out);
-        Version.writeVersion(version, out);
+    public String externalID() {
+        return NODE_EXTERNAL_ID_SETTING.get(settings);
     }
 }

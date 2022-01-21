@@ -8,8 +8,9 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -23,21 +24,14 @@ import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequestSerializationTests.randomUpdateDesiredNodesRequest;
-import static org.elasticsearch.cluster.metadata.DesiredNodeSerializationTests.randomDesiredNode;
 import static org.elasticsearch.cluster.metadata.DesiredNodesMetadataSerializationTests.randomDesiredNodesMetadata;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,13 +39,16 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
 
     public static final DesiredNodesSettingsValidator NO_OP_SETTINGS_VALIDATOR = new DesiredNodesSettingsValidator(null, null, null) {
         @Override
-        public void validateSettings(DesiredNode node) {}
+        public void validate(DesiredNodes desiredNodes) {}
     };
 
     public void testWriteBlocks() {
@@ -94,6 +91,33 @@ public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
         assertThat(e, is(nullValue()));
     }
 
+    public void testSettingsGetValidated() throws Exception {
+        DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(null, null, null) {
+            @Override
+            public void validate(DesiredNodes desiredNodes) {
+                throw new IllegalArgumentException("Invalid settings");
+            }
+        };
+        ClusterService clusterService = mock(ClusterService.class);
+        final TransportUpdateDesiredNodesAction action = new TransportUpdateDesiredNodesAction(
+            mock(TransportService.class),
+            clusterService,
+            mock(ThreadPool.class),
+            mock(ActionFilters.class),
+            mock(IndexNameExpressionResolver.class),
+            validator
+        );
+
+        final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(10))).build();
+
+        final PlainActionFuture<AcknowledgedResponse> future = PlainActionFuture.newFuture();
+        action.masterOperation(mock(Task.class), randomUpdateDesiredNodesRequest(), state, future);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, future::actionGet);
+        assertThat(exception.getMessage(), containsString("Invalid settings"));
+
+        verify(clusterService, never()).submitStateUpdateTask(any(), any(), any());
+    }
+
     public void testUpdateDesiredNodes() {
         final Metadata.Builder metadataBuilder = Metadata.builder();
         boolean containsDesiredNodes = false;
@@ -118,11 +142,7 @@ public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
             request = new UpdateDesiredNodesRequest(desiredNodes.historyID(), desiredNodes.version() + 1, updatedNodes);
         }
 
-        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(
-            currentClusterState,
-            NO_OP_SETTINGS_VALIDATOR,
-            request
-        );
+        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request);
 
         final DesiredNodesMetadata desiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
         assertThat(desiredNodesMetadata, is(notNullValue()));
@@ -147,11 +167,7 @@ public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
             currentDesiredNodes.nodes()
         );
 
-        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(
-            currentClusterState,
-            NO_OP_SETTINGS_VALIDATOR,
-            request
-        );
+        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request);
 
         final DesiredNodesMetadata updatedDesiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
         assertThat(updatedDesiredNodesMetadata, is(notNullValue()));
@@ -174,9 +190,9 @@ public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, NO_OP_SETTINGS_VALIDATOR, request)
+            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request)
         );
-        assertThat(exception.getMessage(), containsString("todo"));
+        assertThat(exception.getMessage(), containsString("already exists with a different definition"));
     }
 
     public void testBackwardUpdatesFails() {
@@ -194,87 +210,8 @@ public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, NO_OP_SETTINGS_VALIDATOR, request)
+            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request)
         );
-        assertThat(exception.getMessage(), containsString("todo"));
-    }
-
-    public void testUnknownSettingsInKnownVersionsFails() {
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet(), Collections.emptySet());
-        final DesiredNodesSettingsValidator desiredNodesSettingsValidator = new DesiredNodesSettingsValidator(
-            clusterSettings,
-            Collections.emptyMap(),
-            Collections.emptyMap()
-        );
-
-        final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10))).build();
-        final UpdateDesiredNodesRequest request = randomUpdateDesiredNodesRequest();
-
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, desiredNodesSettingsValidator, request)
-        );
-        assertThat(exception.getMessage(), containsString("has unknown settings"));
-    }
-
-    public void testUnknownSettingsInUnknownVersions() {
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet(), Collections.emptySet());
-        final DesiredNodesSettingsValidator desiredNodesSettingsValidator = new DesiredNodesSettingsValidator(
-            clusterSettings,
-            Collections.emptyMap(),
-            Collections.emptyMap()
-        );
-
-        final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10))).build();
-        final UpdateDesiredNodesRequest request = randomUpdateDesiredNodesRequest(Version.fromString("99.9.0"));
-
-        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(
-            currentClusterState,
-            desiredNodesSettingsValidator,
-            request
-        );
-
-        final DesiredNodesMetadata desiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
-        assertThat(desiredNodesMetadata, is(notNullValue()));
-
-        final DesiredNodes desiredNodes = desiredNodesMetadata.getCurrentDesiredNodes();
-        assertThat(desiredNodes, is(notNullValue()));
-        assertThat(desiredNodes.historyID(), is(equalTo(request.getHistoryID())));
-        assertThat(desiredNodes.version(), is(equalTo(request.getVersion())));
-        assertThat(desiredNodes.nodes(), is(equalTo(request.getNodes())));
-    }
-
-    public void testSettingsValidation() {
-        final Set<Setting<?>> availableSettings = Set.of(
-            Setting.intSetting("test.a", 1, Setting.Property.NodeScope),
-            Setting.floatSetting("test.b", 1, Setting.Property.NodeScope)
-        );
-        final Consumer<Settings.Builder> settingsProvider = settings -> {
-            if (randomBoolean()) {
-                settings.put("test.a", randomAlphaOfLength(10));
-            } else {
-                settings.put("test.b", randomAlphaOfLength(10));
-            }
-        };
-
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings, Collections.emptySet());
-        final DesiredNodesSettingsValidator desiredNodesSettingsValidator = new DesiredNodesSettingsValidator(
-            clusterSettings,
-            Collections.emptyMap(),
-            Collections.emptyMap()
-        );
-
-        final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10))).build();
-        final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
-            UUIDs.randomBase64UUID(),
-            randomIntBetween(1, 20),
-            randomList(1, 20, () -> randomDesiredNode(Version.CURRENT, settingsProvider))
-        );
-
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, desiredNodesSettingsValidator, request)
-        );
-        assertThat(exception.getMessage(), containsString("Failed to parse value"));
+        assertThat(exception.getMessage(), containsString("has been superseded by version"));
     }
 }

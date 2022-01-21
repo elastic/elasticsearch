@@ -1,0 +1,120 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.cluster.desirednodes;
+
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
+
+import java.util.Collections;
+import java.util.Set;
+import java.util.function.Consumer;
+
+import static org.elasticsearch.cluster.metadata.DesiredNodeSerializationTests.randomDesiredNode;
+import static org.elasticsearch.cluster.metadata.DesiredNodesSerializationTests.randomDesiredNodes;
+import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
+import static org.hamcrest.Matchers.containsString;
+
+public class DesiredNodesSettingsValidatorTests extends ESTestCase {
+
+    public void testSettingsValidation() {
+        final Set<Setting<?>> availableSettings = Set.of(
+            Setting.intSetting("test.invalid_value", 1, Setting.Property.NodeScope),
+            Setting.intSetting("test.invalid_range", 1, 1, 100, Setting.Property.NodeScope),
+            NODE_EXTERNAL_ID_SETTING
+        );
+        final Consumer<Settings.Builder> settingsProvider = settings -> {
+            if (randomBoolean()) {
+                settings.put("test.invalid_value", randomAlphaOfLength(10));
+            } else {
+                settings.put("test.invalid_range", randomFrom(-1, Integer.MAX_VALUE));
+            }
+        };
+
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings, Collections.emptySet());
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(
+            clusterSettings,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
+
+        final DesiredNodes desiredNodes = new DesiredNodes(
+            UUIDs.randomBase64UUID(),
+            randomIntBetween(1, 20),
+            randomList(1, 20, () -> randomDesiredNode(Version.CURRENT, settingsProvider))
+        );
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));
+        assertThat(exception.getMessage(), containsString("Failed to parse value"));
+    }
+
+    public void testUnknownSettingsInKnownVersionsAreInvalid() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet(), Collections.emptySet());
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(
+            clusterSettings,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
+        final DesiredNodes desiredNodes = randomDesiredNodes();
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));
+        assertThat(exception.getMessage(), containsString("has unknown settings"));
+    }
+
+    public void testUnknownSettingsInUnknownVersionsAreValid() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet(), Collections.emptySet());
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(
+            clusterSettings,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
+
+        final DesiredNodes desiredNodes = new DesiredNodes(
+            UUIDs.randomBase64UUID(),
+            randomIntBetween(1, 100),
+            randomList(1, 10, () -> randomDesiredNode(Version.fromString("99.9.0")))
+        );
+        validator.validate(desiredNodes);
+    }
+
+    public void testExternalIDIsRequired() {
+        final Set<Setting<?>> availableSettings = Set.of(
+            Setting.intSetting("test.value", 1, Setting.Property.NodeScope),
+            NODE_EXTERNAL_ID_SETTING
+        );
+        final Consumer<Settings.Builder> settingsProvider = settings -> {
+            settings.put("test.value", randomInt());
+            settings.remove(NODE_EXTERNAL_ID_SETTING.getKey());
+        };
+
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings);
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(
+            clusterSettings,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
+
+        final DesiredNodes desiredNodes = new DesiredNodes(
+            UUIDs.randomBase64UUID(),
+            randomIntBetween(1, 20),
+            randomList(1, 20, () -> randomDesiredNode(Version.CURRENT, settingsProvider))
+        );
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));
+        assertThat(exception.getMessage(), containsString("External id missing"));
+    }
+
+    public void testOverrides() {
+        fail("todo");
+    }
+}

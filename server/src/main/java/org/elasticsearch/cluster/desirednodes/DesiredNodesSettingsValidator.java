@@ -8,8 +8,10 @@
 
 package org.elasticsearch.cluster.desirednodes;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DesiredNode;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +42,25 @@ public class DesiredNodesSettingsValidator {
         this.processorOverride = processorOverride;
     }
 
-    public void validateSettings(DesiredNode node) {
+    public void validate(DesiredNodes desiredNodes) {
+        final List<RuntimeException> exceptions = new ArrayList<>();
+        for (DesiredNode node : desiredNodes.nodes()) {
+            try {
+                validate(node);
+            } catch (RuntimeException e) {
+                // TODO: add nodeID
+                exceptions.add(e);
+            }
+        }
+
+        ExceptionsHelper.rethrowAndSuppress(exceptions);
+    }
+
+    private void validate(DesiredNode node) {
+        if (node.externalID() == null || node.externalID().isEmpty()) {
+            throw new IllegalArgumentException("External id missing");
+        }
+
         final Settings nodeSettings = node.settings();
         final Settings.Builder updatedSettingsBuilder = Settings.builder().put(nodeSettings);
         List<String> unknownSettings = null;

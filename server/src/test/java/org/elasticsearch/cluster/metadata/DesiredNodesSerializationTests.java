@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -35,6 +36,6 @@ public class DesiredNodesSerializationTests extends AbstractWireSerializingTestC
 
     public static DesiredNodes randomDesiredNodes() {
         List<DesiredNode> nodes = randomList(0, 10, DesiredNodeSerializationTests::randomDesiredNode);
-        return new DesiredNodes(randomAlphaOfLength(10), randomIntBetween(2, 10), nodes);
+        return new DesiredNodes(UUIDs.randomBase64UUID(), randomIntBetween(2, 10), nodes);
     }
 }

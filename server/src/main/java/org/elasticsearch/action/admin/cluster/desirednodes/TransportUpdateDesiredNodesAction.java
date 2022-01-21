@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.desirednodes;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -21,7 +20,6 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
-import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -32,8 +30,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Locale;
+
+import static java.lang.String.format;
 
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, AcknowledgedResponse> {
     private final Logger logger = LogManager.getLogger(TransportUpdateDesiredNodesAction.class);
@@ -74,39 +73,54 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        clusterService.submitStateUpdateTask("update-desired-nodes", new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return updateDesiredNodes(currentState, settingsValidator, request);
-            }
-        }, ClusterStateTaskExecutor.unbatched());
+        try {
+            DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
+            settingsValidator.validate(proposedDesiredNodes);
+
+            clusterService.submitStateUpdateTask("update-desired-nodes", new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return updateDesiredNodes(currentState, request);
+                }
+            }, ClusterStateTaskExecutor.unbatched());
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
-    static ClusterState updateDesiredNodes(
-        ClusterState currentState,
-        DesiredNodesSettingsValidator settingsValidator,
-        UpdateDesiredNodesRequest request
-    ) {
+    static ClusterState updateDesiredNodes(ClusterState currentState, UpdateDesiredNodesRequest request) {
         DesiredNodesMetadata desiredNodesMetadata = getDesiredNodesMetadata(currentState);
         DesiredNodes currentDesiredNodes = desiredNodesMetadata.getCurrentDesiredNodes();
         DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
 
         if (currentDesiredNodes != null) {
-
             if (currentDesiredNodes.equals(proposedDesiredNodes)) {
                 return currentState;
             }
 
             if (currentDesiredNodes.hasSameVersion(proposedDesiredNodes) && currentDesiredNodes.equals(proposedDesiredNodes) == false) {
-                throw new IllegalArgumentException("not same version");
+                throw new IllegalArgumentException(
+                    format(
+                        Locale.ROOT,
+                        "Desired nodes with history [%s] and version [%d] already exists with a different definition",
+                        currentDesiredNodes.historyID(),
+                        currentDesiredNodes.version()
+                    )
+                );
             }
 
             if (currentDesiredNodes.isSupersededBy(proposedDesiredNodes) == false) {
-                throw new IllegalArgumentException("Unexpected");
+                throw new IllegalArgumentException(
+                    format(
+                        Locale.ROOT,
+                        "version [%d] has been superseded by version [%d] for history [%s]",
+                        proposedDesiredNodes.version(),
+                        currentDesiredNodes.version(),
+                        currentDesiredNodes.historyID()
+                    )
+                );
             }
         }
-
-        validateSettings(proposedDesiredNodes, settingsValidator);
 
         return currentState.copyAndUpdateMetadata(
             metadata -> metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(proposedDesiredNodes))
@@ -114,26 +128,10 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     }
 
     private static DesiredNodesMetadata getDesiredNodesMetadata(ClusterState currentState) {
-        DesiredNodesMetadata currentDesiredNodesMetadata;
         if (currentState.metadata().custom(DesiredNodesMetadata.TYPE) != null) {
-            currentDesiredNodesMetadata = currentState.metadata().custom(DesiredNodesMetadata.TYPE);
+            return currentState.metadata().custom(DesiredNodesMetadata.TYPE);
         } else {
-            currentDesiredNodesMetadata = DesiredNodesMetadata.EMPTY;
+            return DesiredNodesMetadata.EMPTY;
         }
-        return currentDesiredNodesMetadata;
-    }
-
-    private static void validateSettings(DesiredNodes desiredNodes, DesiredNodesSettingsValidator settingsValidator) {
-        final List<RuntimeException> exceptions = new ArrayList<>();
-        for (DesiredNode node : desiredNodes.nodes()) {
-            try {
-                settingsValidator.validateSettings(node);
-            } catch (RuntimeException e) {
-                // TODO: add nodeID
-                exceptions.add(e);
-            }
-        }
-
-        ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 }

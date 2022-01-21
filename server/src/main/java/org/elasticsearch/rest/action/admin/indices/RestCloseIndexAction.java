@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -41,7 +40,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        CloseIndexRequest closeIndexRequest = new CloseIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        CloseIndexRequest closeIndexRequest = CloseIndexRequest.fromRestRequest(request);
         closeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", closeIndexRequest.masterNodeTimeout()));
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));

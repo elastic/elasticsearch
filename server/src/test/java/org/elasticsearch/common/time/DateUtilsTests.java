@@ -9,7 +9,6 @@
 package org.elasticsearch.common.time;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
 

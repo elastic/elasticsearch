@@ -12,10 +12,9 @@ https://www.elastic.co/cloud/.*
 To register an S3 repository, specify the type as `s3` when creating
 the repository. The repository defaults to using
 https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html[ECS
-IAM Role] or
-https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[EC2
-IAM Role] credentials for authentication. The only mandatory setting is the
-bucket name:
+IAM Role] credentials for authentication. You can also use <<iam-kubernetes-service-accounts>> Kubernetes service accounts.
+
+The only mandatory setting is the bucket name:
 
 [source,console]
 ----
@@ -495,3 +494,24 @@ bandwidth of your VPC's NAT instance.
 
 Instances residing in a public subnet in an AWS VPC will connect to S3 via the
 VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.
+
+
+[[iam-kubernetes-service-accounts]]
+[discrete]
+==== Using IAM roles for Kubernetes service accounts for authentication
+If you want to use https://aws.amazon.com/blogs/opensource/introducing-fine-grained-iam-roles-service-accounts/[Kubernetes service accounts]
+for authentication, you need to add a symlink to the `$AWS_WEB_IDENTITY_TOKEN_FILE` environment variable
+(which should be automatically set by a Kubernetes pod) in the S3 repository config directory, so the repository
+can have the read access for the service account (a repository can't read any files outside its config directory).
+For example:
+
+[source,bash]
+----
+mkdir -p "${ES_PATH_CONF}/repository-s3"
+ln -s $AWS_WEB_IDENTITY_TOKEN_FILE "${ES_PATH_CONF}/repository-s3/aws-web-identity-token-file"
+----
+
+IMPORTANT: The symlink must be created on all data and master eligible nodes and be readable
+by the `elasticsearch` user. By default, {es} runs as user `elasticsearch` using uid:gid `1000:0`.
+
+If the symlink exists, it will be used by default by all S3 repositories that don't have explicit `client` credentials.

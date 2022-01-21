@@ -14,6 +14,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -24,7 +25,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -272,7 +272,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         final ResponseCollectorService collector
     ) {
 
-        final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = new HashMap<>(nodeIds.size());
+        final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = Maps.newMapWithExpectedSize(nodeIds.size());
         for (String nodeId : nodeIds) {
             nodeStats.put(nodeId, collector.getNodeStatistics(nodeId));
         }
@@ -283,7 +283,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats,
         final Map<String, Long> nodeSearchCounts
     ) {
-        final Map<String, Double> nodeRanks = new HashMap<>(nodeStats.size());
+        final Map<String, Double> nodeRanks = Maps.newMapWithExpectedSize(nodeStats.size());
         for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
             Optional<ResponseCollectorService.ComputedNodeStats> maybeStats = entry.getValue();
             maybeStats.ifPresent(stats -> {

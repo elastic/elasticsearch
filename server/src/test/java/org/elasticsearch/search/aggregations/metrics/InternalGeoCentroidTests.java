@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
@@ -112,7 +113,7 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
                 break;
             case 3:
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

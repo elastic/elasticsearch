@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
@@ -24,7 +25,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -123,7 +123,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private String rolloverTarget;
     private String newIndexName;
     private boolean dryRun;
-    private final Map<String, Condition<?>> conditions = new HashMap<>(2);
+    private final Map<String, Condition<?>> conditions = Maps.newMapWithExpectedSize(2);
     // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 

@@ -1062,6 +1062,48 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         awaitNoMoreRunningOperations();
     }
 
+    public void testMasterFailoverDuringStaleIndicesCleanup() throws Exception {
+        internalCluster().startMasterOnlyNodes(3);
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        createFullSnapshot(repoName, "empty-snapshot");
+        createIndex("index-test", indexSettingsNoReplicas(randomIntBetween(6, 10)).build());
+        indexRandomDocs("index-test", 10000);
+        final NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
+        internalCluster().setDisruptionScheme(networkDisruption);
+
+        final List<String> fullSnapshotsToDelete = createNSnapshots(repoName, randomIntBetween(1, 5));
+        final String masterName = internalCluster().getMasterName();
+        blockMasterOnAnyDataFile(repoName);
+        final ActionFuture<AcknowledgedResponse> deleteAllSnapshotsWithIndex = startDeleteSnapshots(
+            repoName,
+            fullSnapshotsToDelete,
+            masterName
+        );
+
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshotFromDataNode(repoName, "new-full-snapshot");
+        waitForBlock(masterName, repoName);
+        awaitNDeletionsInProgress(1);
+        awaitNDeletionsInProgress(1);
+        networkDisruption.startDisrupting();
+        ensureStableCluster(3, dataNode);
+        awaitNoMoreRunningOperations(dataNode);
+
+        unblockNode(repoName, masterName);
+
+        networkDisruption.stopDisrupting();
+        ensureStableCluster(4);
+        awaitNoMoreRunningOperations();
+        for (ActionFuture<?> future : List.of(deleteAllSnapshotsWithIndex, snapshotFuture)) {
+            try {
+                future.get();
+            } catch (Exception ignored) {
+                // ignored had a failover in here and will get all kinds of errors on these, just making sure they complete
+            }
+        }
+    }
+
     public void testStatusMultipleSnapshotsMultipleRepos() throws Exception {
         internalCluster().startMasterOnlyNode();
         // We're blocking a some of the snapshot threads when we block the first repo below so we have to make sure we have enough threads
@@ -1968,6 +2010,16 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     private ActionFuture<CreateSnapshotResponse> startFullSnapshotFromNonMasterClient(String repoName, String snapshotName) {
         logger.info("--> creating full snapshot [{}] to repo [{}] from non master client", snapshotName, repoName);
         return internalCluster().nonMasterClient()
+            .admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .execute();
+    }
+
+    private ActionFuture<CreateSnapshotResponse> startFullSnapshotFromDataNode(String repoName, String snapshotName) {
+        logger.info("--> creating full snapshot [{}] to repo [{}] from data node client", snapshotName, repoName);
+        return internalCluster().dataNodeClient()
             .admin()
             .cluster()
             .prepareCreateSnapshot(repoName, snapshotName)

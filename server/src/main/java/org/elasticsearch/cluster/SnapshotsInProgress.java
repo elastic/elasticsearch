@@ -889,6 +889,40 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             );
         }
 
+        public Entry withUpdatedIndexIds(Map<IndexId, IndexId> updates) {
+            assert isClone() == false;
+            Map<String, IndexId> updatedIndices = null;
+            for (IndexId existingIndexId : indices.values()) {
+                final IndexId updatedIndexId = updates.get(existingIndexId);
+                if (updatedIndexId != null) {
+                    if (updatedIndices == null) {
+                        updatedIndices = new HashMap<>(indices);
+                    }
+                    updatedIndices.put(updatedIndexId.getName(), updatedIndexId);
+                }
+            }
+            if (updatedIndices != null) {
+                return new Entry(
+                    snapshot,
+                    includeGlobalState,
+                    partial,
+                    state,
+                    updatedIndices,
+                    dataStreams,
+                    featureStates,
+                    startTime,
+                    repositoryStateId,
+                    shards,
+                    failure,
+                    userMetadata,
+                    version,
+                    source,
+                    ImmutableOpenMap.of()
+                );
+            }
+            return this;
+        }
+
         public Entry withClones(ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> updatedClones) {
             if (updatedClones.equals(shardStatusByRepoShardId)) {
                 return this;

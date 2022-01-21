@@ -45,7 +45,7 @@ module org.elasticsearch.server {
     requires transitive t.digest;
 
     exports org.elasticsearch;
-    exports org.elasticsearch.action;
+    exports org.elasticsearch.action; // #### temp, do not export, what does the IDE do for core plugin that uses type from action
     exports org.elasticsearch.action.admin.cluster.allocation;
     exports org.elasticsearch.action.admin.cluster.configuration;
     exports org.elasticsearch.action.admin.cluster.health;
@@ -342,7 +342,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.usage;
     exports org.elasticsearch.watcher;
 
-    opens org.elasticsearch.client.internal.node; // for a test, replace with command line flag
+    opens org.elasticsearch.client.internal.node; // #### for a test, replace with command line flag
     opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;

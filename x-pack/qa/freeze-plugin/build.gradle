@@ -17,7 +17,7 @@ esplugin {
 }
 
 dependencies {
-  compileOnly project(":server")
+  moduleCompileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
 }
 

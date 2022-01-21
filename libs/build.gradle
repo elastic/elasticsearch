@@ -13,13 +13,6 @@ configure(subprojects - project('elasticsearch-log4j')) {
    */
   apply plugin: 'elasticsearch.build'
 
-  sourceSets {
-    main.java.srcDirs = [
-      'src/main/java',
-      'src/main/module'
-    ]
-  }
-
   plugins.withType(JavaPlugin) {
     // Configure the version attribute.
     tasks.withType(JavaCompile).configureEach {

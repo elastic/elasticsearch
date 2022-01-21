@@ -98,7 +98,7 @@ if (providers.systemProperty('idea.active').forUseAtConfigurationTime().getOrNul
 
       settings {
         delegateActions {
-          delegateBuildRunToGradle = false
+          delegateBuildRunToGradle = true
           testRunner = 'choose_per_test'
         }
         taskTriggers {

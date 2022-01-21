@@ -10,37 +10,26 @@ package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
-import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.JavaVersion;
-import org.gradle.api.Named;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ResolutionStrategy;
-import org.gradle.api.file.FileCollection;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.compile.AbstractCompile;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.GroovyCompile;
 import org.gradle.api.tasks.compile.JavaCompile;
-import org.gradle.process.CommandLineArgumentProvider;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.function.Supplier;
 
 /**
  * A wrapper around Gradle's Java Base plugin that applies our
@@ -56,6 +45,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         // common repositories setup
         project.getPluginManager().apply(JavaBasePlugin.class);
+        project.getPluginManager().apply(ElasticsearchJavaModulePlugin.class);
         project.getPluginManager().apply(RepositoriesSetupPlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getPluginManager().apply(PrecommitTaskPlugin.class);
@@ -128,30 +118,8 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
         java.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion());
 
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
-
-            if (compileTask.getName().equals("compileJava")) { // TODO: do similar(ish) for test
-                Configuration moduleCompilePath = moduleCompilePathConfiguration(project);
-                compileTask.dependsOn(moduleCompilePath);
-                compileTask.getOptions()
-                    .getCompilerArgumentProviders()
-                    .add(new ModulePathArgumentProvider(project, compileTask, () -> Util.getJavaMainSourceSet(project).get()));
-
-                // Remove the mp entries from the classpath
-                FileCollection trimmedCp = Util.getJavaMainSourceSet(project).get().getCompileClasspath().minus(moduleCompilePath);
-                // logger.info("Class path for %s:[%s]".formatted(compileTask.getPath(), trimmedCp.getAsPath()));
-                compileTask.setClasspath(trimmedCp);
-            }
-
             CompileOptions compileOptions = compileTask.getOptions();
             List<String> compilerArgs = compileOptions.getCompilerArgs();
-            String moduleLintSuppressions = "";
-
-            boolean hasModuleInfo = hasModuleInfo(project);
-            if (hasModuleInfo == true) {
-                moduleLintSuppressions += ",-exports"; // TODO: server has a lot of exports warnings, first reduce exports then fix remains
-                // moduleLintSuppressions += ",-module"; // TODO: qualified exports, should fix with module-source-path
-                moduleLintSuppressions += ",-missing-explicit-ctor"; // TODO: this should be fixed by adding explicit ctors
-            }
 
             /*
              * -path because gradle will send in paths that don't always exist.
@@ -162,7 +130,9 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             // fail on all javac warnings.
             // TODO Discuss moving compileOptions.getCompilerArgs() to use provider api with Gradle team.
             compilerArgs.add("-Werror");
-            compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try,-removal" + moduleLintSuppressions);
+            compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try,-removal");
+            compilerArgs.add("-Xlint:-exports"); // TODO: server has a lot of exports warnings, first reduce exports then fix remains
+            compilerArgs.add("-Xlint:-missing-explicit-ctor"); // TODO: this should be fixed by adding explicit ctors
             compilerArgs.add("-Xdoclint:all");
             compilerArgs.add("-Xdoclint:-missing");
             compileOptions.setEncoding("UTF-8");
@@ -191,63 +161,5 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             JavaVersion javaVersion = JavaVersion.toVersion(compileTask.getTargetCompatibility());
             return Integer.parseInt(javaVersion.getMajorVersion());
         });
-    }
-
-    static boolean hasModuleInfo(Project project) {  // TODO: this is main source only, not tests
-        Optional<SourceSet> main = Util.getJavaMainSourceSet(project);
-        if (main.isPresent()) {
-            Optional<Path> moduleInfoJava = main.get()
-                .getAllJava()
-                .getSourceDirectories()
-                .getFiles()
-                .stream()
-                .map(sourceDir -> sourceDir.toPath().resolve("module-info.java"))
-                .filter(Files::exists)
-                .findAny();
-            return moduleInfoJava.isPresent();
-        }
-        return false;
-    }
-
-    static class ModulePathArgumentProvider implements CommandLineArgumentProvider, Named {
-        private final Project project;
-        private final JavaCompile compileTask;
-        private final Supplier<SourceSet> sourceSetSupplier;
-
-        ModulePathArgumentProvider(Project project, JavaCompile compileTask, Supplier<SourceSet> sourceSetSupplier) {
-            this.project = project;
-            this.compileTask = compileTask;
-            this.sourceSetSupplier = sourceSetSupplier;
-        }
-
-        @Override
-        public Iterable<String> asArguments() {
-            Configuration moduleCompilePath = moduleCompilePathConfiguration(project);
-            List<String> extraArgs = new ArrayList<>();
-            if (moduleCompilePath.isEmpty() == false) {
-                if (hasModuleInfo(project) == false) {
-                    extraArgs.add("--add-modules=ALL-MODULE-PATH");
-                }
-                String mp = moduleCompilePath.getAsPath();
-                logger.info("Module path for %s :[%s]".formatted(compileTask.getPath(), mp));
-                extraArgs.add("--module-path=" + mp);
-
-                // Remove the mp entries from the classpath
-                // FileCollection trimmedCp = sourceSetSupplier.get().getCompileClasspath().minus(moduleCompilePath);
-                // logger.info("Class path for %s:[%s]".formatted(compileTask.getPath(), trimmedCp.getAsPath()));
-                // compileTask.setClasspath(trimmedCp);
-            }
-            return List.copyOf(extraArgs);
-        }
-
-        @Internal
-        @Override
-        public String getName() {
-            return "module-compile-path-arg-provider";
-        }
-    }
-
-    private static Configuration moduleCompilePathConfiguration(Project project) {
-        return project.getConfigurations().getByName(ElasticsearchJavaPlugin.MODULE_COMPILE_PATH_CONFIGURATION_NAME);
     }
 }

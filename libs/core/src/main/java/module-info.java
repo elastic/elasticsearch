@@ -10,7 +10,7 @@
 module org.elasticsearch.core {
     requires static /*transitive*/ jsr305; // ####: does this need to be transitive
 
-    exports org.elasticsearch.core;
+    exports org.elasticsearch.core; // to org.elasticsearch.cli, org.elasticsearch.xcontent;
     exports org.elasticsearch.jdk;
 
     // java.lang.IllegalAccessError: class org.elasticsearch.xpack.core.ilm.LifecyclePolicyUtils

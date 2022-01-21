@@ -45,6 +45,6 @@ tasks.named("thirdPartyAudit").configure {
 
 spotless {
   java {
-    targetExclude 'src/main/module/module-info.java'
+    targetExclude 'src/main/java/module-info.java'
   }
 }

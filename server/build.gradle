@@ -23,16 +23,9 @@ publishing {
 
 archivesBaseName = 'elasticsearch'
 
-sourceSets {
-  main.java.srcDirs = [
-    'src/main/java',
-    'src/main/module'
-  ]
-}
-
 spotless {
   java {
-    targetExclude 'src/main/module/module-info.java'
+    targetExclude 'src/main/java/module-info.java'
   }
 }
 

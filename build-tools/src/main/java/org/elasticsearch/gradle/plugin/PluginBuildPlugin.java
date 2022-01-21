@@ -142,7 +142,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
     private static void configureDependencies(final Project project) {
         var dependencies = project.getDependencies();
-        dependencies.add("compileOnly", "org.elasticsearch:elasticsearch:" + VersionProperties.getElasticsearch());
+        dependencies.add("moduleCompileOnly", "org.elasticsearch:elasticsearch:" + VersionProperties.getElasticsearch());
         dependencies.add("testImplementation", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch());
         dependencies.add("testImplementation", "org.apache.logging.log4j:log4j-core:" + VersionProperties.getVersions().get("log4j"));
 

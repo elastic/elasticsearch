@@ -107,6 +107,7 @@ import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.AbortedSnapshotException;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -802,7 +803,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
-        ActionListener<RepositoryData> listener
+        SnapshotDeleteListener listener
     ) {
         if (isReadOnly()) {
             listener.onFailure(new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository"));
@@ -901,9 +902,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Map<String, BlobMetadata> rootBlobs,
         RepositoryData repositoryData,
         Version repoMetaVersion,
-        ActionListener<RepositoryData> listener
+        SnapshotDeleteListener listener
     ) {
-
         if (SnapshotsService.useShardGenerations(repoMetaVersion)) {
             // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
             final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeShardMetaDataAndComputeDeletesStep = new StepListener<>();
@@ -932,11 +932,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }, listener::onFailure);
             // Once we have updated the repository, run the clean-ups
             writeUpdatedRepoDataStep.whenComplete(updatedRepoData -> {
+                listener.onMetaUpdated(updatedRepoData);
                 // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
-                final ActionListener<Void> afterCleanupsListener = new GroupedActionListener<>(
-                    ActionListener.wrap(() -> listener.onResponse(updatedRepoData)),
-                    2
-                );
+                final ActionListener<Void> afterCleanupsListener = new GroupedActionListener<>(ActionListener.wrap(listener::onDone), 2);
                 cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, updatedRepoData, afterCleanupsListener);
                 asyncCleanupUnlinkedShardLevelBlobs(
                     repositoryData,
@@ -950,10 +948,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final RepositoryData updatedRepoData = repositoryData.removeSnapshots(snapshotIds, ShardGenerations.EMPTY);
             writeIndexGen(updatedRepoData, repositoryStateId, repoMetaVersion, Function.identity(), ActionListener.wrap(newRepoData -> {
                 // Run unreferenced blobs cleanup in parallel to shard-level snapshot deletion
-                final ActionListener<Void> afterCleanupsListener = new GroupedActionListener<>(
-                    ActionListener.wrap(() -> listener.onResponse(newRepoData)),
-                    2
-                );
+                final ActionListener<Void> afterCleanupsListener = new GroupedActionListener<>(ActionListener.wrap(() -> {
+                    listener.onMetaUpdated(newRepoData);
+                    listener.onDone();
+                }), 2);
                 cleanupUnlinkedRootAndIndicesBlobs(snapshotIds, foundIndices, rootBlobs, newRepoData, afterCleanupsListener);
                 final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeMetaAndComputeDeletesStep = new StepListener<>();
                 writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, repositoryData, false, writeMetaAndComputeDeletesStep);

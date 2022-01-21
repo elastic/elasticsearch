@@ -29,6 +29,7 @@ import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.Scheduler;
@@ -275,10 +276,10 @@ class S3Repository extends MeteredBlobStoreRepository {
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
-        ActionListener<RepositoryData> listener
+        SnapshotDeleteListener listener
     ) {
         if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
-            listener = delayedListener(listener);
+            assert false : "TODO";
         }
         super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
     }

@@ -63,6 +63,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -2409,7 +2410,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // delete now, we can avoid reaching to the repository and can complete the deletion.
                 // TODO we should complete the deletion and resolve the listeners of SnapshotDeletionsInProgress with no snapshot sooner,
                 // that would save some cluster state updates.
-                removeSnapshotDeletionFromClusterState(deleteEntry, null, repositoryData);
+                removeSnapshotDeletionFromClusterState(
+                    deleteEntry,
+                    null,
+                    repositoryData,
+                    listeners -> completeListenersIgnoringException(listeners, null)
+                );
                 return;
             }
             repositoriesService.repository(deleteEntry.repository())
@@ -2417,10 +2423,41 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     snapshotIds,
                     repositoryData.getGenId(),
                     minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
-                    ActionListener.wrap(updatedRepoData -> {
-                        logger.info("snapshots {} deleted", snapshotIds);
-                        removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
-                    }, ex -> removeSnapshotDeletionFromClusterState(deleteEntry, ex, repositoryData))
+                    new SnapshotDeleteListener() {
+
+                        private final ListenableFuture<Void> doneFuture = new ListenableFuture<>();
+
+                        @Override
+                        public void onDone() {
+                            logger.info("snapshots {} deleted", snapshotIds);
+                            doneFuture.onResponse(null);
+                        }
+
+                        @Override
+                        public void onMetaUpdated(RepositoryData updatedRepoData) {
+                            removeSnapshotDeletionFromClusterState(
+                                deleteEntry,
+                                null,
+                                updatedRepoData,
+                                listeners -> doneFuture.addListener(new ActionListener<>() {
+                                    @Override
+                                    public void onResponse(Void unused) {
+                                        completeListenersIgnoringException(listeners, null);
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        assert false : "impossible";
+                                    }
+                                })
+                            );
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            removeSnapshotDeletionFromClusterState(deleteEntry, e, repositoryData, null);
+                        }
+                    }
                 );
         }
     }
@@ -2437,7 +2474,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void removeSnapshotDeletionFromClusterState(
         final SnapshotDeletionsInProgress.Entry deleteEntry,
         @Nullable final Exception failure,
-        final RepositoryData repositoryData
+        final RepositoryData repositoryData,
+        @Nullable Consumer<List<ActionListener<Void>>> listenersHandler
     ) {
         final ClusterStateUpdateTask clusterStateUpdateTask;
         if (failure == null) {
@@ -2463,7 +2501,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             + " that should should been deleted by ["
                             + deleteEntry
                             + "]";
-                    completeListenersIgnoringException(deleteListeners, null);
+                    listenersHandler.accept(deleteListeners);
                 }
             };
         } else {
@@ -2564,9 +2602,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         @Override
         public final void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            final List<ActionListener<Void>> deleteListeners;
             repositoryOperations.finishDeletion(deleteEntry.uuid());
-            deleteListeners = snapshotDeletionListeners.remove(deleteEntry.uuid());
+            final List<ActionListener<Void>> deleteListeners = snapshotDeletionListeners.remove(deleteEntry.uuid());
             handleListeners(deleteListeners);
             if (newFinalizations.isEmpty()) {
                 if (readyDeletions.isEmpty()) {

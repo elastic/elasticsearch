@@ -40,7 +40,7 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.desirednodes.DesiredNodesService;
+import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -888,6 +888,8 @@ public class Node implements Closeable {
             clusterService.addListener(pluginShutdownService);
 
             final RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
+            final DesiredNodesSettingsValidator desiredNodesSettingsValidator =
+                new DesiredNodesSettingsValidator(clusterService.getClusterSettings());
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -968,6 +970,7 @@ public class Node implements Closeable {
                 b.bind(PluginShutdownService.class).toInstance(pluginShutdownService);
                 b.bind(ExecutorSelector.class).toInstance(executorSelector);
                 b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
+                b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
             });
             injector = modules.createInjector();
 

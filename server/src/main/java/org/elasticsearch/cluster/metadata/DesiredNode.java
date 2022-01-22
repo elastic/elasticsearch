@@ -41,10 +41,10 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
         false,
         (args, name) -> new DesiredNode(
             (Settings) args[0],
-            (int) args[2],
+            (int) args[1],
+            (ByteSizeValue) args[2],
             (ByteSizeValue) args[3],
-            (ByteSizeValue) args[4],
-            (Version) args[5]
+            (Version) args[4]
         )
     );
 

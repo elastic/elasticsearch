@@ -8,8 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -26,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -35,7 +35,6 @@ import java.util.Locale;
 import static java.lang.String.format;
 
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, AcknowledgedResponse> {
-    private final Logger logger = LogManager.getLogger(TransportUpdateDesiredNodesAction.class);
     private final DesiredNodesSettingsValidator settingsValidator;
 
     @Inject
@@ -110,7 +109,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             }
 
             if (currentDesiredNodes.isSupersededBy(proposedDesiredNodes) == false) {
-                throw new IllegalArgumentException(
+                throw new ConflictException(
                     format(
                         Locale.ROOT,
                         "version [%d] has been superseded by version [%d] for history [%s]",
@@ -132,6 +131,17 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             return currentState.metadata().custom(DesiredNodesMetadata.TYPE);
         } else {
             return DesiredNodesMetadata.EMPTY;
+        }
+    }
+
+    public static class ConflictException extends ElasticsearchException {
+        public ConflictException(String msg, Object... args) {
+            super(msg, args);
+        }
+
+        @Override
+        public RestStatus status() {
+            return RestStatus.CONFLICT;
         }
     }
 }

@@ -106,7 +106,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         }
 
         if (nodes.isEmpty()) {
-            validationException = ValidateActions.addValidationError("nodes must not contain at least one node", validationException);
+            validationException = ValidateActions.addValidationError("nodes must contain at least one node", validationException);
         }
 
         return validationException;

@@ -1,0 +1,9 @@
+---
+"Test update desired nodes":
+  - do:
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+            nodes:
+              - { settings: {"node.external_id": "instance-000187"}, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }

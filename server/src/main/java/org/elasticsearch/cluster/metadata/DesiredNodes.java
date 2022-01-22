@@ -18,7 +18,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+
+import static java.lang.String.format;
+import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 
 public record DesiredNodes(String historyID, int version, List<DesiredNode> nodes) implements Writeable, ToXContentObject {
 
@@ -37,6 +43,12 @@ public record DesiredNodes(String historyID, int version, List<DesiredNode> node
         PARSER.declareString(ConstructingObjectParser.constructorArg(), HISTORY_ID_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), VERSION_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> DesiredNode.fromXContent(p), NODES_FIELD);
+    }
+
+    public DesiredNodes {
+        assert historyID != null;
+        assert version >= 0;
+        checkForDuplicatedExternalIDs(nodes);
     }
 
     public DesiredNodes(StreamInput in) throws IOException {
@@ -70,5 +82,28 @@ public record DesiredNodes(String historyID, int version, List<DesiredNode> node
 
     public boolean hasSameVersion(DesiredNodes other) {
         return historyID.equals(other.historyID) && version == other.version;
+    }
+
+    private static void checkForDuplicatedExternalIDs(List<DesiredNode> nodes) {
+        Set<String> nodeIDs = new HashSet<>(nodes.size());
+        Set<String> duplicatedIDs = new HashSet<>();
+        for (DesiredNode node : nodes) {
+            String externalID = node.externalID();
+            if (externalID != null && externalID.isBlank() == false) {
+                if (nodeIDs.add(externalID) == false) {
+                    duplicatedIDs.add(externalID);
+                }
+            }
+        }
+        if (duplicatedIDs.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                format(
+                    Locale.ROOT,
+                    "Some nodes contain the same setting value %s for [%s]",
+                    duplicatedIDs,
+                    NODE_EXTERNAL_ID_SETTING.getKey()
+                )
+            );
+        }
     }
 }

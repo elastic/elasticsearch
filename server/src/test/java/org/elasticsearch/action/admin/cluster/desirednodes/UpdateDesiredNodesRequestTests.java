@@ -27,7 +27,7 @@ public class UpdateDesiredNodesRequestTests extends ESTestCase {
         ActionRequestValidationException exception = updateDesiredNodesRequest.validate();
         assertThat(exception, is(notNullValue()));
         assertThat(exception.getMessage(), containsString("version must be positive"));
-        assertThat(exception.getMessage(), containsString("nodes must not contain at least one node"));
+        assertThat(exception.getMessage(), containsString("nodes must contain at least one node"));
         assertThat(exception.getMessage(), containsString("historyID should not be empty"));
     }
 }

@@ -124,8 +124,8 @@ public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
         if (randomBoolean()) {
             containsDesiredNodes = randomBoolean();
             final DesiredNodesMetadata desiredNodesMetadata = containsDesiredNodes
-                ? DesiredNodesMetadata.EMPTY
-                : randomDesiredNodesMetadata();
+                ? randomDesiredNodesMetadata()
+                : DesiredNodesMetadata.EMPTY;
             metadataBuilder.putCustom(DesiredNodesMetadata.TYPE, desiredNodesMetadata);
         }
 

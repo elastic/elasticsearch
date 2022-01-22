@@ -15,7 +15,7 @@ public class UpdateDesiredNodesAction extends ActionType<AcknowledgedResponse> {
     public static final UpdateDesiredNodesAction INSTANCE = new UpdateDesiredNodesAction();
     public static final String NAME = "cluster:admin/desired_nodes/update";
 
-    public UpdateDesiredNodesAction() {
+    UpdateDesiredNodesAction() {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 }

@@ -17,29 +17,20 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 import static java.lang.String.format;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.createNodeProcessorsSetting;
 
 public class DesiredNodesSettingsValidator {
     private final ClusterSettings clusterSettings;
-    private final Map<String, Function<Long, Setting<?>>> memoryOverride;
-    private final Map<String, Function<Integer, Setting<?>>> processorOverride;
 
-    public DesiredNodesSettingsValidator(
-        ClusterSettings clusterSettings,
-        Map<String, Function<Long, Setting<?>>> memoryOverride,
-        Map<String, Function<Integer, Setting<?>>> processorOverride
-    ) {
+    public DesiredNodesSettingsValidator(ClusterSettings clusterSettings) {
         this.clusterSettings = clusterSettings;
-        this.memoryOverride = memoryOverride;
-        this.processorOverride = processorOverride;
     }
 
     public void validate(DesiredNodes desiredNodes) {
@@ -61,48 +52,48 @@ public class DesiredNodesSettingsValidator {
             throw new IllegalArgumentException("External id missing");
         }
 
-        final Settings nodeSettings = node.settings();
-        final Settings.Builder updatedSettingsBuilder = Settings.builder().put(nodeSettings);
-        List<String> unknownSettings = null;
+        final Settings settings = node.settings();
+
         final Set<Setting<?>> settingSet = new HashSet<>();
-        for (String settingKey : nodeSettings.keySet()) {
-            Setting<?> setting = clusterSettings.get(settingKey);
+        final List<String> unknownSettings = new ArrayList<>();
+        // If we're dealing with a node in a newer version it's possible
+        // that this node doesn't know about these. In that case we do a best
+        // effort and try to validate the settings that are known to this version.
+        final Settings.Builder updatedSettingsBuilder = Settings.builder().put(settings);
+        boolean hasOverriddenSettings = false;
+        for (String settingName : settings.keySet()) {
+            Setting<?> setting = clusterSettings.get(settingName);
             if (setting == null) {
-                if (unknownSettings == null) {
-                    unknownSettings = new ArrayList<>();
-                }
-                updatedSettingsBuilder.remove(settingKey);
-                unknownSettings.add(settingKey);
-                continue;
+                unknownSettings.add(settingName);
+                updatedSettingsBuilder.remove(settingName);
+            } else {
+                // Some settings might be defined using environmental information
+                // such as the number of available processors to define valid setting
+                // value ranges, in that case we should define new settings that take
+                // into account the node properties that we're evaluating.
+                Setting<?> maybeOverrideSetting = maybeOverride(node, setting);
+                hasOverriddenSettings |= (setting != maybeOverrideSetting);
+                settingSet.add(maybeOverrideSetting);
             }
-            settingSet.add(maybeOverride(setting, node));
         }
 
-        if (unknownSettings != null && node.version().onOrBefore(Version.CURRENT)) {
-            assert unknownSettings.isEmpty() == false;
+        if (unknownSettings.isEmpty() == false && node.version().onOrBefore(Version.CURRENT)) {
             throw new IllegalArgumentException(
                 format(Locale.ROOT, "Node [%s] has unknown settings %s", node.externalID(), unknownSettings)
             );
         }
 
-        final Settings updatedSettings = updatedSettingsBuilder.build();
-        final ClusterSettings desiredNodeSettings = new ClusterSettings(updatedSettings, settingSet, Collections.emptySet());
-        desiredNodeSettings.validate(updatedSettings, true);
+        final Settings updatedSettings = unknownSettings.isEmpty() ? settings : updatedSettingsBuilder.build();
+        final ClusterSettings updatedClusterSettings = hasOverriddenSettings
+            ? clusterSettings
+            : new ClusterSettings(updatedSettings, settingSet);
+        updatedClusterSettings.validate(updatedSettings, true);
     }
 
-    private Setting<?> maybeOverride(Setting<?> setting, DesiredNode desiredNode) {
-        Function<Long, Setting<?>> settingFactory = memoryOverride.get(setting.getKey());
-        if (settingFactory != null) {
-            assert processorOverride.containsKey(setting.getKey()) == false;
-            return settingFactory.apply(desiredNode.memory().getBytes());
+    protected Setting<?> maybeOverride(DesiredNode node, Setting<?> setting) {
+        if (NODE_PROCESSORS_SETTING.getKey().equals(setting.getKey())) {
+            return createNodeProcessorsSetting(node.processors());
         }
-
-        Function<Integer, Setting<?>> processorSetting = processorOverride.get(setting.getKey());
-        if (processorSetting != null) {
-            assert memoryOverride.containsKey(setting.getKey()) == false;
-            return processorSetting.apply(desiredNode.processors());
-        }
-
         return setting;
     }
 }

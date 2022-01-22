@@ -37,13 +37,11 @@ public class EsExecutors {
      * default value is {@link Runtime#availableProcessors()} but should be manually controlled if not all processors on the machine are
      * available to Elasticsearch (e.g., because of CPU limits).
      */
-    public static final Setting<Integer> NODE_PROCESSORS_SETTING = Setting.intSetting(
-        "node.processors",
-        Runtime.getRuntime().availableProcessors(),
-        1,
-        Runtime.getRuntime().availableProcessors(),
-        Property.NodeScope
-    );
+    public static final Setting<Integer> NODE_PROCESSORS_SETTING = createNodeProcessorsSetting(Runtime.getRuntime().availableProcessors());
+
+    public static Setting<Integer> createNodeProcessorsSetting(int availableProcessors) {
+        return Setting.intSetting("node.processors", availableProcessors, 1, availableProcessors, Property.NodeScope);
+    }
 
     /**
      * Returns the number of allocated processors. Defaults to {@link Runtime#availableProcessors()} but can be overridden by passing a

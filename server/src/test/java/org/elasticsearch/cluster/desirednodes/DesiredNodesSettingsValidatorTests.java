@@ -9,11 +9,13 @@
 package org.elasticsearch.cluster.desirednodes;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -21,6 +23,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodeSerializationTests.randomDesiredNode;
+import static org.elasticsearch.cluster.metadata.DesiredNodeSerializationTests.randomSettings;
 import static org.elasticsearch.cluster.metadata.DesiredNodesSerializationTests.randomDesiredNodes;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.hamcrest.Matchers.containsString;
@@ -42,11 +45,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
         };
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings, Collections.emptySet());
-        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(
-            clusterSettings,
-            Collections.emptyMap(),
-            Collections.emptyMap()
-        );
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
 
         final DesiredNodes desiredNodes = new DesiredNodes(
             UUIDs.randomBase64UUID(),
@@ -60,11 +59,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
 
     public void testUnknownSettingsInKnownVersionsAreInvalid() {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet(), Collections.emptySet());
-        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(
-            clusterSettings,
-            Collections.emptyMap(),
-            Collections.emptyMap()
-        );
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
         final DesiredNodes desiredNodes = randomDesiredNodes();
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));
@@ -73,11 +68,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
 
     public void testUnknownSettingsInUnknownVersionsAreValid() {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet(), Collections.emptySet());
-        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(
-            clusterSettings,
-            Collections.emptyMap(),
-            Collections.emptyMap()
-        );
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
 
         final DesiredNodes desiredNodes = new DesiredNodes(
             UUIDs.randomBase64UUID(),
@@ -98,11 +89,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
         };
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings);
-        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(
-            clusterSettings,
-            Collections.emptyMap(),
-            Collections.emptyMap()
-        );
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
 
         final DesiredNodes desiredNodes = new DesiredNodes(
             UUIDs.randomBase64UUID(),
@@ -114,7 +101,42 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("External id missing"));
     }
 
-    public void testOverrides() {
-        fail("todo");
+    public void testSettingOverrides() {
+        final int masterNodeNumberOfCPUs = 8;
+        final Set<Setting<?>> availableSettings = Set.of(
+            Setting.intSetting("test.processors", masterNodeNumberOfCPUs, 1, masterNodeNumberOfCPUs, Setting.Property.NodeScope),
+            NODE_EXTERNAL_ID_SETTING
+        );
+        final Consumer<Settings.Builder> settingsProvider = settings -> settings.put("test.processors", 8);
+
+        final int numberOfDesiredNodesCPUs = 128;
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings);
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings) {
+            @Override
+            protected Setting<?> maybeOverride(DesiredNode node, Setting<?> setting) {
+                if (setting.getKey().equals("test.processors")) {
+                    return Setting.intSetting("test.processors", node.processors(), 1, node.processors(), Setting.Property.NodeScope);
+                }
+                return setting;
+            }
+        };
+
+        final DesiredNodes desiredNodes = new DesiredNodes(
+            UUIDs.randomBase64UUID(),
+            randomIntBetween(1, 20),
+            randomList(
+                1,
+                20,
+                () -> new DesiredNode(
+                    randomSettings(settingsProvider),
+                    randomIntBetween(masterNodeNumberOfCPUs + 1, numberOfDesiredNodesCPUs),
+                    ByteSizeValue.ofGb(randomIntBetween(1, 1024)),
+                    ByteSizeValue.ofTb(randomIntBetween(1, 40)),
+                    Version.CURRENT
+                )
+            )
+        );
+
+        validator.validate(desiredNodes);
     }
 }

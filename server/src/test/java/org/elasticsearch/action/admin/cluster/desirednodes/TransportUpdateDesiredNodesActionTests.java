@@ -46,7 +46,7 @@ import static org.mockito.Mockito.verify;
 
 public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
 
-    public static final DesiredNodesSettingsValidator NO_OP_SETTINGS_VALIDATOR = new DesiredNodesSettingsValidator(null, null, null) {
+    public static final DesiredNodesSettingsValidator NO_OP_SETTINGS_VALIDATOR = new DesiredNodesSettingsValidator(null) {
         @Override
         public void validate(DesiredNodes desiredNodes) {}
     };
@@ -92,7 +92,7 @@ public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
     }
 
     public void testSettingsGetValidated() throws Exception {
-        DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(null, null, null) {
+        DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(null) {
             @Override
             public void validate(DesiredNodes desiredNodes) {
                 throw new IllegalArgumentException("Invalid settings");

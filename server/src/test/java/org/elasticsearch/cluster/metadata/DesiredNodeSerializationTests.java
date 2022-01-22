@@ -56,7 +56,7 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
         );
     }
 
-    private static Settings randomSettings(Consumer<Settings.Builder> settingsProvider) {
+    public static Settings randomSettings(Consumer<Settings.Builder> settingsProvider) {
         int numSettings = randomIntBetween(0, 20);
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(NODE_EXTERNAL_ID_SETTING.getKey(), UUIDs.randomBase64UUID());

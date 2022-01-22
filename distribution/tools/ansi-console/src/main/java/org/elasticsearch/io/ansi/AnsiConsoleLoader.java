@@ -10,6 +10,7 @@ package org.elasticsearch.io.ansi;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.bootstrap.ConsoleLoader;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.fusesource.jansi.AnsiConsole;
 import org.fusesource.jansi.AnsiPrintStream;
 import org.fusesource.jansi.AnsiType;
@@ -51,6 +52,7 @@ public class AnsiConsoleLoader implements Supplier<ConsoleLoader.Console> {
      * Uses reflection on the jansi lib in order to expose the {@code Charset} used to encode the console's print stream.
      * The {@code Charset} is not otherwise exposed, and this avoids replicating the charset selection logic.
      */
+    @SuppressForbidden(reason = "Best effort exposing print stream's charset with reflection")
     @Nullable
     static Charset tryExtractPrintCharset(AnsiPrintStream ansiPrintStream) {
         try {

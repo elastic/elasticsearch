@@ -60,22 +60,17 @@ public interface ClusterStateTaskExecutor<T> {
 
     /**
      * Represents the result of a batched execution of cluster state update tasks
+     *
      * @param <T> the type of the cluster state update task
      */
-    class ClusterTasksResult<T> {
-        @Nullable
-        public final ClusterState resultingState;
-        public final Map<T, TaskResult> executionResults;
-
+    record ClusterTasksResult<T> (@Nullable ClusterState resultingState, Map<T, TaskResult> executionResults) {
         /**
          * Construct an execution result instance with a correspondence between the tasks and their execution result
-         * @param resultingState the resulting cluster state
+         *
+         * @param resultingState   the resulting cluster state
          * @param executionResults the correspondence between tasks and their outcome
          */
-        ClusterTasksResult(ClusterState resultingState, Map<T, TaskResult> executionResults) {
-            this.resultingState = resultingState;
-            this.executionResults = executionResults;
-        }
+        public ClusterTasksResult {}
 
         public static <T> Builder<T> builder() {
             return new Builder<>();
@@ -122,9 +117,7 @@ public interface ClusterStateTaskExecutor<T> {
         }
     }
 
-    final class TaskResult {
-        private final Exception failure;
-
+    record TaskResult(Exception failure) {
         private static final TaskResult SUCCESS = new TaskResult(null);
 
         public static TaskResult success() {
@@ -133,10 +126,6 @@ public interface ClusterStateTaskExecutor<T> {
 
         public static TaskResult failure(Exception failure) {
             return new TaskResult(failure);
-        }
-
-        private TaskResult(Exception failure) {
-            this.failure = failure;
         }
 
         public boolean isSuccess() {

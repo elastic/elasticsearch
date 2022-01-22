@@ -8,6 +8,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -16,6 +17,7 @@ import java.lang.reflect.Constructor;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.function.Supplier;
@@ -34,7 +36,7 @@ public class ConsoleLoader {
         return supplier.get();
     }
 
-    public record Console(PrintStream printStream, Supplier<Integer> width) {}
+    public record Console(PrintStream printStream, Supplier<Integer> width, @Nullable Charset charset) {}
 
     @SuppressWarnings("unchecked")
     static Supplier<Console> buildConsoleLoader(ClassLoader classLoader) {

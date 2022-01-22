@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.enrollment.InternalEnrollmentTokenGenerator;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -211,27 +212,34 @@ public class InitialNodeSecurityAutoConfiguration {
         String caCertFingerprint,
         ConsoleLoader.Console console
     ) {
-        final String infoBullet = "\u2139";
-        final String bullet = "\u2022";
-        final String hyphenBullet = "\u2043";
-        final String errorBullet = "\u274C";
-        final String successBullet = "\u2705";
-        final String horizontalLine = "\u2501";
+        // Use eye-catching pictograms to output the configuration information, but only if the
+        // console charset utilizes some known variation of UTF, otherwise we risk that the encoder
+        // cannot handle the special unicode code points and will display funky question marks instead
+        boolean useUnicode = StandardCharsets.UTF_8.equals(console.charset())
+            || StandardCharsets.UTF_16.equals(console.charset())
+            || StandardCharsets.UTF_16LE.equals(console.charset())
+            || StandardCharsets.UTF_16BE.equals(console.charset());
+        final String infoBullet = useUnicode ? "\u2139\uFE0F" : "->";
+        final String bullet = useUnicode ? "\u2022" : "*";
+        final String hyphenBullet = useUnicode ? "\u2043" : "-";
+        final String errorBullet = useUnicode ? "\u274C" : "X";
+        final String successBullet = useUnicode ? "\u2705" : "->";
+        final String horizontalBorderLine = useUnicode ? "\u2501" : "-";
         final String boldOnANSI = "\u001B[1m";
         final String boldOffANSI = "\u001B[22m";
         final String cmdOn = "`";
         final String cmdOff = "`";
-        final int horizontalLineLength = console.width().get();
+        final int horizontalBorderLength = console.width().get();
         StringBuilder builder = new StringBuilder();
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());
-        builder.append(horizontalLine.repeat(horizontalLineLength));
+        builder.append(horizontalBorderLine.repeat(horizontalBorderLength));
         builder.append(System.lineSeparator());
-        builder.append(infoBullet + " Elasticsearch security features have been automatically configured!");
+        builder.append(successBullet + " Elasticsearch security features have been automatically configured!");
         builder.append(System.lineSeparator());
-        builder.append(infoBullet + " Authentication is enabled and cluster connections are encrypted.");
+        builder.append(successBullet + " Authentication is enabled and cluster connections are encrypted.");
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());
         if (elasticPassword == null) {
@@ -245,7 +253,7 @@ public class InitialNodeSecurityAutoConfiguration {
             );
         } else if (false == Strings.isEmpty(elasticPassword)) {
             builder.append(
-                successBullet
+                infoBullet
                     + " Password for the "
                     + boldOnANSI
                     + "elastic"
@@ -257,15 +265,15 @@ public class InitialNodeSecurityAutoConfiguration {
                     + "):"
             );
             builder.append(System.lineSeparator());
-            builder.append("   " + boldOnANSI + elasticPassword + boldOffANSI);
+            builder.append("  " + boldOnANSI + elasticPassword + boldOffANSI);
         }
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());
 
         if (null != caCertFingerprint) {
-            builder.append(successBullet + " HTTP CA certificate SHA-256 fingerprint:");
+            builder.append(infoBullet + " HTTP CA certificate SHA-256 fingerprint:");
             builder.append(System.lineSeparator());
-            builder.append("   " + boldOnANSI + caCertFingerprint + boldOffANSI);
+            builder.append("  " + boldOnANSI + caCertFingerprint + boldOffANSI);
         }
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());
@@ -305,12 +313,12 @@ public class InitialNodeSecurityAutoConfiguration {
             builder.append(System.lineSeparator());
             builder.append("  " + hyphenBullet + " Restart Elasticsearch.");
             builder.append(System.lineSeparator());
-            builder.append(bullet + " On the other node:");
+            builder.append(bullet + " On other nodes:");
             builder.append(System.lineSeparator());
             builder.append(
                 "  "
                     + hyphenBullet
-                    + " Start Elasticsearch on other nodes with "
+                    + " Start Elasticsearch with "
                     + cmdOn
                     + "bin/elasticsearch --enrollment-token <token>"
                     + cmdOff
@@ -347,12 +355,12 @@ public class InitialNodeSecurityAutoConfiguration {
             builder.append(System.lineSeparator());
             builder.append("  " + hyphenBullet + " Restart Elasticsearch.");
             builder.append(System.lineSeparator());
-            builder.append(bullet + " On the other node:");
+            builder.append(bullet + " On other nodes:");
             builder.append(System.lineSeparator());
             builder.append(
                 "  "
                     + hyphenBullet
-                    + " Start Elasticsearch on other nodes with "
+                    + " Start Elasticsearch with "
                     + cmdOn
                     + "bin/elasticsearch --enrollment-token <token>"
                     + cmdOff
@@ -380,7 +388,7 @@ public class InitialNodeSecurityAutoConfiguration {
         }
 
         builder.append(System.lineSeparator());
-        builder.append(horizontalLine.repeat(horizontalLineLength));
+        builder.append(horizontalBorderLine.repeat(horizontalBorderLength));
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());

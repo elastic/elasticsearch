@@ -36,7 +36,7 @@ public class ConsoleLoader {
         return supplier.get();
     }
 
-    public record Console(PrintStream printStream, Supplier<Integer> width, @Nullable Charset charset) {}
+    public record Console(PrintStream printStream, Supplier<Integer> width, Boolean ansiEnabled, @Nullable Charset charset) {}
 
     @SuppressWarnings("unchecked")
     static Supplier<Console> buildConsoleLoader(ClassLoader classLoader) {

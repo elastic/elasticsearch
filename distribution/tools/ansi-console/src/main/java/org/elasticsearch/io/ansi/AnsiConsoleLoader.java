@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.bootstrap.ConsoleLoader;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.fusesource.jansi.Ansi;
 import org.fusesource.jansi.AnsiConsole;
 import org.fusesource.jansi.AnsiPrintStream;
 import org.fusesource.jansi.AnsiType;
@@ -34,7 +35,7 @@ public class AnsiConsoleLoader implements Supplier<ConsoleLoader.Console> {
     public ConsoleLoader.Console get() {
         final AnsiPrintStream out = AnsiConsole.out();
         if (isValidConsole(out)) {
-            return new ConsoleLoader.Console(out, () -> out.getTerminalWidth(), tryExtractPrintCharset(out));
+            return new ConsoleLoader.Console(out, () -> out.getTerminalWidth(), Ansi.isEnabled(), tryExtractPrintCharset(out));
         } else {
             return null;
         }

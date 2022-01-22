@@ -225,8 +225,8 @@ public class InitialNodeSecurityAutoConfiguration {
         final String errorBullet = useUnicode ? "\u274C" : "X";
         final String successBullet = useUnicode ? "\u2705" : "->";
         final String horizontalBorderLine = useUnicode ? "\u2501" : "-";
-        final String boldOnANSI = "\u001B[1m";
-        final String boldOffANSI = "\u001B[22m";
+        final String boldOnANSI = console.ansiEnabled() ? "\u001B[1m" : "";
+        final String boldOffANSI = console.ansiEnabled() ? "\u001B[22m" : "";
         final String cmdOn = "`";
         final String cmdOff = "`";
         final int horizontalBorderLength = console.width().get();

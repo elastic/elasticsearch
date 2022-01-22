@@ -8,8 +8,6 @@
 
 package org.elasticsearch.indices.cluster;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -48,7 +46,6 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
-import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -117,7 +114,6 @@ import static org.mockito.Mockito.when;
 public class ClusterStateChanges {
     private static final Settings SETTINGS = Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build();
 
-    private static final Logger logger = LogManager.getLogger(ClusterStateChanges.class);
     private final AllocationService allocationService;
     private final ClusterService clusterService;
     private final ShardStateAction.ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
@@ -252,7 +248,6 @@ public class ClusterStateChanges {
             clusterService,
             indicesService,
             allocationService,
-            new AliasValidator(),
             shardLimitValidator,
             environment,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,

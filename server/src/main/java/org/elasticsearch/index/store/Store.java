@@ -835,17 +835,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return version == null ? null : org.elasticsearch.Version.fromString(version);
         }
 
-        static class LoadedMetadata {
-            final Map<String, StoreFileMetadata> fileMetadata;
-            final Map<String, String> userData;
-            final long numDocs;
-
-            LoadedMetadata(Map<String, StoreFileMetadata> fileMetadata, Map<String, String> userData, long numDocs) {
-                this.fileMetadata = fileMetadata;
-                this.userData = userData;
-                this.numDocs = numDocs;
-            }
-        }
+        record LoadedMetadata(Map<String, StoreFileMetadata> fileMetadata, Map<String, String> userData, long numDocs) {}
 
         static LoadedMetadata loadMetadata(IndexCommit commit, Directory directory, Logger logger) throws IOException {
             long numDocs;
@@ -1176,38 +1166,20 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * A class representing the diff between a recovery source and recovery target
      *
-     * @see MetadataSnapshot#recoveryDiff(org.elasticsearch.index.store.Store.MetadataSnapshot)
+     * @see MetadataSnapshot#recoveryDiff(MetadataSnapshot)
      */
-    public static final class RecoveryDiff {
-        /**
-         * Files that exist in both snapshots and they can be considered the same ie. they don't need to be recovered
-         */
-        public final List<StoreFileMetadata> identical;
-        /**
-         * Files that exist in both snapshots but their they are not identical
-         */
-        public final List<StoreFileMetadata> different;
-        /**
-         * Files that exist in the source but not in the target
-         */
-        public final List<StoreFileMetadata> missing;
-
-        RecoveryDiff(List<StoreFileMetadata> identical, List<StoreFileMetadata> different, List<StoreFileMetadata> missing) {
-            this.identical = identical;
-            this.different = different;
-            this.missing = missing;
-        }
+    public record RecoveryDiff(
+        List<StoreFileMetadata> identical, // Files that exist in both snapshots, and they can be considered the same ie. they don't need to
+                                           // be recovered
+        List<StoreFileMetadata> different, // Files that exist in both snapshots but their they are not identical
+        List<StoreFileMetadata> missing    // Files that exist in the source but not in the target
+    ) {
 
         /**
          * Returns the sum of the files in this diff.
          */
         public int size() {
             return identical.size() + different.size() + missing.size();
-        }
-
-        @Override
-        public String toString() {
-            return "RecoveryDiff{" + "identical=" + identical + ", different=" + different + ", missing=" + missing + '}';
         }
     }
 
@@ -1640,7 +1612,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
         final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet());
         // all operations of the safe commit must be at most the global checkpoint.
-        if (commitInfo.maxSeqNo <= globalCheckpoint) {
+        if (commitInfo.maxSeqNo() <= globalCheckpoint) {
             return Optional.of(commitInfo);
         } else {
             return Optional.empty();

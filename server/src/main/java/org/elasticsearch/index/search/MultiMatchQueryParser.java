@@ -308,13 +308,9 @@ public class MultiMatchQueryParser extends MatchQueryParser {
         }
     }
 
-    static final class FieldAndBoost {
-        final MappedFieldType fieldType;
-        final float boost;
-
-        FieldAndBoost(MappedFieldType fieldType, float boost) {
-            this.fieldType = Objects.requireNonNull(fieldType);
-            this.boost = boost;
+    record FieldAndBoost(MappedFieldType fieldType, float boost) {
+        FieldAndBoost {
+            Objects.requireNonNull(fieldType);
         }
     }
 }

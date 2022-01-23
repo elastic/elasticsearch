@@ -561,20 +561,20 @@ public class ModelLoadingService implements ClusterStateListener {
 
     private void cacheEvictionListener(RemovalNotification<String, ModelAndConsumer> notification) {
         try {
-            if (notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED) {
+            if (notification.removalReason() == RemovalNotification.RemovalReason.EVICTED) {
                 MessageSupplier msg = () -> new ParameterizedMessage(
                     "model cache entry evicted."
                         + "current cache [{}] current max [{}] model size [{}]. "
                         + "If this is undesired, consider updating setting [{}] or [{}].",
                     ByteSizeValue.ofBytes(localModelCache.weight()).getStringRep(),
                     maxCacheSize.getStringRep(),
-                    ByteSizeValue.ofBytes(notification.getValue().model.ramBytesUsed()).getStringRep(),
+                    ByteSizeValue.ofBytes(notification.value().model.ramBytesUsed()).getStringRep(),
                     INFERENCE_MODEL_CACHE_SIZE.getKey(),
                     INFERENCE_MODEL_CACHE_TTL.getKey()
                 );
-                auditIfNecessary(notification.getKey(), msg);
+                auditIfNecessary(notification.key(), msg);
             }
-            String modelId = modelAliasToId.getOrDefault(notification.getKey(), notification.getKey());
+            String modelId = modelAliasToId.getOrDefault(notification.key(), notification.key());
             logger.trace(
                 () -> new ParameterizedMessage(
                     "Persisting stats for evicted model [{}] (model_aliases {})",
@@ -588,9 +588,9 @@ public class ModelLoadingService implements ClusterStateListener {
             }
 
             // If the model is no longer referenced, flush the stats to persist as soon as possible
-            notification.getValue().model.persistStats(referencedModels.contains(modelId) == false);
+            notification.value().model.persistStats(referencedModels.contains(modelId) == false);
         } finally {
-            notification.getValue().model.release();
+            notification.value().model.release();
         }
     }
 

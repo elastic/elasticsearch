@@ -182,9 +182,9 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             );
             shardGeneration = future.actionGet().getGeneration();
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
-            assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
-            totalFileCount = copy.getTotalFileCount();
-            assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
+            assertEquals(copy.totalFileCount(), copy.incrementalFileCount());
+            totalFileCount = copy.totalFileCount();
+            assertEquals(copy.stage(), IndexShardSnapshotStatus.Stage.DONE);
         }
 
         indexDoc(shard, "_doc", Integer.toString(10));
@@ -214,10 +214,10 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             shardGeneration = future.actionGet().getGeneration();
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             // we processed the segments_N file plus _1.si, _1.fnm, _1.fdx, _1.fdt, _1.fdm
-            assertEquals(6, copy.getIncrementalFileCount());
+            assertEquals(6, copy.incrementalFileCount());
             // in total we have 5 more files than the previous snap since we don't count the segments_N twice
-            assertEquals(totalFileCount + 5, copy.getTotalFileCount());
-            assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
+            assertEquals(totalFileCount + 5, copy.totalFileCount());
+            assertEquals(copy.stage(), IndexShardSnapshotStatus.Stage.DONE);
         }
         deleteDoc(shard, Integer.toString(10));
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
@@ -245,10 +245,10 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             future.actionGet();
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             // we processed the segments_N file plus _1_1.liv
-            assertEquals(2, copy.getIncrementalFileCount());
+            assertEquals(2, copy.incrementalFileCount());
             // in total we have 6 more files than the previous snap since we don't count the segments_N twice
-            assertEquals(totalFileCount + 6, copy.getTotalFileCount());
-            assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
+            assertEquals(totalFileCount + 6, copy.totalFileCount());
+            assertEquals(copy.stage(), IndexShardSnapshotStatus.Stage.DONE);
         }
         closeShards(shard);
     }
@@ -333,8 +333,8 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 finFuture.actionGet();
             });
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
-            assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
-            assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
+            assertEquals(copy.totalFileCount(), copy.incrementalFileCount());
+            assertEquals(copy.stage(), IndexShardSnapshotStatus.Stage.DONE);
         }
         shard.refresh("test");
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
@@ -414,8 +414,8 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             assertEquals(original.exists(), restored.exists());
 
             if (original.exists()) {
-                Document document = original.docIdAndVersion().reader.document(original.docIdAndVersion().docId);
-                Document restoredDocument = restored.docIdAndVersion().reader.document(restored.docIdAndVersion().docId);
+                Document document = original.docIdAndVersion().reader().document(original.docIdAndVersion().docId());
+                Document restoredDocument = restored.docIdAndVersion().reader().document(restored.docIdAndVersion().docId());
                 for (IndexableField field : document) {
                     assertEquals(document.get(field.name()), restoredDocument.get(field.name()));
                 }

@@ -542,11 +542,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         if (details == null) {
             return -1;
         }
-        final long startTime = details.getStartTimeMillis();
+        final long startTime = details.startTimeMillis();
         if (startTime == -1) {
             return -1;
         }
-        final long endTime = details.getEndTimeMillis();
+        final long endTime = details.endTimeMillis();
         if (endTime == -1) {
             return -1;
         }
@@ -555,7 +555,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     private static long getStartTime(SnapshotId snapshotId, RepositoryData repositoryData) {
         final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
-        return details == null ? -1 : details.getStartTimeMillis();
+        return details == null ? -1 : details.startTimeMillis();
     }
 
     private static int indexCount(SnapshotId snapshotId, RepositoryData repositoryData) {
@@ -754,11 +754,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             return new SnapshotPredicates(((snapshotId, repositoryData) -> {
                 final RepositoryData.SnapshotDetails details = repositoryData.getSnapshotDetails(snapshotId);
                 final String policy;
-                if (details == null || (details.getSlmPolicy() == null)) {
+                if (details == null || (details.slmPolicy() == null)) {
                     // no SLM policy recorded
                     return true;
                 } else {
-                    final String policyFound = details.getSlmPolicy();
+                    final String policyFound = details.slmPolicy();
                     // empty string means that snapshot was not created by an SLM policy
                     policy = policyFound.isEmpty() ? null : policyFound;
                 }

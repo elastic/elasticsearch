@@ -1417,16 +1417,7 @@ public abstract class Rounding implements Writeable {
     /**
      * Implementation of {@link Prepared} using pre-calculated "round down" points.
      */
-    private static class ArrayRounding implements Prepared {
-        private final long[] values;
-        private final int max;
-        private final Prepared delegate;
-
-        private ArrayRounding(long[] values, int max, Prepared delegate) {
-            this.values = values;
-            this.max = max;
-            this.delegate = delegate;
-        }
+    private record ArrayRounding(long[] values, int max, Prepared delegate) implements Prepared {
 
         @Override
         public long round(long utcMillis) {

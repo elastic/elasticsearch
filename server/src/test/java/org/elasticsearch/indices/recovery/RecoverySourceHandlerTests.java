@@ -218,9 +218,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         sendFilesFuture.actionGet();
         Store.MetadataSnapshot targetStoreMetadata = targetStore.getMetadata(null);
         Store.RecoveryDiff recoveryDiff = targetStoreMetadata.recoveryDiff(metadata);
-        assertEquals(metas.size(), recoveryDiff.identical.size());
-        assertEquals(0, recoveryDiff.different.size());
-        assertEquals(0, recoveryDiff.missing.size());
+        assertEquals(metas.size(), recoveryDiff.identical().size());
+        assertEquals(0, recoveryDiff.different().size());
+        assertEquals(0, recoveryDiff.missing().size());
         IndexReader reader = DirectoryReader.open(targetStore.directory());
         assertEquals(numDocs, reader.maxDoc());
         IOUtils.close(reader, store, multiFileWriter, targetStore);
@@ -311,7 +311,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         );
         final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
         RecoverySourceHandler.SendSnapshotResult result = future.actionGet();
-        assertThat(result.sentOperations, equalTo(expectedOps));
+        assertThat(result.sentOperations(), equalTo(expectedOps));
         List<Translog.Operation> sortedShippedOps = shippedOps.stream()
             .sorted(Comparator.comparing(Translog.Operation::seqNo))
             .collect(Collectors.toList());
@@ -319,7 +319,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         for (int i = 0; i < shippedOps.size(); i++) {
             assertThat(sortedShippedOps.get(i), equalTo(operations.get(i + (int) startingSeqNo + initialNumberOfDocs)));
         }
-        assertThat(result.targetLocalCheckpoint, equalTo(checkpointOnTarget.get()));
+        assertThat(result.targetLocalCheckpoint(), equalTo(checkpointOnTarget.get()));
     }
 
     public void testSendSnapshotStopOnError() throws Exception {
@@ -453,8 +453,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         );
         RecoverySourceHandler.SendSnapshotResult sendSnapshotResult = sendFuture.actionGet();
         assertTrue(received.get());
-        assertThat(sendSnapshotResult.targetLocalCheckpoint, equalTo(localCheckpoint.get()));
-        assertThat(sendSnapshotResult.sentOperations, equalTo(receivedSeqNos.size()));
+        assertThat(sendSnapshotResult.targetLocalCheckpoint(), equalTo(localCheckpoint.get()));
+        assertThat(sendSnapshotResult.sentOperations(), equalTo(receivedSeqNos.size()));
         Set<Long> sentSeqNos = new HashSet<>();
         for (Translog.Operation op : operations) {
             if (startingSeqNo <= op.seqNo() && op.seqNo() <= endingSeqNo && skipOperations.contains(op) == false) {
@@ -472,9 +472,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(idField);
         document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
+        document.add(seqID.seqNo());
+        document.add(seqID.seqNoDocValue());
+        document.add(seqID.primaryTerm());
         final BytesReference source = new BytesArray(new byte[] { 1 });
         final ParsedDocument doc = new ParsedDocument(
             versionField,
@@ -1135,7 +1135,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             final ShardRecoveryPlan shardRecoveryPlan = createShardRecoveryPlan(store, randomIntBetween(10, 20), randomIntBetween(10, 20));
 
             final ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover();
-            final List<String> fileNamesToBeRecoveredFromSnapshot = snapshotFilesToRecover.getSnapshotFiles()
+            final List<String> fileNamesToBeRecoveredFromSnapshot = snapshotFilesToRecover.snapshotFiles()
                 .stream()
                 .map(fileInfo -> fileInfo.metadata().name())
                 .collect(Collectors.toList());
@@ -1156,8 +1156,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                     BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
                     ActionListener<Void> listener
                 ) {
-                    assertThat(repository, is(equalTo(snapshotFilesToRecover.getRepository())));
-                    assertThat(indexId, is(equalTo(snapshotFilesToRecover.getIndexId())));
+                    assertThat(repository, is(equalTo(snapshotFilesToRecover.repository())));
+                    assertThat(indexId, is(equalTo(snapshotFilesToRecover.indexId())));
                     assertThat(containsSnapshotFile(snapshotFilesToRecover, snapshotFile), is(equalTo(true)));
                     String fileName = snapshotFile.metadata().name();
 
@@ -1478,7 +1478,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             final ShardRecoveryPlan fallbackPlan = shardRecoveryPlan.getFallbackPlan();
             List<StoreFileMetadata> sourceFilesToRecover = fallbackPlan.getSourceFilesToRecover();
             List<StoreFileMetadata> snapshotFilesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover()
-                .getSnapshotFiles()
+                .snapshotFiles()
                 .stream()
                 .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
                 .collect(Collectors.toList());
@@ -1513,7 +1513,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                         assertThat(receiveFileInfoFromSourceCalls.incrementAndGet(), is(equalTo(1)));
                     } else {
                         filesToRecover = shardRecoveryPlan.getSnapshotFilesToRecover()
-                            .getSnapshotFiles()
+                            .snapshotFiles()
                             .stream()
                             .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
                             .collect(Collectors.toList());
@@ -1646,7 +1646,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         ShardRecoveryPlan.SnapshotFilesToRecover snapshotFilesToRecover,
         BlobStoreIndexShardSnapshot.FileInfo snapshotFile
     ) {
-        return snapshotFilesToRecover.getSnapshotFiles().stream().anyMatch(f -> f.metadata().isSame(snapshotFile.metadata()));
+        return snapshotFilesToRecover.snapshotFiles().stream().anyMatch(f -> f.metadata().isSame(snapshotFile.metadata()));
     }
 
     private boolean containsFile(List<StoreFileMetadata> filesMetadata, StoreFileMetadata storeFileMetadata) {
@@ -1672,7 +1672,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
         List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = new ArrayList<>(snapshotFileCount);
         for (StoreFileMetadata storeFileMetadata : filesToRecoverFromSnapshot) {
-            snapshotFiles.add(new BlobStoreIndexShardSnapshot.FileInfo(storeFileMetadata.name(), storeFileMetadata, partSize));
+            snapshotFiles.add(BlobStoreIndexShardSnapshot.FileInfo.of(storeFileMetadata.name(), storeFileMetadata, partSize));
         }
 
         IndexId indexId = new IndexId("index", "id");
@@ -1707,7 +1707,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         );
 
         Map<String, StoreFileMetadata> snapshotFiles = shardRecoveryPlan.getSnapshotFilesToRecover()
-            .getSnapshotFiles()
+            .snapshotFiles()
             .stream()
             .map(BlobStoreIndexShardSnapshot.FileInfo::metadata)
             .collect(Collectors.toMap(StoreFileMetadata::name, Function.identity()));

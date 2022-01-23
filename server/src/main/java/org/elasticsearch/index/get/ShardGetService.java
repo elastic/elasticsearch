@@ -227,7 +227,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         FieldsVisitor fieldVisitor = buildFieldsVisitors(storedFields, fetchSourceContext);
         if (fieldVisitor != null) {
             try {
-                docIdAndVersion.reader.document(docIdAndVersion.docId, fieldVisitor);
+                docIdAndVersion.reader().document(docIdAndVersion.docId(), fieldVisitor);
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get id [" + id + "]", e);
             }
@@ -271,8 +271,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         return new GetResult(
             shardId.getIndexName(),
             id,
-            get.docIdAndVersion().seqNo,
-            get.docIdAndVersion().primaryTerm,
+            get.docIdAndVersion().seqNo(),
+            get.docIdAndVersion().primaryTerm(),
             get.version(),
             get.exists(),
             source,

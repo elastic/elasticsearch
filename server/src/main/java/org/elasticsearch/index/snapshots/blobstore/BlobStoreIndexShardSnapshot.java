@@ -25,7 +25,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.store.StoreFileMetadata.UNAVAILABLE_WRITER_UUID;
@@ -33,37 +32,39 @@ import static org.elasticsearch.index.store.StoreFileMetadata.UNAVAILABLE_WRITER
 /**
  * Shard snapshot metadata
  */
-public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
+public record BlobStoreIndexShardSnapshot(
+    String snapshot,
+    long indexVersion,
+    List<FileInfo> indexFiles,
+    long startTime,
+    long time,
+    int incrementalFileCount,
+    long incrementalSize
+) implements ToXContentFragment {
 
     /**
      * Information about snapshotted file
      */
-    public static class FileInfo implements Writeable {
-        public static final String SERIALIZE_WRITER_UUID = "serialize_writer_uuid";
+    public record FileInfo(String name, @Nullable ByteSizeValue partSize, long partBytes, int numberOfParts, StoreFileMetadata metadata)
+        implements
+            Writeable {
 
-        private final String name;
-        @Nullable
-        private final ByteSizeValue partSize;
-        private final long partBytes;
-        private final int numberOfParts;
-        private final StoreFileMetadata metadata;
+        public static final String SERIALIZE_WRITER_UUID = "serialize_writer_uuid";
 
         /**
          * Constructs a new instance of file info
          *
-         * @param name         file name as stored in the blob store
-         * @param metadata  the files meta data
-         * @param partSize     size of the single chunk
+         * @param name     file name as stored in the blob store
+         * @param metadata the files meta data
+         * @param partSize size of the single chunk
          */
-        public FileInfo(String name, StoreFileMetadata metadata, @Nullable ByteSizeValue partSize) {
-            this.name = Objects.requireNonNull(name);
-            this.metadata = metadata;
-
+        public static FileInfo of(String name, StoreFileMetadata metadata, @Nullable ByteSizeValue partSize) {
             long partBytes = Long.MAX_VALUE;
             if (partSize != null && partSize.getBytes() > 0) {
                 partBytes = partSize.getBytes();
             }
 
+            int numberOfParts;
             if (metadata.length() == 0) {
                 numberOfParts = 1;
             } else {
@@ -73,14 +74,13 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                     throw new IllegalArgumentException("part size [" + partSize + "] too small for file [" + metadata + "]");
                 }
             }
-
-            this.partSize = partSize;
-            this.partBytes = partBytes;
-            assert IntStream.range(0, numberOfParts).mapToLong(this::partBytes).sum() == metadata.length();
+            var fileInfo = new FileInfo(name, partSize, partBytes, numberOfParts, metadata);
+            assert IntStream.range(0, numberOfParts).mapToLong(fileInfo::partBytes).sum() == metadata.length();
+            return fileInfo;
         }
 
-        public FileInfo(StreamInput in) throws IOException {
-            this(in.readString(), new StoreFileMetadata(in), in.readOptionalWriteable(ByteSizeValue::new));
+        public static FileInfo of(StreamInput in) throws IOException {
+            return of(in.readString(), new StoreFileMetadata(in), in.readOptionalWriteable(ByteSizeValue::new));
         }
 
         @Override
@@ -88,15 +88,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             out.writeString(name);
             metadata.writeTo(out);
             out.writeOptionalWriteable(partSize);
-        }
-
-        /**
-         * Returns the base file name
-         *
-         * @return file name
-         */
-        public String name() {
-            return name;
         }
 
         /**
@@ -145,15 +136,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         }
 
         /**
-         * Returns part size
-         *
-         * @return part size
-         */
-        public ByteSizeValue partSize() {
-            return partSize;
-        }
-
-        /**
          * Returns the size (in bytes) of a given part
          *
          * @return the size (in bytes) of a given part
@@ -174,28 +156,12 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         }
 
         /**
-         * Returns number of parts
-         *
-         * @return number of parts
-         */
-        public int numberOfParts() {
-            return numberOfParts;
-        }
-
-        /**
          * Returns file md5 checksum provided by {@link org.elasticsearch.index.store.Store}
          *
          * @return file checksum
          */
         public String checksum() {
             return metadata.checksum();
-        }
-
-        /**
-         * Returns the StoreFileMetadata for this file info.
-         */
-        public StoreFileMetadata metadata() {
-            return metadata;
         }
 
         /**
@@ -345,71 +311,13 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             } else if (checksum == null) {
                 throw new ElasticsearchParseException("missing checksum for name [" + name + "]");
             }
-            return new FileInfo(name, new StoreFileMetadata(physicalName, length, checksum, writtenBy, metaHash, writerUuid), partSize);
-        }
-
-        @Override
-        public String toString() {
-            return "[name: "
-                + name
-                + ", numberOfParts: "
-                + numberOfParts
-                + ", partSize: "
-                + partSize
-                + ", partBytes: "
-                + partBytes
-                + ", metadata: "
-                + metadata
-                + "]";
+            return FileInfo.of(name, new StoreFileMetadata(physicalName, length, checksum, writtenBy, metaHash, writerUuid), partSize);
         }
     }
 
-    /**
-     * Snapshot name
-     */
-    private final String snapshot;
-
-    private final long indexVersion;
-
-    private final long startTime;
-
-    private final long time;
-
-    private final int incrementalFileCount;
-
-    private final long incrementalSize;
-
-    private final List<FileInfo> indexFiles;
-
-    /**
-     * Constructs new shard snapshot metadata from snapshot metadata
-     *
-     * @param snapshot              snapshot name
-     * @param indexVersion          index version
-     * @param indexFiles            list of files in the shard
-     * @param startTime             snapshot start time
-     * @param time                  snapshot running time
-     * @param incrementalFileCount  incremental of files that were snapshotted
-     * @param incrementalSize       incremental size of snapshot
-     */
-    public BlobStoreIndexShardSnapshot(
-        String snapshot,
-        long indexVersion,
-        List<FileInfo> indexFiles,
-        long startTime,
-        long time,
-        int incrementalFileCount,
-        long incrementalSize
-    ) {
+    public BlobStoreIndexShardSnapshot {
         assert snapshot != null;
         assert indexVersion >= 0;
-        this.snapshot = snapshot;
-        this.indexVersion = indexVersion;
-        this.indexFiles = List.copyOf(indexFiles);
-        this.startTime = startTime;
-        this.time = time;
-        this.incrementalFileCount = incrementalFileCount;
-        this.incrementalSize = incrementalSize;
     }
 
     /**
@@ -425,56 +333,10 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     }
 
     /**
-     * Returns snapshot name
-     *
-     * @return snapshot name
-     */
-    public String snapshot() {
-        return snapshot;
-    }
-
-    /**
-     * Returns list of files in the shard
-     *
-     * @return list of files
-     */
-    public List<FileInfo> indexFiles() {
-        return indexFiles;
-    }
-
-    /**
-     * Returns snapshot start time
-     */
-    public long startTime() {
-        return startTime;
-    }
-
-    /**
-     * Returns snapshot running time
-     */
-    public long time() {
-        return time;
-    }
-
-    /**
-     * Returns incremental of files that were snapshotted
-     */
-    public int incrementalFileCount() {
-        return incrementalFileCount;
-    }
-
-    /**
      * Returns total number of files that are referenced by this snapshot
      */
     public int totalFileCount() {
         return indexFiles.size();
-    }
-
-    /**
-     * Returns incremental of files size that were snapshotted
-     */
-    public long incrementalSize() {
-        return incrementalSize;
     }
 
     /**
@@ -509,8 +371,8 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     /**
      * Serializes shard snapshot metadata info into JSON
      *
-     * @param builder  XContent builder
-     * @param params   parameters
+     * @param builder XContent builder
+     * @param params  parameters
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

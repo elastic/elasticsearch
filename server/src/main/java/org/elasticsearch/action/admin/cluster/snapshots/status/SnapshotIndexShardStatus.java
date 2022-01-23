@@ -60,25 +60,25 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
 
     SnapshotIndexShardStatus(ShardId shardId, IndexShardSnapshotStatus.Copy indexShardStatus, String nodeId) {
         super(shardId);
-        stage = switch (indexShardStatus.getStage()) {
+        stage = switch (indexShardStatus.stage()) {
             case INIT -> SnapshotIndexShardStage.INIT;
             case STARTED -> SnapshotIndexShardStage.STARTED;
             case FINALIZE -> SnapshotIndexShardStage.FINALIZE;
             case DONE -> SnapshotIndexShardStage.DONE;
             case FAILURE -> SnapshotIndexShardStage.FAILURE;
-            default -> throw new IllegalArgumentException("Unknown stage type " + indexShardStatus.getStage());
+            default -> throw new IllegalArgumentException("Unknown stage type " + indexShardStatus.stage());
         };
         this.stats = new SnapshotStats(
-            indexShardStatus.getStartTime(),
-            indexShardStatus.getTotalTime(),
-            indexShardStatus.getIncrementalFileCount(),
-            indexShardStatus.getTotalFileCount(),
-            indexShardStatus.getProcessedFileCount(),
-            indexShardStatus.getIncrementalSize(),
-            indexShardStatus.getTotalSize(),
-            indexShardStatus.getProcessedSize()
+            indexShardStatus.startTime(),
+            indexShardStatus.totalTime(),
+            indexShardStatus.incrementalFileCount(),
+            indexShardStatus.totalFileCount(),
+            indexShardStatus.processedFileCount(),
+            indexShardStatus.incrementalSize(),
+            indexShardStatus.totalSize(),
+            indexShardStatus.processedSize()
         );
-        this.failure = indexShardStatus.getFailure();
+        this.failure = indexShardStatus.failure();
         this.nodeId = nodeId;
     }
 

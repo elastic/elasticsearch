@@ -156,11 +156,11 @@ public final class BitsetFilterCache extends AbstractIndexComponent
 
     @Override
     public void onRemoval(RemovalNotification<IndexReader.CacheKey, Cache<Query, Value>> notification) {
-        if (notification.getKey() == null) {
+        if (notification.key() == null) {
             return;
         }
 
-        Cache<Query, Value> valueCache = notification.getValue();
+        Cache<Query, Value> valueCache = notification.value();
         if (valueCache == null) {
             return;
         }
@@ -171,15 +171,8 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         }
     }
 
-    public static final class Value {
+    public record Value(BitSet bitset, ShardId shardId) {
 
-        final BitSet bitset;
-        final ShardId shardId;
-
-        public Value(BitSet bitset, ShardId shardId) {
-            this.bitset = bitset;
-            this.shardId = shardId;
-        }
     }
 
     final class QueryWrapperBitSetProducer implements BitSetProducer {

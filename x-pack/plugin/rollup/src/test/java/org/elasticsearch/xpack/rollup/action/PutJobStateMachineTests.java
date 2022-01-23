@@ -422,7 +422,7 @@ public class PutJobStateMachineTests extends ESTestCase {
                 RollupField.TASK_NAME,
                 job,
                 123,
-                mock(PersistentTasksCustomMetadata.Assignment.class)
+                new PersistentTasksCustomMetadata.Assignment("node", "")
             );
             requestCaptor.getValue().onResponse(response);
             return null;

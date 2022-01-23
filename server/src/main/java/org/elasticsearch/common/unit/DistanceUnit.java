@@ -202,15 +202,7 @@ public enum DistanceUnit implements Writeable {
     /**
      * This class implements a value+unit tuple.
      */
-    public static class Distance implements Comparable<Distance> {
-        public final double value;
-        public final DistanceUnit unit;
-
-        public Distance(double value, DistanceUnit unit) {
-            super();
-            this.value = value;
-            this.unit = unit;
-        }
+    public record Distance(double value, DistanceUnit unit) implements Comparable<Distance> {
 
         /**
          * Converts a {@link Distance} value given in a specific {@link DistanceUnit} into
@@ -225,22 +217,6 @@ public enum DistanceUnit implements Writeable {
             } else {
                 return new Distance(DistanceUnit.convert(value, this.unit, unit), unit);
             }
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            } else if (obj instanceof Distance other) {
-                return DistanceUnit.convert(value, unit, other.unit) == other.value;
-            } else {
-                return false;
-            }
-        }
-
-        @Override
-        public int hashCode() {
-            return Double.valueOf(value * unit.meters).hashCode();
         }
 
         @Override
@@ -267,9 +243,9 @@ public enum DistanceUnit implements Writeable {
         /**
          * Parse a {@link Distance} from a given String
          *
-         * @param distance String defining a {@link Distance}
+         * @param distance    String defining a {@link Distance}
          * @param defaultUnit {@link DistanceUnit} to be assumed
-         *          if not unit is provided in the first argument
+         *                    if not unit is provided in the first argument
          * @return parsed {@link Distance}
          */
         private static Distance parseDistance(String distance, DistanceUnit defaultUnit) {

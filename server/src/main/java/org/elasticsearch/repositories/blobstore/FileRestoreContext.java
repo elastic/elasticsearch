@@ -112,7 +112,7 @@ public abstract class FileRestoreContext {
                 }
 
                 final Store.RecoveryDiff diff = sourceMetadata.recoveryDiff(recoveryTargetMetadata);
-                for (StoreFileMetadata md : diff.identical) {
+                for (StoreFileMetadata md : diff.identical()) {
                     BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
                     recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), true);
                     if (logger.isTraceEnabled()) {
@@ -216,6 +216,6 @@ public abstract class FileRestoreContext {
 
     @SuppressWarnings("unchecked")
     private static Iterable<StoreFileMetadata> concat(Store.RecoveryDiff diff) {
-        return Iterables.concat(diff.different, diff.missing);
+        return Iterables.concat(diff.different(), diff.missing());
     }
 }

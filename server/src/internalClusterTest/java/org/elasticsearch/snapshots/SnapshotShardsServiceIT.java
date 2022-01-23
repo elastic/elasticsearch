@@ -72,7 +72,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
             List<IndexShardSnapshotStatus.Stage> stages = snapshotShardsService.currentSnapshotShards(snapshot)
                 .values()
                 .stream()
-                .map(status -> status.asCopy().getStage())
+                .map(status -> status.asCopy().stage())
                 .collect(Collectors.toList());
             assertThat(stages, hasSize(shards));
             assertThat(stages, everyItem(equalTo(IndexShardSnapshotStatus.Stage.DONE)));

@@ -28,15 +28,15 @@ public class DistanceUnitTests extends ESTestCase {
     }
 
     public void testDistanceUnitParsing() {
-        assertThat(DistanceUnit.Distance.parseDistance("50km").unit, equalTo(DistanceUnit.KILOMETERS));
-        assertThat(DistanceUnit.Distance.parseDistance("500m").unit, equalTo(DistanceUnit.METERS));
-        assertThat(DistanceUnit.Distance.parseDistance("51mi").unit, equalTo(DistanceUnit.MILES));
-        assertThat(DistanceUnit.Distance.parseDistance("53nmi").unit, equalTo(DistanceUnit.NAUTICALMILES));
-        assertThat(DistanceUnit.Distance.parseDistance("53NM").unit, equalTo(DistanceUnit.NAUTICALMILES));
-        assertThat(DistanceUnit.Distance.parseDistance("52yd").unit, equalTo(DistanceUnit.YARD));
-        assertThat(DistanceUnit.Distance.parseDistance("12in").unit, equalTo(DistanceUnit.INCH));
-        assertThat(DistanceUnit.Distance.parseDistance("23mm").unit, equalTo(DistanceUnit.MILLIMETERS));
-        assertThat(DistanceUnit.Distance.parseDistance("23cm").unit, equalTo(DistanceUnit.CENTIMETERS));
+        assertThat(DistanceUnit.Distance.parseDistance("50km").unit(), equalTo(DistanceUnit.KILOMETERS));
+        assertThat(DistanceUnit.Distance.parseDistance("500m").unit(), equalTo(DistanceUnit.METERS));
+        assertThat(DistanceUnit.Distance.parseDistance("51mi").unit(), equalTo(DistanceUnit.MILES));
+        assertThat(DistanceUnit.Distance.parseDistance("53nmi").unit(), equalTo(DistanceUnit.NAUTICALMILES));
+        assertThat(DistanceUnit.Distance.parseDistance("53NM").unit(), equalTo(DistanceUnit.NAUTICALMILES));
+        assertThat(DistanceUnit.Distance.parseDistance("52yd").unit(), equalTo(DistanceUnit.YARD));
+        assertThat(DistanceUnit.Distance.parseDistance("12in").unit(), equalTo(DistanceUnit.INCH));
+        assertThat(DistanceUnit.Distance.parseDistance("23mm").unit(), equalTo(DistanceUnit.MILLIMETERS));
+        assertThat(DistanceUnit.Distance.parseDistance("23cm").unit(), equalTo(DistanceUnit.CENTIMETERS));
 
         double testValue = 12345.678;
         for (DistanceUnit unit : DistanceUnit.values()) {
@@ -48,7 +48,7 @@ public class DistanceUnitTests extends ESTestCase {
             );
             assertThat(
                 "Value can be parsed from '" + testValue + unit.toString() + "'",
-                DistanceUnit.Distance.parseDistance(unit.toString(testValue)).value,
+                DistanceUnit.Distance.parseDistance(unit.toString(testValue)).value(),
                 equalTo(testValue)
             );
         }

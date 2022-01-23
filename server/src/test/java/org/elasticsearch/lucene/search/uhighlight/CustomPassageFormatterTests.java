@@ -51,11 +51,11 @@ public class CustomPassageFormatterTests extends ESTestCase {
         Snippet[] fragments = passageFormatter.format(passages, content);
         assertThat(fragments, notNullValue());
         assertThat(fragments.length, equalTo(3));
-        assertThat(fragments[0].getText(), equalTo("This is a really cool <em>highlighter</em>."));
+        assertThat(fragments[0].text(), equalTo("This is a really cool <em>highlighter</em>."));
         assertThat(fragments[0].isHighlighted(), equalTo(true));
-        assertThat(fragments[1].getText(), equalTo("Unified <em>highlighter</em> gives nice snippets back."));
+        assertThat(fragments[1].text(), equalTo("Unified <em>highlighter</em> gives nice snippets back."));
         assertThat(fragments[1].isHighlighted(), equalTo(true));
-        assertThat(fragments[2].getText(), equalTo("No matches here."));
+        assertThat(fragments[2].text(), equalTo("No matches here."));
         assertThat(fragments[2].isHighlighted(), equalTo(false));
     }
 
@@ -87,7 +87,7 @@ public class CustomPassageFormatterTests extends ESTestCase {
         Snippet[] fragments = passageFormatter.format(passages, content);
         assertThat(fragments, notNullValue());
         assertThat(fragments.length, equalTo(2));
-        assertThat(fragments[0].getText(), equalTo("&lt;b&gt;This is a really cool <em>highlighter</em>.&lt;&#x2F;b&gt;"));
-        assertThat(fragments[1].getText(), equalTo("Unified <em>highlighter</em> gives nice snippets back."));
+        assertThat(fragments[0].text(), equalTo("&lt;b&gt;This is a really cool <em>highlighter</em>.&lt;&#x2F;b&gt;"));
+        assertThat(fragments[1].text(), equalTo("Unified <em>highlighter</em> gives nice snippets back."));
     }
 }

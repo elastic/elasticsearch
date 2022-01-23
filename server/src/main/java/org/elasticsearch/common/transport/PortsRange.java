@@ -12,13 +12,7 @@ import com.carrotsearch.hppc.IntArrayList;
 
 import java.util.StringTokenizer;
 
-public class PortsRange {
-
-    private final String portRange;
-
-    public PortsRange(String portRange) {
-        this.portRange = portRange;
-    }
+public record PortsRange(String portRange) {
 
     public String getPortRangeString() {
         return portRange;
@@ -67,10 +61,5 @@ public class PortsRange {
 
     public interface PortCallback {
         boolean onPortNumber(int portNumber);
-    }
-
-    @Override
-    public String toString() {
-        return "PortsRange{" + "portRange='" + portRange + '\'' + '}';
     }
 }

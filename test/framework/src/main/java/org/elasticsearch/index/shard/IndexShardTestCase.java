@@ -114,7 +114,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     private static final Consumer<IndexShard.ShardFailure> DEFAULT_SHARD_FAILURE_HANDLER = failure -> {
         if (failOnShardFailures.get()) {
-            throw new AssertionError(failure.reason, failure.cause);
+            throw new AssertionError(failure.reason(), failure.cause());
         }
     };
 
@@ -1017,9 +1017,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
 
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
-        assertEquals(IndexShardSnapshotStatus.Stage.DONE, lastSnapshotStatus.getStage());
-        assertEquals(shard.snapshotStoreMetadata().size(), lastSnapshotStatus.getTotalFileCount());
-        assertNull(lastSnapshotStatus.getFailure());
+        assertEquals(IndexShardSnapshotStatus.Stage.DONE, lastSnapshotStatus.stage());
+        assertEquals(shard.snapshotStoreMetadata().size(), lastSnapshotStatus.totalFileCount());
+        assertNull(lastSnapshotStatus.failure());
         return shardGen;
     }
 

@@ -105,12 +105,12 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck(b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
-        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchAnalyzer().name()));
         checker.registerUpdateCheck(b -> {
             b.field("analyzer", "default");
             b.field("search_analyzer", "keyword");
             b.field("search_quote_analyzer", "keyword");
-        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name()));
+        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().searchQuoteAnalyzer().name()));
 
     }
 
@@ -712,7 +712,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         assertThat(fieldType.shingleFields.length, equalTo(maxShingleSize - 1));
         NamedAnalyzer indexAnalyzer = mapper.indexAnalyzers().get(fieldType.name());
-        for (NamedAnalyzer analyzer : asList(indexAnalyzer, fieldType.getTextSearchInfo().getSearchAnalyzer())) {
+        for (NamedAnalyzer analyzer : asList(indexAnalyzer, fieldType.getTextSearchInfo().searchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }
         int shingleSize = 2;
@@ -734,7 +734,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         ShingleFieldType fieldType = mapper.fieldType();
         assertThat(fieldType.shingleSize, equalTo(shingleSize));
 
-        for (NamedAnalyzer analyzer : asList(indexAnalyzers.get(fieldType.name()), fieldType.getTextSearchInfo().getSearchAnalyzer())) {
+        for (NamedAnalyzer analyzer : asList(indexAnalyzers.get(fieldType.name()), fieldType.getTextSearchInfo().searchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
             if (shingleSize > 1) {
                 final SearchAsYouTypeAnalyzer wrappedAnalyzer = (SearchAsYouTypeAnalyzer) analyzer.analyzer();
@@ -755,13 +755,13 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     ) {
         PrefixFieldType fieldType = mapper.fieldType();
         NamedAnalyzer indexAnalyzer = indexAnalyzers.get(fieldType.name());
-        for (NamedAnalyzer analyzer : asList(indexAnalyzer, fieldType.getTextSearchInfo().getSearchAnalyzer())) {
+        for (NamedAnalyzer analyzer : asList(indexAnalyzer, fieldType.getTextSearchInfo().searchAnalyzer())) {
             assertThat(analyzer.name(), equalTo(analyzerName));
         }
 
         final SearchAsYouTypeAnalyzer wrappedIndexAnalyzer = (SearchAsYouTypeAnalyzer) indexAnalyzer.analyzer();
         final SearchAsYouTypeAnalyzer wrappedSearchAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.getTextSearchInfo()
-            .getSearchAnalyzer()
+            .searchAnalyzer()
             .analyzer();
         for (SearchAsYouTypeAnalyzer analyzer : asList(wrappedIndexAnalyzer, wrappedSearchAnalyzer)) {
             assertThat(analyzer.shingleSize(), equalTo(shingleSize));

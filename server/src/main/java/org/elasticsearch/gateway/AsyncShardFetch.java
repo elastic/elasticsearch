@@ -345,17 +345,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * The result of a fetch operation. Make sure to first check {@link #hasData()} before
      * fetching the actual data.
      */
-    public static class FetchResult<T extends BaseNodeResponse> {
-
-        private final ShardId shardId;
-        private final Map<DiscoveryNode, T> data;
-        private final Set<String> ignoreNodes;
-
-        public FetchResult(ShardId shardId, Map<DiscoveryNode, T> data, Set<String> ignoreNodes) {
-            this.shardId = shardId;
-            this.data = data;
-            this.ignoreNodes = ignoreNodes;
-        }
+    public record FetchResult<T extends BaseNodeResponse> (ShardId shardId, Map<DiscoveryNode, T> data, Set<String> ignoreNodes) {
 
         /**
          * Does the result actually contain data? If not, then there are on going fetch

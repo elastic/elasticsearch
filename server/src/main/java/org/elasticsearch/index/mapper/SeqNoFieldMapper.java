@@ -49,21 +49,12 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
      * A sequence ID, which is made up of a sequence number (both the searchable
      * and doc_value version of the field) and the primary term.
      */
-    public static class SequenceIDFields {
+    public record SequenceIDFields(Field seqNo, Field seqNoDocValue, Field primaryTerm, Field tombstoneField) {
 
-        public final Field seqNo;
-        public final Field seqNoDocValue;
-        public final Field primaryTerm;
-        public final Field tombstoneField;
-
-        private SequenceIDFields(Field seqNo, Field seqNoDocValue, Field primaryTerm, Field tombstoneField) {
+        public SequenceIDFields {
             Objects.requireNonNull(seqNo, "sequence number field cannot be null");
             Objects.requireNonNull(seqNoDocValue, "sequence number dv field cannot be null");
             Objects.requireNonNull(primaryTerm, "primary term field cannot be null");
-            this.seqNo = seqNo;
-            this.seqNoDocValue = seqNoDocValue;
-            this.primaryTerm = primaryTerm;
-            this.tombstoneField = tombstoneField;
         }
 
         public void addFields(LuceneDocument document) {

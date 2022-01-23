@@ -297,7 +297,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         filteredProcessorStats.keySet().retainAll(pipelineIds);
         List<IngestStats.PipelineStat> filteredPipelineStats = fullNodeStats.getPipelineStats()
             .stream()
-            .filter(pipelineStat -> pipelineIds.contains(pipelineStat.getPipelineId()))
+            .filter(pipelineStat -> pipelineIds.contains(pipelineStat.pipelineId()))
             .collect(Collectors.toList());
         CounterMetric ingestCount = new CounterMetric();
         CounterMetric ingestTimeInMillis = new CounterMetric();
@@ -305,7 +305,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         CounterMetric ingestFailedCount = new CounterMetric();
 
         filteredPipelineStats.forEach(pipelineStat -> {
-            IngestStats.Stats stats = pipelineStat.getStats();
+            IngestStats.Stats stats = pipelineStat.stats();
             ingestCount.inc(stats.getIngestCount());
             ingestTimeInMillis.inc(stats.getIngestTimeInMillis());
             ingestCurrent.inc(stats.getIngestCurrent());
@@ -328,8 +328,8 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
 
             ingestStats.getPipelineStats()
                 .forEach(
-                    pipelineStat -> pipelineStatsAcc.computeIfAbsent(pipelineStat.getPipelineId(), p -> new IngestStatsAccumulator())
-                        .inc(pipelineStat.getStats())
+                    pipelineStat -> pipelineStatsAcc.computeIfAbsent(pipelineStat.pipelineId(), p -> new IngestStatsAccumulator())
+                        .inc(pipelineStat.stats())
                 );
 
             ingestStats.getProcessorStats().forEach((pipelineId, processorStat) -> {
@@ -338,7 +338,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                     k -> new LinkedHashMap<>()
                 );
                 processorStat.forEach(
-                    p -> processorAcc.computeIfAbsent(p.getName(), k -> new IngestStatsAccumulator(p.getType())).inc(p.getStats())
+                    p -> processorAcc.computeIfAbsent(p.name(), k -> new IngestStatsAccumulator(p.type())).inc(p.stats())
                 );
             });
 

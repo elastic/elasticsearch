@@ -83,7 +83,7 @@ public class UnifiedHighlighter implements Highlighter {
         }
         List<Snippet> snippets = new ArrayList<>(fieldSnippets.length);
         for (Snippet fieldSnippet : fieldSnippets) {
-            if (Strings.hasText(fieldSnippet.getText())) {
+            if (Strings.hasText(fieldSnippet.text())) {
                 snippets.add(fieldSnippet);
             }
         }
@@ -93,12 +93,12 @@ public class UnifiedHighlighter implements Highlighter {
 
         if (field.fieldOptions().scoreOrdered()) {
             // let's sort the snippets by score if needed
-            CollectionUtil.introSort(snippets, (o1, o2) -> Double.compare(o2.getScore(), o1.getScore()));
+            CollectionUtil.introSort(snippets, (o1, o2) -> Double.compare(o2.score(), o1.score()));
         }
 
         String[] fragments = new String[snippets.size()];
         for (int i = 0; i < fragments.length; i++) {
-            fragments[i] = snippets.get(i).getText();
+            fragments[i] = snippets.get(i).text();
         }
 
         return new HighlightField(fieldContext.fieldName, Text.convertFromStringArray(fragments));

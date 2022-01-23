@@ -51,7 +51,7 @@ public class ShardSnapshot {
 
     public boolean hasDifferentPhysicalFiles(Store.MetadataSnapshot sourceSnapshot) {
         Store.RecoveryDiff recoveryDiff = metadataSnapshot.recoveryDiff(sourceSnapshot);
-        return recoveryDiff.different.isEmpty() == false || recoveryDiff.missing.isEmpty() == false;
+        return recoveryDiff.different().isEmpty() == false || recoveryDiff.missing().isEmpty() == false;
     }
 
     public String getRepository() {

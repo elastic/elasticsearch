@@ -13,12 +13,7 @@ import org.elasticsearch.ElasticsearchParseException;
 /**
  * Utility class to represent ratio and percentage values between 0 and 100
  */
-public class RatioValue {
-    private final double percent;
-
-    public RatioValue(double percent) {
-        this.percent = percent;
-    }
+public record RatioValue(double percent) {
 
     public double getAsRatio() {
         return this.percent / 100.0;

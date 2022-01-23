@@ -56,7 +56,7 @@ public class CacheTests extends ESTestCase {
         Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder()
             .setMaximumWeight(numberOfEntries / 2)
             .removalListener(notification -> {
-                keys.remove(notification.getKey());
+                keys.remove(notification.key());
                 evictions.incrementAndGet();
             })
             .build();
@@ -79,10 +79,10 @@ public class CacheTests extends ESTestCase {
                 cache.get(key);
             }
         }
-        assertEquals(hits, cache.stats().getHits());
-        assertEquals(misses, cache.stats().getMisses());
+        assertEquals(hits, cache.stats().hits());
+        assertEquals(misses, cache.stats().misses());
         assertEquals((long) Math.ceil(numberOfEntries / 2.0), evictions.get());
-        assertEquals(evictions.get(), cache.stats().getEvictions());
+        assertEquals(evictions.get(), cache.stats().evictions());
     }
 
     // cache some entries in batches of size maximumWeight; for each batch, touch the even entries to affect the
@@ -97,7 +97,7 @@ public class CacheTests extends ESTestCase {
             .setMaximumWeight(maximumWeight)
             .removalListener(notification -> {
                 evictions.incrementAndGet();
-                evictedKeys.add(notification.getKey());
+                evictedKeys.add(notification.key());
             })
             .build();
         // cache entries up to numberOfEntries - maximumWeight; all of these entries will ultimately be evicted in
@@ -123,7 +123,7 @@ public class CacheTests extends ESTestCase {
             cache.put(i, Integer.toString(i));
         }
         assertEquals(numberOfEntries - maximumWeight, evictions.get());
-        assertEquals(evictions.get(), cache.stats().getEvictions());
+        assertEquals(evictions.get(), cache.stats().evictions());
 
         // assert that the keys were evicted in LRU order
         Set<Integer> keys = new HashSet<>();
@@ -166,7 +166,7 @@ public class CacheTests extends ESTestCase {
         // the number of evicted entries should be the number of entries that fit in the excess weight
         assertEquals((int) Math.ceil((weight - 2) * numberOfEntries / (1.0 * weight)), evictions.get());
 
-        assertEquals(evictions.get(), cache.stats().getEvictions());
+        assertEquals(evictions.get(), cache.stats().evictions());
     }
 
     // cache some entries, randomly invalidate some of them, then check that the weight of the cache is correct
@@ -216,8 +216,8 @@ public class CacheTests extends ESTestCase {
         cache.setExpireAfterAccessNanos(1);
         List<Integer> evictedKeys = new ArrayList<>();
         cache.setRemovalListener(notification -> {
-            assertEquals(RemovalNotification.RemovalReason.EVICTED, notification.getRemovalReason());
-            evictedKeys.add(notification.getKey());
+            assertEquals(RemovalNotification.RemovalReason.EVICTED, notification.removalReason());
+            evictedKeys.add(notification.key());
         });
         now.set(0);
         for (int i = 0; i < numberOfEntries; i++) {
@@ -275,8 +275,8 @@ public class CacheTests extends ESTestCase {
         cache.setExpireAfterWriteNanos(1);
         List<Integer> evictedKeys = new ArrayList<>();
         cache.setRemovalListener(notification -> {
-            assertEquals(RemovalNotification.RemovalReason.EVICTED, notification.getRemovalReason());
-            evictedKeys.add(notification.getKey());
+            assertEquals(RemovalNotification.RemovalReason.EVICTED, notification.removalReason());
+            evictedKeys.add(notification.key());
         });
         now.set(0);
         for (int i = 0; i < numberOfEntries; i++) {
@@ -324,7 +324,7 @@ public class CacheTests extends ESTestCase {
         for (int i = 0; i < numberOfEntries; i++) {
             assertEquals(i + "-second", cache.get(i));
         }
-        assertEquals(numberOfEntries, cache.stats().getEvictions());
+        assertEquals(numberOfEntries, cache.stats().evictions());
     }
 
     public void testComputeIfAbsentDeadlock() throws BrokenBarrierException, InterruptedException {
@@ -421,8 +421,8 @@ public class CacheTests extends ESTestCase {
     public void testNotificationOnInvalidate() {
         Set<Integer> notifications = new HashSet<>();
         Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().removalListener(notification -> {
-            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
-            notifications.add(notification.getKey());
+            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.removalReason());
+            notifications.add(notification.key());
         }).build();
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));
@@ -469,8 +469,8 @@ public class CacheTests extends ESTestCase {
     public void testNotificationOnInvalidateWithValue() {
         Set<Integer> notifications = new HashSet<>();
         Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().removalListener(notification -> {
-            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
-            notifications.add(notification.getKey());
+            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.removalReason());
+            notifications.add(notification.key());
         }).build();
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));
@@ -505,8 +505,8 @@ public class CacheTests extends ESTestCase {
     public void testNotificationOnInvalidateAll() {
         Set<Integer> notifications = new HashSet<>();
         Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().removalListener(notification -> {
-            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
-            notifications.add(notification.getKey());
+            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.removalReason());
+            notifications.add(notification.key());
         }).build();
         Set<Integer> invalidated = new HashSet<>();
         for (int i = 0; i < numberOfEntries; i++) {
@@ -566,8 +566,8 @@ public class CacheTests extends ESTestCase {
     public void testNotificationOnReplace() {
         Set<Integer> notifications = new HashSet<>();
         Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().removalListener(notification -> {
-            assertEquals(RemovalNotification.RemovalReason.REPLACED, notification.getRemovalReason());
-            notifications.add(notification.getKey());
+            assertEquals(RemovalNotification.RemovalReason.REPLACED, notification.removalReason());
+            notifications.add(notification.key());
         }).build();
         for (int i = 0; i < numberOfEntries; i++) {
             cache.put(i, Integer.toString(i));
@@ -903,8 +903,8 @@ public class CacheTests extends ESTestCase {
 
         assertEquals(expectedRemovals.size(), removalNotifications.size());
         for (int i = 0; i < expectedRemovals.size(); i++) {
-            assertEquals(expectedRemovals.get(i), removalNotifications.get(i).getValue());
-            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, removalNotifications.get(i).getRemovalReason());
+            assertEquals(expectedRemovals.get(i), removalNotifications.get(i).value());
+            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, removalNotifications.get(i).removalReason());
         }
     }
 }

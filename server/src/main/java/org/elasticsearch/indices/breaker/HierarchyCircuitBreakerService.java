@@ -332,19 +332,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         );
     }
 
-    static class MemoryUsage {
-        final long baseUsage;
-        final long totalUsage;
-        final long transientChildUsage;
-        final long permanentChildUsage;
-
-        MemoryUsage(final long baseUsage, final long totalUsage, final long transientChildUsage, final long permanentChildUsage) {
-            this.baseUsage = baseUsage;
-            this.totalUsage = totalUsage;
-            this.transientChildUsage = transientChildUsage;
-            this.permanentChildUsage = permanentChildUsage;
-        }
-    }
+    record MemoryUsage(long baseUsage, long totalUsage, long transientChildUsage, long permanentChildUsage) {}
 
     private MemoryUsage memoryUsed(long newBytesReserved) {
         long transientUsage = 0;

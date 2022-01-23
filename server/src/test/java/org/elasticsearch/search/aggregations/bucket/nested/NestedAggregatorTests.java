@@ -181,7 +181,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     Document document = new Document();
                     document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
                     document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(sequenceIDFields.primaryTerm);
+                    document.add(sequenceIDFields.primaryTerm());
                     documents.add(document);
                     iw.addDocuments(documents);
                 }
@@ -235,7 +235,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     Document document = new Document();
                     document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
                     document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(sequenceIDFields.primaryTerm);
+                    document.add(sequenceIDFields.primaryTerm());
                     documents.add(document);
                     iw.addDocuments(documents);
                 }
@@ -287,7 +287,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     Document document = new Document();
                     document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
                     document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(sequenceIDFields.primaryTerm);
+                    document.add(sequenceIDFields.primaryTerm());
                     documents.add(document);
                     iw.addDocuments(documents);
                 }
@@ -346,7 +346,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 document = new Document();
                 document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                document.add(sequenceIDFields.primaryTerm);
+                document.add(sequenceIDFields.primaryTerm());
                 documents.add(document);
                 iw.addDocuments(documents);
                 iw.commit();
@@ -361,7 +361,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 document = new Document();
                 document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                document.add(sequenceIDFields.primaryTerm);
+                document.add(sequenceIDFields.primaryTerm());
                 documents.add(document);
                 iw.addDocuments(documents);
                 documents.clear();
@@ -373,7 +373,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 document = new Document();
                 document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), IdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                document.add(sequenceIDFields.primaryTerm);
+                document.add(sequenceIDFields.primaryTerm());
                 documents.add(document);
                 iw.addDocuments(documents);
 
@@ -619,7 +619,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 document = new Document();
                 document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "_doc", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                document.add(sequenceIDFields.primaryTerm);
+                document.add(sequenceIDFields.primaryTerm());
                 documents.add(document);
                 iw.addDocuments(documents);
                 iw.commit();
@@ -640,7 +640,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 document = new Document();
                 document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "_doc", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                document.add(sequenceIDFields.primaryTerm);
+                document.add(sequenceIDFields.primaryTerm());
                 documents.add(document);
                 iw.addDocuments(documents);
                 iw.commit();
@@ -661,7 +661,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 document = new Document();
                 document.add(new Field(IdFieldMapper.NAME, Uid.encodeId("3"), IdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "_doc", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                document.add(sequenceIDFields.primaryTerm);
+                document.add(sequenceIDFields.primaryTerm());
                 documents.add(document);
                 iw.addDocuments(documents);
                 iw.commit();
@@ -731,7 +731,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     Document document = new Document();
                     document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
                     document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(sequenceIDFields.primaryTerm);
+                    document.add(sequenceIDFields.primaryTerm());
                     documents.add(document);
                     iw.addDocuments(documents);
                 }
@@ -771,7 +771,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     Document document = new Document();
                     document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
                     document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(sequenceIDFields.primaryTerm);
+                    document.add(sequenceIDFields.primaryTerm());
                     documents.add(document);
                     iw.addDocuments(documents);
                 }
@@ -863,7 +863,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 Document document = new Document();
                 document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(p)), IdFieldMapper.Defaults.FIELD_TYPE));
                 document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-                document.add(sequenceIDFields.primaryTerm);
+                document.add(sequenceIDFields.primaryTerm());
                 document.add(new SortedNumericDocValuesField("product_id", p));
                 documents.add(document);
                 iw.addDocuments(documents);
@@ -913,7 +913,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         Document document = new Document();
         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
         document.add(new Field(NestedPathFieldMapper.NAME, "book", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-        document.add(sequenceIDFields.primaryTerm);
+        document.add(sequenceIDFields.primaryTerm());
         for (String author : authors) {
             document.add(new Field("author", author, KeywordFieldMapper.Defaults.FIELD_TYPE));
             document.add(new SortedSetDocValuesField("author", new BytesRef(author)));

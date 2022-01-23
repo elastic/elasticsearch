@@ -52,7 +52,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         final byte[] fileData = bytes.v2();
         final String checksum = bytes.v1();
 
-        final FileInfo fileInfo = new FileInfo(
+        final FileInfo fileInfo = FileInfo.of(
             randomAlphaOfLength(10),
             new StoreFileMetadata(fileName, fileData.length, checksum, Version.CURRENT.luceneVersion.toString()),
             new ByteSizeValue(fileData.length)

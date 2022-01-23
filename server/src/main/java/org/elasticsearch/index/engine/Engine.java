@@ -558,24 +558,24 @@ public abstract class Engine implements Closeable {
         }
 
         if (docIdAndVersion != null) {
-            if (get.versionType().isVersionConflictForReads(docIdAndVersion.version, get.version())) {
+            if (get.versionType().isVersionConflictForReads(docIdAndVersion.version(), get.version())) {
                 Releasables.close(searcher);
                 throw new VersionConflictEngineException(
                     shardId,
                     get.id(),
-                    get.versionType().explainConflictForReads(docIdAndVersion.version, get.version())
+                    get.versionType().explainConflictForReads(docIdAndVersion.version(), get.version())
                 );
             }
             if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
-                && (get.getIfSeqNo() != docIdAndVersion.seqNo || get.getIfPrimaryTerm() != docIdAndVersion.primaryTerm)) {
+                && (get.getIfSeqNo() != docIdAndVersion.seqNo() || get.getIfPrimaryTerm() != docIdAndVersion.primaryTerm())) {
                 Releasables.close(searcher);
                 throw new VersionConflictEngineException(
                     shardId,
                     get.id(),
                     get.getIfSeqNo(),
                     get.getIfPrimaryTerm(),
-                    docIdAndVersion.seqNo,
-                    docIdAndVersion.primaryTerm
+                    docIdAndVersion.seqNo(),
+                    docIdAndVersion.primaryTerm()
                 );
             }
         }
@@ -1684,7 +1684,7 @@ public abstract class Engine implements Closeable {
         }
 
         public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion) {
-            this(true, docIdAndVersion.version, docIdAndVersion, searcher);
+            this(true, docIdAndVersion.version(), docIdAndVersion, searcher);
         }
 
         public boolean exists() {

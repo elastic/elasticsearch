@@ -15,22 +15,7 @@ import java.util.Objects;
 /**
  * Wrapper around a {@link Similarity} and its name.
  */
-public final class SimilarityProvider {
-
-    private final String name;
-    private final Similarity similarity;
-
-    public SimilarityProvider(String name, Similarity similarity) {
-        this.name = name;
-        this.similarity = similarity;
-    }
-
-    /**
-     * Return the name of this {@link Similarity}.
-     */
-    public String name() {
-        return name;
-    }
+public record SimilarityProvider(String name, Similarity similarity) {
 
     /**
      * Return the wrapped {@link Similarity}.

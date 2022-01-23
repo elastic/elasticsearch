@@ -230,8 +230,8 @@ public class PrioritizedExecutorsTests extends ESTestCase {
         invoked.await();
         PrioritizedEsThreadPoolExecutor.Pending[] pending = executor.getPending();
         assertThat(pending.length, equalTo(1));
-        assertThat(pending[0].task.toString(), equalTo("the blocking"));
-        assertThat(pending[0].executing, equalTo(true));
+        assertThat(pending[0].task().toString(), equalTo("the blocking"));
+        assertThat(pending[0].executing(), equalTo(true));
 
         final AtomicBoolean executeCalled = new AtomicBoolean();
         final CountDownLatch timedOut = new CountDownLatch(1);
@@ -254,10 +254,10 @@ public class PrioritizedExecutorsTests extends ESTestCase {
 
         pending = executor.getPending();
         assertThat(pending.length, equalTo(2));
-        assertThat(pending[0].task.toString(), equalTo("the blocking"));
-        assertThat(pending[0].executing, equalTo(true));
-        assertThat(pending[1].task.toString(), equalTo("the waiting"));
-        assertThat(pending[1].executing, equalTo(false));
+        assertThat(pending[0].task().toString(), equalTo("the blocking"));
+        assertThat(pending[0].executing(), equalTo(true));
+        assertThat(pending[1].task().toString(), equalTo("the waiting"));
+        assertThat(pending[1].executing(), equalTo(false));
 
         assertThat(timedOut.await(2, TimeUnit.SECONDS), equalTo(true));
         block.countDown();

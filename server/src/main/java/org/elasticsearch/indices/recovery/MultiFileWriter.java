@@ -236,13 +236,10 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         store.renameTempFilesSafe(tempFileNames);
     }
 
-    private static final class FileChunk implements Releasable {
-        final StoreFileMetadata md;
-        final ReleasableBytesReference content;
-        final long position;
-        final boolean lastChunk;
-
-        FileChunk(StoreFileMetadata md, ReleasableBytesReference content, long position, boolean lastChunk) {
+    private record FileChunk(StoreFileMetadata md, ReleasableBytesReference content, long position, boolean lastChunk)
+        implements
+            Releasable {
+        private FileChunk(StoreFileMetadata md, ReleasableBytesReference content, long position, boolean lastChunk) {
             this.md = md;
             this.content = content.retain();
             this.position = position;

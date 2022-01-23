@@ -1050,7 +1050,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         try (Engine.IndexCommitRef safeCommitRef = shard.acquireSafeIndexCommit()) {
             localCheckpointOfSafeCommit = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
                 safeCommitRef.getIndexCommit().getUserData().entrySet()
-            ).localCheckpoint;
+            ).localCheckpoint();
         }
         final long maxSeqNo = shard.seqNoStats().getMaxSeqNo();
         shard.failShard("test", new IOException("simulated"));
@@ -1063,8 +1063,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         SequenceNumbers.CommitInfo commitInfoAfterLocalRecovery = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
             startRecoveryRequest.metadataSnapshot().getCommitUserData().entrySet()
         );
-        assertThat(commitInfoAfterLocalRecovery.localCheckpoint, equalTo(lastSyncedGlobalCheckpoint));
-        assertThat(commitInfoAfterLocalRecovery.maxSeqNo, equalTo(lastSyncedGlobalCheckpoint));
+        assertThat(commitInfoAfterLocalRecovery.localCheckpoint(), equalTo(lastSyncedGlobalCheckpoint));
+        assertThat(commitInfoAfterLocalRecovery.maxSeqNo(), equalTo(lastSyncedGlobalCheckpoint));
         assertThat(startRecoveryRequest.startingSeqNo(), equalTo(lastSyncedGlobalCheckpoint + 1));
         ensureGreen(indexName);
         assertThat((long) localRecoveredOps.get(), equalTo(lastSyncedGlobalCheckpoint - localCheckpointOfSafeCommit));

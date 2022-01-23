@@ -57,7 +57,8 @@ final class TranslogSnapshot extends BaseTranslogReader {
     public Translog.Operation next() throws IOException {
         while (readOperations < totalOperations) {
             final Translog.Operation operation = readOperation();
-            if (operation.seqNo() <= checkpoint.trimmedAboveSeqNo || checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            if (operation.seqNo() <= checkpoint.trimmedAboveSeqNo()
+                || checkpoint.trimmedAboveSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 return operation;
             }
             skippedOperations++;

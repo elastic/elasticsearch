@@ -138,13 +138,7 @@ public final class ScriptedSimilarity extends Similarity {
     }
 
     /** Scoring factors that come from the query. */
-    public static class Query {
-        private final float boost;
-
-        private Query(float boost) {
-            this.boost = boost;
-        }
-
+    public record Query(float boost) {
         /** The boost of the query. It should typically be incorporated into the score as a multiplicative factor. */
         public float getBoost() {
             return boost;
@@ -152,16 +146,7 @@ public final class ScriptedSimilarity extends Similarity {
     }
 
     /** Statistics that are specific to a given field. */
-    public static class Field {
-        private final long docCount;
-        private final long sumDocFreq;
-        private final long sumTotalTermFreq;
-
-        private Field(long docCount, long sumDocFreq, long sumTotalTermFreq) {
-            this.docCount = docCount;
-            this.sumDocFreq = sumDocFreq;
-            this.sumTotalTermFreq = sumTotalTermFreq;
-        }
+    public record Field(long docCount, long sumDocFreq, long sumTotalTermFreq) {
 
         /** Return the number of documents that have a value for this field. */
         public long getDocCount() {
@@ -182,14 +167,7 @@ public final class ScriptedSimilarity extends Similarity {
     }
 
     /** Statistics that are specific to a given term. */
-    public static class Term {
-        private final long docFreq;
-        private final long totalTermFreq;
-
-        private Term(long docFreq, long totalTermFreq) {
-            this.docFreq = docFreq;
-            this.totalTermFreq = totalTermFreq;
-        }
+    public record Term(long docFreq, long totalTermFreq) {
 
         /** Return the number of documents that contain this term in the index. */
         public long getDocFreq() {

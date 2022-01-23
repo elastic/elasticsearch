@@ -183,19 +183,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         return new PrioritizedFutureTask<T>((PrioritizedCallable<T>) callable, insertionOrder.incrementAndGet());
     }
 
-    public static class Pending {
-        public final Object task;
-        public final Priority priority;
-        public final long insertionOrder;
-        public final boolean executing;
-
-        public Pending(Object task, Priority priority, long insertionOrder, boolean executing) {
-            this.task = task;
-            this.priority = priority;
-            this.insertionOrder = insertionOrder;
-            this.executing = executing;
-        }
-    }
+    public record Pending(Object task, Priority priority, long insertionOrder, boolean executing) {}
 
     private final class TieBreakingPrioritizedRunnable extends PrioritizedRunnable implements WrappedRunnable {
 

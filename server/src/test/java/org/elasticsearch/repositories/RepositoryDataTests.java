@@ -244,8 +244,8 @@ public class RepositoryDataTests extends ESTestCase {
                 new RepositoryData.SnapshotDetails(
                     parsedRepositoryData.getSnapshotState(snapshotId),
                     parsedRepositoryData.getVersion(snapshotId),
-                    parsedRepositoryData.getSnapshotDetails(snapshotId).getStartTimeMillis(),
-                    parsedRepositoryData.getSnapshotDetails(snapshotId).getEndTimeMillis(),
+                    parsedRepositoryData.getSnapshotDetails(snapshotId).startTimeMillis(),
+                    parsedRepositoryData.getSnapshotDetails(snapshotId).endTimeMillis(),
                     randomAlphaOfLength(10)
                 )
             );
@@ -347,7 +347,8 @@ public class RepositoryDataTests extends ESTestCase {
         final SnapshotId snapshotId = randomFrom(repositoryData.getSnapshotIds());
         final IndexMetaDataGenerations indexMetaDataGenerations = repositoryData.indexMetaDataGenerations();
         final Collection<IndexId> indicesToUpdate = repositoryData.indicesToUpdateAfterRemovingSnapshot(Collections.singleton(snapshotId));
-        final Map<IndexId, Collection<String>> identifiersToRemove = indexMetaDataGenerations.lookup.get(snapshotId)
+        final Map<IndexId, Collection<String>> identifiersToRemove = indexMetaDataGenerations.lookup()
+            .get(snapshotId)
             .entrySet()
             .stream()
             .filter(e -> indicesToUpdate.contains(e.getKey()))
@@ -386,7 +387,7 @@ public class RepositoryDataTests extends ESTestCase {
             builder.put(indexId, 0, ShardGeneration.newGeneration(random()));
         }
         final ShardGenerations shardGenerations = builder.build();
-        final Map<IndexId, String> indexLookup = new HashMap<>(repositoryData.indexMetaDataGenerations().lookup.get(otherSnapshotId));
+        final Map<IndexId, String> indexLookup = new HashMap<>(repositoryData.indexMetaDataGenerations().lookup().get(otherSnapshotId));
         indexLookup.putAll(newIndices);
         final SnapshotId newSnapshot = new SnapshotId(randomAlphaOfLength(7), UUIDs.randomBase64UUID(random()));
 

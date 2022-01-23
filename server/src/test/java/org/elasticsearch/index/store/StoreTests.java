@@ -573,15 +573,15 @@ public class StoreTests extends ESTestCase {
             // si files are different - containing timestamps etc
             assertThat(second.get(md.name()).isSame(md), equalTo(false));
         }
-        assertThat(diff.different.size(), equalTo(first.size()));
-        assertThat(diff.identical.size(), equalTo(0)); // in lucene 5 nothing is identical - we use random ids in file headers
-        assertThat(diff.missing, empty());
+        assertThat(diff.different().size(), equalTo(first.size()));
+        assertThat(diff.identical().size(), equalTo(0)); // in lucene 5 nothing is identical - we use random ids in file headers
+        assertThat(diff.missing(), empty());
 
         // check the self diff
         Store.RecoveryDiff selfDiff = first.recoveryDiff(first);
-        assertThat(selfDiff.identical.size(), equalTo(first.size()));
-        assertThat(selfDiff.different, empty());
-        assertThat(selfDiff.missing, empty());
+        assertThat(selfDiff.identical().size(), equalTo(first.size()));
+        assertThat(selfDiff.different(), empty());
+        assertThat(selfDiff.missing(), empty());
 
         // delete a doc
         final String deleteId = Integer.toString(random().nextInt(numDocs));
@@ -609,21 +609,22 @@ public class StoreTests extends ESTestCase {
         }
         Store.RecoveryDiff afterDeleteDiff = metadata.recoveryDiff(second);
         if (delFile != null) {
-            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.identical.size(), equalTo(metadata.size() - 2)); // segments_N + del file
-            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.different.size(), equalTo(0));
-            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.missing.size(), equalTo(2));
+            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.identical().size(), equalTo(metadata.size() - 2)); // segments_N + del
+                                                                                                                      // file
+            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.different().size(), equalTo(0));
+            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.missing().size(), equalTo(2));
         } else {
             // an entire segment must be missing (single doc segment got dropped)
-            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.identical.size(), greaterThan(0));
-            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.different.size(), equalTo(0));
-            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.missing.size(), equalTo(1)); // the commit file is different
+            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.identical().size(), greaterThan(0));
+            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.different().size(), equalTo(0));
+            assertThat(afterDeleteDiff.toString(), afterDeleteDiff.missing().size(), equalTo(1)); // the commit file is different
         }
 
         // check the self diff
         selfDiff = metadata.recoveryDiff(metadata);
-        assertThat(selfDiff.identical.size(), equalTo(metadata.size()));
-        assertThat(selfDiff.different, empty());
-        assertThat(selfDiff.missing, empty());
+        assertThat(selfDiff.identical().size(), equalTo(metadata.size()));
+        assertThat(selfDiff.different(), empty());
+        assertThat(selfDiff.missing(), empty());
 
         // add a new commit
         {
@@ -641,20 +642,19 @@ public class StoreTests extends ESTestCase {
         Store.MetadataSnapshot newCommitMetadata = store.getMetadata(null);
         Store.RecoveryDiff newCommitDiff = newCommitMetadata.recoveryDiff(metadata);
         if (delFile != null) {
-            assertThat(newCommitDiff.toString(), newCommitDiff.identical.size(), equalTo(newCommitMetadata.size() - 4)); // segments_N, cfs,
-                                                                                                                         // cfe, si for the
-                                                                                                                         // new segment
-            assertThat(newCommitDiff.toString(), newCommitDiff.different.size(), equalTo(0)); // the del file must be different
-            assertThat(newCommitDiff.toString(), newCommitDiff.missing.size(), equalTo(4)); // segments_N,cfs, cfe, si for the new segment
-            assertTrue(newCommitDiff.toString(), newCommitDiff.identical.stream().anyMatch(m -> m.name().endsWith(".liv")));
+            // segments_N, cfs,cfe, si for the new segment
+            assertThat(newCommitDiff.toString(), newCommitDiff.identical().size(), equalTo(newCommitMetadata.size() - 4));
+            // the del file must be different
+            assertThat(newCommitDiff.toString(), newCommitDiff.different().size(), equalTo(0));
+            // segments_N,cfs, cfe, si for the new segment
+            assertThat(newCommitDiff.toString(), newCommitDiff.missing().size(), equalTo(4));
+            assertTrue(newCommitDiff.toString(), newCommitDiff.identical().stream().anyMatch(m -> m.name().endsWith(".liv")));
         } else {
-            assertThat(newCommitDiff.toString(), newCommitDiff.identical.size(), equalTo(newCommitMetadata.size() - 4)); // segments_N, cfs,
-                                                                                                                         // cfe, si for the
-                                                                                                                         // new segment
-            assertThat(newCommitDiff.toString(), newCommitDiff.different.size(), equalTo(0));
-            assertThat(newCommitDiff.toString(), newCommitDiff.missing.size(), equalTo(4)); // an entire segment must be missing (single doc
-                                                                                            // segment got dropped) plus the commit is
-                                                                                            // different
+            // segments_N,cfs,cfe,si for the new segment
+            assertThat(newCommitDiff.toString(), newCommitDiff.identical().size(), equalTo(newCommitMetadata.size() - 4));
+            assertThat(newCommitDiff.toString(), newCommitDiff.different().size(), equalTo(0));
+            // an entire segment must be missing (single doc segment got dropped) plus the commit is different
+            assertThat(newCommitDiff.toString(), newCommitDiff.missing().size(), equalTo(4));
         }
 
         // update doc values
@@ -678,20 +678,20 @@ public class StoreTests extends ESTestCase {
         logger.info("--> target: {}", newCommitMetadata.asMap());
         Store.RecoveryDiff dvUpdateDiff = dvUpdateSnapshot.recoveryDiff(newCommitMetadata);
         final int delFileCount;
-        if (delFile == null || dvUpdateDiff.different.isEmpty()) {
+        if (delFile == null || dvUpdateDiff.different().isEmpty()) {
             // liv file either doesn't exist or belongs to a different segment from the one that we just updated
             delFileCount = 0;
-            assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different, empty());
+            assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different(), empty());
         } else {
             // liv file is generational and belongs to the updated segment
             delFileCount = 1;
-            assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.size(), equalTo(1));
-            assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.get(0).name(), endsWith(".liv"));
+            assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different().size(), equalTo(1));
+            assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different().get(0).name(), endsWith(".liv"));
         }
 
-        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.identical.size(), equalTo(dvUpdateSnapshot.size() - 4 - delFileCount));
-        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different.size(), equalTo(delFileCount));
-        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.missing.size(), equalTo(4)); // segments_N, fnm, dvd, dvm for the updated segment
+        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.identical().size(), equalTo(dvUpdateSnapshot.size() - 4 - delFileCount));
+        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.different().size(), equalTo(delFileCount));
+        assertThat(dvUpdateDiff.toString(), dvUpdateDiff.missing().size(), equalTo(4)); // segments_N, fnm, dvd, dvm for the updated segment
 
         deleteContent(store.directory());
         IOUtils.close(store);

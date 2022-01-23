@@ -14,27 +14,4 @@ package org.elasticsearch.lucene.search.uhighlight;
  * Every snippet contains its formatted text and its score.
  * The score is needed in case we want to sort snippets by score, they get sorted by position in the text by default.
  */
-public class Snippet {
-
-    private final String text;
-    private final float score;
-    private final boolean isHighlighted;
-
-    public Snippet(String text, float score, boolean isHighlighted) {
-        this.text = text;
-        this.score = score;
-        this.isHighlighted = isHighlighted;
-    }
-
-    public String getText() {
-        return text;
-    }
-
-    public float getScore() {
-        return score;
-    }
-
-    public boolean isHighlighted() {
-        return isHighlighted;
-    }
-}
+public record Snippet(String text, float score, boolean isHighlighted) {}

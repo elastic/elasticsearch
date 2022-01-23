@@ -337,7 +337,7 @@ public abstract class PeerFinder {
 
         @Nullable
         DiscoveryNode getDiscoveryNode() {
-            return Optional.ofNullable(probeConnectionResult.get()).map(ProbeConnectionResult::getDiscoveryNode).orElse(null);
+            return Optional.ofNullable(probeConnectionResult.get()).map(ProbeConnectionResult::discoveryNode).orElse(null);
         }
 
         private boolean isActive() {
@@ -381,7 +381,7 @@ public abstract class PeerFinder {
                 @Override
                 public void onResponse(ProbeConnectionResult connectResult) {
                     assert holdsLock() == false : "PeerFinder mutex is held in error";
-                    final DiscoveryNode remoteNode = connectResult.getDiscoveryNode();
+                    final DiscoveryNode remoteNode = connectResult.discoveryNode();
                     assert remoteNode.isMasterNode() : remoteNode + " is not master-eligible";
                     assert remoteNode.equals(getLocalNode()) == false : remoteNode + " is the local node";
                     boolean retainConnection = false;

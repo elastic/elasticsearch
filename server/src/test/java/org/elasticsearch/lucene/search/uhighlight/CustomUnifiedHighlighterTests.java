@@ -122,7 +122,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                 final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
                 assertEquals(snippets.length, expectedPassages.length);
                 for (int i = 0; i < snippets.length; i++) {
-                    assertEquals(snippets[i].getText(), expectedPassages[i]);
+                    assertEquals(snippets[i].text(), expectedPassages[i]);
                 }
             }
         }

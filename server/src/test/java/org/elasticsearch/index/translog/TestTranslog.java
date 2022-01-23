@@ -55,7 +55,7 @@ public class TestTranslog {
      * See {@link TestTranslog#corruptFile(Logger, Random, Path, boolean)} for details of the corruption applied.
      */
     public static void corruptRandomTranslogFile(Logger logger, Random random, Path translogDir) throws IOException {
-        corruptRandomTranslogFile(logger, random, translogDir, Translog.readCheckpoint(translogDir).minTranslogGeneration);
+        corruptRandomTranslogFile(logger, random, translogDir, Translog.readCheckpoint(translogDir).minTranslogGeneration());
     }
 
     /**
@@ -73,7 +73,7 @@ public class TestTranslog {
         try {
             final Path checkpointPath = translogDir.resolve(CHECKPOINT_FILE_NAME);
             final Checkpoint checkpoint = Checkpoint.read(checkpointPath);
-            unnecessaryCheckpointCopyPath = translogDir.resolve(Translog.getCommitCheckpointFileName(checkpoint.generation));
+            unnecessaryCheckpointCopyPath = translogDir.resolve(Translog.getCommitCheckpointFileName(checkpoint.generation()));
             if (LuceneTestCase.rarely(random) && Files.exists(unnecessaryCheckpointCopyPath) == false) {
                 // if we crashed while rolling a generation then we might have copied `translog.ckp` to its numbered generation file but
                 // have not yet written a new `translog.ckp`. During recovery we must also verify that this file is intact, so it's ok to
@@ -82,19 +82,19 @@ public class TestTranslog {
                 if (LuceneTestCase.usually(random)) {
                     checkpointCopy = checkpoint;
                 } else {
-                    long newTranslogGeneration = checkpoint.generation + random.nextInt(2);
-                    long newMinTranslogGeneration = Math.min(newTranslogGeneration, checkpoint.minTranslogGeneration + random.nextInt(2));
-                    long newMaxSeqNo = checkpoint.maxSeqNo + random.nextInt(2);
-                    long newMinSeqNo = Math.min(newMaxSeqNo, checkpoint.minSeqNo + random.nextInt(2));
-                    long newTrimmedAboveSeqNo = Math.min(newMaxSeqNo, checkpoint.trimmedAboveSeqNo + random.nextInt(2));
+                    long newTranslogGeneration = checkpoint.generation() + random.nextInt(2);
+                    long newMinTranslogGeneration = Math.min(newTranslogGeneration, checkpoint.minTranslogGeneration() + random.nextInt(2));
+                    long newMaxSeqNo = checkpoint.maxSeqNo() + random.nextInt(2);
+                    long newMinSeqNo = Math.min(newMaxSeqNo, checkpoint.minSeqNo() + random.nextInt(2));
+                    long newTrimmedAboveSeqNo = Math.min(newMaxSeqNo, checkpoint.trimmedAboveSeqNo() + random.nextInt(2));
 
                     checkpointCopy = new Checkpoint(
-                        checkpoint.offset + random.nextInt(2),
-                        checkpoint.numOps + random.nextInt(2),
+                        checkpoint.offset() + random.nextInt(2),
+                        checkpoint.numOps() + random.nextInt(2),
                         newTranslogGeneration,
                         newMinSeqNo,
                         newMaxSeqNo,
-                        checkpoint.globalCheckpoint + random.nextInt(2),
+                        checkpoint.globalCheckpoint() + random.nextInt(2),
                         newMinTranslogGeneration,
                         newTrimmedAboveSeqNo
                     );

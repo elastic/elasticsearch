@@ -100,10 +100,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final BigArrays bigArrays,
         final DiskIoBufferPool diskIoBufferPool
     ) throws IOException {
-        super(initialCheckpoint.generation, channel, path, header);
-        assert initialCheckpoint.offset == channel.position()
+        super(initialCheckpoint.generation(), channel, path, header);
+        assert initialCheckpoint.offset() == channel.position()
             : "initial checkpoint offset ["
-                + initialCheckpoint.offset
+                + initialCheckpoint.offset()
                 + "] is different than current channel position ["
                 + channel.position()
                 + "]";
@@ -113,12 +113,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.checkpointPath = checkpointPath;
         this.minTranslogGenerationSupplier = minTranslogGenerationSupplier;
         this.lastSyncedCheckpoint = initialCheckpoint;
-        this.totalOffset = initialCheckpoint.offset;
-        assert initialCheckpoint.minSeqNo == SequenceNumbers.NO_OPS_PERFORMED : initialCheckpoint.minSeqNo;
-        this.minSeqNo = initialCheckpoint.minSeqNo;
-        assert initialCheckpoint.maxSeqNo == SequenceNumbers.NO_OPS_PERFORMED : initialCheckpoint.maxSeqNo;
-        this.maxSeqNo = initialCheckpoint.maxSeqNo;
-        assert initialCheckpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO : initialCheckpoint.trimmedAboveSeqNo;
+        this.totalOffset = initialCheckpoint.offset();
+        assert initialCheckpoint.minSeqNo() == SequenceNumbers.NO_OPS_PERFORMED : initialCheckpoint.minSeqNo();
+        this.minSeqNo = initialCheckpoint.minSeqNo();
+        assert initialCheckpoint.maxSeqNo() == SequenceNumbers.NO_OPS_PERFORMED : initialCheckpoint.maxSeqNo();
+        this.maxSeqNo = initialCheckpoint.maxSeqNo();
+        assert initialCheckpoint.trimmedAboveSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO : initialCheckpoint.trimmedAboveSeqNo();
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
         this.bigArrays = bigArrays;
@@ -341,9 +341,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * checkpoint has not yet been fsynced
      */
     public boolean syncNeeded() {
-        return totalOffset != lastSyncedCheckpoint.offset
-            || globalCheckpointSupplier.getAsLong() != lastSyncedCheckpoint.globalCheckpoint
-            || minTranslogGenerationSupplier.getAsLong() != lastSyncedCheckpoint.minTranslogGeneration;
+        return totalOffset != lastSyncedCheckpoint.offset()
+            || globalCheckpointSupplier.getAsLong() != lastSyncedCheckpoint.globalCheckpoint()
+            || minTranslogGenerationSupplier.getAsLong() != lastSyncedCheckpoint.minTranslogGeneration();
     }
 
     @Override
@@ -395,7 +395,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // If we reached this point, all of the buffered ops should have been flushed successfully.
                     assert buffer == null;
                     assert checkChannelPositionWhileHandlingException(totalOffset);
-                    assert totalOffset == lastSyncedCheckpoint.offset;
+                    assert totalOffset == lastSyncedCheckpoint.offset();
                     if (closed.compareAndSet(false, true)) {
                         try {
                             checkpointChannel.close();
@@ -433,7 +433,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // If we reached this point, all of the buffered ops should have been flushed successfully.
                     assert buffer == null;
                     assert checkChannelPositionWhileHandlingException(totalOffset);
-                    assert totalOffset == lastSyncedCheckpoint.offset;
+                    assert totalOffset == lastSyncedCheckpoint.offset();
                     return super.newSnapshot();
                 }
             }
@@ -450,9 +450,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * @return <code>true</code> if this call caused an actual sync operation
      */
     final boolean syncUpTo(long offset) throws IOException {
-        if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {
+        if (lastSyncedCheckpoint.offset() < offset && syncNeeded()) {
             synchronized (syncLock) { // only one sync/checkpoint should happen concurrently but we wait
-                if (lastSyncedCheckpoint.offset < offset && syncNeeded()) {
+                if (lastSyncedCheckpoint.offset() < offset && syncNeeded()) {
                     // double checked locking - we don't want to fsync unless we have to and now that we have
                     // the lock we should check again since if this code is busy we might have fsynced enough already
                     final Checkpoint checkpointToSync;
@@ -474,7 +474,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         try {
                             // Write ops will release operations.
                             writeAndReleaseOps(toWrite);
-                            assert channel.position() == checkpointToSync.offset;
+                            assert channel.position() == checkpointToSync.offset();
                         } catch (final Exception ex) {
                             closeWithTragicEvent(ex);
                             throw ex;
@@ -483,8 +483,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // now do the actual fsync outside of the synchronized block such that
                     // we can continue writing to the buffer etc.
                     try {
-                        assert lastSyncedCheckpoint.offset != checkpointToSync.offset || toWrite.length() == 0;
-                        if (lastSyncedCheckpoint.offset != checkpointToSync.offset) {
+                        assert lastSyncedCheckpoint.offset() != checkpointToSync.offset() || toWrite.length() == 0;
+                        if (lastSyncedCheckpoint.offset() != checkpointToSync.offset()) {
                             channel.force(false);
                         }
                         writeCheckpoint(checkpointChannel, checkpointPath, checkpointToSync);
@@ -495,8 +495,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     if (flushedSequenceNumbers != null) {
                         flushedSequenceNumbers.forEach((LongProcedure) persistedSequenceNumberConsumer::accept);
                     }
-                    assert lastSyncedCheckpoint.offset <= checkpointToSync.offset
-                        : "illegal state: " + lastSyncedCheckpoint.offset + " <= " + checkpointToSync.offset;
+                    assert lastSyncedCheckpoint.offset() <= checkpointToSync.offset()
+                        : "illegal state: " + lastSyncedCheckpoint.offset() + " <= " + checkpointToSync.offset();
                     lastSyncedCheckpoint = checkpointToSync; // write protected by syncLock
                     return true;
                 }

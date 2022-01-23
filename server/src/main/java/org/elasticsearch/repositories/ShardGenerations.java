@@ -19,7 +19,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -27,7 +26,7 @@ import java.util.stream.Collectors;
 /**
  * Represents the current {@link ShardGeneration} for each shard in a repository.
  */
-public final class ShardGenerations {
+public record ShardGenerations(Map<IndexId, List<ShardGeneration>> shardGenerations) {
 
     public static final ShardGenerations EMPTY = new ShardGenerations(Collections.emptyMap());
 
@@ -43,12 +42,7 @@ public final class ShardGenerations {
      */
     public static final ShardGeneration DELETED_SHARD_GEN = new ShardGeneration("_deleted");
 
-    /**
-     * For each index, the list of shard generations for its shards (i.e. the generation for shard i is at the i'th position of the list)
-     */
-    private final Map<IndexId, List<ShardGeneration>> shardGenerations;
-
-    private ShardGenerations(Map<IndexId, List<ShardGeneration>> shardGenerations) {
+    public ShardGenerations(Map<IndexId, List<ShardGeneration>> shardGenerations) {
         this.shardGenerations = Map.copyOf(shardGenerations);
     }
 
@@ -57,10 +51,10 @@ public final class ShardGenerations {
     /**
      * Filters out unreliable numeric shard generations read from {@link RepositoryData} or {@link IndexShardSnapshotStatus}, returning
      * {@code null} in their place.
-     * @see <a href="https://github.com/elastic/elasticsearch/issues/57798">Issue #57988</a>
      *
      * @param shardGeneration shard generation to fix
      * @return given shard generation or {@code null} if it was filtered out or {@code null} was passed
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/57798">Issue #57988</a>
      */
     @Nullable
     public static ShardGeneration fixShardGeneration(@Nullable ShardGeneration shardGeneration) {
@@ -89,7 +83,7 @@ public final class ShardGenerations {
     /**
      * Computes the obsolete shard index generations that can be deleted once this instance was written to the repository.
      * Note: This method should only be used when finalizing a snapshot and we can safely assume that data has only been added but not
-     *       removed from shard paths.
+     * removed from shard paths.
      *
      * @param previous Previous {@code ShardGenerations}
      * @return Map of obsolete shard index generations in indices that are still tracked by this instance
@@ -143,28 +137,6 @@ public final class ShardGenerations {
 
     public List<ShardGeneration> getGens(IndexId indexId) {
         return shardGenerations.getOrDefault(indexId, Collections.emptyList());
-    }
-
-    @Override
-    public boolean equals(final Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final ShardGenerations that = (ShardGenerations) o;
-        return shardGenerations.equals(that.shardGenerations);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(shardGenerations);
-    }
-
-    @Override
-    public String toString() {
-        return "ShardGenerations{generations:" + this.shardGenerations + "}";
     }
 
     public static Builder builder() {

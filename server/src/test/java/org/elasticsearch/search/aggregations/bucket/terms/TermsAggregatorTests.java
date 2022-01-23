@@ -2109,7 +2109,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
         document.add(new Field(NestedPathFieldMapper.NAME, "docs", NestedPathFieldMapper.Defaults.FIELD_TYPE));
         document.add(new SortedNumericDocValuesField("value", value));
-        document.add(sequenceIDFields.primaryTerm);
+        document.add(sequenceIDFields.primaryTerm());
         documents.add(document);
 
         return documents;
@@ -2138,7 +2138,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE));
         document.addAll(doc(animalFieldType, animal));
         document.add(new Field(NestedPathFieldMapper.NAME, "docs", NestedPathFieldMapper.Defaults.FIELD_TYPE));
-        document.add(sequenceIDFields.primaryTerm);
+        document.add(sequenceIDFields.primaryTerm());
         documents.add(document);
 
         return documents;

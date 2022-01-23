@@ -434,33 +434,30 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(totalStats.getIngestTimeInMillis(), deserializedIngestStats.getTotalStats().getIngestTimeInMillis());
                     assertEquals(ingestStats.getPipelineStats().size(), deserializedIngestStats.getPipelineStats().size());
                     for (IngestStats.PipelineStat pipelineStat : ingestStats.getPipelineStats()) {
-                        String pipelineId = pipelineStat.getPipelineId();
+                        String pipelineId = pipelineStat.pipelineId();
                         IngestStats.Stats deserializedPipelineStats = getPipelineStats(
                             deserializedIngestStats.getPipelineStats(),
                             pipelineId
                         );
-                        assertEquals(pipelineStat.getStats().getIngestFailedCount(), deserializedPipelineStats.getIngestFailedCount());
-                        assertEquals(pipelineStat.getStats().getIngestTimeInMillis(), deserializedPipelineStats.getIngestTimeInMillis());
-                        assertEquals(pipelineStat.getStats().getIngestCurrent(), deserializedPipelineStats.getIngestCurrent());
-                        assertEquals(pipelineStat.getStats().getIngestCount(), deserializedPipelineStats.getIngestCount());
+                        assertEquals(pipelineStat.stats().getIngestFailedCount(), deserializedPipelineStats.getIngestFailedCount());
+                        assertEquals(pipelineStat.stats().getIngestTimeInMillis(), deserializedPipelineStats.getIngestTimeInMillis());
+                        assertEquals(pipelineStat.stats().getIngestCurrent(), deserializedPipelineStats.getIngestCurrent());
+                        assertEquals(pipelineStat.stats().getIngestCount(), deserializedPipelineStats.getIngestCount());
                         List<IngestStats.ProcessorStat> processorStats = ingestStats.getProcessorStats().get(pipelineId);
                         // intentionally validating identical order
                         Iterator<IngestStats.ProcessorStat> it = deserializedIngestStats.getProcessorStats().get(pipelineId).iterator();
                         for (IngestStats.ProcessorStat processorStat : processorStats) {
                             IngestStats.ProcessorStat deserializedProcessorStat = it.next();
                             assertEquals(
-                                processorStat.getStats().getIngestFailedCount(),
-                                deserializedProcessorStat.getStats().getIngestFailedCount()
+                                processorStat.stats().getIngestFailedCount(),
+                                deserializedProcessorStat.stats().getIngestFailedCount()
                             );
                             assertEquals(
-                                processorStat.getStats().getIngestTimeInMillis(),
-                                deserializedProcessorStat.getStats().getIngestTimeInMillis()
+                                processorStat.stats().getIngestTimeInMillis(),
+                                deserializedProcessorStat.stats().getIngestTimeInMillis()
                             );
-                            assertEquals(
-                                processorStat.getStats().getIngestCurrent(),
-                                deserializedProcessorStat.getStats().getIngestCurrent()
-                            );
-                            assertEquals(processorStat.getStats().getIngestCount(), deserializedProcessorStat.getStats().getIngestCount());
+                            assertEquals(processorStat.stats().getIngestCurrent(), deserializedProcessorStat.stats().getIngestCurrent());
+                            assertEquals(processorStat.stats().getIngestCount(), deserializedProcessorStat.stats().getIngestCount());
                         }
                         assertFalse(it.hasNext());
                     }
@@ -920,6 +917,6 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
-        return pipelineStats.stream().filter(p1 -> p1.getPipelineId().equals(id)).findFirst().map(p2 -> p2.getStats()).orElse(null);
+        return pipelineStats.stream().filter(p1 -> p1.pipelineId().equals(id)).findFirst().map(p2 -> p2.stats()).orElse(null);
     }
 }

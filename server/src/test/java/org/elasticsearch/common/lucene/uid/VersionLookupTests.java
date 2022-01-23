@@ -55,8 +55,8 @@ public class VersionLookupTests extends ESTestCase {
         // found doc
         DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment);
         assertNotNull(result);
-        assertEquals(87, result.version);
-        assertEquals(0, result.docId);
+        assertEquals(87, result.version());
+        assertEquals(0, result.docId());
         // not found doc
         assertNull(lookup.lookupVersion(new BytesRef("7"), randomBoolean(), segment));
         // deleted doc
@@ -91,8 +91,8 @@ public class VersionLookupTests extends ESTestCase {
         // return the last doc when there are duplicates
         DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment);
         assertNotNull(result);
-        assertEquals(87, result.version);
-        assertEquals(1, result.docId);
+        assertEquals(87, result.version());
+        assertEquals(1, result.docId());
         // delete the first doc only
         assertTrue(writer.tryDeleteDocument(reader, 0) >= 0);
         reader.close();
@@ -101,8 +101,8 @@ public class VersionLookupTests extends ESTestCase {
         lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
         result = lookup.lookupVersion(new BytesRef("6"), randomBoolean(), segment);
         assertNotNull(result);
-        assertEquals(87, result.version);
-        assertEquals(1, result.docId);
+        assertEquals(87, result.version());
+        assertEquals(1, result.docId());
         // delete both docs
         assertTrue(writer.tryDeleteDocument(reader, 1) >= 0);
         reader.close();

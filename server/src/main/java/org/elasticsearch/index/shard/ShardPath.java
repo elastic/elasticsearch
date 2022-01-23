@@ -131,7 +131,7 @@ public final class ShardPath {
             // EMPTY is safe here because we never call namedObject
             ShardStateMetadata load = ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
             if (load != null) {
-                if (load.indexUUID.equals(indexUUID) == false && IndexMetadata.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
+                if (load.indexUUID().equals(indexUUID) == false && IndexMetadata.INDEX_UUID_NA_VALUE.equals(load.indexUUID()) == false) {
                     logger.warn(
                         "{} found shard on path: [{}] with a different index UUID - this "
                             + "shard seems to be leftover from a different index with the same name. "
@@ -142,7 +142,7 @@ public final class ShardPath {
                     throw new IllegalStateException(
                         shardId
                             + " index UUID in shard state was: "
-                            + load.indexUUID
+                            + load.indexUUID()
                             + " expected: "
                             + indexUUID
                             + " on shard path: "
@@ -190,7 +190,7 @@ public final class ShardPath {
             // EMPTY is safe here because we never call namedObject
             ShardStateMetadata load = ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, path);
             if (load != null) {
-                if (load.indexUUID.equals(indexUUID) == false && IndexMetadata.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
+                if (load.indexUUID().equals(indexUUID) == false && IndexMetadata.INDEX_UUID_NA_VALUE.equals(load.indexUUID()) == false) {
                     logger.warn("{} deleting leftover shard on path: [{}] with a different index UUID", lock.getShardId(), path);
                     assert Files.isDirectory(path) : path + " is not a directory";
                     NodeEnvironment.acquireFSLockForPaths(indexSettings, path);

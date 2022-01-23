@@ -107,7 +107,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
     @Override
     public void onRemoval(RemovalNotification<Key, BytesReference> notification) {
-        notification.getKey().entity.onRemoval(notification);
+        notification.key().entity.onRemoval(notification);
     }
 
     BytesReference getOrCompute(

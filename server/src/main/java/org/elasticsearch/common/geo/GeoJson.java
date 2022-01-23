@@ -409,7 +409,7 @@ public final class GeoJson {
                 }
                 verifyNulls(type, geometries, orientation, null);
                 Point point = coordinates.asPoint();
-                yield new Circle(point.getX(), point.getY(), point.getZ(), radius.convert(DistanceUnit.METERS).value);
+                yield new Circle(point.getX(), point.getY(), point.getZ(), radius.convert(DistanceUnit.METERS).value());
             }
             case POINT -> {
                 verifyNulls(type, geometries, orientation, radius);

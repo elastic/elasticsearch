@@ -62,7 +62,7 @@ public class VersionsTests extends ESTestCase {
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         writer.updateDocument(new Term(IdFieldMapper.NAME, "1"), doc);
         directoryReader = reopen(directoryReader);
-        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomBoolean()).version, equalTo(1L));
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomBoolean()).version(), equalTo(1L));
 
         doc = new Document();
         Field uid = new Field(IdFieldMapper.NAME, "1", IdFieldMapper.Defaults.FIELD_TYPE);
@@ -73,7 +73,7 @@ public class VersionsTests extends ESTestCase {
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         writer.updateDocument(new Term(IdFieldMapper.NAME, "1"), doc);
         directoryReader = reopen(directoryReader);
-        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomBoolean()).version, equalTo(2L));
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomBoolean()).version(), equalTo(2L));
 
         // test reuse of uid field
         doc = new Document();
@@ -85,7 +85,7 @@ public class VersionsTests extends ESTestCase {
         writer.updateDocument(new Term(IdFieldMapper.NAME, "1"), doc);
 
         directoryReader = reopen(directoryReader);
-        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomBoolean()).version, equalTo(3L));
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomBoolean()).version(), equalTo(3L));
 
         writer.deleteDocuments(new Term(IdFieldMapper.NAME, "1"));
         directoryReader = reopen(directoryReader);
@@ -117,14 +117,14 @@ public class VersionsTests extends ESTestCase {
 
         writer.updateDocuments(new Term(IdFieldMapper.NAME, "1"), docs);
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
-        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomBoolean()).version, equalTo(5L));
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomBoolean()).version(), equalTo(5L));
 
         version.setLongValue(6L);
         writer.updateDocuments(new Term(IdFieldMapper.NAME, "1"), docs);
         version.setLongValue(7L);
         writer.updateDocuments(new Term(IdFieldMapper.NAME, "1"), docs);
         directoryReader = reopen(directoryReader);
-        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomBoolean()).version, equalTo(7L));
+        assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomBoolean()).version(), equalTo(7L));
 
         writer.deleteDocuments(new Term(IdFieldMapper.NAME, "1"));
         directoryReader = reopen(directoryReader);
@@ -148,10 +148,10 @@ public class VersionsTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
         // should increase cache size by 1
-        assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
+        assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version());
         assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
         // should be cache hit
-        assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
+        assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version());
         assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
 
         reader.close();
@@ -174,11 +174,11 @@ public class VersionsTests extends ESTestCase {
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
-        assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
+        assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version());
         assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
         // now wrap the reader
         DirectoryReader wrapped = ElasticsearchDirectoryReader.wrap(reader, new ShardId("bogus", "_na_", 5));
-        assertEquals(87, loadDocIdAndVersion(wrapped, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
+        assertEquals(87, loadDocIdAndVersion(wrapped, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version());
         // same size map: core cache key is shared
         assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
 

@@ -1183,7 +1183,7 @@ public class InternalEngineTests extends EngineTestCase {
                 SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
                     safeCommit.getIndexCommit().getUserData().entrySet()
                 );
-                assertThat(commitInfo.localCheckpoint, equalTo(engine.getProcessedLocalCheckpoint()));
+                assertThat(commitInfo.localCheckpoint(), equalTo(engine.getProcessedLocalCheckpoint()));
             }
         };
         final Thread[] threads = new Thread[randomIntBetween(2, 4)];
@@ -1454,7 +1454,7 @@ public class InternalEngineTests extends EngineTestCase {
                 randomSearcherWrapper()
             )
         ) {
-            assertEquals(indexResult.getSeqNo(), get.docIdAndVersion().seqNo);
+            assertEquals(indexResult.getSeqNo(), get.docIdAndVersion().seqNo());
         }
 
         expectThrows(
@@ -2382,7 +2382,7 @@ public class InternalEngineTests extends EngineTestCase {
                     Engine.Get engineGet = new Engine.Get(true, false, doc.id());
                     try (Engine.GetResult get = engine.get(engineGet, mappingLookup, documentParser, randomSearcherWrapper())) {
                         FieldsVisitor visitor = new FieldsVisitor(true);
-                        get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
+                        get.docIdAndVersion().reader().document(get.docIdAndVersion().docId(), visitor);
                         List<String> values = new ArrayList<>(Strings.commaDelimitedListToSet(visitor.source().utf8ToString()));
                         String removed = op % 3 == 0 && values.size() > 0 ? values.remove(0) : null;
                         String added = "v_" + idGenerator.incrementAndGet();
@@ -2440,7 +2440,7 @@ public class InternalEngineTests extends EngineTestCase {
             Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id()), mappingLookup, documentParser, randomSearcherWrapper())
         ) {
             FieldsVisitor visitor = new FieldsVisitor(true);
-            get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
+            get.docIdAndVersion().reader().document(get.docIdAndVersion().docId(), visitor);
             List<String> values = Arrays.asList(Strings.commaDelimitedListToStringArray(visitor.source().utf8ToString()));
             assertThat(currentValues, equalTo(new HashSet<>(values)));
         }
@@ -3326,7 +3326,7 @@ public class InternalEngineTests extends EngineTestCase {
                 final long localCheckpoint = Long.parseLong(
                     engine.getLastCommittedSegmentInfos().userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
                 );
-                final long committedGen = engine.getTranslog().getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration;
+                final long committedGen = engine.getTranslog().getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration();
                 for (int gen = 1; gen < committedGen; gen++) {
                     final Path genFile = translogPath.resolve(Translog.getFilename(gen));
                     assertFalse(genFile + " wasn't cleaned up", Files.exists(genFile));
@@ -3524,7 +3524,7 @@ public class InternalEngineTests extends EngineTestCase {
             seqNo -> {}
         );
         translog.add(new Translog.Index("SomeBogusId", 0, primaryTerm.get(), "{}".getBytes(Charset.forName("UTF-8"))));
-        assertEquals(generation.translogFileGeneration, translog.currentFileGeneration());
+        assertEquals(generation.translogFileGeneration(), translog.currentFileGeneration());
         translog.close();
 
         EngineConfig config = engine.config();
@@ -4690,7 +4690,7 @@ public class InternalEngineTests extends EngineTestCase {
                             assertNull(msg, docIdAndSeqNo);
                         } else {
                             assertNotNull(msg, docIdAndSeqNo);
-                            assertThat(msg, docIdAndSeqNo.seqNo, equalTo(latestOps.get(id).seqNo()));
+                            assertThat(msg, docIdAndSeqNo.seqNo(), equalTo(latestOps.get(id).seqNo()));
                         }
                     }
                     String notFoundId = randomValueOtherThanMany(liveOps::containsKey, () -> Long.toString(randomNonNegativeLong()));
@@ -5172,7 +5172,7 @@ public class InternalEngineTests extends EngineTestCase {
                  * This sequence number landed in the last generation, but the lower and upper bounds for an earlier generation straddle
                  * this sequence number.
                  */
-                assertThat(translog.getMinGenerationForSeqNo(3 * i + 1).translogFileGeneration, equalTo(i + generation));
+                assertThat(translog.getMinGenerationForSeqNo(3 * i + 1).translogFileGeneration(), equalTo(i + generation));
             }
 
             int i = 0;
@@ -5210,10 +5210,10 @@ public class InternalEngineTests extends EngineTestCase {
                 primaryTerm = UNASSIGNED_PRIMARY_TERM;
                 seqNo = UNASSIGNED_SEQ_NO;
             } else {
-                seqNo = docIdAndSeqNo.seqNo;
-                NumericDocValues primaryTerms = docIdAndSeqNo.context.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-                if (primaryTerms == null || primaryTerms.advanceExact(docIdAndSeqNo.docId) == false) {
-                    throw new AssertionError("document does not have primary term [" + docIdAndSeqNo.docId + "]");
+                seqNo = docIdAndSeqNo.seqNo();
+                NumericDocValues primaryTerms = docIdAndSeqNo.context().reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                if (primaryTerms == null || primaryTerms.advanceExact(docIdAndSeqNo.docId()) == false) {
+                    throw new AssertionError("document does not have primary term [" + docIdAndSeqNo.docId() + "]");
                 }
                 primaryTerm = primaryTerms.longValue();
             }
@@ -5477,9 +5477,9 @@ public class InternalEngineTests extends EngineTestCase {
             final LuceneDocument document = new LuceneDocument();
             document.add(uidField);
             document.add(versionField);
-            document.add(seqID.seqNo);
-            document.add(seqID.seqNoDocValue);
-            document.add(seqID.primaryTerm);
+            document.add(seqID.seqNo());
+            document.add(seqID.seqNoDocValue());
+            document.add(seqID.primaryTerm());
             final BytesReference source = new BytesArray(new byte[] { 1 });
             final ParsedDocument parsedDocument = new ParsedDocument(
                 versionField,
@@ -5783,7 +5783,7 @@ public class InternalEngineTests extends EngineTestCase {
         final Translog translog = engine.getTranslog();
         final IntSupplier uncommittedTranslogOperationsSinceLastCommit = () -> {
             long localCheckpoint = Long.parseLong(engine.getLastCommittedSegmentInfos().userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-            return translog.totalOperationsByMinGen(translog.getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration);
+            return translog.totalOperationsByMinGen(translog.getMinGenerationForSeqNo(localCheckpoint + 1).translogFileGeneration());
         };
         final long extraTranslogSizeInNewEngine = engine.getTranslog().stats().getUncommittedSizeInBytes()
             - Translog.DEFAULT_HEADER_SIZE_IN_BYTES;

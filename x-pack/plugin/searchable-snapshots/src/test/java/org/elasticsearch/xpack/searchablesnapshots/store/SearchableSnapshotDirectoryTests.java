@@ -470,17 +470,17 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
 
                 assertThat(
                     "List of different files should be empty but got [" + metadata.asMap() + "] and [" + snapshotMetadata.asMap() + ']',
-                    diff.different.isEmpty(),
+                    diff.different().isEmpty(),
                     is(true)
                 );
                 assertThat(
                     "List of missing files should be empty but got [" + metadata.asMap() + "] and [" + snapshotMetadata.asMap() + ']',
-                    diff.missing.isEmpty(),
+                    diff.missing().isEmpty(),
                     is(true)
                 );
                 assertThat(
                     "List of files should be identical [" + metadata.asMap() + "] and [" + snapshotMetadata.asMap() + ']',
-                    diff.identical.size(),
+                    diff.identical().size(),
                     equalTo(metadata.size())
                 );
                 assertThat("Number of files should be identical", snapshotMetadata.size(), equalTo(metadata.size()));
@@ -719,7 +719,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 final String blobName = randomAlphaOfLength(15);
                 Files.write(shardSnapshotDir.resolve(blobName), input, StandardOpenOption.CREATE_NEW);
                 randomFiles.add(
-                    new BlobStoreIndexShardSnapshot.FileInfo(
+                    BlobStoreIndexShardSnapshot.FileInfo.of(
                         blobName,
                         new StoreFileMetadata(fileName, input.length, checksum, Version.CURRENT.luceneVersion.toString()),
                         new ByteSizeValue(input.length)

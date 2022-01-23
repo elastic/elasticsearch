@@ -328,8 +328,8 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         PersistentTasksExecutor<Params> persistentTasksExecutor = registry.getPersistentTaskExecutorSafe(taskName);
 
         AssignmentDecision decision = enableDecider.canAssign();
-        if (decision.getType() == AssignmentDecision.Type.NO) {
-            return unassignedAssignment("persistent task [" + taskName + "] cannot be assigned [" + decision.getReason() + "]");
+        if (decision.type() == AssignmentDecision.Type.NO) {
+            return unassignedAssignment("persistent task [" + taskName + "] cannot be assigned [" + decision.reason() + "]");
         }
 
         // Filter all nodes that are marked as shutting down, because we do not

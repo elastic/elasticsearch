@@ -1686,8 +1686,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 logger.trace("skip local recovery as no safe commit found");
                 return UNASSIGNED_SEQ_NO;
             }
-            assert safeCommit.get().localCheckpoint <= globalCheckpoint : safeCommit.get().localCheckpoint + " > " + globalCheckpoint;
-            if (safeCommit.get().localCheckpoint == globalCheckpoint) {
+            assert safeCommit.get().localCheckpoint() <= globalCheckpoint : safeCommit.get().localCheckpoint() + " > " + globalCheckpoint;
+            if (safeCommit.get().localCheckpoint() == globalCheckpoint) {
                 logger.trace(
                     "skip local recovery as the safe commit is up to date; safe commit {} global checkpoint {}",
                     safeCommit.get(),
@@ -1704,7 +1704,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     globalCheckpoint
                 );
                 recoveryState.getTranslog().totalLocal(0);
-                return safeCommit.get().localCheckpoint + 1;
+                return safeCommit.get().localCheckpoint() + 1;
             }
             try {
                 final Engine.TranslogRecoveryRunner translogRecoveryRunner = (engine, snapshot) -> {
@@ -1734,7 +1734,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // we need to find the safe commit again as we should have created a new one during the local recovery
             final Optional<SequenceNumbers.CommitInfo> newSafeCommit = store.findSafeIndexCommit(globalCheckpoint);
             assert newSafeCommit.isPresent() : "no safe commit found after local recovery";
-            return newSafeCommit.get().localCheckpoint + 1;
+            return newSafeCommit.get().localCheckpoint() + 1;
         } catch (Exception e) {
             logger.debug(
                 new ParameterizedMessage(
@@ -3728,18 +3728,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @see IndexShard#addShardFailureCallback(Consumer)
      */
-    public static final class ShardFailure {
-        public final ShardRouting routing;
-        public final String reason;
-        @Nullable
-        public final Exception cause;
-
-        public ShardFailure(ShardRouting routing, String reason, @Nullable Exception cause) {
-            this.routing = routing;
-            this.reason = reason;
-            this.cause = cause;
-        }
-    }
+    public record ShardFailure(ShardRouting routing, String reason, @Nullable Exception cause) {}
 
     EngineFactory getEngineFactory() {
         return engineFactory;

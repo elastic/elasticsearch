@@ -15,11 +15,9 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 
@@ -79,13 +77,7 @@ public interface ValueSource {
         }
     }
 
-    final class MapValue implements ValueSource {
-
-        private final Map<ValueSource, ValueSource> map;
-
-        MapValue(Map<ValueSource, ValueSource> map) {
-            this.map = map;
-        }
+    record MapValue(Map<ValueSource, ValueSource> map) implements ValueSource {
 
         @Override
         public Object copyAndResolve(Map<String, Object> model) {
@@ -95,30 +87,9 @@ public interface ValueSource {
             }
             return copy;
         }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            MapValue mapValue = (MapValue) o;
-            return map.equals(mapValue.map);
-
-        }
-
-        @Override
-        public int hashCode() {
-            return map.hashCode();
-        }
     }
 
-    final class ListValue implements ValueSource {
-
-        private final List<ValueSource> values;
-
-        ListValue(List<ValueSource> values) {
-            this.values = values;
-        }
+    record ListValue(List<ValueSource> values) implements ValueSource {
 
         @Override
         public Object copyAndResolve(Map<String, Object> model) {
@@ -128,105 +99,30 @@ public interface ValueSource {
             }
             return copy;
         }
+    }
+
+    record ObjectValue(Object value) implements ValueSource {
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            ListValue listValue = (ListValue) o;
-            return values.equals(listValue.values);
-
-        }
-
-        @Override
-        public int hashCode() {
-            return values.hashCode();
+        public Object copyAndResolve(Map<String, Object> model) {
+            return value;
         }
     }
 
-    final class ObjectValue implements ValueSource {
-
-        private final Object value;
-
-        ObjectValue(Object value) {
-            this.value = value;
-        }
+    record ByteValue(byte[] value) implements ValueSource {
 
         @Override
         public Object copyAndResolve(Map<String, Object> model) {
             return value;
         }
 
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            ObjectValue objectValue = (ObjectValue) o;
-            return Objects.equals(value, objectValue.value);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(value);
-        }
     }
 
-    final class ByteValue implements ValueSource {
-
-        private final byte[] value;
-
-        ByteValue(byte[] value) {
-            this.value = value;
-        }
-
-        @Override
-        public Object copyAndResolve(Map<String, Object> model) {
-            return value;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            ByteValue objectValue = (ByteValue) o;
-            return Arrays.equals(value, objectValue.value);
-        }
-
-        @Override
-        public int hashCode() {
-            return Arrays.hashCode(value);
-        }
-
-    }
-
-    final class TemplatedValue implements ValueSource {
-
-        private final TemplateScript.Factory template;
-
-        TemplatedValue(TemplateScript.Factory template) {
-            this.template = template;
-        }
+    record TemplatedValue(TemplateScript.Factory template) implements ValueSource {
 
         @Override
         public Object copyAndResolve(Map<String, Object> model) {
             return template.newInstance(model).execute();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            TemplatedValue templatedValue = (TemplatedValue) o;
-            return Objects.equals(template, templatedValue.template);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(template);
         }
     }
 

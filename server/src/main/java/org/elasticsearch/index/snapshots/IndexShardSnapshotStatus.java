@@ -240,117 +240,17 @@ public class IndexShardSnapshotStatus {
     /**
      * Returns an immutable state of {@link IndexShardSnapshotStatus} at a given point in time.
      */
-    public static class Copy {
-
-        private final Stage stage;
-        private final long startTime;
-        private final long totalTime;
-        private final int incrementalFileCount;
-        private final int totalFileCount;
-        private final int processedFileCount;
-        private final long totalSize;
-        private final long processedSize;
-        private final long incrementalSize;
-        private final long indexVersion;
-        private final String failure;
-
-        public Copy(
-            final Stage stage,
-            final long startTime,
-            final long totalTime,
-            final int incrementalFileCount,
-            final int totalFileCount,
-            final int processedFileCount,
-            final long incrementalSize,
-            final long totalSize,
-            final long processedSize,
-            final long indexVersion,
-            final String failure
-        ) {
-            this.stage = stage;
-            this.startTime = startTime;
-            this.totalTime = totalTime;
-            this.incrementalFileCount = incrementalFileCount;
-            this.totalFileCount = totalFileCount;
-            this.processedFileCount = processedFileCount;
-            this.totalSize = totalSize;
-            this.processedSize = processedSize;
-            this.incrementalSize = incrementalSize;
-            this.indexVersion = indexVersion;
-            this.failure = failure;
-        }
-
-        public Stage getStage() {
-            return stage;
-        }
-
-        public long getStartTime() {
-            return startTime;
-        }
-
-        public long getTotalTime() {
-            return totalTime;
-        }
-
-        public int getIncrementalFileCount() {
-            return incrementalFileCount;
-        }
-
-        public int getTotalFileCount() {
-            return totalFileCount;
-        }
-
-        public int getProcessedFileCount() {
-            return processedFileCount;
-        }
-
-        public long getIncrementalSize() {
-            return incrementalSize;
-        }
-
-        public long getTotalSize() {
-            return totalSize;
-        }
-
-        public long getProcessedSize() {
-            return processedSize;
-        }
-
-        public long getIndexVersion() {
-            return indexVersion;
-        }
-
-        public String getFailure() {
-            return failure;
-        }
-
-        @Override
-        public String toString() {
-            return "index shard snapshot status ("
-                + "stage="
-                + stage
-                + ", startTime="
-                + startTime
-                + ", totalTime="
-                + totalTime
-                + ", incrementalFileCount="
-                + incrementalFileCount
-                + ", totalFileCount="
-                + totalFileCount
-                + ", processedFileCount="
-                + processedFileCount
-                + ", incrementalSize="
-                + incrementalSize
-                + ", totalSize="
-                + totalSize
-                + ", processedSize="
-                + processedSize
-                + ", indexVersion="
-                + indexVersion
-                + ", failure='"
-                + failure
-                + '\''
-                + ')';
-        }
-    }
+    public record Copy(
+        Stage stage,
+        long startTime,
+        long totalTime,
+        int incrementalFileCount,
+        int totalFileCount,
+        int processedFileCount,
+        long incrementalSize,
+        long totalSize,
+        long processedSize,
+        long indexVersion,
+        String failure
+    ) {}
 }

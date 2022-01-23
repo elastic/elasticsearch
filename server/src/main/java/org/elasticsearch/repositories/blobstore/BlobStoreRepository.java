@@ -2728,7 +2728,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         indexIncrementalFileCount++;
                         indexIncrementalSize += md.length();
                         // create a new FileInfo
-                        BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = new BlobStoreIndexShardSnapshot.FileInfo(
+                        BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = BlobStoreIndexShardSnapshot.FileInfo.of(
                             (needsWrite ? UPLOADED_DATA_BLOB_PREFIX : VIRTUAL_DATA_BLOB_PREFIX) + UUIDs.randomBase64UUID(),
                             md,
                             chunkSize()
@@ -2857,12 +2857,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
                 final BlobStoreIndexShardSnapshot blobStoreIndexShardSnapshot = new BlobStoreIndexShardSnapshot(
                     snapshotId.getName(),
-                    lastSnapshotStatus.getIndexVersion(),
+                    lastSnapshotStatus.indexVersion(),
                     indexCommitPointFiles,
-                    lastSnapshotStatus.getStartTime(),
-                    threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
-                    lastSnapshotStatus.getIncrementalFileCount(),
-                    lastSnapshotStatus.getIncrementalSize()
+                    lastSnapshotStatus.startTime(),
+                    threadPool.absoluteTimeInMillis() - lastSnapshotStatus.startTime(),
+                    lastSnapshotStatus.incrementalFileCount(),
+                    lastSnapshotStatus.incrementalSize()
                 );
                 try {
                     final String snapshotUUID = snapshotId.getUUID();
@@ -3518,25 +3518,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * The result of removing a snapshot from a shard folder in the repository.
      */
-    private static final class ShardSnapshotMetaDeleteResult {
-
-        // Index that the snapshot was removed from
-        private final IndexId indexId;
-
-        // Shard id that the snapshot was removed from
-        private final int shardId;
-
-        // Id of the new index-${uuid} blob that does not include the snapshot any more
-        private final ShardGeneration newGeneration;
-
-        // Blob names in the shard directory that have become unreferenced in the new shard generation
-        private final Collection<String> blobsToDelete;
-
-        ShardSnapshotMetaDeleteResult(IndexId indexId, int shardId, ShardGeneration newGeneration, Collection<String> blobsToDelete) {
-            this.indexId = indexId;
-            this.shardId = shardId;
-            this.newGeneration = newGeneration;
-            this.blobsToDelete = blobsToDelete;
-        }
-    }
+    private record ShardSnapshotMetaDeleteResult(
+        IndexId indexId, // Index that the snapshot was removed from
+        int shardId, // Shard id that the snapshot was removed from
+        ShardGeneration newGeneration, // Id of the new index-${uuid} blob that does not include the snapshot any more
+        Collection<String> blobsToDelete // Blob names in the shard directory that have become unreferenced in the new shard generation
+    ) {}
 }

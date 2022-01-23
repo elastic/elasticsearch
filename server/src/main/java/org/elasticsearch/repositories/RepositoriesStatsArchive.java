@@ -95,14 +95,7 @@ public final class RepositoriesStatsArchive {
             );
     }
 
-    private static class ArchiveEntry {
-        private final RepositoryStatsSnapshot repositoryStatsSnapshot;
-        private final long createdAtMillis;
-
-        private ArchiveEntry(RepositoryStatsSnapshot repositoryStatsSnapshot, long createdAtMillis) {
-            this.repositoryStatsSnapshot = repositoryStatsSnapshot;
-            this.createdAtMillis = createdAtMillis;
-        }
+    private record ArchiveEntry(RepositoryStatsSnapshot repositoryStatsSnapshot, long createdAtMillis) {
 
         private long ageInMillis(LongSupplier relativeTimeInMillis) {
             return Math.max(0, relativeTimeInMillis.getAsLong() - createdAtMillis);

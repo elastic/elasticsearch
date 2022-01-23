@@ -54,7 +54,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
     public void testExecuteSingleUploadBlobSizeTooLarge() {
         final long blobSize = ByteSizeUnit.GB.toBytes(randomIntBetween(6, 10));
         final S3BlobStore blobStore = mock(S3BlobStore.class);
-        final S3BlobContainer blobContainer = new S3BlobContainer(mock(BlobPath.class), blobStore);
+        final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(List.of()), blobStore);
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -67,7 +67,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final S3BlobStore blobStore = mock(S3BlobStore.class);
         when(blobStore.bufferSizeInBytes()).thenReturn(ByteSizeUnit.MB.toBytes(1));
 
-        final S3BlobContainer blobContainer = new S3BlobContainer(mock(BlobPath.class), blobStore);
+        final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(List.of()), blobStore);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
 
         final IllegalArgumentException e = expectThrows(
@@ -131,7 +131,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
     public void testExecuteMultipartUploadBlobSizeTooLarge() {
         final long blobSize = ByteSizeUnit.TB.toBytes(randomIntBetween(6, 10));
         final S3BlobStore blobStore = mock(S3BlobStore.class);
-        final S3BlobContainer blobContainer = new S3BlobContainer(mock(BlobPath.class), blobStore);
+        final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(List.of()), blobStore);
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -143,7 +143,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
     public void testExecuteMultipartUploadBlobSizeTooSmall() {
         final long blobSize = ByteSizeUnit.MB.toBytes(randomIntBetween(1, 4));
         final S3BlobStore blobStore = mock(S3BlobStore.class);
-        final S3BlobContainer blobContainer = new S3BlobContainer(mock(BlobPath.class), blobStore);
+        final S3BlobContainer blobContainer = new S3BlobContainer(new BlobPath(List.of()), blobStore);
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

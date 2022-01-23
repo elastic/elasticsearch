@@ -397,8 +397,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     public static String getShardStateId(IndexShard indexShard, IndexCommit snapshotIndexCommit) throws IOException {
         final Map<String, String> userCommitData = snapshotIndexCommit.getUserData();
         final SequenceNumbers.CommitInfo seqNumInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userCommitData.entrySet());
-        final long maxSeqNo = seqNumInfo.maxSeqNo;
-        if (maxSeqNo != seqNumInfo.localCheckpoint || maxSeqNo != indexShard.getLastSyncedGlobalCheckpoint()) {
+        final long maxSeqNo = seqNumInfo.maxSeqNo();
+        if (maxSeqNo != seqNumInfo.localCheckpoint() || maxSeqNo != indexShard.getLastSyncedGlobalCheckpoint()) {
             return null;
         }
         return userCommitData.get(Engine.HISTORY_UUID_KEY)
@@ -422,7 +422,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         ShardSnapshotStatus masterShard = masterShards.get(shardId);
                         if (masterShard != null && masterShard.state().completed() == false) {
                             final IndexShardSnapshotStatus.Copy indexShardSnapshotStatus = localShard.getValue().asCopy();
-                            final Stage stage = indexShardSnapshotStatus.getStage();
+                            final Stage stage = indexShardSnapshotStatus.stage();
                             // Master knows about the shard and thinks it has not completed
                             if (stage == Stage.DONE) {
                                 // but we think the shard is done - we need to make new master know that the shard is done
@@ -445,7 +445,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                                 notifyFailedSnapshotShard(
                                     snapshot.snapshot(),
                                     shardId,
-                                    indexShardSnapshotStatus.getFailure(),
+                                    indexShardSnapshotStatus.failure(),
                                     localShard.getValue().generation()
                                 );
                             }

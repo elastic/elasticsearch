@@ -195,7 +195,7 @@ public class ScriptCache {
         @Override
         public void onRemoval(RemovalNotification<CacheKey, Object> notification) {
             if (logger.isDebugEnabled()) {
-                logger.debug("removed [{}] from cache, reason: [{}]", notification.getValue(), notification.getRemovalReason());
+                logger.debug("removed [{}] from cache, reason: [{}]", notification.value(), notification.removalReason());
             }
             scriptMetrics.onCacheEviction();
         }

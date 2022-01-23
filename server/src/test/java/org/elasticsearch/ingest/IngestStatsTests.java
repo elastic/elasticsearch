@@ -50,8 +50,8 @@ public class IngestStatsTests extends ESTestCase {
         );
         // pipeline1 -> processor1,processor2; pipeline2 -> processor3
         return MapBuilder.<String, List<IngestStats.ProcessorStat>>newMapBuilder()
-            .put(pipelineStats.get(0).getPipelineId(), Stream.of(processor1Stat, processor2Stat).collect(Collectors.toList()))
-            .put(pipelineStats.get(1).getPipelineId(), Collections.singletonList(processor3Stat))
+            .put(pipelineStats.get(0).pipelineId(), Stream.of(processor1Stat, processor2Stat).collect(Collectors.toList()))
+            .put(pipelineStats.get(1).pipelineId(), Collections.singletonList(processor3Stat))
             .map();
     }
 
@@ -78,25 +78,25 @@ public class IngestStatsTests extends ESTestCase {
 
         for (IngestStats.PipelineStat serializedPipelineStat : serializedStats.getPipelineStats()) {
             assertStats(
-                getPipelineStats(ingestStats.getPipelineStats(), serializedPipelineStat.getPipelineId()),
-                serializedPipelineStat.getStats()
+                getPipelineStats(ingestStats.getPipelineStats(), serializedPipelineStat.pipelineId()),
+                serializedPipelineStat.stats()
             );
             List<IngestStats.ProcessorStat> serializedProcessorStats = serializedStats.getProcessorStats()
-                .get(serializedPipelineStat.getPipelineId());
-            List<IngestStats.ProcessorStat> processorStat = ingestStats.getProcessorStats().get(serializedPipelineStat.getPipelineId());
+                .get(serializedPipelineStat.pipelineId());
+            List<IngestStats.ProcessorStat> processorStat = ingestStats.getProcessorStats().get(serializedPipelineStat.pipelineId());
             if (expectProcessors) {
                 if (processorStat != null) {
                     Iterator<IngestStats.ProcessorStat> it = processorStat.iterator();
                     // intentionally enforcing the identical ordering
                     for (IngestStats.ProcessorStat serializedProcessorStat : serializedProcessorStats) {
                         IngestStats.ProcessorStat ps = it.next();
-                        assertEquals(ps.getName(), serializedProcessorStat.getName());
+                        assertEquals(ps.name(), serializedProcessorStat.name());
                         if (expectProcessorTypes) {
-                            assertEquals(ps.getType(), serializedProcessorStat.getType());
+                            assertEquals(ps.type(), serializedProcessorStat.type());
                         } else {
-                            assertEquals("_NOT_AVAILABLE", serializedProcessorStat.getType());
+                            assertEquals("_NOT_AVAILABLE", serializedProcessorStat.type());
                         }
-                        assertStats(ps.getStats(), serializedProcessorStat.getStats());
+                        assertStats(ps.stats(), serializedProcessorStat.stats());
                     }
                     assertFalse(it.hasNext());
                 }
@@ -116,6 +116,6 @@ public class IngestStatsTests extends ESTestCase {
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
-        return pipelineStats.stream().filter(p1 -> p1.getPipelineId().equals(id)).findFirst().map(p2 -> p2.getStats()).orElse(null);
+        return pipelineStats.stream().filter(p1 -> p1.pipelineId().equals(id)).findFirst().map(p2 -> p2.stats()).orElse(null);
     }
 }

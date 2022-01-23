@@ -710,29 +710,7 @@ public class Cache<K, V> {
         return new CacheStats(this.hits.sum(), misses.sum(), evictions.sum());
     }
 
-    public static class CacheStats {
-        private final long hits;
-        private final long misses;
-        private final long evictions;
-
-        public CacheStats(long hits, long misses, long evictions) {
-            this.hits = hits;
-            this.misses = misses;
-            this.evictions = evictions;
-        }
-
-        public long getHits() {
-            return hits;
-        }
-
-        public long getMisses() {
-            return misses;
-        }
-
-        public long getEvictions() {
-            return evictions;
-        }
-    }
+    public record CacheStats(long hits, long misses, long evictions) {}
 
     private void promote(Entry<K, V> entry, long now) {
         boolean promoted = true;

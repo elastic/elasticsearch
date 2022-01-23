@@ -91,8 +91,8 @@ public abstract class ScrollableHitSource {
     }
 
     private void onResponse(Response response) {
-        logger.trace("scroll returned [{}] documents with a scroll id of [{}]", response.getHits().size(), response.getScrollId());
-        setScroll(response.getScrollId());
+        logger.trace("scroll returned [{}] documents with a scroll id of [{}]", response.hits().size(), response.scrollId());
+        setScroll(response.scrollId());
         onResponse.accept(new AsyncResponse() {
             private AtomicBoolean alreadyDone = new AtomicBoolean();
 
@@ -172,56 +172,18 @@ public abstract class ScrollableHitSource {
     /**
      * Response from each scroll batch.
      */
-    public static class Response {
-        private final boolean timedOut;
-        private final List<SearchFailure> failures;
-        private final long totalHits;
-        private final List<? extends Hit> hits;
-        private final String scrollId;
-
-        public Response(boolean timedOut, List<SearchFailure> failures, long totalHits, List<? extends Hit> hits, String scrollId) {
-            this.timedOut = timedOut;
-            this.failures = failures;
-            this.totalHits = totalHits;
-            this.hits = hits;
-            this.scrollId = scrollId;
-        }
-
-        /**
-         * Did this batch time out?
-         */
-        public boolean isTimedOut() {
-            return timedOut;
-        }
-
-        /**
-         * Where there any search failures?
-         */
-        public final List<SearchFailure> getFailures() {
-            return failures;
-        }
-
-        /**
-         * What were the total number of documents matching the search?
-         */
-        public long getTotalHits() {
-            return totalHits;
-        }
-
-        /**
-         * The documents returned in this batch.
-         */
-        public List<? extends Hit> getHits() {
-            return hits;
-        }
-
-        /**
-         * The scroll id used to fetch the next set of documents.
-         */
-        public String getScrollId() {
-            return scrollId;
-        }
-    }
+    public record Response(
+        // Did this batch time out?
+        boolean timedOut,
+        // Where there any search failures
+        List<SearchFailure> failures,
+        // What were the total number of documents matching the search?
+        long totalHits,
+        // The documents returned in this batch
+        List<? extends Hit> hits,
+        // The scroll id used to fetch the next set of documents
+        String scrollId
+    ) {}
 
     /**
      * A document returned as part of the response. Think of it like {@link SearchHit} but with all the things reindex needs in convenient

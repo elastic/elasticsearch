@@ -16,24 +16,13 @@ import java.util.Objects;
  *
  * @see EnableAssignmentDecider
  */
-public final class AssignmentDecision {
+public record AssignmentDecision(org.elasticsearch.persistent.decider.AssignmentDecision.Type type, String reason) {
 
     public static final AssignmentDecision YES = new AssignmentDecision(Type.YES, "");
 
-    private final Type type;
-    private final String reason;
-
-    public AssignmentDecision(final Type type, final String reason) {
-        this.type = Objects.requireNonNull(type);
-        this.reason = Objects.requireNonNull(reason);
-    }
-
-    public Type getType() {
-        return type;
-    }
-
-    public String getReason() {
-        return reason;
+    public AssignmentDecision {
+        Objects.requireNonNull(type);
+        Objects.requireNonNull(reason);
     }
 
     @Override

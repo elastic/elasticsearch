@@ -122,7 +122,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             ScrollableHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
             assertNotNull(asyncResponse);
             assertEquals(responses.size(), 0);
-            assertSameHits(asyncResponse.response().getHits(), searchResponse.getHits().getHits());
+            assertSameHits(asyncResponse.response().hits(), searchResponse.getHits().getHits());
             asyncResponse.done(TimeValue.ZERO);
 
             for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {

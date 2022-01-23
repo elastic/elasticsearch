@@ -75,16 +75,16 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
 
     @Override
     public void onRemoval(RemovalNotification<Key, Accountable> notification) {
-        Key key = notification.getKey();
+        Key key = notification.key();
         assert key != null && key.listeners != null;
         IndexFieldCache indexCache = key.indexCache;
-        final Accountable value = notification.getValue();
+        final Accountable value = notification.value();
         for (IndexFieldDataCache.Listener listener : key.listeners) {
             try {
                 listener.onRemoval(
                     key.shardId,
                     indexCache.fieldName,
-                    notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED,
+                    notification.removalReason() == RemovalNotification.RemovalReason.EVICTED,
                     value.ramBytesUsed()
                 );
             } catch (Exception e) {

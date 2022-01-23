@@ -29,7 +29,7 @@ import java.util.Optional;
 
 public class IndexSnapshotsService {
     private static final Comparator<Tuple<SnapshotId, RepositoryData.SnapshotDetails>> START_TIME_COMPARATOR = Comparator.<
-        Tuple<SnapshotId, RepositoryData.SnapshotDetails>>comparingLong(pair -> pair.v2().getStartTimeMillis()).thenComparing(Tuple::v1);
+        Tuple<SnapshotId, RepositoryData.SnapshotDetails>>comparingLong(pair -> pair.v2().startTimeMillis()).thenComparing(Tuple::v1);
 
     private final RepositoriesService repositoriesService;
 
@@ -71,8 +71,8 @@ public class IndexSnapshotsService {
 
             final Optional<SnapshotId> latestSnapshotId = indexSnapshots.stream()
                 .map(snapshotId -> Tuple.tuple(snapshotId, repositoryData.getSnapshotDetails(snapshotId)))
-                .filter(s -> s.v2().getSnapshotState() != null && s.v2().getSnapshotState() == SnapshotState.SUCCESS)
-                .filter(s -> s.v2().getStartTimeMillis() != -1 && s.v2().getEndTimeMillis() != -1)
+                .filter(s -> s.v2().snapshotState() != null && s.v2().snapshotState() == SnapshotState.SUCCESS)
+                .filter(s -> s.v2().startTimeMillis() != -1 && s.v2().endTimeMillis() != -1)
                 .max(START_TIME_COMPARATOR)
                 .map(Tuple::v1);
 
@@ -127,26 +127,13 @@ public class IndexSnapshotsService {
         return repositories.get(repositoryName);
     }
 
-    private static class FetchShardSnapshotContext {
-        private final Repository repository;
-        private final RepositoryData repositoryData;
-        private final IndexId indexId;
-        private final ShardId shardId;
-        private final SnapshotInfo snapshotInfo;
-
-        FetchShardSnapshotContext(
-            Repository repository,
-            RepositoryData repositoryData,
-            IndexId indexId,
-            ShardId shardId,
-            SnapshotInfo snapshotInfo
-        ) {
-            this.repository = repository;
-            this.repositoryData = repositoryData;
-            this.indexId = indexId;
-            this.shardId = shardId;
-            this.snapshotInfo = snapshotInfo;
-        }
+    private record FetchShardSnapshotContext(
+        Repository repository,
+        RepositoryData repositoryData,
+        IndexId indexId,
+        ShardId shardId,
+        SnapshotInfo snapshotInfo
+    ) {
 
         private String getIndexMetadataId() throws IOException {
             final IndexMetaDataGenerations indexMetaDataGenerations = repositoryData.indexMetaDataGenerations();

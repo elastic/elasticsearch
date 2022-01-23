@@ -537,9 +537,9 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             ).asCopy();
 
             assertThat(indexShardSnapshotStatus, notNullValue());
-            assertThat(indexShardSnapshotStatus.getStage(), is(IndexShardSnapshotStatus.Stage.DONE));
+            assertThat(indexShardSnapshotStatus.stage(), is(IndexShardSnapshotStatus.Stage.DONE));
             assertThat(
-                indexShardSnapshotStatus.getTotalSize(),
+                indexShardSnapshotStatus.totalSize(),
                 equalTo(indexStats.getIndexShards().get(shardId).getPrimary().getStore().getSizeInBytes())
             );
         }

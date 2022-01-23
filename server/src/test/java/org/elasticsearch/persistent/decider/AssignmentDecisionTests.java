@@ -12,7 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 public class AssignmentDecisionTests extends ESTestCase {
 
     public void testConstantsTypes() {
-        assertEquals(AssignmentDecision.Type.YES, AssignmentDecision.YES.getType());
+        assertEquals(AssignmentDecision.Type.YES, AssignmentDecision.YES.type());
     }
 
     public void testResolveFromType() {

@@ -149,7 +149,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                 final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
                 assertEquals(expectedPassages.length, snippets.length);
                 for (int i = 0; i < snippets.length; i++) {
-                    assertEquals(expectedPassages[i], snippets[i].getText());
+                    assertEquals(expectedPassages[i], snippets[i].text());
                 }
             }
         }

@@ -132,7 +132,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, new ActionListener<ProbeConnectionResult>() {
             @Override
             public void onResponse(ProbeConnectionResult connectResult) {
-                receivedNode.set(connectResult.getDiscoveryNode());
+                receivedNode.set(connectResult.discoveryNode());
                 completionLatch.countDown();
             }
 
@@ -235,7 +235,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         @Override
         public void onResponse(ProbeConnectionResult connectResult) {
-            fail(connectResult.getDiscoveryNode().toString());
+            fail(connectResult.discoveryNode().toString());
         }
 
         @Override

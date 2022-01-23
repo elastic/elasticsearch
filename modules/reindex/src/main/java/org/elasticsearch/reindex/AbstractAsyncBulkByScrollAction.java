@@ -355,13 +355,13 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
         if (    // If any of the shards failed that should abort the request.
-        (response.getFailures().size() > 0)
+        (response.failures().size() > 0)
             // Timeouts aren't shard failures but we still need to pass them back to the user.
-            || response.isTimedOut()) {
-            refreshAndFinish(emptyList(), response.getFailures(), response.isTimedOut());
+            || response.timedOut()) {
+            refreshAndFinish(emptyList(), response.failures(), response.timedOut());
             return;
         }
-        long total = response.getTotalHits();
+        long total = response.totalHits();
         if (mainRequest.getMaxDocs() > 0) {
             total = min(total, mainRequest.getMaxDocs());
         }
@@ -972,7 +972,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
         ScrollConsumableHitsResponse(ScrollableHitSource.AsyncResponse asyncResponse) {
             this.asyncResponse = asyncResponse;
-            this.hits = asyncResponse.response().getHits();
+            this.hits = asyncResponse.response().hits();
         }
 
         ScrollableHitSource.Response response() {

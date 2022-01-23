@@ -105,7 +105,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
                     final ShardId shardId = shardEntry.getKey();
 
                     final IndexShardSnapshotStatus.Copy lastSnapshotStatus = shardEntry.getValue().asCopy();
-                    final IndexShardSnapshotStatus.Stage stage = lastSnapshotStatus.getStage();
+                    final IndexShardSnapshotStatus.Stage stage = lastSnapshotStatus.stage();
 
                     String shardNodeId = null;
                     if (stage != IndexShardSnapshotStatus.Stage.DONE && stage != IndexShardSnapshotStatus.Stage.FAILURE) {

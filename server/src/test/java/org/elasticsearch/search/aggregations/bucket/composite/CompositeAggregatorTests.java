@@ -661,14 +661,14 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             Document root;
             root = new Document();
             root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE));
-            root.add(sequenceIDFields.primaryTerm);
+            root.add(sequenceIDFields.primaryTerm());
             root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
             documents.add(root);
 
             root = new Document();
             root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.FIELD_TYPE));
             root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
-            root.add(sequenceIDFields.primaryTerm);
+            root.add(sequenceIDFields.primaryTerm());
             documents.add(root);
             iw.addDocuments(documents);
         }, (InternalSingleBucketAggregation parent) -> {
@@ -715,14 +715,14 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             Document root;
             root = new Document();
             root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE));
-            root.add(sequenceIDFields.primaryTerm);
+            root.add(sequenceIDFields.primaryTerm());
             root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
             documents.add(root);
 
             root = new Document();
             root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), IdFieldMapper.Defaults.FIELD_TYPE));
             root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
-            root.add(sequenceIDFields.primaryTerm);
+            root.add(sequenceIDFields.primaryTerm());
             documents.add(root);
             iw.addDocuments(documents);
         }, (InternalSingleBucketAggregation parent) -> {

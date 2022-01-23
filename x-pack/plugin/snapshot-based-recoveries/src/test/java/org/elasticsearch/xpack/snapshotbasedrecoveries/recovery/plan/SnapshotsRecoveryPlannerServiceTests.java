@@ -515,8 +515,8 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     }
 
     private void assertUsesExpectedSnapshot(ShardRecoveryPlan shardRecoveryPlan, ShardSnapshot expectedSnapshotToUse) {
-        assertThat(shardRecoveryPlan.getSnapshotFilesToRecover().getIndexId(), equalTo(expectedSnapshotToUse.getIndexId()));
-        assertThat(shardRecoveryPlan.getSnapshotFilesToRecover().getRepository(), equalTo(expectedSnapshotToUse.getRepository()));
+        assertThat(shardRecoveryPlan.getSnapshotFilesToRecover().indexId(), equalTo(expectedSnapshotToUse.getIndexId()));
+        assertThat(shardRecoveryPlan.getSnapshotFilesToRecover().repository(), equalTo(expectedSnapshotToUse.getRepository()));
 
         final Store.MetadataSnapshot shardSnapshotMetadataSnapshot = expectedSnapshotToUse.getMetadataSnapshot();
         for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : shardRecoveryPlan.getSnapshotFilesToRecover()) {
@@ -602,7 +602,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     ) {
         List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = randomList(10, 20, () -> {
             StoreFileMetadata storeFileMetadata = randomStoreFileMetadata();
-            return new BlobStoreIndexShardSnapshot.FileInfo(randomAlphaOfLength(10), storeFileMetadata, PART_SIZE);
+            return BlobStoreIndexShardSnapshot.FileInfo.of(randomAlphaOfLength(10), storeFileMetadata, PART_SIZE);
         });
 
         return createShardSnapshot(repoName, snapshotFiles, version, luceneVersion);
@@ -614,7 +614,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
 
         List<BlobStoreIndexShardSnapshot.FileInfo> snapshotFiles = new ArrayList<>(sourceMetadata.size());
         for (StoreFileMetadata storeFileMetadata : sourceMetadata) {
-            BlobStoreIndexShardSnapshot.FileInfo fileInfo = new BlobStoreIndexShardSnapshot.FileInfo(
+            BlobStoreIndexShardSnapshot.FileInfo fileInfo = BlobStoreIndexShardSnapshot.FileInfo.of(
                 randomAlphaOfLength(10),
                 storeFileMetadata,
                 PART_SIZE

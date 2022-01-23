@@ -303,17 +303,5 @@ public class SystemIndexManager implements ClusterStateListener {
         }
     }
 
-    static class State {
-        final IndexMetadata.State indexState;
-        final ClusterHealthStatus indexHealth;
-        final boolean isIndexUpToDate;
-        final boolean mappingUpToDate;
-
-        State(IndexMetadata.State indexState, ClusterHealthStatus indexHealth, boolean isIndexUpToDate, boolean mappingUpToDate) {
-            this.indexState = indexState;
-            this.indexHealth = indexHealth;
-            this.isIndexUpToDate = isIndexUpToDate;
-            this.mappingUpToDate = mappingUpToDate;
-        }
-    }
+    record State(IndexMetadata.State indexState, ClusterHealthStatus indexHealth, boolean isIndexUpToDate, boolean mappingUpToDate) {}
 }

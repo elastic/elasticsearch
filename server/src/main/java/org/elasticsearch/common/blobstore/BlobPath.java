@@ -13,22 +13,15 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * The list of paths where a blob can reside.  The contents of the paths are dependent upon the implementation of {@link BlobContainer}.
  */
-public class BlobPath {
+public record BlobPath(List<String> paths) {
 
     public static final BlobPath EMPTY = new BlobPath(Collections.emptyList());
 
     private static final String SEPARATOR = "/";
-
-    private final List<String> paths;
-
-    private BlobPath(List<String> paths) {
-        this.paths = paths;
-    }
 
     public List<String> parts() {
         return paths;
@@ -59,27 +52,5 @@ public class BlobPath {
             case 1 -> EMPTY;
             default -> new BlobPath(List.copyOf(paths.subList(0, size - 1)));
         };
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder();
-        for (String path : paths) {
-            sb.append('[').append(path).append(']');
-        }
-        return sb.toString();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        BlobPath other = (BlobPath) o;
-        return paths.equals(other.paths);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(paths);
     }
 }

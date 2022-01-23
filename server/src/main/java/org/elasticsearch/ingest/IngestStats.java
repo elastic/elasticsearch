@@ -71,17 +71,17 @@ public class IngestStats implements Writeable, ToXContentFragment {
         totalStats.writeTo(out);
         out.writeVInt(pipelineStats.size());
         for (PipelineStat pipelineStat : pipelineStats) {
-            out.writeString(pipelineStat.getPipelineId());
-            pipelineStat.getStats().writeTo(out);
-            List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.getPipelineId());
+            out.writeString(pipelineStat.pipelineId());
+            pipelineStat.stats().writeTo(out);
+            List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.pipelineId());
             if (processorStatsForPipeline == null) {
                 out.writeVInt(0);
             } else {
                 out.writeVInt(processorStatsForPipeline.size());
                 for (ProcessorStat processorStat : processorStatsForPipeline) {
-                    out.writeString(processorStat.getName());
-                    out.writeString(processorStat.getType());
-                    processorStat.getStats().writeTo(out);
+                    out.writeString(processorStat.name());
+                    out.writeString(processorStat.type());
+                    processorStat.stats().writeTo(out);
                 }
             }
         }
@@ -95,17 +95,17 @@ public class IngestStats implements Writeable, ToXContentFragment {
         builder.endObject();
         builder.startObject("pipelines");
         for (PipelineStat pipelineStat : pipelineStats) {
-            builder.startObject(pipelineStat.getPipelineId());
-            pipelineStat.getStats().toXContent(builder, params);
-            List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.getPipelineId());
+            builder.startObject(pipelineStat.pipelineId());
+            pipelineStat.stats().toXContent(builder, params);
+            List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.pipelineId());
             builder.startArray("processors");
             if (processorStatsForPipeline != null) {
                 for (ProcessorStat processorStat : processorStatsForPipeline) {
                     builder.startObject();
-                    builder.startObject(processorStat.getName());
-                    builder.field("type", processorStat.getType());
+                    builder.startObject(processorStat.name());
+                    builder.field("type", processorStat.type());
                     builder.startObject("stats");
-                    processorStat.getStats().toXContent(builder, params);
+                    processorStat.stats().toXContent(builder, params);
                     builder.endObject();
                     builder.endObject();
                     builder.endObject();
@@ -264,74 +264,10 @@ public class IngestStats implements Writeable, ToXContentFragment {
     /**
      * Container for pipeline stats.
      */
-    public static class PipelineStat {
-        private final String pipelineId;
-        private final Stats stats;
-
-        public PipelineStat(String pipelineId, Stats stats) {
-            this.pipelineId = pipelineId;
-            this.stats = stats;
-        }
-
-        public String getPipelineId() {
-            return pipelineId;
-        }
-
-        public Stats getStats() {
-            return stats;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            IngestStats.PipelineStat that = (IngestStats.PipelineStat) o;
-            return Objects.equals(pipelineId, that.pipelineId) && Objects.equals(stats, that.stats);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(pipelineId, stats);
-        }
-    }
+    public record PipelineStat(String pipelineId, Stats stats) {}
 
     /**
      * Container for processor stats.
      */
-    public static class ProcessorStat {
-        private final String name;
-        private final String type;
-        private final Stats stats;
-
-        public ProcessorStat(String name, String type, Stats stats) {
-            this.name = name;
-            this.type = type;
-            this.stats = stats;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public String getType() {
-            return type;
-        }
-
-        public Stats getStats() {
-            return stats;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            IngestStats.ProcessorStat that = (IngestStats.ProcessorStat) o;
-            return Objects.equals(name, that.name) && Objects.equals(type, that.type) && Objects.equals(stats, that.stats);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, type, stats);
-        }
-    }
+    public record ProcessorStat(String name, String type, Stats stats) {}
 }

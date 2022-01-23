@@ -45,7 +45,7 @@ public class RecoverySnapshotFileRequest extends RecoveryTransportRequest {
         this.shardId = new ShardId(in);
         this.repository = in.readString();
         this.indexId = new IndexId(in);
-        this.fileInfo = new BlobStoreIndexShardSnapshot.FileInfo(in);
+        this.fileInfo = BlobStoreIndexShardSnapshot.FileInfo.of(in);
     }
 
     @Override

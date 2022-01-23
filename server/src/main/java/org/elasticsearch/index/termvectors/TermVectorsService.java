@@ -94,7 +94,7 @@ public class TermVectorsService {
             /* or from an existing document */
             else if (docIdAndVersion != null) {
                 // fields with stored term vectors
-                termVectorsByField = docIdAndVersion.reader.getTermVectors(docIdAndVersion.docId);
+                termVectorsByField = docIdAndVersion.reader().getTermVectors(docIdAndVersion.docId());
                 Set<String> selectedFields = request.selectedFields();
                 // generate tvs for fields where analyzer is overridden
                 if (selectedFields == null && request.perFieldAnalyzer() != null) {
@@ -104,7 +104,7 @@ public class TermVectorsService {
                 if (selectedFields != null) {
                     termVectorsByField = addGeneratedTermVectors(indexShard, get, termVectorsByField, request, selectedFields);
                 }
-                termVectorsResponse.setDocVersion(docIdAndVersion.version);
+                termVectorsResponse.setDocVersion(docIdAndVersion.version());
                 termVectorsResponse.setExists(true);
             }
             /* no term vectors generated or found */

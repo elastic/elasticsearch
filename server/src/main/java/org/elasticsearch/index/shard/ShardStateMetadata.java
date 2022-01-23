@@ -19,62 +19,16 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.Objects;
 
-public final class ShardStateMetadata {
+public record ShardStateMetadata(boolean primary, String indexUUID, @Nullable AllocationId allocationId) {
 
     private static final String SHARD_STATE_FILE_PREFIX = "state-";
     private static final String PRIMARY_KEY = "primary";
     private static final String INDEX_UUID_KEY = "index_uuid";
     private static final String ALLOCATION_ID_KEY = "allocation_id";
 
-    public final String indexUUID;
-    public final boolean primary;
-    @Nullable
-    public final AllocationId allocationId; // can be null if we read from legacy format (see fromXContent and MultiDataPathUpgrader)
-
-    public ShardStateMetadata(boolean primary, String indexUUID, AllocationId allocationId) {
+    public ShardStateMetadata {
         assert indexUUID != null;
-        this.primary = primary;
-        this.indexUUID = indexUUID;
-        this.allocationId = allocationId;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        ShardStateMetadata that = (ShardStateMetadata) o;
-
-        if (primary != that.primary) {
-            return false;
-        }
-        if (indexUUID.equals(that.indexUUID) == false) {
-            return false;
-        }
-        if (Objects.equals(allocationId, that.allocationId) == false) {
-            return false;
-        }
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        int result = indexUUID.hashCode();
-        result = 31 * result + (allocationId != null ? allocationId.hashCode() : 0);
-        result = 31 * result + (primary ? 1 : 0);
-        return result;
-    }
-
-    @Override
-    public String toString() {
-        return "primary [" + primary + "], allocation [" + allocationId + "]";
     }
 
     public static final MetadataStateFormat<ShardStateMetadata> FORMAT = new MetadataStateFormat<ShardStateMetadata>(

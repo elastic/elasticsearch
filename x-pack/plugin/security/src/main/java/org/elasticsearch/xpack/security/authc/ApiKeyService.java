@@ -1300,11 +1300,11 @@ public class ApiKeyService {
 
     private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {
         return notification -> {
-            if (RemovalReason.EVICTED == notification.getRemovalReason() && getApiKeyAuthCache().count() >= maximumWeight) {
+            if (RemovalReason.EVICTED == notification.removalReason() && getApiKeyAuthCache().count() >= maximumWeight) {
                 evictionCounter.increment();
                 logger.trace(
                     "API key with ID [{}] was evicted from the authentication cache, " + "possibly due to cache size limit",
-                    notification.getKey()
+                    notification.key()
                 );
                 final long last = lastEvictionCheckedAt.get();
                 final long now = System.nanoTime();

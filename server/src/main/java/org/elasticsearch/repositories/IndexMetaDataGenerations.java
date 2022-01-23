@@ -17,7 +17,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -27,22 +26,11 @@ import java.util.stream.Collectors;
  * {@link IndexMetadata} should be computed and then used to check if it already exists in the repository via
  * {@link #getIndexMetaBlobId(String)}.
  */
-public final class IndexMetaDataGenerations {
+public record IndexMetaDataGenerations(Map<SnapshotId, Map<IndexId, String>> lookup, Map<String, String> identifiers) {
 
     public static final IndexMetaDataGenerations EMPTY = new IndexMetaDataGenerations(Collections.emptyMap(), Collections.emptyMap());
 
-    /**
-     * Map of {@link SnapshotId} to a map of the indices in a snapshot mapping {@link IndexId} to metadata identifiers.
-     * The identifiers in the nested map can be mapped to the relevant blob uuid via {@link #getIndexMetaBlobId}.
-     */
-    final Map<SnapshotId, Map<IndexId, String>> lookup;
-
-    /**
-     * Map of index metadata identifier to blob uuid.
-     */
-    final Map<String, String> identifiers;
-
-    IndexMetaDataGenerations(Map<SnapshotId, Map<IndexId, String>> lookup, Map<String, String> identifiers) {
+    public IndexMetaDataGenerations(Map<SnapshotId, Map<IndexId, String>> lookup, Map<String, String> identifiers) {
         assert identifiers.keySet().equals(lookup.values().stream().flatMap(m -> m.values().stream()).collect(Collectors.toSet()))
             : "identifier mappings " + identifiers + " don't track the same blob ids as the lookup map " + lookup;
         assert lookup.values().stream().noneMatch(Map::isEmpty) : "Lookup contained empty map [" + lookup + "]";
@@ -55,7 +43,7 @@ public final class IndexMetaDataGenerations {
     }
 
     /**
-     * Gets the blob id by the identifier of {@link org.elasticsearch.cluster.metadata.IndexMetadata}
+     * Gets the blob id by the identifier of {@link IndexMetadata}
      * (computed via {@link #buildUniqueIdentifier}) or {@code null} if none is tracked for the identifier.
      *
      * @param metaIdentifier identifier for {@link IndexMetadata}
@@ -86,7 +74,7 @@ public final class IndexMetaDataGenerations {
     }
 
     /**
-     * Gets the {@link org.elasticsearch.cluster.metadata.IndexMetadata} identifier for the given snapshot
+     * Gets the {@link IndexMetadata} identifier for the given snapshot
      * if the snapshot contains the referenced index, otherwise it returns {@code null}.
      */
     @Nullable
@@ -97,8 +85,8 @@ public final class IndexMetaDataGenerations {
     /**
      * Create a new instance with the given snapshot and index metadata uuids and identifiers added.
      *
-     * @param snapshotId SnapshotId
-     * @param newLookup new mappings of index + snapshot to index metadata identifier
+     * @param snapshotId     SnapshotId
+     * @param newLookup      new mappings of index + snapshot to index metadata identifier
      * @param newIdentifiers new mappings of index metadata identifier to blob id
      * @return instance with added snapshot
      */
@@ -139,28 +127,6 @@ public final class IndexMetaDataGenerations {
         updatedIndexMetaIdentifiers.keySet()
             .removeIf(k -> updatedIndexMetaLookup.values().stream().noneMatch(identifiers -> identifiers.containsValue(k)));
         return new IndexMetaDataGenerations(updatedIndexMetaLookup, updatedIndexMetaIdentifiers);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(identifiers, lookup);
-    }
-
-    @Override
-    public boolean equals(Object that) {
-        if (this == that) {
-            return true;
-        }
-        if (that instanceof IndexMetaDataGenerations == false) {
-            return false;
-        }
-        final IndexMetaDataGenerations other = (IndexMetaDataGenerations) that;
-        return lookup.equals(other.lookup) && identifiers.equals(other.identifiers);
-    }
-
-    @Override
-    public String toString() {
-        return "IndexMetaDataGenerations{lookup:" + lookup + "}{identifier:" + identifiers + "}";
     }
 
     /**

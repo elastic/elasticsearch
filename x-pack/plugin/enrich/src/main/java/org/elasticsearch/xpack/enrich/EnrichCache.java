@@ -77,9 +77,9 @@ public class EnrichCache {
         return new EnrichStatsAction.Response.CacheStats(
             localNodeId,
             cache.count(),
-            cacheStats.getHits(),
-            cacheStats.getMisses(),
-            cacheStats.getEvictions()
+            cacheStats.hits(),
+            cacheStats.misses(),
+            cacheStats.evictions()
         );
     }
 

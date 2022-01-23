@@ -394,9 +394,9 @@ public abstract class EngineTestCase extends ESTestCase {
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(uidField);
         document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
+        document.add(seqID.seqNo());
+        document.add(seqID.seqNoDocValue());
+        document.add(seqID.primaryTerm());
         BytesRef ref = source.toBytesRef();
         if (recoverySource) {
             document.add(new StoredField(SourceFieldMapper.RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
@@ -1327,7 +1327,7 @@ public abstract class EngineTestCase extends ESTestCase {
             assertThat(luceneOp.toString(), luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
-                assertThat(luceneOp.getSource().source, equalTo(translogOp.getSource().source));
+                assertThat(luceneOp.getSource().source(), equalTo(translogOp.getSource().source()));
             }
         }
     }

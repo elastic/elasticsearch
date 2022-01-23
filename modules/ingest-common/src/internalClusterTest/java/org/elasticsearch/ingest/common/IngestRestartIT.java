@@ -99,7 +99,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         for (int k = 0; k < nodeCount; k++) {
             List<IngestStats.ProcessorStat> stats = r.getNodes().get(k).getIngestStats().getProcessorStats().get(pipelineId);
             for (IngestStats.ProcessorStat st : stats) {
-                assertThat(st.getStats().getIngestCurrent(), greaterThanOrEqualTo(0L));
+                assertThat(st.stats().getIngestCurrent(), greaterThanOrEqualTo(0L));
             }
         }
     }

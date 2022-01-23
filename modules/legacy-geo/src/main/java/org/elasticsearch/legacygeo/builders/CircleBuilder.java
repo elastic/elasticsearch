@@ -97,7 +97,7 @@ public class CircleBuilder extends ShapeBuilder<Circle, org.elasticsearch.geomet
      * @return this
      */
     public CircleBuilder radius(Distance radius) {
-        return radius(radius.value, radius.unit);
+        return radius(radius.value(), radius.unit());
     }
 
     /**

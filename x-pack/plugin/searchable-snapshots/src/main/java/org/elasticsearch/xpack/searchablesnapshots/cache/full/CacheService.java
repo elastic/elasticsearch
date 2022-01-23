@@ -158,7 +158,7 @@ public class CacheService extends AbstractLifecycleComponent {
             .weigher((key, entry) -> entry.getLength())
             // NORELEASE This does not immediately free space on disk, as cache file are only deleted when all index inputs
             // are done with reading/writing the cache file
-            .removalListener(notification -> onCacheFileEviction(notification.getValue()))
+            .removalListener(notification -> onCacheFileEviction(notification.value()))
             .build();
         this.persistentCache = Objects.requireNonNull(persistentCache);
         this.cacheSyncLock = new ReentrantLock();

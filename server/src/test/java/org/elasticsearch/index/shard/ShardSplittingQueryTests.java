@@ -73,7 +73,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                     Arrays.asList(
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                         new SortedNumericDocValuesField("shard_id", shardId),
-                        sequenceIDFields.primaryTerm
+                        sequenceIDFields.primaryTerm()
                     )
                 );
                 writer.addDocuments(docs);
@@ -82,7 +82,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                     Arrays.asList(
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                         new SortedNumericDocValuesField("shard_id", shardId),
-                        sequenceIDFields.primaryTerm
+                        sequenceIDFields.primaryTerm()
                     )
                 );
             }
@@ -128,7 +128,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                         new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
                         new SortedNumericDocValuesField("shard_id", shardId),
-                        sequenceIDFields.primaryTerm
+                        sequenceIDFields.primaryTerm()
                     )
                 );
                 writer.addDocuments(docs);
@@ -138,7 +138,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                         new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
                         new SortedNumericDocValuesField("shard_id", shardId),
-                        sequenceIDFields.primaryTerm
+                        sequenceIDFields.primaryTerm()
                     )
                 );
             }
@@ -173,14 +173,14 @@ public class ShardSplittingQueryTests extends ESTestCase {
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                     new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
                     new SortedNumericDocValuesField("shard_id", shardId),
-                    sequenceIDFields.primaryTerm
+                    sequenceIDFields.primaryTerm()
                 );
             } else {
                 shardId = IndexRouting.fromIndexMetadata(metadata).getShard(Integer.toString(j), null);
                 rootDoc = Arrays.asList(
                     new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                     new SortedNumericDocValuesField("shard_id", shardId),
-                    sequenceIDFields.primaryTerm
+                    sequenceIDFields.primaryTerm()
                 );
             }
 
@@ -244,7 +244,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                         new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
                         new SortedNumericDocValuesField("shard_id", shardId),
-                        sequenceIDFields.primaryTerm
+                        sequenceIDFields.primaryTerm()
                     )
                 );
                 writer.addDocuments(docs);
@@ -254,7 +254,7 @@ public class ShardSplittingQueryTests extends ESTestCase {
                         new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
                         new StringField(RoutingFieldMapper.NAME, routing, Field.Store.YES),
                         new SortedNumericDocValuesField("shard_id", shardId),
-                        sequenceIDFields.primaryTerm
+                        sequenceIDFields.primaryTerm()
                     )
                 );
             }

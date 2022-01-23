@@ -220,7 +220,7 @@ public class IndexShardTests extends IndexShardTestCase {
             write(state3, env.availableShardPaths(id));
             shardStateMetadata = load(logger, env.availableShardPaths(id));
             assertEquals(shardStateMetadata, state3);
-            assertEquals("fooUUID", state3.indexUUID);
+            assertEquals("fooUUID", state3.indexUUID());
         }
     }
 
@@ -300,12 +300,12 @@ public class IndexShardTests extends IndexShardTestCase {
             allocationId
         );
 
-        assertEquals(meta, new ShardStateMetadata(meta.primary, meta.indexUUID, meta.allocationId));
-        assertEquals(meta.hashCode(), new ShardStateMetadata(meta.primary, meta.indexUUID, meta.allocationId).hashCode());
+        assertEquals(meta, new ShardStateMetadata(meta.primary(), meta.indexUUID(), meta.allocationId()));
+        assertEquals(meta.hashCode(), new ShardStateMetadata(meta.primary(), meta.indexUUID(), meta.allocationId()).hashCode());
 
-        assertFalse(meta.equals(new ShardStateMetadata(meta.primary == false, meta.indexUUID, meta.allocationId)));
-        assertFalse(meta.equals(new ShardStateMetadata(meta.primary == false, meta.indexUUID + "foo", meta.allocationId)));
-        assertFalse(meta.equals(new ShardStateMetadata(meta.primary == false, meta.indexUUID + "foo", randomAllocationId())));
+        assertFalse(meta.equals(new ShardStateMetadata(meta.primary() == false, meta.indexUUID(), meta.allocationId())));
+        assertFalse(meta.equals(new ShardStateMetadata(meta.primary() == false, meta.indexUUID() + "foo", meta.allocationId())));
+        assertFalse(meta.equals(new ShardStateMetadata(meta.primary() == false, meta.indexUUID() + "foo", randomAllocationId())));
         Set<Integer> hashCodes = new HashSet<>();
         for (int i = 0; i < 30; i++) { // just a sanity check that we impl hashcode
             allocationId = randomBoolean() ? null : randomAllocationId();
@@ -617,7 +617,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testPrimaryPromotionRollsGeneration() throws Exception {
         final IndexShard indexShard = newStartedShard(false);
 
-        final long currentTranslogGeneration = getTranslog(indexShard).getGeneration().translogFileGeneration;
+        final long currentTranslogGeneration = getTranslog(indexShard).getGeneration().translogFileGeneration();
 
         // promote the replica
         final ShardRouting replicaRouting = indexShard.routingEntry();
@@ -658,7 +658,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }, ThreadPool.Names.GENERIC, "");
 
         latch.await();
-        assertThat(getTranslog(indexShard).getGeneration().translogFileGeneration, equalTo(currentTranslogGeneration + 1));
+        assertThat(getTranslog(indexShard).getGeneration().translogFileGeneration(), equalTo(currentTranslogGeneration + 1));
         assertThat(TestTranslog.getCurrentTerm(getTranslog(indexShard)), equalTo(newPrimaryTerm));
 
         closeShards(indexShard);
@@ -967,7 +967,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         final long primaryTerm = indexShard.getPendingPrimaryTerm();
-        final long translogGen = engineClosed ? -1 : getTranslog(indexShard).getGeneration().translogFileGeneration;
+        final long translogGen = engineClosed ? -1 : getTranslog(indexShard).getGeneration().translogFileGeneration();
 
         final Releasable operation1;
         final Releasable operation2;
@@ -1088,7 +1088,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertTrue(onResponse.get());
                     assertNull(onFailure.get());
                     assertThat(
-                        getTranslog(indexShard).getGeneration().translogFileGeneration,
+                        getTranslog(indexShard).getGeneration().translogFileGeneration(),
                         // if rollback happens we roll translog twice: one when we flush a commit before opening a read-only engine
                         // and one after replaying translog (upto the global checkpoint); otherwise we roll translog once.
                         either(equalTo(translogGen + 1)).or(equalTo(translogGen + 2))
@@ -3327,9 +3327,9 @@ public class IndexShardTests extends IndexShardTestCase {
             while (stop.get() == false) {
                 try {
                     Store.MetadataSnapshot readMeta = newShard.snapshotStoreMetadata();
-                    assertEquals(0, storeFileMetadatas.recoveryDiff(readMeta).different.size());
-                    assertEquals(0, storeFileMetadatas.recoveryDiff(readMeta).missing.size());
-                    assertEquals(storeFileMetadatas.size(), storeFileMetadatas.recoveryDiff(readMeta).identical.size());
+                    assertEquals(0, storeFileMetadatas.recoveryDiff(readMeta).different().size());
+                    assertEquals(0, storeFileMetadatas.recoveryDiff(readMeta).missing().size());
+                    assertEquals(storeFileMetadatas.size(), storeFileMetadatas.recoveryDiff(readMeta).identical().size());
                 } catch (IOException e) {
                     throw new AssertionError(e);
                 }
@@ -3585,9 +3585,9 @@ public class IndexShardTests extends IndexShardTestCase {
                 try {
                     Store.MetadataSnapshot readMeta = newShard.snapshotStoreMetadata();
                     assertThat(readMeta.getNumDocs(), equalTo(numDocs));
-                    assertThat(storeFileMetadatas.recoveryDiff(readMeta).different.size(), equalTo(0));
-                    assertThat(storeFileMetadatas.recoveryDiff(readMeta).missing.size(), equalTo(0));
-                    assertThat(storeFileMetadatas.recoveryDiff(readMeta).identical.size(), equalTo(storeFileMetadatas.size()));
+                    assertThat(storeFileMetadatas.recoveryDiff(readMeta).different().size(), equalTo(0));
+                    assertThat(storeFileMetadatas.recoveryDiff(readMeta).missing().size(), equalTo(0));
+                    assertThat(storeFileMetadatas.recoveryDiff(readMeta).identical().size(), equalTo(storeFileMetadatas.size()));
                 } catch (IOException e) {
                     throw new AssertionError(e);
                 }

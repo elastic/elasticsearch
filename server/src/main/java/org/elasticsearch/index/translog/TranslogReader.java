@@ -42,9 +42,9 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
      * @param header     the header of the translog file
      */
     TranslogReader(final Checkpoint checkpoint, final FileChannel channel, final Path path, final TranslogHeader header) {
-        super(checkpoint.generation, channel, path, header);
-        this.length = checkpoint.offset;
-        this.totalOperations = checkpoint.numOps;
+        super(checkpoint.generation(), channel, path, header);
+        this.length = checkpoint.offset();
+        this.totalOperations = checkpoint.numOps();
         this.checkpoint = checkpoint;
     }
 
@@ -72,17 +72,17 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
             Closeable toCloseOnFailure = channel;
             final TranslogReader newReader;
             try {
-                if (aboveSeqNo < checkpoint.trimmedAboveSeqNo
-                    || aboveSeqNo < checkpoint.maxSeqNo && checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                    final Path checkpointFile = path.getParent().resolve(getCommitCheckpointFileName(checkpoint.generation));
+                if (aboveSeqNo < checkpoint.trimmedAboveSeqNo()
+                    || aboveSeqNo < checkpoint.maxSeqNo() && checkpoint.trimmedAboveSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                    final Path checkpointFile = path.getParent().resolve(getCommitCheckpointFileName(checkpoint.generation()));
                     final Checkpoint newCheckpoint = new Checkpoint(
-                        checkpoint.offset,
-                        checkpoint.numOps,
-                        checkpoint.generation,
-                        checkpoint.minSeqNo,
-                        checkpoint.maxSeqNo,
-                        checkpoint.globalCheckpoint,
-                        checkpoint.minTranslogGeneration,
+                        checkpoint.offset(),
+                        checkpoint.numOps(),
+                        checkpoint.generation(),
+                        checkpoint.minSeqNo(),
+                        checkpoint.maxSeqNo(),
+                        checkpoint.globalCheckpoint(),
+                        checkpoint.minTranslogGeneration(),
                         aboveSeqNo
                     );
                     Checkpoint.write(channelFactory, checkpointFile, newCheckpoint, StandardOpenOption.WRITE);

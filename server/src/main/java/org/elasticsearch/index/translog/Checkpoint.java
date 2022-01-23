@@ -30,16 +30,16 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 
-final class Checkpoint {
-
-    final long offset;
-    final int numOps;
-    final long generation;
-    final long minSeqNo;
-    final long maxSeqNo;
-    final long globalCheckpoint;
-    final long minTranslogGeneration;
-    final long trimmedAboveSeqNo;
+record Checkpoint(
+    long offset,
+    int numOps,
+    long generation,
+    long minSeqNo,
+    long maxSeqNo,
+    long globalCheckpoint,
+    long minTranslogGeneration,
+    long trimmedAboveSeqNo
+) {
 
     private static final int VERSION_LUCENE_8 = 3;      // int values written in BE format
     private static final int CURRENT_VERSION = 4;
@@ -69,28 +69,11 @@ final class Checkpoint {
      * @param trimmedAboveSeqNo     all operations with seq# above trimmedAboveSeqNo should be ignored and not read from the
      *                              corresponding translog file. {@link SequenceNumbers#UNASSIGNED_SEQ_NO} is used to disable trimming.
      */
-    Checkpoint(
-        long offset,
-        int numOps,
-        long generation,
-        long minSeqNo,
-        long maxSeqNo,
-        long globalCheckpoint,
-        long minTranslogGeneration,
-        long trimmedAboveSeqNo
-    ) {
+    Checkpoint {
         assert minSeqNo <= maxSeqNo : "minSeqNo [" + minSeqNo + "] is higher than maxSeqNo [" + maxSeqNo + "]";
         assert trimmedAboveSeqNo <= maxSeqNo : "trimmedAboveSeqNo [" + trimmedAboveSeqNo + "] is higher than maxSeqNo [" + maxSeqNo + "]";
         assert minTranslogGeneration <= generation
             : "minTranslogGen [" + minTranslogGeneration + "] is higher than generation [" + generation + "]";
-        this.offset = offset;
-        this.numOps = numOps;
-        this.generation = generation;
-        this.minSeqNo = minSeqNo;
-        this.maxSeqNo = maxSeqNo;
-        this.globalCheckpoint = globalCheckpoint;
-        this.minTranslogGeneration = minTranslogGeneration;
-        this.trimmedAboveSeqNo = trimmedAboveSeqNo;
     }
 
     private void write(DataOutput out) throws IOException {
@@ -141,28 +124,6 @@ final class Checkpoint {
         final long minTranslogGeneration = in.readLong();
         final long trimmedAboveSeqNo = in.readLong();
         return new Checkpoint(offset, numOps, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration, trimmedAboveSeqNo);
-    }
-
-    @Override
-    public String toString() {
-        return "Checkpoint{"
-            + "offset="
-            + offset
-            + ", numOps="
-            + numOps
-            + ", generation="
-            + generation
-            + ", minSeqNo="
-            + minSeqNo
-            + ", maxSeqNo="
-            + maxSeqNo
-            + ", globalCheckpoint="
-            + globalCheckpoint
-            + ", minTranslogGeneration="
-            + minTranslogGeneration
-            + ", trimmedAboveSeqNo="
-            + trimmedAboveSeqNo
-            + '}';
     }
 
     public static Checkpoint read(Path path) throws IOException {
@@ -229,34 +190,6 @@ final class Checkpoint {
                 : "checkpoint files have to be smaller than 512 bytes for atomic writes; size: " + indexOutput.getFilePointer();
         }
         return byteOutputStream.toByteArray();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        Checkpoint that = (Checkpoint) o;
-
-        if (offset != that.offset) return false;
-        if (numOps != that.numOps) return false;
-        if (generation != that.generation) return false;
-        if (minSeqNo != that.minSeqNo) return false;
-        if (maxSeqNo != that.maxSeqNo) return false;
-        if (globalCheckpoint != that.globalCheckpoint) return false;
-        return trimmedAboveSeqNo == that.trimmedAboveSeqNo;
-    }
-
-    @Override
-    public int hashCode() {
-        int result = Long.hashCode(offset);
-        result = 31 * result + numOps;
-        result = 31 * result + Long.hashCode(generation);
-        result = 31 * result + Long.hashCode(minSeqNo);
-        result = 31 * result + Long.hashCode(maxSeqNo);
-        result = 31 * result + Long.hashCode(globalCheckpoint);
-        result = 31 * result + Long.hashCode(trimmedAboveSeqNo);
-        return result;
     }
 
 }

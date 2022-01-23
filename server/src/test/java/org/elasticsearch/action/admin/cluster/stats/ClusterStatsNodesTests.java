@@ -63,18 +63,18 @@ public class ClusterStatsNodesTests extends ESTestCase {
         SortedMap<String, long[]> processorStats = new TreeMap<>();
         nodeStats.getIngestStats().getProcessorStats().values().forEach(stats -> {
             stats.forEach(stat -> {
-                processorStats.compute(stat.getType(), (key, value) -> {
+                processorStats.compute(stat.type(), (key, value) -> {
                     if (value == null) {
                         return new long[] {
-                            stat.getStats().getIngestCount(),
-                            stat.getStats().getIngestFailedCount(),
-                            stat.getStats().getIngestCurrent(),
-                            stat.getStats().getIngestTimeInMillis() };
+                            stat.stats().getIngestCount(),
+                            stat.stats().getIngestFailedCount(),
+                            stat.stats().getIngestCurrent(),
+                            stat.stats().getIngestTimeInMillis() };
                     } else {
-                        value[0] += stat.getStats().getIngestCount();
-                        value[1] += stat.getStats().getIngestFailedCount();
-                        value[2] += stat.getStats().getIngestCurrent();
-                        value[3] += stat.getStats().getIngestTimeInMillis();
+                        value[0] += stat.stats().getIngestCount();
+                        value[1] += stat.stats().getIngestFailedCount();
+                        value[2] += stat.stats().getIngestCurrent();
+                        value[3] += stat.stats().getIngestTimeInMillis();
                         return value;
                     }
                 });

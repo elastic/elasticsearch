@@ -271,11 +271,11 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 assertThat(newReplica.recoveryState().getIndex().fileDetails(), empty());
                 assertThat(
                     newReplica.recoveryState().getTranslog().totalLocal(),
-                    equalTo(Math.toIntExact(globalCheckpointOnOldPrimary - safeCommitOnOldPrimary.get().localCheckpoint))
+                    equalTo(Math.toIntExact(globalCheckpointOnOldPrimary - safeCommitOnOldPrimary.get().localCheckpoint()))
                 );
                 assertThat(
                     newReplica.recoveryState().getTranslog().recoveredOperations(),
-                    equalTo(Math.toIntExact(totalDocs - 1 - safeCommitOnOldPrimary.get().localCheckpoint))
+                    equalTo(Math.toIntExact(totalDocs - 1 - safeCommitOnOldPrimary.get().localCheckpoint()))
                 );
             } else {
                 assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
@@ -394,7 +394,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     assertThat("unexpected op: " + next, (int) next.seqNo(), lessThan(initialDocs + extraDocs));
                     assertThat("unexpected primaryTerm: " + next.primaryTerm(), next.primaryTerm(), is(oldPrimary.getPendingPrimaryTerm()));
                     final Translog.Source source = next.getSource();
-                    assertThat(source.source.utf8ToString(), is("{ \"f\": \"normal\"}"));
+                    assertThat(source.source().utf8ToString(), is("{ \"f\": \"normal\"}"));
                 }
             }
             assertThat(translogOperations, either(equalTo(initialDocs + extraDocs)).or(equalTo(task.getResyncedOperations())));

@@ -602,17 +602,7 @@ public class TextFieldMapper extends FieldMapper {
         }
     }
 
-    private static final class SubFieldInfo {
-
-        private final Analyzer analyzer;
-        private final FieldType fieldType;
-        private final String field;
-
-        SubFieldInfo(String field, FieldType fieldType, Analyzer analyzer) {
-            this.fieldType = fieldType;
-            this.analyzer = analyzer;
-            this.field = field;
-        }
+    private record SubFieldInfo(String field, FieldType fieldType, Analyzer analyzer) {
 
     }
 

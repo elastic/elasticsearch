@@ -100,14 +100,14 @@ public class ScriptedSimilarityTests extends ESTestCase {
                     assertEquals(2f, doc.getFreq(), 0);
                     assertEquals(3, doc.getLength(), 0);
                     assertNotNull(field);
-                    assertEquals(3, field.getDocCount());
-                    assertEquals(5, field.getSumDocFreq());
-                    assertEquals(6, field.getSumTotalTermFreq());
+                    assertEquals(3, field.docCount());
+                    assertEquals(5, field.sumDocFreq());
+                    assertEquals(6, field.sumTotalTermFreq());
                     assertNotNull(term);
-                    assertEquals(2, term.getDocFreq());
-                    assertEquals(3, term.getTotalTermFreq());
+                    assertEquals(2, term.docFreq());
+                    assertEquals(3, term.totalTermFreq());
                     assertNotNull(query);
-                    assertEquals(3.2f, query.getBoost(), 0);
+                    assertEquals(3.2f, query.boost(), 0);
                     called.set(true);
                     return 42f;
                 }
@@ -158,14 +158,14 @@ public class ScriptedSimilarityTests extends ESTestCase {
 
                 @Override
                 public double execute(ScriptedSimilarity.Query query, ScriptedSimilarity.Field field, ScriptedSimilarity.Term term) {
-                    assertEquals(3, field.getDocCount());
-                    assertEquals(5, field.getSumDocFreq());
-                    assertEquals(6, field.getSumTotalTermFreq());
+                    assertEquals(3, field.docCount());
+                    assertEquals(5, field.sumDocFreq());
+                    assertEquals(6, field.sumTotalTermFreq());
                     assertNotNull(term);
-                    assertEquals(1, term.getDocFreq());
-                    assertEquals(2, term.getTotalTermFreq());
+                    assertEquals(1, term.docFreq());
+                    assertEquals(2, term.totalTermFreq());
                     assertNotNull(query);
-                    assertEquals(3.2f, query.getBoost(), 0);
+                    assertEquals(3.2f, query.boost(), 0);
                     initCalled.set(true);
                     return 28;
                 }
@@ -199,14 +199,14 @@ public class ScriptedSimilarityTests extends ESTestCase {
                     assertEquals(2f, doc.getFreq(), 0);
                     assertEquals(3, doc.getLength(), 0);
                     assertNotNull(field);
-                    assertEquals(3, field.getDocCount());
-                    assertEquals(5, field.getSumDocFreq());
-                    assertEquals(6, field.getSumTotalTermFreq());
+                    assertEquals(3, field.docCount());
+                    assertEquals(5, field.sumDocFreq());
+                    assertEquals(6, field.sumTotalTermFreq());
                     assertNotNull(term);
-                    assertEquals(1, term.getDocFreq());
-                    assertEquals(2, term.getTotalTermFreq());
+                    assertEquals(1, term.docFreq());
+                    assertEquals(2, term.totalTermFreq());
                     assertNotNull(query);
-                    assertEquals(3.2f, query.getBoost(), 0);
+                    assertEquals(3.2f, query.boost(), 0);
                     called.set(true);
                     return 42;
                 }

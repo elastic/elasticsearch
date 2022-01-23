@@ -433,9 +433,9 @@ public class RefreshListenersTests extends ESTestCase {
                         ) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
-                            org.apache.lucene.document.Document document = getResult.docIdAndVersion().reader.document(
-                                getResult.docIdAndVersion().docId
-                            );
+                            org.apache.lucene.document.Document document = getResult.docIdAndVersion()
+                                .reader()
+                                .document(getResult.docIdAndVersion().docId());
                             assertThat(document.getValues("test"), arrayContaining(testFieldValue));
                         }
                     } catch (Exception t) {
@@ -542,9 +542,9 @@ public class RefreshListenersTests extends ESTestCase {
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(idField);
         document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
+        document.add(seqID.seqNo());
+        document.add(seqID.seqNoDocValue());
+        document.add(seqID.primaryTerm());
         BytesReference source = new BytesArray(new byte[] { 1 });
         ParsedDocument doc = new ParsedDocument(versionField, seqID, id, null, Arrays.asList(document), source, XContentType.JSON, null);
         Engine.Index index = new Engine.Index(uid, engine.config().getPrimaryTermSupplier().getAsLong(), doc);

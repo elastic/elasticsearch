@@ -164,7 +164,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      * Cleanup (synchronize) the internal state when an object is removed from the primary cache
      */
     private void onCacheEviction(RemovalNotification<BitsetCacheKey, BitSet> notification) {
-        final BitsetCacheKey bitsetKey = notification.getKey();
+        final BitsetCacheKey bitsetKey = notification.key();
         final IndexReader.CacheKey indexKey = bitsetKey.index;
         if (keysByIndex.getOrDefault(indexKey, Set.of()).contains(bitsetKey) == false) {
             // If the bitsetKey isn't in the lookup map, then there's nothing to synchronize

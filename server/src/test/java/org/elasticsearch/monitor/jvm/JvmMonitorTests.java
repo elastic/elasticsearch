@@ -169,9 +169,9 @@ public class JvmMonitorTests extends ESTestCase {
             void onSlowGc(final Threshold threshold, final long seq, final SlowGcEvent slowGcEvent) {
                 count.incrementAndGet();
                 assertThat(seq, equalTo(1L));
-                assertThat(slowGcEvent.elapsed, equalTo(expectedElapsed));
-                assertThat(slowGcEvent.currentGc.getName(), anyOf(equalTo("young"), equalTo("old")));
-                if ("young".equals(slowGcEvent.currentGc.getName())) {
+                assertThat(slowGcEvent.elapsed(), equalTo(expectedElapsed));
+                assertThat(slowGcEvent.currentGc().getName(), anyOf(equalTo("young"), equalTo("old")));
+                if ("young".equals(slowGcEvent.currentGc().getName())) {
                     assertCollection(
                         threshold,
                         youngThresholdLevel,
@@ -181,7 +181,7 @@ public class JvmMonitorTests extends ESTestCase {
                         initialYoungCollectionTime,
                         youngIncrement
                     );
-                } else if ("old".equals(slowGcEvent.currentGc.getName())) {
+                } else if ("old".equals(slowGcEvent.currentGc().getName())) {
                     assertCollection(
                         threshold,
                         oldThresholdLevel,
@@ -227,10 +227,10 @@ public class JvmMonitorTests extends ESTestCase {
         final int increment
     ) {
         assertThat(actualThreshold, equalTo(expectedThreshold));
-        assertThat(slowGcEvent.currentGc.getCollectionCount(), equalTo((long) (initialCollectionCount + collections)));
-        assertThat(slowGcEvent.collectionCount, equalTo((long) collections));
-        assertThat(slowGcEvent.collectionTime, equalTo(TimeValue.timeValueMillis(increment)));
-        assertThat(slowGcEvent.currentGc.getCollectionTime(), equalTo(TimeValue.timeValueMillis(initialCollectionTime + increment)));
+        assertThat(slowGcEvent.currentGc().getCollectionCount(), equalTo((long) (initialCollectionCount + collections)));
+        assertThat(slowGcEvent.collectionCount(), equalTo((long) collections));
+        assertThat(slowGcEvent.collectionTime(), equalTo(TimeValue.timeValueMillis(increment)));
+        assertThat(slowGcEvent.currentGc().getCollectionTime(), equalTo(TimeValue.timeValueMillis(initialCollectionTime + increment)));
     }
 
     private JvmStats jvmStats(JvmStats.GarbageCollector youngCollector, JvmStats.GarbageCollector oldCollector) {

@@ -308,7 +308,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
             float boost = entry.getValue() == null ? 1.0f : entry.getValue();
             fieldsAndBoosts.add(new FieldAndBoost(fieldType, boost));
 
-            Analyzer analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
+            Analyzer analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
             if (sharedAnalyzer != null && analyzer.equals(sharedAnalyzer) == false) {
                 throw new IllegalArgumentException("All fields in [" + NAME + "] query must have the same search analyzer");
             }
@@ -337,7 +337,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
             String name = entry.getKey();
             MappedFieldType fieldType = context.getFieldType(name);
-            if (fieldType != null && fieldType.getTextSearchInfo().getSimilarity() != null) {
+            if (fieldType != null && fieldType.getTextSearchInfo().similarity() != null) {
                 throw new IllegalArgumentException("[" + NAME + "] queries cannot be used with per-field similarities");
             }
         }
@@ -348,13 +348,9 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         }
     }
 
-    private static final class FieldAndBoost {
-        final MappedFieldType fieldType;
-        final float boost;
-
-        FieldAndBoost(MappedFieldType fieldType, float boost) {
-            this.fieldType = Objects.requireNonNull(fieldType);
-            this.boost = boost;
+    private record FieldAndBoost(MappedFieldType fieldType, float boost) {
+        FieldAndBoost {
+            Objects.requireNonNull(fieldType);
         }
     }
 

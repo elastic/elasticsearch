@@ -846,7 +846,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             Store.MetadataSnapshot replicaAfterFailoverMetadataSnapshot = getMetadataSnapshot(replicaNodeNameAfterFailOver, indexName);
             Store.RecoveryDiff recoveryDiff = primaryMetadataSnapshot.recoveryDiff(replicaAfterFailoverMetadataSnapshot);
-            assertThat(recoveryDiff.identical, is(not(empty())));
+            assertThat(recoveryDiff.identical(), is(not(empty())));
         }
     }
 

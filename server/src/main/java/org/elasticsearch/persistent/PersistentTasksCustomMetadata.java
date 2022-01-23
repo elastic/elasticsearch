@@ -250,11 +250,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         return ClusterState.builder(clusterState).metadata(metadataBuilder).build();
     }
 
-    public static class Assignment {
-        @Nullable
-        private final String executorNode;
-        private final String explanation;
-
+    public record Assignment(@Nullable String executorNode, String explanation) {
         public Assignment(String executorNode, String explanation) {
             this.executorNode = executorNode;
             assert explanation != null;
@@ -270,27 +266,10 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             return explanation;
         }
 
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Assignment that = (Assignment) o;
-            return Objects.equals(executorNode, that.executorNode) && Objects.equals(explanation, that.explanation);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(executorNode, explanation);
-        }
-
         public boolean isAssigned() {
             return executorNode != null;
         }
 
-        @Override
-        public String toString() {
-            return "node: [" + executorNode + "], explanation: [" + explanation + "]";
-        }
     }
 
     public static final Assignment INITIAL_ASSIGNMENT = new Assignment(null, "waiting for initial assignment");

@@ -52,7 +52,7 @@ public class FileInfoTests extends ESTestCase {
                 writerUuid
             );
             ByteSizeValue size = new ByteSizeValue(Math.abs(randomLong()));
-            BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("_foobar", meta, size);
+            BlobStoreIndexShardSnapshot.FileInfo info = BlobStoreIndexShardSnapshot.FileInfo.of("_foobar", meta, size);
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
             boolean serializeWriterUUID = randomBoolean();
             final ToXContent.Params params;
@@ -161,7 +161,7 @@ public class FileInfoTests extends ESTestCase {
     }
 
     public void testGetPartSize() {
-        BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo(
+        BlobStoreIndexShardSnapshot.FileInfo info = BlobStoreIndexShardSnapshot.FileInfo.of(
             "foo",
             new StoreFileMetadata("foo", 36, "666", MIN_SUPPORTED_LUCENE_VERSION.toString()),
             new ByteSizeValue(6)
@@ -172,7 +172,7 @@ public class FileInfoTests extends ESTestCase {
         }
         assertEquals(numBytes, 36);
 
-        info = new BlobStoreIndexShardSnapshot.FileInfo(
+        info = BlobStoreIndexShardSnapshot.FileInfo.of(
             "foo",
             new StoreFileMetadata("foo", 35, "666", MIN_SUPPORTED_LUCENE_VERSION.toString()),
             new ByteSizeValue(6)
@@ -190,7 +190,7 @@ public class FileInfoTests extends ESTestCase {
                 "666",
                 MIN_SUPPORTED_LUCENE_VERSION.toString()
             );
-            info = new BlobStoreIndexShardSnapshot.FileInfo("foo", metadata, new ByteSizeValue(randomIntBetween(1, 1000)));
+            info = BlobStoreIndexShardSnapshot.FileInfo.of("foo", metadata, new ByteSizeValue(randomIntBetween(1, 1000)));
             numBytes = 0;
             for (int i = 0; i < info.numberOfParts(); i++) {
                 numBytes += info.partBytes(i);

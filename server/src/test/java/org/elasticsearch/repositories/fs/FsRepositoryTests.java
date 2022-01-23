@@ -124,7 +124,7 @@ public class FsRepositoryTests extends ESTestCase {
                 );
                 future1.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
-                assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
+                assertEquals(copy.totalFileCount(), copy.incrementalFileCount());
             });
             final ShardGeneration shardGeneration = future1.actionGet().getGeneration();
             Lucene.cleanLuceneIndex(directory);
@@ -168,8 +168,8 @@ public class FsRepositoryTests extends ESTestCase {
                 );
                 future2.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
-                assertEquals(2, copy.getIncrementalFileCount());
-                assertEquals(commitFileNames.size(), copy.getTotalFileCount());
+                assertEquals(2, copy.incrementalFileCount());
+                assertEquals(commitFileNames.size(), copy.totalFileCount());
             });
 
             // roll back to the first snap and then incrementally restore

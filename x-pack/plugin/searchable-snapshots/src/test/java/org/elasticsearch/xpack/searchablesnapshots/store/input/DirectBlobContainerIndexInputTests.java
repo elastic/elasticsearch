@@ -64,7 +64,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
         Runnable onReadBlob
     ) throws IOException {
         final String fileName = randomAlphaOfLength(5) + randomFileExtension();
-        final FileInfo fileInfo = new FileInfo(
+        final FileInfo fileInfo = FileInfo.of(
             randomAlphaOfLength(5),
             new StoreFileMetadata(fileName, input.length, checksum, Version.LATEST.toString()),
             partSize == input.length

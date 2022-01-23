@@ -331,7 +331,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82785")
     public void testApiKeySuperuser() throws IOException {
         if (isRunningAgainstOldCluster()) {
             final Request createUserRequest = new Request("PUT", "/_security/user/api_key_super_creator");
@@ -413,6 +412,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             // read is ok
             final Request searchRequest = new Request("GET", ".security/_search");
+            // TODO: change the warning expectation to be always once #82837 is fixed
             // Configure the warning to be optional due to #82837, it is ok since this test is for something else
             searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
                 if (warnings.isEmpty()) {

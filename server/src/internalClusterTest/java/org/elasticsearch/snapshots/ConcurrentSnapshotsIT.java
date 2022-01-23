@@ -1068,8 +1068,9 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String repoName = "test-repo";
         createRepository(repoName, "mock");
         createFullSnapshot(repoName, "empty-snapshot");
-        createIndex("index-test", indexSettingsNoReplicas(randomIntBetween(6, 10)).build());
-        indexRandomDocs("index-test", 10000);
+        // use a few more shards to make master take a little longer to clean up the stale index and simulate more concurrency between
+        // snapshot create and delete below
+        createIndexWithContent("index-test", indexSettingsNoReplicas(randomIntBetween(6, 10)).build());
         final NetworkDisruption networkDisruption = isolateMasterDisruption(NetworkDisruption.DISCONNECT);
         internalCluster().setDisruptionScheme(networkDisruption);
 
@@ -1085,22 +1086,30 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshotFromDataNode(repoName, "new-full-snapshot");
         waitForBlock(masterName, repoName);
         awaitNDeletionsInProgress(1);
-        awaitNDeletionsInProgress(1);
+        awaitNumberOfSnapshotsInProgress(1);
         networkDisruption.startDisrupting();
         ensureStableCluster(3, dataNode);
+        // wait for the snapshot to finish while the isolated master is stuck on deleting a data blob
+        try {
+            snapshotFuture.get();
+        } catch (Exception e) {
+            // ignore exceptions here, the snapshot will work out fine in all cases but the API might throw because of the master
+            // fail-over during the snapshot
+            // TODO: remove this leniency once we fix the API to handle master failover cleaner
+        }
         awaitNoMoreRunningOperations(dataNode);
 
+        // now unblock the stale master and have it continue deleting blobs from the repository
         unblockNode(repoName, masterName);
 
         networkDisruption.stopDisrupting();
         ensureStableCluster(4);
-        awaitNoMoreRunningOperations();
-        for (ActionFuture<?> future : List.of(deleteAllSnapshotsWithIndex, snapshotFuture)) {
-            try {
-                future.get();
-            } catch (Exception ignored) {
-                // ignored had a failover in here and will get all kinds of errors on these, just making sure they complete
-            }
+        try {
+            deleteAllSnapshotsWithIndex.get();
+        } catch (Exception ignored) {
+            // ignored as we had a failover in here and will get all kinds of errors as a result, just making sure the future completes in
+            // all cases for now
+            // TODO: remove this leniency once we fix the API to handle master failover cleaner
         }
     }
 

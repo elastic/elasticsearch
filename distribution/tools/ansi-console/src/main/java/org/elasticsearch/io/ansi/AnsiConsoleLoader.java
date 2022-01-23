@@ -50,8 +50,8 @@ public class AnsiConsoleLoader implements Supplier<ConsoleLoader.Console> {
     }
 
     /**
-     * Uses reflection on the jansi lib in order to expose the {@code Charset} used to encode the console's print stream.
-     * The {@code Charset} is not otherwise exposed, and this avoids replicating the charset selection logic.
+     * Uses reflection on the JANSI lib in order to expose the {@code Charset} used to encode the console's print stream.
+     * The {@code Charset} is not otherwise exposed by the library, and this avoids replicating the charset selection logic in out code.
      */
     @SuppressForbidden(reason = "Best effort exposing print stream's charset with reflection")
     @Nullable

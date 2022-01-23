@@ -1,4 +1,8 @@
 ---
+  setup:
+    - do:
+        desired_nodes.delete_desired_nodes: {}
+---
 "Test update desired nodes":
   - do:
       desired_nodes.update_desired_nodes:
@@ -6,4 +10,274 @@
         version: 1
         body:
             nodes:
-              - { settings: {"node.external_id": "instance-000187"}, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+              - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+  - match: { acknowledged: true }
+
+  - do:
+      desired_nodes.get_desired_nodes: {}
+  - match:
+      desired_nodes:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+
+  - do:
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 2
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+            - { settings: { "node.external_id": "instance-000188" }, processors: 16, memory: "128gb", storage: "1tb", version: "7.16.0" }
+  - match: { acknowledged: true }
+
+  - do:
+      desired_nodes.get_desired_nodes: {}
+  - match:
+      desired_nodes:
+        history_id: "test"
+        version: 2
+        nodes:
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+          - { settings: { node: { external_id: "instance-000188" } }, processors: 16, memory: "128gb", storage: "1tb", version: "7.16.0" }
+---
+"Test delete desired nodes":
+  - do:
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+  - match: { acknowledged: true }
+
+  - do:
+      desired_nodes.get_desired_nodes: {}
+  - match:
+      desired_nodes:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+
+  - do:
+      desired_nodes.delete_desired_nodes: {}
+
+  - do:
+      desired_nodes.get_desired_nodes: {}
+  - match:
+      desired_nodes: null
+---
+"Test update desired nodes is idempotent":
+  - do:
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+  - match: { acknowledged: true }
+
+  - do:
+      desired_nodes.get_desired_nodes: {}
+  - match:
+      desired_nodes:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+
+  - do:
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+  - match: { acknowledged: true }
+
+  - do:
+      desired_nodes.get_desired_nodes: {}
+  - match:
+      desired_nodes:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+---
+"Test going backwards within the same history is forbidden":
+  - do:
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 2
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: conflict
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+  - match: { status: 409 }
+  - match: { error.type: conflict_exception }
+  - match: { error.reason: "version [1] has been superseded by version [2] for history [test]" }
+
+  - do:
+      desired_nodes.get_desired_nodes: {}
+  - match:
+      desired_nodes:
+        history_id: "test"
+        version: 2
+        nodes:
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+---
+"Test using the same version with different definition is forbidden":
+  - do:
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: bad_request
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187" }, processors: 64, memory: "64gb", storage: "128gb", version: "7.16.0" }
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Desired nodes with history [test] and version [1] already exists with a different definition" }
+
+  - do:
+      desired_nodes.get_desired_nodes: {}
+  - match:
+      desired_nodes:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+---
+"Test settings are validated":
+  - do:
+      catch: bad_request
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187", "http.tcp.keep_idle": -1000 }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Failed to parse value [-1000] for setting [http.tcp.keep_idle] must be >= -1" }
+---
+"Test unknown settings are forbidden in known versions":
+  - do:
+      catch: bad_request
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187", "unknown_setting": -1000 }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Node [instance-000187] has unknown settings [unknown_setting]" }
+---
+"Test unknown settings are allowed in future versions":
+  - do:
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187", "unknown_setting": -1000 }, processors: 8, memory: "64gb", storage: "128gb", version: "99.1.0" }
+  - match: { acknowledged: true }
+---
+"Test external_id is required":
+  - do:
+      catch: bad_request
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "External id missing" }
+---
+"Test duplicated external ids are not allowed":
+  - do:
+      catch: bad_request
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187"}, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+            - { settings: { "node.external_id": "instance-000187"}, processors: 16, memory: "64gb", storage: "128gb", version: "7.16.0" }
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Some nodes contain the same setting value [instance-000187] for [node.external_id]" }
+---
+"Test version must be a number":
+  - do:
+      catch: bad_request
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: "asa"
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187"}, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Failed to parse int parameter [version] with value [asa]" }
+---
+"Test version must be positive":
+  - do:
+      catch: bad_request
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: -1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187"}, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "Validation Failed: 1: version must be positive;" }
+---
+"Test history_id must be present":
+  - do:
+      catch: bad_request
+      desired_nodes.update_desired_nodes:
+        history_id: "    "
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187"}, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "Validation Failed: 1: historyID should not be empty;" }
+---
+"Test at least one node must be sent":
+  - do:
+      catch: bad_request
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes: []
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "Validation Failed: 1: nodes must contain at least one node;" }

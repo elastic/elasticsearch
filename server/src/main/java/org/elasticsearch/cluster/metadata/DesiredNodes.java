@@ -46,8 +46,9 @@ public record DesiredNodes(String historyID, int version, List<DesiredNode> node
     }
 
     public DesiredNodes {
-        assert historyID != null;
+        assert historyID != null && historyID.isBlank() == false;
         assert version >= 0;
+        assert nodes.isEmpty() == false;
         checkForDuplicatedExternalIDs(nodes);
     }
 

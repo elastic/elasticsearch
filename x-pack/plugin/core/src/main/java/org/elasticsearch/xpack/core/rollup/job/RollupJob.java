@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHea
  * It holds the config (RollupJobConfig) and a map of authentication headers.  Only RollupJobConfig
  * is ever serialized to the user, so the headers should never leak
  */
-public class RollupJob extends AbstractDiffable<RollupJob> implements PersistentTaskParams {
+public class RollupJob implements AbstractDiffable<RollupJob>, PersistentTaskParams {
 
     public static final String NAME = "xpack/rollup/job";
 

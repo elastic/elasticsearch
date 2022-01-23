@@ -30,7 +30,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 /**
  * Mapping configuration for a type.
  */
-public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
+public class MappingMetadata implements AbstractDiffable<MappingMetadata> {
 
     public static final MappingMetadata EMPTY_MAPPINGS = new MappingMetadata(
         MapperService.SINGLE_MAPPING_NAME,
@@ -183,6 +183,6 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
     }
 
     public static Diff<MappingMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(MappingMetadata::new, in);
+        return AbstractDiffable.readDiffFrom(MappingMetadata::new, in);
     }
 }

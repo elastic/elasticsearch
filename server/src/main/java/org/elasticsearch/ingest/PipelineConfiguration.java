@@ -29,7 +29,7 @@ import java.util.Objects;
 /**
  * Encapsulates a pipeline's id and configuration as a blob
  */
-public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration> implements ToXContentObject {
+public final class PipelineConfiguration implements AbstractDiffable<PipelineConfiguration>, ToXContentObject {
 
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", true, Builder::new);
     static {
@@ -127,7 +127,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     }
 
     public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(PipelineConfiguration::readFrom, in);
+        return AbstractDiffable.readDiffFrom(PipelineConfiguration::readFrom, in);
     }
 
     @Override

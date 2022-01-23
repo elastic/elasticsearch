@@ -430,7 +430,7 @@ public class DiffableTests extends ESTestCase {
         };
     }
 
-    public static class TestDiffable extends AbstractDiffable<TestDiffable> {
+    public static class TestDiffable implements AbstractDiffable<TestDiffable> {
 
         private final String value;
 
@@ -447,7 +447,7 @@ public class DiffableTests extends ESTestCase {
         }
 
         public static Diff<TestDiffable> readDiffFrom(StreamInput in) throws IOException {
-            return readDiffFrom(TestDiffable::readFrom, in);
+            return AbstractDiffable.readDiffFrom(TestDiffable::readFrom, in);
         }
 
         @Override

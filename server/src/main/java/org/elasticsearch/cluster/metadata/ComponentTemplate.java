@@ -30,7 +30,7 @@ import java.util.Objects;
  * contains a field "foo", it's expected to contain all the necessary settings/mappings/etc for the
  * "foo" field. These component templates make up the individual pieces composing an index template.
  */
-public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> implements ToXContentObject {
+public class ComponentTemplate implements AbstractDiffable<ComponentTemplate>, ToXContentObject {
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField METADATA = new ParseField("_meta");

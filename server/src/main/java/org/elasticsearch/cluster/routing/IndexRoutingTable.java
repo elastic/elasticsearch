@@ -52,7 +52,7 @@ import java.util.function.Predicate;
  * represented as {@link ShardRouting}.
  * </p>
  */
-public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> implements Iterable<IndexShardRoutingTable> {
+public class IndexRoutingTable implements AbstractDiffable<IndexRoutingTable>, Iterable<IndexShardRoutingTable> {
 
     private static final List<Predicate<ShardRouting>> PRIORITY_REMOVE_CLAUSES = List.of(
         ShardRouting::unassigned,
@@ -315,7 +315,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
     }
 
     public static Diff<IndexRoutingTable> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(IndexRoutingTable::readFrom, in);
+        return AbstractDiffable.readDiffFrom(IndexRoutingTable::readFrom, in);
     }
 
     @Override

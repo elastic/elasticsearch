@@ -27,7 +27,7 @@ import java.util.Objects;
 /**
  * Class for holding Rollover related information within an index
  */
-public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writeable, ToXContentFragment {
+public class RolloverInfo implements AbstractDiffable<RolloverInfo>, Writeable, ToXContentFragment {
 
     public static final ParseField CONDITION_FIELD = new ParseField("met_conditions");
     public static final ParseField TIME_FIELD = new ParseField("time");
@@ -81,7 +81,7 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
     }
 
     public static Diff<RolloverInfo> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(RolloverInfo::new, in);
+        return AbstractDiffable.readDiffFrom(RolloverInfo::new, in);
     }
 
     @Override

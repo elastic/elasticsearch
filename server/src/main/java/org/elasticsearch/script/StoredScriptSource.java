@@ -41,7 +41,7 @@ import java.util.Objects;
  * {@link StoredScriptSource} represents user-defined parameters for a script
  * saved in the {@link ClusterState}.
  */
-public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> implements Writeable, ToXContentObject {
+public class StoredScriptSource implements AbstractDiffable<StoredScriptSource>, Writeable, ToXContentObject {
     /**
      * Standard {@link ParseField} for outer level of stored script source.
      */
@@ -259,7 +259,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * constructor.
      */
     public static Diff<StoredScriptSource> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(StoredScriptSource::new, in);
+        return AbstractDiffable.readDiffFrom(StoredScriptSource::new, in);
     }
 
     private final String lang;

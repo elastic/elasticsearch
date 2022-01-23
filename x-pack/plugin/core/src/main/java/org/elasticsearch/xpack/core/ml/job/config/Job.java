@@ -58,7 +58,7 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GEN
  * data time fields are {@code null} until the job has seen some data or it is
  * finished respectively.
  */
-public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentObject {
+public class Job implements AbstractDiffable<Job>, Writeable, ToXContentObject {
 
     public static final String TYPE = "job";
 

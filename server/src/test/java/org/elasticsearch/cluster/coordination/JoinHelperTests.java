@@ -416,7 +416,7 @@ public class JoinHelperTests extends ESTestCase {
         }
     }
 
-    private static class BadCustom extends AbstractDiffable<ClusterState.Custom> implements ClusterState.Custom {
+    private static class BadCustom implements AbstractDiffable<ClusterState.Custom>, ClusterState.Custom {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

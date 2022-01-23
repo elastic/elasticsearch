@@ -45,7 +45,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
+public final class DataStream implements AbstractDiffable<DataStream>, ToXContentObject {
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
@@ -493,7 +493,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(DataStream::new, in);
+        return AbstractDiffable.readDiffFrom(DataStream::new, in);
     }
 
     @Override

@@ -39,7 +39,7 @@ import java.util.Set;
 import static org.elasticsearch.core.RestApiVersion.V_8;
 import static org.elasticsearch.core.RestApiVersion.onOrAfter;
 
-public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadata> {
+public class IndexTemplateMetadata implements AbstractDiffable<IndexTemplateMetadata> {
 
     private final String name;
 
@@ -199,7 +199,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
     }
 
     public static Diff<IndexTemplateMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(IndexTemplateMetadata::readFrom, in);
+        return AbstractDiffable.readDiffFrom(IndexTemplateMetadata::readFrom, in);
     }
 
     @Override

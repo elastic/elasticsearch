@@ -112,7 +112,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     public static class Response extends ActionResponse implements ToXContentObject {
         public static final ParseField DATASTREAMS_FIELD = new ParseField("data_streams");
 
-        public static class DataStreamInfo extends AbstractDiffable<DataStreamInfo> implements ToXContentObject {
+        public static class DataStreamInfo implements AbstractDiffable<DataStreamInfo>, ToXContentObject {
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
             public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");

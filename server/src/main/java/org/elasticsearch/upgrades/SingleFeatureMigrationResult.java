@@ -26,7 +26,7 @@ import java.util.Objects;
 /**
  * Holds the results of migrating a single feature. See also {@link FeatureMigrationResults}.
  */
-public class SingleFeatureMigrationResult extends AbstractDiffable<SingleFeatureMigrationResult> implements Writeable, ToXContent {
+public class SingleFeatureMigrationResult implements AbstractDiffable<SingleFeatureMigrationResult>, Writeable, ToXContent {
     private static final String NAME = "feature_migration_status";
     private static final ParseField SUCCESS_FIELD = new ParseField("successful");
     private static final ParseField FAILED_INDEX_NAME_FIELD = new ParseField("failed_index");

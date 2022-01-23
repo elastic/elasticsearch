@@ -37,7 +37,7 @@ import static org.elasticsearch.cluster.metadata.DataStream.TimestampField.FIXED
  * ids corresponding to component templates that should be composed in order when creating a new
  * index.
  */
-public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTemplate> implements ToXContentObject {
+public class ComposableIndexTemplate implements AbstractDiffable<ComposableIndexTemplate>, ToXContentObject {
     private static final ParseField INDEX_PATTERNS = new ParseField("index_patterns");
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField PRIORITY = new ParseField("priority");

@@ -42,7 +42,7 @@ import java.util.stream.StreamSupport;
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
  * access, modify merge / diff discovery nodes.
  */
-public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode> {
+public class DiscoveryNodes implements AbstractDiffable<DiscoveryNodes>, Iterable<DiscoveryNode> {
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
 

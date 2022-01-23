@@ -50,7 +50,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class holds the configuration details of a data frame transform
  */
-public class TransformConfig extends AbstractDiffable<TransformConfig> implements Writeable, ToXContentObject {
+public class TransformConfig implements AbstractDiffable<TransformConfig>, Writeable, ToXContentObject {
 
     /**
      * Version of the last time the config defaults have been changed.

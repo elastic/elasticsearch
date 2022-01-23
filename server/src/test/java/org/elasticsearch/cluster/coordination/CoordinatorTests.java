@@ -1802,7 +1802,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    private static class BrokenCustom extends AbstractDiffable<ClusterState.Custom> implements ClusterState.Custom {
+    private static class BrokenCustom implements AbstractDiffable<ClusterState.Custom>, ClusterState.Custom {
 
         static final String EXCEPTION_MESSAGE = "simulated";
 

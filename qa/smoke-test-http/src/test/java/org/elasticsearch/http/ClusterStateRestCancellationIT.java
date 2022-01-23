@@ -96,7 +96,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
         updateClusterState(clusterService, s -> ClusterState.builder(s).removeCustom(AssertingCustom.NAME).build());
     }
 
-    private static class AssertingCustom extends AbstractDiffable<ClusterState.Custom> implements ClusterState.Custom {
+    private static class AssertingCustom implements AbstractDiffable<ClusterState.Custom>, ClusterState.Custom {
 
         static final String NAME = "asserting";
         static final AssertingCustom INSTANCE = new AssertingCustom();

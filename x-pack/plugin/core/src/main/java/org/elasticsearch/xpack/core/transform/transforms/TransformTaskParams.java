@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import java.io.IOException;
 import java.util.Objects;
 
-public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> implements PersistentTaskParams {
+public class TransformTaskParams implements AbstractDiffable<TransformTaskParams>, PersistentTaskParams {
 
     public static final String NAME = TransformField.TASK_NAME;
     public static final ParseField FREQUENCY = TransformField.FREQUENCY;

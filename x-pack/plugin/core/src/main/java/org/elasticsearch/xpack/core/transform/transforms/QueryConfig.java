@@ -40,7 +40,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writeable, ToXContentObject {
+public class QueryConfig implements AbstractDiffable<QueryConfig>, Writeable, ToXContentObject {
     private static final Logger logger = LogManager.getLogger(QueryConfig.class);
 
     // we store the query in 2 formats: the raw format and the parsed format, because:

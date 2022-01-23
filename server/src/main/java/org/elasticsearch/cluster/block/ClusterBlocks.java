@@ -35,7 +35,7 @@ import static java.util.stream.Collectors.toSet;
 /**
  * Represents current cluster level blocks to block dirty operations done against the cluster.
  */
-public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
+public class ClusterBlocks implements AbstractDiffable<ClusterBlocks> {
     public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(emptySet(), ImmutableOpenMap.of());
 
     private final Set<ClusterBlock> global;

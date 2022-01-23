@@ -28,7 +28,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class TransformDestIndexSettings extends AbstractDiffable<TransformDestIndexSettings> implements Writeable, ToXContentObject {
+public class TransformDestIndexSettings implements AbstractDiffable<TransformDestIndexSettings>, Writeable, ToXContentObject {
 
     public static final ParseField MAPPINGS = new ParseField("mappings");
     public static final ParseField SETTINGS = new ParseField("settings");

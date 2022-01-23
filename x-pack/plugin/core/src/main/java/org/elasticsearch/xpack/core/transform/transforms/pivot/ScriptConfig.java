@@ -31,7 +31,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class ScriptConfig extends AbstractDiffable<ScriptConfig> implements Writeable, ToXContentObject {
+public class ScriptConfig implements AbstractDiffable<ScriptConfig>, Writeable, ToXContentObject {
     private static final Logger logger = LogManager.getLogger(ScriptConfig.class);
 
     // we store the in 2 formats: the raw format and the parsed format

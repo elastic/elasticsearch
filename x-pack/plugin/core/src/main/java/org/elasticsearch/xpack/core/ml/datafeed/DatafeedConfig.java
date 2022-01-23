@@ -83,7 +83,7 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GEN
  * used around integral types and booleans so they can take <code>null</code>
  * values.
  */
-public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements ToXContentObject {
+public class DatafeedConfig implements AbstractDiffable<DatafeedConfig>, ToXContentObject {
 
     private static final Version RUNTIME_MAPPINGS_INTRODUCED = Version.V_7_11_0;
 

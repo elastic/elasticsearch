@@ -331,6 +331,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82785")
     public void testApiKeySuperuser() throws IOException {
         if (isRunningAgainstOldCluster()) {
             final Request createUserRequest = new Request("PUT", "/_security/user/api_key_super_creator");

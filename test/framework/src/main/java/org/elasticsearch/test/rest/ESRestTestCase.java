@@ -571,6 +571,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             "ilm-history-ilm-policy",
             "slm-history-ilm-policy",
             "watch-history-ilm-policy",
+            "watch-history-ilm-policy-16",
             "ml-size-based-ilm-policy",
             "logs",
             "metrics",
@@ -581,7 +582,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             "180-days-default",
             "365-days-default",
             ".fleet-actions-results-ilm-policy",
-            ".deprecation-indexing-ilm-policy"
+            ".deprecation-indexing-ilm-policy",
+            ".monitoring-8-ilm-policy"
         );
     }
 

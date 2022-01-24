@@ -9,6 +9,7 @@
 package org.elasticsearch.io.ansi;
 
 import org.elasticsearch.bootstrap.ConsoleLoader;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.fusesource.jansi.AnsiColors;
 import org.fusesource.jansi.AnsiMode;
@@ -82,6 +83,7 @@ public class AnsiConsoleLoaderTests extends ESTestCase {
         }
     }
 
+    @SuppressForbidden(reason = "set property for JANSI disabled tests")
     public void testDisableANSISystemProperties() {
         System.setProperty("org.fusesource.jansi.Ansi.disable", "true");
         try (AnsiPrintStream ansiPrintStream = buildStream(randomFrom(SUPPORTED_TERMINAL_TYPES), randomIntBetween(40, 260))) {

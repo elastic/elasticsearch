@@ -211,6 +211,7 @@ public abstract class AbstractRepository {
             parallelism,
             10L,
             TimeUnit.SECONDS,
+            true,
             EsExecutors.daemonThreadFactory("snapshot_cleanup_tool"),
             new ThreadContext(Settings.EMPTY)
         );

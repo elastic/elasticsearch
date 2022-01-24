@@ -63,14 +63,10 @@ public interface ClusterStateTaskExecutor<T> {
      *
      * @param <T> the type of the cluster state update task
      */
-    record ClusterTasksResult<T> (@Nullable ClusterState resultingState, Map<T, TaskResult> executionResults) {
-        /**
-         * Construct an execution result instance with a correspondence between the tasks and their execution result
-         *
-         * @param resultingState   the resulting cluster state
-         * @param executionResults the correspondence between tasks and their outcome
-         */
-        public ClusterTasksResult {}
+    record ClusterTasksResult<T> (
+        @Nullable ClusterState resultingState, // the resulting cluster state
+        Map<T, TaskResult> executionResults    // the correspondence between tasks and their outcome
+    ) {
 
         public static <T> Builder<T> builder() {
             return new Builder<>();

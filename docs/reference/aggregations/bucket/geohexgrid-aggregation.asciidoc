@@ -27,8 +27,6 @@ produces cells that cover less than 10cm by 10cm. We recommend you use a
 filter to limit high-precision requests to a smaller geographic area. For an example,
 refer to <<geohexgrid-high-precision-ex>>.
 
-You can only use `geohex_grid` to aggregate an explicitly mapped `geo_point`.
-If the `geo_point` field contains an array, `geohex_grid` aggregates all the array values.
 
 
 ==== Simple low-precision request

@@ -427,15 +427,15 @@ chgrp 0 esdatadir
 
 You can also run an {es} container using both a custom UID and GID. You
 must ensure that file permissions will not prevent {es} from executing. You
-have two options.
+can use one of two options:
 
-* Pass the `--group-add 0` command line options to `docker run`. This
+* Pass the `--group-add 0` command line option to `docker run`. This
   ensures that the user under which {es} is running is also a member of the
   `root` (GID 0) group inside the container.
-* Alternatively, you must bind-mound the `config`, `data` and `logs`
-  directories. You must also bind-mount the `plugins` directory if you
-  intend to install plugins and prefer not to <<_c_customized_image, create a
-  custom Docker image>>.
+* Bind-mound the `config`, `data` and `logs`
+  directories. If you intend to install plugins and prefer not to
+  <<_c_customized_image, create a custom Docker image>>, you must also
+  bind-mount the `plugins` directory.
 
 ===== Increase ulimits for nofile and nproc
 

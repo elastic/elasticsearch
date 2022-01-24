@@ -81,8 +81,8 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
             for (final IndexService indexService : indicesService) {
                 for (final IndexShard indexShard : indexService) {
                     final Engine engine = IndexShardTestCase.getEngine(indexShard);
-                    if (engine instanceof SearcherBlockingEngine) {
-                        searcherBlocks.add(((SearcherBlockingEngine) engine).searcherBlock);
+                    if (engine instanceof SearcherBlockingEngine searcherBlockingEngine) {
+                        searcherBlocks.add(searcherBlockingEngine.searcherBlock);
                     }
                 }
             }

@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -208,7 +209,8 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                     }
                     return ClusterState.builder(currentState).blocks(blocks).metadata(builder).build();
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

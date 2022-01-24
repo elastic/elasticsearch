@@ -95,24 +95,23 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
     protected CollapseBuilder mutateInstance(CollapseBuilder instance) throws IOException {
         CollapseBuilder newBuilder;
         switch (between(0, 2)) {
-            case 0:
+            case 0 -> {
                 newBuilder = new CollapseBuilder(instance.getField() + randomAlphaOfLength(10));
                 newBuilder.setMaxConcurrentGroupRequests(instance.getMaxConcurrentGroupRequests());
                 newBuilder.setInnerHits(instance.getInnerHits());
-                break;
-            case 1:
+            }
+            case 1 -> {
                 newBuilder = copyInstance(instance);
                 newBuilder.setMaxConcurrentGroupRequests(instance.getMaxConcurrentGroupRequests() + between(1, 20));
-                break;
-            case 2:
-            default:
+            }
+            default -> {
                 newBuilder = copyInstance(instance);
                 List<InnerHitBuilder> innerHits = new ArrayList<>(newBuilder.getInnerHits());
                 for (int i = 0; i < between(1, 5); i++) {
                     innerHits.add(InnerHitBuilderTests.randomInnerHits());
                 }
                 newBuilder.setInnerHits(innerHits);
-                break;
+            }
         }
         return newBuilder;
     }

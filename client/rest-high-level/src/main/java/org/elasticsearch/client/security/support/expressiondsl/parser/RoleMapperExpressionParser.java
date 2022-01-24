@@ -164,25 +164,16 @@ public final class RoleMapperExpressionParser {
     }
 
     private Object parseFieldValue(XContentParser parser) throws IOException {
-        switch (parser.currentToken()) {
-            case VALUE_STRING:
-                return parser.text();
-
-            case VALUE_BOOLEAN:
-                return parser.booleanValue();
-
-            case VALUE_NUMBER:
-                return parser.longValue();
-
-            case VALUE_NULL:
-                return null;
-
-            default:
-                throw new ElasticsearchParseException(
-                    "failed to parse rules expression. expected a field value but found [{}] instead",
-                    parser.currentToken()
-                );
-        }
+        return switch (parser.currentToken()) {
+            case VALUE_STRING -> parser.text();
+            case VALUE_BOOLEAN -> parser.booleanValue();
+            case VALUE_NUMBER -> parser.longValue();
+            case VALUE_NULL -> null;
+            default -> throw new ElasticsearchParseException(
+                "failed to parse rules expression. expected a field value but found [{}] instead",
+                parser.currentToken()
+            );
+        };
     }
 
 }

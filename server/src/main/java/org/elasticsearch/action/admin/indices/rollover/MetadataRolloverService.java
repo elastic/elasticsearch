@@ -114,33 +114,31 @@ public class MetadataRolloverService {
     ) throws Exception {
         validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
-        switch (indexAbstraction.getType()) {
-            case ALIAS:
-                return rolloverAlias(
-                    currentState,
-                    (IndexAbstraction.Alias) indexAbstraction,
-                    rolloverTarget,
-                    newIndexName,
-                    createIndexRequest,
-                    metConditions,
-                    silent,
-                    onlyValidate
-                );
-            case DATA_STREAM:
-                return rolloverDataStream(
-                    currentState,
-                    (IndexAbstraction.DataStream) indexAbstraction,
-                    rolloverTarget,
-                    createIndexRequest,
-                    metConditions,
-                    now,
-                    silent,
-                    onlyValidate
-                );
-            default:
+        return switch (indexAbstraction.getType()) {
+            case ALIAS -> rolloverAlias(
+                currentState,
+                (IndexAbstraction.Alias) indexAbstraction,
+                rolloverTarget,
+                newIndexName,
+                createIndexRequest,
+                metConditions,
+                silent,
+                onlyValidate
+            );
+            case DATA_STREAM -> rolloverDataStream(
+                currentState,
+                (IndexAbstraction.DataStream) indexAbstraction,
+                rolloverTarget,
+                createIndexRequest,
+                metConditions,
+                now,
+                silent,
+                onlyValidate
+            );
+            default ->
                 // the validate method above prevents this case
                 throw new IllegalStateException("unable to roll over type [" + indexAbstraction.getType().getDisplayName() + "]");
-        }
+        };
     }
 
     public void validateIndexName(ClusterState state, String index) {
@@ -158,15 +156,13 @@ public class MetadataRolloverService {
     ) {
         validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
-        switch (indexAbstraction.getType()) {
-            case ALIAS:
-                return resolveAliasRolloverNames(currentState.metadata(), indexAbstraction, newIndexName);
-            case DATA_STREAM:
-                return resolveDataStreamRolloverNames(currentState.getMetadata(), (IndexAbstraction.DataStream) indexAbstraction);
-            default:
+        return switch (indexAbstraction.getType()) {
+            case ALIAS -> resolveAliasRolloverNames(currentState.metadata(), indexAbstraction, newIndexName);
+            case DATA_STREAM -> resolveDataStreamRolloverNames(currentState.getMetadata(), (IndexAbstraction.DataStream) indexAbstraction);
+            default ->
                 // the validate method above prevents this case
                 throw new IllegalStateException("unable to roll over type [" + indexAbstraction.getType().getDisplayName() + "]");
-        }
+        };
     }
 
     public static class NameResolution {

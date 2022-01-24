@@ -51,20 +51,11 @@ public class CacheKeyTests extends ESTestCase {
         String fileName = origin.getFileName();
 
         switch (randomInt(3)) {
-            case 0:
-                snapshotUUID = randomValueOtherThan(snapshotUUID, this::randomSnapshotUUID);
-                break;
-            case 1:
-                snapshotIndexName = randomValueOtherThan(snapshotIndexName, this::randomSnapshotIndexName);
-                break;
-            case 2:
-                shardId = randomValueOtherThan(origin.getShardId(), this::randomShardId);
-                break;
-            case 3:
-                fileName = randomValueOtherThan(origin.getFileName(), () -> randomAlphaOfLengthBetween(5, 10));
-                break;
-            default:
-                throw new AssertionError("Unsupported mutation");
+            case 0 -> snapshotUUID = randomValueOtherThan(snapshotUUID, this::randomSnapshotUUID);
+            case 1 -> snapshotIndexName = randomValueOtherThan(snapshotIndexName, this::randomSnapshotIndexName);
+            case 2 -> shardId = randomValueOtherThan(origin.getShardId(), this::randomShardId);
+            case 3 -> fileName = randomValueOtherThan(origin.getFileName(), () -> randomAlphaOfLengthBetween(5, 10));
+            default -> throw new AssertionError("Unsupported mutation");
         }
         return new CacheKey(snapshotUUID, snapshotIndexName, shardId, fileName);
     }

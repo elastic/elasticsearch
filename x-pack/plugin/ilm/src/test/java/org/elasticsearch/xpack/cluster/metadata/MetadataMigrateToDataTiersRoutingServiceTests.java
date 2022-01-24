@@ -11,12 +11,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -29,7 +32,6 @@ import org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutin
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -49,6 +51,7 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE;
 import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.allocateActionDefinesRoutingRules;
@@ -56,7 +59,7 @@ import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTier
 import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.migrateIlmPolicies;
 import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.migrateIndices;
 import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.migrateToDataTiersRouting;
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
@@ -252,7 +255,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            LifecycleExecutionState newLifecycleState = newState.metadata().index(indexName).getLifecycleExecutionState();
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 
@@ -311,7 +314,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            LifecycleExecutionState newLifecycleState = newState.metadata().index(indexName).getLifecycleExecutionState();
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 
@@ -359,7 +362,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            LifecycleExecutionState newLifecycleState = newState.metadata().index(indexName).getLifecycleExecutionState();
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 
@@ -413,7 +416,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            LifecycleExecutionState newLifecycleState = newState.metadata().index(indexName).getLifecycleExecutionState();
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 
             // expecting the phase definition to be refreshed with the index being in the set_priority action
@@ -463,7 +466,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            LifecycleExecutionState newLifecycleState = newState.metadata().index(indexName).getLifecycleExecutionState();
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 
@@ -1104,7 +1107,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             false
         );
         assertThat(migratedEntitiesTuple.v2().removedIndexTemplateName, nullValue());
-        assertThat(migratedEntitiesTuple.v1().metadata().templatesV2().get(composableTemplateName), is(composableIndexTemplate));
+        // the composable template still exists, however it was migrated to not use the custom require.data routing setting
+        assertThat(migratedEntitiesTuple.v1().metadata().templatesV2().get(composableTemplateName), is(notNullValue()));
     }
 
     public void testMigrationSetsEnforceTierPreferenceToTrue() {
@@ -1156,6 +1160,395 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             )
         );
         return new LifecyclePolicyMetadata(policy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong());
+    }
+
+    public void testMigrateLegacyIndexTemplates() {
+        String nodeAttrName = "data";
+        String requireRoutingSetting = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + nodeAttrName;
+        String includeRoutingSetting = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
+        String excludeRoutingSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
+
+        IndexTemplateMetadata templateWithRequireRouting = new IndexTemplateMetadata(
+            "template-with-require-routing",
+            randomInt(),
+            randomInt(),
+            List.of("test-*"),
+            Settings.builder().put(requireRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of()
+        );
+
+        IndexTemplateMetadata templateWithIncludeRouting = new IndexTemplateMetadata(
+            "template-with-include-routing",
+            randomInt(),
+            randomInt(),
+            List.of("test-*"),
+            Settings.builder().put(includeRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of()
+        );
+
+        IndexTemplateMetadata templateWithExcludeRouting = new IndexTemplateMetadata(
+            "template-with-exclude-routing",
+            randomInt(),
+            randomInt(),
+            List.of("test-*"),
+            Settings.builder().put(excludeRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of()
+        );
+
+        IndexTemplateMetadata templateWithRequireAndIncludeRoutings = new IndexTemplateMetadata(
+            "template-with-require-and-include-routing",
+            randomInt(),
+            randomInt(),
+            List.of("test-*"),
+            Settings.builder()
+                .put(requireRoutingSetting, "hot")
+                .put(includeRoutingSetting, "rack1")
+                .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
+                .build(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of()
+        );
+
+        IndexTemplateMetadata templateWithoutCustomRoutings = new IndexTemplateMetadata(
+            "template-without-custom-routing",
+            randomInt(),
+            randomInt(),
+            List.of("test-*"),
+            Settings.builder()
+                .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
+                .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                .build(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of()
+        );
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(templateWithRequireRouting)
+                    .put(templateWithIncludeRouting)
+                    .put(templateWithRequireAndIncludeRoutings)
+                    .put(templateWithExcludeRouting)
+                    .put(templateWithoutCustomRoutings)
+                    .build()
+            )
+            .build();
+
+        Metadata.Builder mb = Metadata.builder(clusterState.metadata());
+        List<String> migrateLegacyTemplates = MetadataMigrateToDataTiersRoutingService.migrateLegacyTemplates(
+            mb,
+            clusterState,
+            nodeAttrName
+        );
+        assertThat(migrateLegacyTemplates.size(), is(3));
+        assertThat(
+            migrateLegacyTemplates,
+            containsInAnyOrder(
+                "template-with-require-routing",
+                "template-with-include-routing",
+                "template-with-require-and-include-routing"
+            )
+        );
+
+        ImmutableOpenMap<String, IndexTemplateMetadata> migratedTemplates = mb.build().templates();
+        assertThat(migratedTemplates.get("template-with-require-routing").settings().size(), is(1));
+        assertThat(migratedTemplates.get("template-with-include-routing").settings().size(), is(1));
+        assertThat(migratedTemplates.get("template-with-require-and-include-routing").settings().size(), is(1));
+
+        // these templates shouldn't have been updated, so the settings size should still be 2
+        assertThat(migratedTemplates.get("template-without-custom-routing").settings().size(), is(2));
+        assertThat(migratedTemplates.get("template-with-exclude-routing").settings().size(), is(2));
+    }
+
+    public void testMigrateComposableIndexTemplates() {
+        String nodeAttrName = "data";
+        String requireRoutingSetting = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + nodeAttrName;
+        String includeRoutingSetting = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
+        String excludeRoutingSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
+
+        ComposableIndexTemplate templateWithRequireRouting = new ComposableIndexTemplate(
+            List.of("test-*"),
+            new Template(
+                Settings.builder().put(requireRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
+                null,
+                null
+            ),
+            List.of(),
+            randomLong(),
+            randomLong(),
+            null
+        );
+
+        ComposableIndexTemplate templateWithIncludeRouting = new ComposableIndexTemplate(
+            List.of("test-*"),
+            new Template(
+                Settings.builder().put(includeRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
+                null,
+                null
+            ),
+            List.of(),
+            randomLong(),
+            randomLong(),
+            null
+        );
+
+        ComposableIndexTemplate templateWithExcludeRouting = new ComposableIndexTemplate(
+            List.of("test-*"),
+            new Template(
+                Settings.builder().put(excludeRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
+                null,
+                null
+            ),
+            List.of(),
+            randomLong(),
+            randomLong(),
+            null
+        );
+
+        ComposableIndexTemplate templateWithRequireAndIncludeRoutings = new ComposableIndexTemplate(
+            List.of("test-*"),
+            new Template(
+                Settings.builder()
+                    .put(requireRoutingSetting, "hot")
+                    .put(includeRoutingSetting, "rack1")
+                    .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
+                    .build(),
+                null,
+                null
+            ),
+            List.of(),
+            randomLong(),
+            randomLong(),
+            null
+        );
+
+        ComposableIndexTemplate templateWithoutCustomRoutings = new ComposableIndexTemplate(
+            List.of("test-*"),
+            new Template(
+                Settings.builder()
+                    .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
+                    .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                    .build(),
+                null,
+                null
+            ),
+            List.of(),
+            randomLong(),
+            randomLong(),
+            null
+        );
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put("template-with-require-routing", templateWithRequireRouting)
+                    .put("template-with-include-routing", templateWithIncludeRouting)
+                    .put("template-with-exclude-routing", templateWithExcludeRouting)
+                    .put("template-with-require-and-include-routing", templateWithRequireAndIncludeRoutings)
+                    .put("template-without-custom-routing", templateWithoutCustomRoutings)
+                    .build()
+            )
+            .build();
+
+        Metadata.Builder mb = Metadata.builder(clusterState.metadata());
+        List<String> migratedComposableTemplates = MetadataMigrateToDataTiersRoutingService.migrateComposableTemplates(
+            mb,
+            clusterState,
+            nodeAttrName
+        );
+        assertThat(migratedComposableTemplates.size(), is(3));
+        assertThat(
+            migratedComposableTemplates,
+            containsInAnyOrder(
+                "template-with-require-routing",
+                "template-with-include-routing",
+                "template-with-require-and-include-routing"
+            )
+        );
+
+        Map<String, ComposableIndexTemplate> migratedTemplates = mb.build().templatesV2();
+        assertThat(migratedTemplates.get("template-with-require-routing").template().settings().size(), is(1));
+        assertThat(migratedTemplates.get("template-with-include-routing").template().settings().size(), is(1));
+        assertThat(migratedTemplates.get("template-with-require-and-include-routing").template().settings().size(), is(1));
+
+        // these templates shouldn't have been updated, so the settings size should still be 2
+        assertThat(migratedTemplates.get("template-without-custom-routing").template().settings().size(), is(2));
+        assertThat(migratedTemplates.get("template-with-exclude-routing").template().settings().size(), is(2));
+    }
+
+    public void testMigrateComponentTemplates() {
+        String nodeAttrName = "data";
+        String requireRoutingSetting = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + nodeAttrName;
+        String includeRoutingSetting = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
+        String excludeRoutingSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
+
+        ComponentTemplate compTemplateWithRequireRouting = new ComponentTemplate(
+            new Template(
+                Settings.builder().put(requireRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
+                null,
+                null
+            ),
+            randomLong(),
+            null
+        );
+
+        ComponentTemplate compTemplateWithIncludeRouting = new ComponentTemplate(
+            new Template(
+                Settings.builder().put(includeRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
+                null,
+                null
+            ),
+            randomLong(),
+            null
+        );
+
+        ComponentTemplate compTemplateWithExcludeRouting = new ComponentTemplate(
+            new Template(
+                Settings.builder().put(excludeRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
+                null,
+                null
+            ),
+            randomLong(),
+            null
+        );
+
+        ComponentTemplate compTemplateWithRequireAndIncludeRoutings = new ComponentTemplate(
+            new Template(
+                Settings.builder()
+                    .put(requireRoutingSetting, "hot")
+                    .put(includeRoutingSetting, "rack1")
+                    .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
+                    .build(),
+                null,
+                null
+            ),
+            randomLong(),
+            null
+        );
+
+        ComponentTemplate compTemplateWithoutCustomRoutings = new ComponentTemplate(
+            new Template(
+                Settings.builder()
+                    .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
+                    .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                    .build(),
+                null,
+                null
+            ),
+            randomLong(),
+            null
+        );
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put("template-with-require-routing", compTemplateWithRequireRouting)
+                    .put("template-with-include-routing", compTemplateWithIncludeRouting)
+                    .put("template-with-exclude-routing", compTemplateWithExcludeRouting)
+                    .put("template-with-require-and-include-routing", compTemplateWithRequireAndIncludeRoutings)
+                    .put("template-without-custom-routing", compTemplateWithoutCustomRoutings)
+                    .build()
+            )
+            .build();
+
+        Metadata.Builder mb = Metadata.builder(clusterState.metadata());
+        List<String> migratedComponentTemplates = MetadataMigrateToDataTiersRoutingService.migrateComponentTemplates(
+            mb,
+            clusterState,
+            nodeAttrName
+        );
+        assertThat(migratedComponentTemplates.size(), is(3));
+        assertThat(
+            migratedComponentTemplates,
+            containsInAnyOrder(
+                "template-with-require-routing",
+                "template-with-include-routing",
+                "template-with-require-and-include-routing"
+            )
+        );
+
+        Map<String, ComponentTemplate> migratedTemplates = mb.build().componentTemplates();
+        assertThat(migratedTemplates.get("template-with-require-routing").template().settings().size(), is(1));
+        assertThat(migratedTemplates.get("template-with-include-routing").template().settings().size(), is(1));
+        assertThat(migratedTemplates.get("template-with-require-and-include-routing").template().settings().size(), is(1));
+
+        // these templates shouldn't have been updated, so the settings size should still be 2
+        assertThat(migratedTemplates.get("template-without-custom-routing").template().settings().size(), is(2));
+        assertThat(migratedTemplates.get("template-with-exclude-routing").template().settings().size(), is(2));
+    }
+
+    public void testMigrateIndexAndComponentTemplates() {
+        String nodeAttrName = "data";
+        String requireRoutingSetting = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + nodeAttrName;
+        String includeRoutingSetting = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
+        String excludeRoutingSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
+
+        IndexTemplateMetadata legacyTemplateWithRequireRouting = new IndexTemplateMetadata(
+            "template-with-require-routing",
+            randomInt(),
+            randomInt(),
+            List.of("test-*"),
+            Settings.builder().put(requireRoutingSetting, "hot").build(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of()
+        );
+
+        ComponentTemplate compTemplateWithoutCustomRoutings = new ComponentTemplate(
+            new Template(
+                Settings.builder()
+                    .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
+                    .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE, true)
+                    .build(),
+                null,
+                null
+            ),
+            randomLong(),
+            null
+        );
+
+        ComposableIndexTemplate composableTemplateWithRequireRouting = new ComposableIndexTemplate(
+            List.of("test-*"),
+            new Template(Settings.builder().put(requireRoutingSetting, "hot").build(), null, null),
+            List.of("component-template-without-custom-routing"),
+            randomLong(),
+            randomLong(),
+            null
+        );
+
+        ComponentTemplate compTemplateWithRequireAndIncludeRoutings = new ComponentTemplate(
+            new Template(
+                Settings.builder()
+                    .put(requireRoutingSetting, "hot")
+                    .put(includeRoutingSetting, "rack1")
+                    .put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle")
+                    .build(),
+                null,
+                null
+            ),
+            randomLong(),
+            null
+        );
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(legacyTemplateWithRequireRouting)
+                    .put("composable-template-with-require-routing", composableTemplateWithRequireRouting)
+                    .put("component-with-require-and-include-routing", compTemplateWithRequireAndIncludeRoutings)
+                    .put("component-template-without-custom-routing", compTemplateWithoutCustomRoutings)
+                    .build()
+            )
+            .build();
+
+        Metadata.Builder mb = Metadata.builder(clusterState.metadata());
+        MetadataMigrateToDataTiersRoutingService.MigratedTemplates migratedTemplates = MetadataMigrateToDataTiersRoutingService
+            .migrateIndexAndComponentTemplates(mb, clusterState, nodeAttrName);
+        assertThat(migratedTemplates.migratedLegacyTemplates, is(List.of("template-with-require-routing")));
+        assertThat(migratedTemplates.migratedComposableTemplates, is(List.of("composable-template-with-require-routing")));
+        assertThat(migratedTemplates.migratedComponentTemplates, is(List.of("component-with-require-and-include-routing")));
     }
 
     private String getWarmPhaseDef() {

@@ -36,13 +36,10 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         FIELDDATA_CACHE_KEY,
         (s) -> FIELDDATA_CACHE_VALUE_NODE,
         (s) -> {
-            switch (s) {
-                case "node":
-                case "none":
-                    return s;
-                default:
-                    throw new IllegalArgumentException("failed to parse [" + s + "] must be one of [node,none]");
-            }
+            return switch (s) {
+                case "node", "none" -> s;
+                default -> throw new IllegalArgumentException("failed to parse [" + s + "] must be one of [node,none]");
+            };
         },
         Property.IndexScope
     );

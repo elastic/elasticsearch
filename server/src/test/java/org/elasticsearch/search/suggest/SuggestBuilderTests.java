@@ -142,16 +142,12 @@ public class SuggestBuilderTests extends ESTestCase {
     }
 
     private static SuggestionBuilder<?> randomSuggestionBuilder() {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return TermSuggestionBuilderTests.randomTermSuggestionBuilder();
-            case 1:
-                return PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder();
-            case 2:
-                return CompletionSuggesterBuilderTests.randomCompletionSuggestionBuilder();
-            default:
-                return TermSuggestionBuilderTests.randomTermSuggestionBuilder();
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> TermSuggestionBuilderTests.randomTermSuggestionBuilder();
+            case 1 -> PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder();
+            case 2 -> CompletionSuggesterBuilderTests.randomCompletionSuggestionBuilder();
+            default -> TermSuggestionBuilderTests.randomTermSuggestionBuilder();
+        };
     }
 
     @Override

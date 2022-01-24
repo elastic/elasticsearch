@@ -38,43 +38,29 @@ public class RandomQueryGenerator {
             return randomTerminalQuery(stringFields, numericFields, numDocs);
         }
 
-        switch (randomIntBetween(0, 5)) {
-            case 0:
-                return randomTerminalQuery(stringFields, numericFields, numDocs);
-            case 1:
-                return QueryBuilders.boolQuery()
-                    .must(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1))
-                    .filter(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1));
-            case 2:
-                return randomBoolQuery(stringFields, numericFields, numDocs, depth);
-            case 3:
-                return randomBoostingQuery(stringFields, numericFields, numDocs, depth);
-            case 4:
-                return randomConstantScoreQuery(stringFields, numericFields, numDocs, depth);
-            case 5:
-                return randomDisMaxQuery(stringFields, numericFields, numDocs, depth);
-            default:
-                return randomTerminalQuery(stringFields, numericFields, numDocs);
-        }
+        return switch (randomIntBetween(0, 5)) {
+            case 0 -> randomTerminalQuery(stringFields, numericFields, numDocs);
+            case 1 -> QueryBuilders.boolQuery()
+                .must(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1))
+                .filter(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1));
+            case 2 -> randomBoolQuery(stringFields, numericFields, numDocs, depth);
+            case 3 -> randomBoostingQuery(stringFields, numericFields, numDocs, depth);
+            case 4 -> randomConstantScoreQuery(stringFields, numericFields, numDocs, depth);
+            case 5 -> randomDisMaxQuery(stringFields, numericFields, numDocs, depth);
+            default -> randomTerminalQuery(stringFields, numericFields, numDocs);
+        };
     }
 
     private static QueryBuilder randomTerminalQuery(List<String> stringFields, List<String> numericFields, int numDocs) {
-        switch (randomIntBetween(0, 5)) {
-            case 0:
-                return randomTermQuery(stringFields, numDocs);
-            case 1:
-                return randomTermsQuery(stringFields, numDocs);
-            case 2:
-                return randomRangeQuery(numericFields, numDocs);
-            case 3:
-                return QueryBuilders.matchAllQuery();
-            case 4:
-                return randomFuzzyQuery(stringFields);
-            case 5:
-                return randomIDsQuery();
-            default:
-                return randomTermQuery(stringFields, numDocs);
-        }
+        return switch (randomIntBetween(0, 5)) {
+            case 0 -> randomTermQuery(stringFields, numDocs);
+            case 1 -> randomTermsQuery(stringFields, numDocs);
+            case 2 -> randomRangeQuery(numericFields, numDocs);
+            case 3 -> QueryBuilders.matchAllQuery();
+            case 4 -> randomFuzzyQuery(stringFields);
+            case 5 -> randomIDsQuery();
+            default -> randomTermQuery(stringFields, numDocs);
+        };
     }
 
     private static String randomQueryString(int max) {
@@ -161,24 +147,12 @@ public class RandomQueryGenerator {
 
         if (randomBoolean()) {
             switch (randomIntBetween(0, 4)) {
-                case 0:
-                    ((FuzzyQueryBuilder) q).fuzziness(Fuzziness.AUTO);
-                    break;
-                case 1:
-                    ((FuzzyQueryBuilder) q).fuzziness(Fuzziness.ONE);
-                    break;
-                case 2:
-                    ((FuzzyQueryBuilder) q).fuzziness(Fuzziness.TWO);
-                    break;
-                case 3:
-                    ((FuzzyQueryBuilder) q).fuzziness(Fuzziness.ZERO);
-                    break;
-                case 4:
-                    ((FuzzyQueryBuilder) q).fuzziness(Fuzziness.fromEdits(randomIntBetween(0, 2)));
-                    break;
-                default:
-                    ((FuzzyQueryBuilder) q).fuzziness(Fuzziness.AUTO);
-                    break;
+                case 0 -> ((FuzzyQueryBuilder) q).fuzziness(Fuzziness.AUTO);
+                case 1 -> ((FuzzyQueryBuilder) q).fuzziness(Fuzziness.ONE);
+                case 2 -> ((FuzzyQueryBuilder) q).fuzziness(Fuzziness.TWO);
+                case 3 -> ((FuzzyQueryBuilder) q).fuzziness(Fuzziness.ZERO);
+                case 4 -> ((FuzzyQueryBuilder) q).fuzziness(Fuzziness.fromEdits(randomIntBetween(0, 2)));
+                default -> ((FuzzyQueryBuilder) q).fuzziness(Fuzziness.AUTO);
             }
         }
 

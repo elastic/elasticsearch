@@ -350,31 +350,19 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                 );
             }
 
-            TimeUnit timeUnit = null;
-            switch (timeString) {
-                case "ms":
-                    timeUnit = TimeUnit.MILLISECONDS;
-                    break;
-                case "s":
-                    timeUnit = TimeUnit.SECONDS;
-                    break;
-                case "m":
-                    timeUnit = TimeUnit.MINUTES;
-                    break;
-                case "h":
-                    timeUnit = TimeUnit.HOURS;
-                    break;
-                case "d":
-                    timeUnit = TimeUnit.DAYS;
-                    break;
-                default:
-                    throw new ParsingException(
-                        source(ctx.timeUnit().IDENTIFIER()),
-                        "Unrecognized time unit [{}] in [{}], please specify one of [ms, s, m, h, d]",
-                        timeString,
-                        text(ctx.timeUnit())
-                    );
-            }
+            TimeUnit timeUnit = switch (timeString) {
+                case "ms" -> TimeUnit.MILLISECONDS;
+                case "s" -> TimeUnit.SECONDS;
+                case "m" -> TimeUnit.MINUTES;
+                case "h" -> TimeUnit.HOURS;
+                case "d" -> TimeUnit.DAYS;
+                default -> throw new ParsingException(
+                    source(ctx.timeUnit().IDENTIFIER()),
+                    "Unrecognized time unit [{}] in [{}], please specify one of [ms, s, m, h, d]",
+                    timeString,
+                    text(ctx.timeUnit())
+                );
+            };
 
             return new TimeValue(value, timeUnit);
 
@@ -402,17 +390,16 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         switch (name) {
-            case HEAD_PIPE:
+            case HEAD_PIPE -> {
                 Expression headLimit = pipeIntArgument(source(ctx), name, ctx.booleanExpression());
                 return new Head(source(ctx), headLimit, plan);
-
-            case TAIL_PIPE:
+            }
+            case TAIL_PIPE -> {
                 Expression tailLimit = pipeIntArgument(source(ctx), name, ctx.booleanExpression());
                 // negate the limit
                 return new Tail(source(ctx), tailLimit, plan);
-
-            default:
-                throw new ParsingException(source(ctx), "Pipe [{}] is not supported", name);
+            }
+            default -> throw new ParsingException(source(ctx), "Pipe [{}] is not supported", name);
         }
     }
 

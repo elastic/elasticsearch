@@ -27,43 +27,40 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Predicate;
 
 public class EvaluateDataFrameResponseTests extends AbstractXContentTestCase<EvaluateDataFrameResponse> {
+    private enum Evaluation {
+        OUTLIER_DETECTION,
+        CLASSIFICATION,
+        REGRESSION
+    }
 
     public static EvaluateDataFrameResponse randomResponse() {
         String evaluationName = randomFrom(OutlierDetection.NAME, Classification.NAME, Regression.NAME);
-        List<EvaluationMetric.Result> metrics;
-        switch (evaluationName) {
-            case OutlierDetection.NAME:
-                metrics = randomSubsetOf(
-                    Arrays.asList(
-                        AucRocResultTests.randomResult(),
-                        PrecisionMetricResultTests.randomResult(),
-                        RecallMetricResultTests.randomResult(),
-                        ConfusionMatrixMetricResultTests.randomResult()
-                    )
-                );
-                break;
-            case Regression.NAME:
-                metrics = randomSubsetOf(
-                    Arrays.asList(MeanSquaredErrorMetricResultTests.randomResult(), RSquaredMetricResultTests.randomResult())
-                );
-                break;
-            case Classification.NAME:
-                metrics = randomSubsetOf(
-                    Arrays.asList(
-                        AucRocResultTests.randomResult(),
-                        AccuracyMetricResultTests.randomResult(),
-                        org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetricResultTests.randomResult(),
-                        org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetricResultTests.randomResult(),
-                        MulticlassConfusionMatrixMetricResultTests.randomResult()
-                    )
-                );
-                break;
-            default:
-                throw new AssertionError("Please add missing \"case\" variant to the \"switch\" statement");
-        }
+        List<EvaluationMetric.Result> metrics = switch (Evaluation.valueOf(evaluationName.toUpperCase(Locale.ROOT))) {
+            case OUTLIER_DETECTION -> randomSubsetOf(
+                Arrays.asList(
+                    AucRocResultTests.randomResult(),
+                    PrecisionMetricResultTests.randomResult(),
+                    RecallMetricResultTests.randomResult(),
+                    ConfusionMatrixMetricResultTests.randomResult()
+                )
+            );
+            case REGRESSION -> randomSubsetOf(
+                Arrays.asList(MeanSquaredErrorMetricResultTests.randomResult(), RSquaredMetricResultTests.randomResult())
+            );
+            case CLASSIFICATION -> randomSubsetOf(
+                Arrays.asList(
+                    AucRocResultTests.randomResult(),
+                    AccuracyMetricResultTests.randomResult(),
+                    org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetricResultTests.randomResult(),
+                    org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetricResultTests.randomResult(),
+                    MulticlassConfusionMatrixMetricResultTests.randomResult()
+                )
+            );
+        };
         return new EvaluateDataFrameResponse(evaluationName, metrics);
     }
 

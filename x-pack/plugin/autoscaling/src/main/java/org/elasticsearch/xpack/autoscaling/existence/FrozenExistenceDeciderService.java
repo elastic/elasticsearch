@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -63,7 +62,7 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
     }
 
     boolean needsTier(IndexMetadata idxMeta) {
-        return LifecycleExecutionState.isFrozenPhase(idxMeta);
+        return isFrozenPhase(idxMeta);
     }
 
     @Override
@@ -128,4 +127,16 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
         }
     }
 
+    // this is only here to support isFrozenPhase, TimeseriesLifecycleType.FROZEN_PHASE is the canonical source for this
+    static String FROZEN_PHASE = "frozen"; // visible for testing
+
+    /**
+     * Return true if this index is in the frozen phase, false if not controlled by ILM or not in frozen.
+     * @param indexMetadata the metadata of the index to retrieve phase from.
+     * @return true if frozen phase, false otherwise.
+     */
+    // visible for testing
+    static boolean isFrozenPhase(IndexMetadata indexMetadata) {
+        return FROZEN_PHASE.equals(indexMetadata.getLifecycleExecutionState().getPhase());
+    }
 }

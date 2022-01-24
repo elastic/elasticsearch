@@ -47,14 +47,9 @@ public class IndexingOperationListenerTests extends ESTestCase {
             public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
                 assertThat(shardId, is(randomShardId));
                 switch (result.getResultType()) {
-                    case SUCCESS:
-                        postIndex.incrementAndGet();
-                        break;
-                    case FAILURE:
-                        postIndex(shardId, index, result.getFailure());
-                        break;
-                    default:
-                        throw new IllegalArgumentException("unknown result type: " + result.getResultType());
+                    case SUCCESS -> postIndex.incrementAndGet();
+                    case FAILURE -> postIndex(shardId, index, result.getFailure());
+                    default -> throw new IllegalArgumentException("unknown result type: " + result.getResultType());
                 }
             }
 
@@ -75,14 +70,9 @@ public class IndexingOperationListenerTests extends ESTestCase {
             public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
                 assertThat(shardId, is(randomShardId));
                 switch (result.getResultType()) {
-                    case SUCCESS:
-                        postDelete.incrementAndGet();
-                        break;
-                    case FAILURE:
-                        postDelete(shardId, delete, result.getFailure());
-                        break;
-                    default:
-                        throw new IllegalArgumentException("unknown result type: " + result.getResultType());
+                    case SUCCESS -> postDelete.incrementAndGet();
+                    case FAILURE -> postDelete(shardId, delete, result.getFailure());
+                    default -> throw new IllegalArgumentException("unknown result type: " + result.getResultType());
                 }
             }
 

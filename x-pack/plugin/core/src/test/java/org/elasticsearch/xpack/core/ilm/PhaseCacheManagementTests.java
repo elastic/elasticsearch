@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -26,7 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.eligibleToCheckForRefresh;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.isIndexPhaseDefinitionUpdatable;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.readStepKeys;
@@ -95,7 +96,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         ClusterState changedState = refreshPhaseDefinition(existingState, indexName, policyMetadata);
 
         IndexMetadata newIdxMeta = changedState.metadata().index(indexName);
-        LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);
+        LifecycleExecutionState afterExState = newIdxMeta.getLifecycleExecutionState();
         Map<String, String> beforeState = new HashMap<>(exState.build().asMap());
         beforeState.remove("phase_definition");
         Map<String, String> afterState = new HashMap<>(afterExState.asMap());
@@ -539,7 +540,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         updatedState = updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata, null);
 
         IndexMetadata newIdxMeta = updatedState.metadata().index(index);
-        LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);
+        LifecycleExecutionState afterExState = newIdxMeta.getLifecycleExecutionState();
         Map<String, String> beforeState = new HashMap<>(exState.asMap());
         beforeState.remove("phase_definition");
         Map<String, String> afterState = new HashMap<>(afterExState.asMap());

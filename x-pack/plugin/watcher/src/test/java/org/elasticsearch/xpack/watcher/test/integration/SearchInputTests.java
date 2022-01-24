@@ -92,7 +92,7 @@ public class SearchInputTests extends ESTestCase {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         SearchResponse searchResponse = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             1,
             1,
@@ -133,7 +133,7 @@ public class SearchInputTests extends ESTestCase {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         SearchResponse searchResponse = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             1,
             1,
@@ -188,7 +188,7 @@ public class SearchInputTests extends ESTestCase {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         SearchResponse searchResponse = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             1,
             1,

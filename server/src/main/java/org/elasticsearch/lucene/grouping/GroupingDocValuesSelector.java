@@ -86,11 +86,8 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
                 return;
             }
             switch (type) {
-                case NUMERIC:
-                    values = DocValues.getNumeric(reader, field);
-                    break;
-
-                case SORTED_NUMERIC:
+                case NUMERIC -> values = DocValues.getNumeric(reader, field);
+                case SORTED_NUMERIC -> {
                     final SortedNumericDocValues sorted = DocValues.getSortedNumeric(reader, field);
                     values = DocValues.unwrapSingleton(sorted);
                     if (values == null) {
@@ -125,10 +122,8 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
 
                         };
                     }
-                    break;
-
-                default:
-                    throw new IllegalStateException("unexpected doc values type " + type + "` for field `" + field + "`");
+                }
+                default -> throw new IllegalStateException("unexpected doc values type " + type + "` for field `" + field + "`");
             }
         }
 
@@ -191,11 +186,8 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
                 return;
             }
             switch (type) {
-                case SORTED:
-                    values = DocValues.getSorted(reader, field);
-                    break;
-
-                case SORTED_SET:
+                case SORTED -> values = DocValues.getSorted(reader, field);
+                case SORTED_SET -> {
                     final SortedSetDocValues sorted = DocValues.getSortedSet(reader, field);
                     values = DocValues.unwrapSingleton(sorted);
                     if (values == null) {
@@ -239,10 +231,8 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
                             }
                         };
                     }
-                    break;
-
-                default:
-                    throw new IllegalStateException("unexpected doc values type " + type + "` for field `" + field + "`");
+                }
+                default -> throw new IllegalStateException("unexpected doc values type " + type + "` for field `" + field + "`");
             }
         }
 

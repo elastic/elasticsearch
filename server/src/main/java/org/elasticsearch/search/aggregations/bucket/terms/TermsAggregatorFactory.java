@@ -527,14 +527,13 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         };
 
         public static ExecutionMode fromString(String value) {
-            switch (value) {
-                case "global_ordinals":
-                    return GLOBAL_ORDINALS;
-                case "map":
-                    return MAP;
-                default:
-                    throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals]");
-            }
+            return switch (value) {
+                case "global_ordinals" -> GLOBAL_ORDINALS;
+                case "map" -> MAP;
+                default -> throw new IllegalArgumentException(
+                    "Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals]"
+                );
+            };
         }
 
         private final ParseField parseField;

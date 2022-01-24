@@ -13,7 +13,7 @@
  *
  * The {@link org.elasticsearch.xpack.ilm.IndexLifecycleService} goes through the indices that have ILM policies configured, retrieves
  * the current execution {@link org.elasticsearch.xpack.core.ilm.Step.StepKey} from the index's
- * {@link org.elasticsearch.xpack.core.ilm.LifecycleExecutionState} and dispatches the step execution to the appropriate
+ * {@link org.elasticsearch.cluster.metadata.LifecycleExecutionState} and dispatches the step execution to the appropriate
  * {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner} method.
  * This happens in:
  * <ul>
@@ -75,7 +75,7 @@
  * and then rollover the index {@link org.elasticsearch.xpack.core.ilm.RolloverStep} followed by some more house-keeping steps).
  *
  * The ILM runner will advance last executed state (as indicated in
- * {@link org.elasticsearch.xpack.core.ilm.LifecycleExecutionState#getStep()}) and execute the next step of the index policy as
+ * {@link org.elasticsearch.cluster.metadata.LifecycleExecutionState#getStep()}) and execute the next step of the index policy as
  * defined in the {@link org.elasticsearch.xpack.ilm.PolicyStepsRegistry}.
  * Once all the steps of a policy are executed successfully the policy execution will reach the
  * {@link org.elasticsearch.xpack.core.ilm.TerminalPolicyStep} and any changes made to the policy definition will not have any effect on

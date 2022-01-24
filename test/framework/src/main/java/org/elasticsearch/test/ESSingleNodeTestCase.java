@@ -242,9 +242,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
 
-        Collection<Class<? extends Plugin>> plugins = getPlugins();
+        Collection<Class<? extends Plugin>> plugins = new ArrayList<>(getPlugins());
         if (plugins.contains(getTestTransportPlugin()) == false) {
-            plugins = new ArrayList<>(plugins);
             plugins.add(getTestTransportPlugin());
         }
         if (addMockHttpTransport()) {

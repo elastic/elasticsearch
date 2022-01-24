@@ -64,20 +64,12 @@ public class FilterContentBenchmark {
 
     @Setup
     public void setup() throws IOException {
-        String sourceFile;
-        switch (type) {
-            case "cluster_stats":
-                sourceFile = "monitor_cluster_stats.json";
-                break;
-            case "index_stats":
-                sourceFile = "monitor_index_stats.json";
-                break;
-            case "node_stats":
-                sourceFile = "monitor_node_stats.json";
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown type [" + type + "]");
-        }
+        String sourceFile = switch (type) {
+            case "cluster_stats" -> "monitor_cluster_stats.json";
+            case "index_stats" -> "monitor_index_stats.json";
+            case "node_stats" -> "monitor_node_stats.json";
+            default -> throw new IllegalArgumentException("Unknown type [" + type + "]");
+        };
         source = readSource(sourceFile);
         filters = buildFilters();
         parserConfig = buildParseConfig();
@@ -87,31 +79,25 @@ public class FilterContentBenchmark {
         Map<String, Object> flattenMap = Maps.flatten(XContentHelper.convertToMap(source, true, XContentType.JSON).v2(), false, true);
         Set<String> keys = flattenMap.keySet();
         AtomicInteger count = new AtomicInteger();
-        switch (fieldCount) {
-            case "10_field":
-                return keys.stream().filter(key -> count.getAndIncrement() % 5 == 0).limit(10).collect(Collectors.toSet());
-            case "half_field":
-                return keys.stream().filter(key -> count.getAndIncrement() % 2 == 0).collect(Collectors.toSet());
-            case "all_field":
-                return new HashSet<>(keys);
-            case "wildcard_field":
-                return new HashSet<>(Arrays.asList("*stats"));
-            case "10_wildcard_field":
-                return Set.of(
-                    "*stats.nodes*",
-                    "*stats.ind*",
-                    "*sta*.shards",
-                    "*stats*.xpack",
-                    "*stats.*.segments",
-                    "*stat*.*.data*",
-                    inclusive ? "*stats.**.request_cache" : "*stats.*.request_cache",
-                    inclusive ? "*stats.**.stat" : "*stats.*.stat",
-                    inclusive ? "*stats.**.threads" : "*stats.*.threads",
-                    "*source_node.t*"
-                );
-            default:
-                throw new IllegalArgumentException("Unknown type [" + type + "]");
-        }
+        return switch (fieldCount) {
+            case "10_field" -> keys.stream().filter(key -> count.getAndIncrement() % 5 == 0).limit(10).collect(Collectors.toSet());
+            case "half_field" -> keys.stream().filter(key -> count.getAndIncrement() % 2 == 0).collect(Collectors.toSet());
+            case "all_field" -> new HashSet<>(keys);
+            case "wildcard_field" -> new HashSet<>(Arrays.asList("*stats"));
+            case "10_wildcard_field" -> Set.of(
+                "*stats.nodes*",
+                "*stats.ind*",
+                "*sta*.shards",
+                "*stats*.xpack",
+                "*stats.*.segments",
+                "*stat*.*.data*",
+                inclusive ? "*stats.**.request_cache" : "*stats.*.request_cache",
+                inclusive ? "*stats.**.stat" : "*stats.*.stat",
+                inclusive ? "*stats.**.threads" : "*stats.*.threads",
+                "*source_node.t*"
+            );
+            default -> throw new IllegalArgumentException("Unknown type [" + type + "]");
+        };
     }
 
     @Benchmark

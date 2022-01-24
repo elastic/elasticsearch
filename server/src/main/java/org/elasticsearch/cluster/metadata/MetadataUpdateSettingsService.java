@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsCluster
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -244,7 +245,8 @@ public class MetadataUpdateSettingsService {
                     }
                     return updatedState;
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

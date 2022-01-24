@@ -181,38 +181,37 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
     public synchronized RecoveryState setStage(Stage stage) {
         switch (stage) {
-            case INIT:
+            case INIT -> {
                 // reinitializing stop remove all state except for start time
                 this.stage = Stage.INIT;
                 getIndex().reset();
                 getVerifyIndex().reset();
                 getTranslog().reset();
-                break;
-            case INDEX:
+            }
+            case INDEX -> {
                 validateAndSetStage(Stage.INIT, stage);
                 getIndex().start();
-                break;
-            case VERIFY_INDEX:
+            }
+            case VERIFY_INDEX -> {
                 validateAndSetStage(Stage.INDEX, stage);
                 getIndex().stop();
                 getVerifyIndex().start();
-                break;
-            case TRANSLOG:
+            }
+            case TRANSLOG -> {
                 validateAndSetStage(Stage.VERIFY_INDEX, stage);
                 getVerifyIndex().stop();
                 getTranslog().start();
-                break;
-            case FINALIZE:
+            }
+            case FINALIZE -> {
                 assert getIndex().bytesStillToRecover() >= 0 : "moving to stage FINALIZE without completing file details";
                 validateAndSetStage(Stage.TRANSLOG, stage);
                 getTranslog().stop();
-                break;
-            case DONE:
+            }
+            case DONE -> {
                 validateAndSetStage(Stage.FINALIZE, stage);
                 getTimer().stop();
-                break;
-            default:
-                throw new IllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
+            }
+            default -> throw new IllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
         }
         return this;
     }
@@ -487,10 +486,12 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeVInt(recovered);
-            out.writeVInt(total);
-            out.writeVInt(totalOnStart);
-            out.writeVInt(totalLocal);
+            synchronized (this) {
+                out.writeVInt(recovered);
+                out.writeVInt(total);
+                out.writeVInt(totalOnStart);
+                out.writeVInt(totalLocal);
+            }
         }
 
         public synchronized void reset() {

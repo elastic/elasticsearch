@@ -35,12 +35,13 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.grouping.GroupSelector;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.Map;
 import java.util.TreeSet;
 
 import static org.apache.lucene.search.SortField.Type.SCORE;
@@ -130,7 +131,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
     private final int[] reversed;
     private final int topNGroups;
     private final boolean needsScores;
-    private final HashMap<T, SearchGroup<T>> groupMap;
+    private final Map<T, SearchGroup<T>> groupMap;
     private final int compIDXEnd;
 
     private int totalHitCount;
@@ -178,7 +179,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         }
 
         spareSlot = topNGroups;
-        groupMap = new HashMap<>(topNGroups);
+        groupMap = Maps.newMapWithExpectedSize(topNGroups);
     }
 
     @Override

@@ -364,7 +364,7 @@ public class EnrichPolicyRunner implements Runnable {
 
     private void prepareAndCreateEnrichIndex(List<Map<String, Object>> mappings) {
         long nowTimestamp = nowSupplier.getAsLong();
-        String enrichIndexName = EnrichPolicy.getBaseName(policyName) + "-" + nowTimestamp;
+        String enrichIndexName = EnrichPolicy.getIndexName(policyName, nowTimestamp);
         Settings enrichIndexSettings = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)

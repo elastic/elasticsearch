@@ -29,14 +29,16 @@ public class DocumentMapper {
         RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME).build(MapperBuilderContext.ROOT);
         MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
         Mapping mapping = new Mapping(root, metadata, null);
-        return new DocumentMapper(mapperService.documentParser(), mapping);
+        return new DocumentMapper(mapperService.documentParser(), mapping, mapping.toCompressedXContent());
     }
 
-    DocumentMapper(DocumentParser documentParser, Mapping mapping) {
+    DocumentMapper(DocumentParser documentParser, Mapping mapping, CompressedXContent source) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().name();
         this.mappingLookup = MappingLookup.fromMapping(mapping);
-        this.mappingSource = mapping.toCompressedXContent();
+        this.mappingSource = source;
+        assert mapping.toCompressedXContent().equals(source)
+            : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
     }
 
     public Mapping mapping() {

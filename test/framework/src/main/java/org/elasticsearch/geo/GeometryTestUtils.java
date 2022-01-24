@@ -187,28 +187,18 @@ public class GeometryTestUtils {
     }
 
     public static Geometry randomGeometry(ShapeType type, boolean hasAlt) {
-        switch (type) {
-            case GEOMETRYCOLLECTION:
-                return randomGeometryCollection(0, hasAlt);
-            case MULTILINESTRING:
-                return randomMultiLine(hasAlt);
-            case ENVELOPE:
-                return randomRectangle();
-            case LINESTRING:
-                return randomLine(hasAlt);
-            case POLYGON:
-                return randomPolygon(hasAlt);
-            case MULTIPOLYGON:
-                return randomMultiPolygon(hasAlt);
-            case CIRCLE:
-                return randomCircle(hasAlt);
-            case MULTIPOINT:
-                return randomMultiPoint(hasAlt);
-            case POINT:
-                return randomPoint(hasAlt);
-            default:
-                throw new IllegalArgumentException("Ussuported shape type [" + type + "]");
-        }
+        return switch (type) {
+            case GEOMETRYCOLLECTION -> randomGeometryCollection(0, hasAlt);
+            case MULTILINESTRING -> randomMultiLine(hasAlt);
+            case ENVELOPE -> randomRectangle();
+            case LINESTRING -> randomLine(hasAlt);
+            case POLYGON -> randomPolygon(hasAlt);
+            case MULTIPOLYGON -> randomMultiPolygon(hasAlt);
+            case CIRCLE -> randomCircle(hasAlt);
+            case MULTIPOINT -> randomMultiPoint(hasAlt);
+            case POINT -> randomPoint(hasAlt);
+            default -> throw new IllegalArgumentException("Ussuported shape type [" + type + "]");
+        };
     }
 
     public static Geometry randomGeometry(boolean hasAlt) {

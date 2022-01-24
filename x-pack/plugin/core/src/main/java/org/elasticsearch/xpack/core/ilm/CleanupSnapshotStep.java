@@ -12,12 +12,11 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
-
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * Deletes the snapshot designated by the repository and snapshot name present in the lifecycle execution state.
@@ -38,7 +37,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Void> listener) {
         final String indexName = indexMetadata.getIndex().getName();
 
-        LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         final String repositoryName = lifecycleState.getSnapshotRepository();
         // if the snapshot information is missing from the ILM execution state there is nothing to delete so we move on
         if (Strings.hasText(repositoryName) == false) {

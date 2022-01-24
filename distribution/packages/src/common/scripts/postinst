@@ -8,6 +8,8 @@
 #       $1=0         : indicates a removal
 #       $1=1         : indicates an upgrade
 
+set -e
+
 # source the default env file
 if [ -f "@path.env@" ]; then
     . "@path.env@"

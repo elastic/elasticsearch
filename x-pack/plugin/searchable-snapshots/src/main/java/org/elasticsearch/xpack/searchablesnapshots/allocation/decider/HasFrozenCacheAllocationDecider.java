@@ -83,16 +83,12 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
             return Decision.ALWAYS;
         }
 
-        switch (frozenCacheService.getNodeState(discoveryNode)) {
-            case HAS_CACHE:
-                return HAS_FROZEN_CACHE;
-            case NO_CACHE:
-                return NO_FROZEN_CACHE;
-            case FAILED:
-                return UNKNOWN_FROZEN_CACHE;
-            default:
-                return STILL_FETCHING;
-        }
+        return switch (frozenCacheService.getNodeState(discoveryNode)) {
+            case HAS_CACHE -> HAS_FROZEN_CACHE;
+            case NO_CACHE -> NO_FROZEN_CACHE;
+            case FAILED -> UNKNOWN_FROZEN_CACHE;
+            default -> STILL_FETCHING;
+        };
     }
 
 }

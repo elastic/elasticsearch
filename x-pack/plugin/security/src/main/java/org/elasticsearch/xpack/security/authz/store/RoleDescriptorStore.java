@@ -84,7 +84,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         if (roleNames.isEmpty()) {
             assert false : "empty role names should have short circuited earlier";
             listener.onResponse(RolesRetrievalResult.EMPTY);
-        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+        } else if (roleNames.equals(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()))) {
             assert false : "superuser role should have short circuited earlier";
             listener.onResponse(RolesRetrievalResult.SUPERUSER);
         } else {
@@ -99,7 +99,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         final List<RoleDescriptor> roleDescriptors = apiKeyService.parseRoleDescriptorsBytes(
             apiKeyRoleReference.getApiKeyId(),
-            apiKeyRoleReference.getRoleDescriptorsBytes()
+            apiKeyRoleReference.getRoleDescriptorsBytes(),
+            apiKeyRoleReference.getRoleType()
         );
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
@@ -113,7 +114,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         final List<RoleDescriptor> roleDescriptors = apiKeyService.parseRoleDescriptors(
             bwcApiKeyRoleReference.getApiKeyId(),
-            bwcApiKeyRoleReference.getRoleDescriptorsMap()
+            bwcApiKeyRoleReference.getRoleDescriptorsMap(),
+            bwcApiKeyRoleReference.getRoleType()
         );
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
@@ -239,11 +241,15 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                         roleNames.remove(descriptor.getName());
                     }
                 } else {
-                    logger.warn(new ParameterizedMessage("role retrieval failed from [{}]", rolesProvider), result.getFailure());
+                    logger.warn(
+                        new ParameterizedMessage("role [{}] retrieval failed from [{}]", roleNames, rolesProvider),
+                        result.getFailure()
+                    );
                     rolesResult.setFailure();
                 }
                 providerListener.onResponse(result);
             }, providerListener::onFailure));
         }, asyncRoleProviders, threadContext, Function.identity(), iterationPredicate).run();
     }
+
 }

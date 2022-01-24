@@ -662,7 +662,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         final TeardownSection teardownSection;
         final ClientYamlTestSection clientYamlTestSection;
         switch (randomIntBetween(0, 4)) {
-            case 0:
+            case 0 -> {
                 setupSection = new SetupSection(skipSection, Collections.emptyList());
                 teardownSection = TeardownSection.EMPTY;
                 clientYamlTestSection = new ClientYamlTestSection(
@@ -671,8 +671,8 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                     SkipSection.EMPTY,
                     Collections.singletonList(executableSection)
                 );
-                break;
-            case 1:
+            }
+            case 1 -> {
                 setupSection = SetupSection.EMPTY;
                 teardownSection = new TeardownSection(skipSection, Collections.emptyList());
                 clientYamlTestSection = new ClientYamlTestSection(
@@ -681,8 +681,8 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                     SkipSection.EMPTY,
                     Collections.singletonList(executableSection)
                 );
-                break;
-            case 2:
+            }
+            case 2 -> {
                 setupSection = SetupSection.EMPTY;
                 teardownSection = TeardownSection.EMPTY;
                 clientYamlTestSection = new ClientYamlTestSection(
@@ -691,8 +691,8 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                     skipSection,
                     Collections.singletonList(executableSection)
                 );
-                break;
-            case 3:
+            }
+            case 3 -> {
                 setupSection = new SetupSection(skipSection, Collections.singletonList(executableSection));
                 teardownSection = TeardownSection.EMPTY;
                 clientYamlTestSection = new ClientYamlTestSection(
@@ -701,8 +701,8 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                     SkipSection.EMPTY,
                     randomBoolean() ? Collections.emptyList() : Collections.singletonList(executableSection)
                 );
-                break;
-            case 4:
+            }
+            case 4 -> {
                 setupSection = SetupSection.EMPTY;
                 teardownSection = new TeardownSection(skipSection, Collections.singletonList(executableSection));
                 clientYamlTestSection = new ClientYamlTestSection(
@@ -711,9 +711,8 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                     SkipSection.EMPTY,
                     randomBoolean() ? Collections.emptyList() : Collections.singletonList(executableSection)
                 );
-                break;
-            default:
-                throw new UnsupportedOperationException();
+            }
+            default -> throw new UnsupportedOperationException();
         }
         return new ClientYamlTestSuite("api", "name", setupSection, teardownSection, Collections.singletonList(clientYamlTestSection));
     }

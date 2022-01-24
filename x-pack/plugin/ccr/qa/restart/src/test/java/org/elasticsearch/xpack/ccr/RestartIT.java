@@ -22,12 +22,11 @@ public class RestartIT extends ESCCRRestTestCase {
         final int numberOfDocuments = 128;
         final String testsTargetCluster = System.getProperty("tests.target_cluster");
         switch (testsTargetCluster) {
-            case "leader": {
+            case "leader" -> {
                 // create a single index "leader" on the leader
                 createIndexAndIndexDocuments("leader", numberOfDocuments, client());
-                break;
             }
-            case "follow": {
+            case "follow" -> {
                 // follow "leader" with "follow-leader" on the follower
                 followIndex("leader", "follow-leader");
                 verifyFollower("follow-leader", numberOfDocuments, client());
@@ -49,9 +48,8 @@ public class RestartIT extends ESCCRRestTestCase {
                     // the follower should catch up
                     verifyFollower("follow-leader-1", numberOfDocuments, client());
                 }
-                break;
             }
-            case "follow-restart": {
+            case "follow-restart" -> {
                 try (RestClient leaderClient = buildLeaderClient()) {
                     // create "leader-2" on the leader, and index some additional documents into existing indices
                     createIndexAndIndexDocuments("leader-2", numberOfDocuments, leaderClient);
@@ -68,9 +66,8 @@ public class RestartIT extends ESCCRRestTestCase {
                     // the follower should catch up
                     verifyFollower("follow-leader-3", 2 * numberOfDocuments, client());
                 }
-                break;
             }
-            default: {
+            default -> {
                 throw new IllegalArgumentException("unexpected value [" + testsTargetCluster + "] for tests.target_cluster");
             }
         }

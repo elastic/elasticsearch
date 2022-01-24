@@ -1453,15 +1453,9 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             int val = fetchSize * count + i;
             sb.append("text").append(val);
             switch (format) {
-                case "txt":
-                    sb.append(val < 10 ? " " : StringUtils.EMPTY).append("         |");
-                    break;
-                case "csv":
-                    sb.append(csvDelimiter);
-                    break;
-                case "tsv":
-                    sb.append('\t');
-                    break;
+                case "txt" -> sb.append(val < 10 ? " " : StringUtils.EMPTY).append("         |");
+                case "csv" -> sb.append(csvDelimiter);
+                case "tsv" -> sb.append('\t');
             }
             sb.append(val);
             if (format.equals("txt")) {

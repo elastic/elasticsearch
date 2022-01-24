@@ -32,10 +32,11 @@ variety of information needed by every node, including:
 
 * The location and status of every shard copy in the cluster
 
-The elected master node ensures that every node in the cluster has a copy of the
-same cluster state. The cluster state API lets you retrieve a representation of
-this internal state for debugging or diagnostic purposes. You may need to
-consult the {es} source code to determine the precise meaning of the response.
+The elected master node ensures that every node in the cluster has a copy of
+the same cluster state. The cluster state API lets you retrieve a
+representation of this internal state for debugging or diagnostic purposes. You
+may need to consult the {es} source code to determine the precise meaning of
+the response.
 
 By default the cluster state API will route requests to the elected master node
 since this node is the authoritative source of cluster states. You can also

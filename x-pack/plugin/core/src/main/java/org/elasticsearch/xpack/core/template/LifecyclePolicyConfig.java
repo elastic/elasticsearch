@@ -10,13 +10,8 @@ package org.elasticsearch.xpack.core.template;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyUtils;
-import org.elasticsearch.xpack.core.ilm.LifecycleType;
-import org.elasticsearch.xpack.core.ilm.RolloverAction;
-import org.elasticsearch.xpack.core.ilm.ShrinkAction;
-import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 /**

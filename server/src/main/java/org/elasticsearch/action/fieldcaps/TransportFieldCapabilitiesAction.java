@@ -27,6 +27,8 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.rest.action.search.CCSVersionCheckHelper;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -55,6 +57,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
     private final FieldCapabilitiesFetcher fieldCapabilitiesFetcher;
     private final Predicate<String> metadataFieldPred;
+    private final boolean ccsCheckCompatibility;
 
     @Inject
     public TransportFieldCapabilitiesAction(
@@ -79,10 +82,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             FieldCapabilitiesNodeRequest::new,
             new NodeTransportHandler()
         );
+        this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
     }
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
+        if (ccsCheckCompatibility) {
+            CCSVersionCheckHelper.checkCCSVersionCompatibility(request);
+        }
         // retrieve the initial timestamp in case the action is a cross cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ClusterState clusterState = clusterService.state();

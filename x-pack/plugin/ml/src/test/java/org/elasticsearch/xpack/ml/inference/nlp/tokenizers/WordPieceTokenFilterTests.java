@@ -8,70 +8,35 @@
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.empty;
-
-public class WordPieceTokenFilterTests extends ESTestCase {
+public class WordPieceTokenFilterTests extends BaseTokenStreamTestCase {
 
     public static final String UNKNOWN_TOKEN = "[UNK]";
 
     public void testTokenize() throws IOException {
         List<String> vocab = List.of(UNKNOWN_TOKEN, "[CLS]", "[SEP]", "want", "##want", "##ed", "wa", "un", "runn", "##ing");
+        TestNLPAnalyzer analyzer = new TestNLPAnalyzer(vocab, UNKNOWN_TOKEN, 512);
 
-        var tokenIds = buildAndTokenize(vocab, UNKNOWN_TOKEN, "", 512);
-        assertThat(tokenIds, empty());
-
-        tokenIds = buildAndTokenize(vocab, UNKNOWN_TOKEN, "unwanted", 512);
-        assertThat(
-            tokenIds.stream().map(WordPieceTokenFilter.WordPieceToken::toString).collect(Collectors.toList()),
-            contains("un", "##want", "##ed")
-        );
-
-        tokenIds = buildAndTokenize(vocab, UNKNOWN_TOKEN, "running", 512);
-        assertThat(
-            tokenIds.stream().map(WordPieceTokenFilter.WordPieceToken::toString).collect(Collectors.toList()),
-            contains("runn", "##ing")
-        );
-
-        tokenIds = buildAndTokenize(vocab, UNKNOWN_TOKEN, "unwantedX", 512);
-        assertThat(
-            tokenIds.stream().map(WordPieceTokenFilter.WordPieceToken::toString).collect(Collectors.toList()),
-            contains("un", "##want", "##ed", "[UNK]")
-        );
+        assertAnalyzesTo(analyzer, "", new String[0]);
+        assertAnalyzesTo(analyzer, "unwanted", new String[] { "un", "##want", "##ed" }, new int[] { 1, 0, 0 });
+        assertAnalyzesTo(analyzer, "running", new String[] { "runn", "##ing" }, new int[] { 1, 0 });
+        assertAnalyzesTo(analyzer, "unwantedX", new String[] { "[UNK]" }, new int[] { 1 });
     }
 
     public void testMaxCharLength() throws IOException {
-        List<String> vocab = List.of("Some", "words", "will", "become", "UNK");
+        List<String> vocab = List.of(UNKNOWN_TOKEN, "[CLS]", "[SEP]", "want", "##want", "##ed", "wa", "un", "runn", "##ing", "become");
+        TestNLPAnalyzer analyzer = new TestNLPAnalyzer(vocab, UNKNOWN_TOKEN, 4);
 
-        var tokenIds = buildAndTokenize(vocab, "UNK", "running", 4);
-        assertThat(tokenIds.stream().map(WordPieceTokenFilter.WordPieceToken::toString).collect(Collectors.toList()), contains("UNK"));
-    }
-
-    static List<WordPieceTokenFilter.WordPieceToken> buildAndTokenize(
-        List<String> dictionary,
-        String unknownToken,
-        String input,
-        int maxTokenSize
-    ) throws IOException {
-        TestNLPAnalyzer analyzer = new TestNLPAnalyzer(dictionary, unknownToken, maxTokenSize);
-        TokenStream test = analyzer.tokenStream("test", input);
-        test.reset();
-        while (test.incrementToken()) {
-        }
-        return analyzer.filter.getTokenizedValues();
+        assertAnalyzesTo(analyzer, "become", new String[] { UNKNOWN_TOKEN }, new int[] { 1 });
     }
 
     static class TestNLPAnalyzer extends Analyzer {
-        private WordPieceTokenFilter filter = null;
         private final List<String> dictionary;
         private final String unknownToken;
         private final int maxTokenSize;
@@ -86,7 +51,7 @@ public class WordPieceTokenFilterTests extends ESTestCase {
         protected TokenStreamComponents createComponents(String fieldName) {
             try {
                 WhitespaceTokenizer tokenizer = new WhitespaceTokenizer(512);
-                filter = WordPieceTokenFilter.buildFromSettings(
+                WordPieceTokenFilter filter = WordPieceTokenFilter.buildFromSettings(
                     false,
                     false,
                     false,

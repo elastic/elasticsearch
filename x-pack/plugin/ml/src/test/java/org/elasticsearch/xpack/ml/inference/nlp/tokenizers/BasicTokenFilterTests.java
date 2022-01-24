@@ -8,96 +8,57 @@
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
-
-import static org.hamcrest.Matchers.contains;
 
 /**
  * Some test cases taken from
  * https://github.com/huggingface/transformers/blob/ba8c4d0ac04acfcdbdeaed954f698d6d5ec3e532/tests/test_tokenization_bert.py
  */
-public class BasicTokenFilterTests extends ESTestCase {
+public class BasicTokenFilterTests extends BaseTokenStreamTestCase {
 
     public void testNeverSplit_GivenNoLowerCase() throws IOException {
-        try (Analyzer analyzer = basicAnalyzerFromSettings(false, false, false, List.of("[UNK]"))) {
-            var tokens = basicTokenize(analyzer, "1 (return) [ Patois ");
-            assertThat(tokenStrings(tokens), contains("1", "(", "return", ")", "[", "Patois"));
-
-            tokens = basicTokenize(analyzer, " \tHeLLo!how  \n Are yoU? [UNK]");
-            assertThat(tokenStrings(tokens), contains("HeLLo", "!", "how", "Are", "yoU", "?", "[UNK]"));
-
-            tokens = basicTokenize(analyzer, "Hello [UNK].");
-            assertThat(tokenStrings(tokens), contains("Hello", "[UNK]", "."));
-
-            tokens = basicTokenize(analyzer, "Hello [UNK]?");
-            assertThat(tokenStrings(tokens), contains("Hello", "[UNK]", "?"));
-
-            tokens = basicTokenize(analyzer, "Hello [UNK]!!");
-            assertThat(tokenStrings(tokens), contains("Hello", "[UNK]", "!", "!"));
-
-            tokens = basicTokenize(analyzer, "Hello-[UNK]");
-            assertThat(tokenStrings(tokens), contains("Hello", "-", "[UNK]"));
-            tokens = basicTokenize(analyzer, "Hello~[UNK][UNK]");
-            assertThat(tokenStrings(tokens), contains("Hello", "~", "[UNK]", "[UNK]"));
-            tokens = basicTokenize(analyzer, "Hello-[unk]");
-            assertThat(tokenStrings(tokens), contains("Hello", "-", "[", "unk", "]"));
-        }
+        Analyzer analyzer = basicAnalyzerFromSettings(false, false, false, List.of("[UNK]"));
+        assertAnalyzesTo(analyzer, "1 (return) [ Patois ", new String[] { "1", "(", "return", ")", "[", "Patois" });
+        assertAnalyzesTo(analyzer, " \tHeLLo!how  \n Are yoU? [UNK]", new String[] { "HeLLo", "!", "how", "Are", "yoU", "?", "[UNK]" });
+        assertAnalyzesTo(analyzer, "Hello [UNK].", new String[] { "Hello", "[UNK]", "." });
+        assertAnalyzesTo(analyzer, "Hello [UNK]?", new String[] { "Hello", "[UNK]", "?" });
+        assertAnalyzesTo(analyzer, "Hello [UNK]!!", new String[] { "Hello", "[UNK]", "!", "!" });
+        assertAnalyzesTo(analyzer, "Hello-[UNK]", new String[] { "Hello", "-", "[UNK]" });
+        assertAnalyzesTo(analyzer, "Hello~[UNK][UNK]", new String[] { "Hello", "~", "[UNK]", "[UNK]" });
+        assertAnalyzesTo(analyzer, "Hello-[unk]", new String[] { "Hello", "-", "[", "unk", "]" });
     }
 
     public void testNeverSplit_GivenLowerCase() throws IOException {
-        try (Analyzer analyzer = basicAnalyzerFromSettings(true, false, false, List.of("[UNK]"))) {
-            var tokens = basicTokenize(analyzer, " \tHeLLo!how  \n Are yoU? [UNK]");
-            assertThat(tokenStrings(tokens), contains("HeLLo", "!", "how", "Are", "yoU", "?", "[UNK]"));
-
-            tokens = basicTokenize(analyzer, "Hello [UNK].");
-            assertThat(tokenStrings(tokens), contains("Hello", "[UNK]", "."));
-
-            tokens = basicTokenize(analyzer, "Hello [UNK]?");
-            assertThat(tokenStrings(tokens), contains("Hello", "[UNK]", "?"));
-
-            tokens = basicTokenize(analyzer, "Hello [UNK]!!");
-            assertThat(tokenStrings(tokens), contains("Hello", "[UNK]", "!", "!"));
-
-            tokens = basicTokenize(analyzer, "Hello-[UNK]");
-            assertThat(tokenStrings(tokens), contains("Hello", "-", "[UNK]"));
-            tokens = basicTokenize(analyzer, "Hello~[UNK][UNK]");
-            assertThat(tokenStrings(tokens), contains("Hello", "~", "[UNK]", "[UNK]"));
-            tokens = basicTokenize(analyzer, "Hello-[unk]");
-            assertThat(tokenStrings(tokens), contains("Hello", "-", "[", "unk", "]"));
-        }
+        Analyzer analyzer = basicAnalyzerFromSettings(true, false, false, List.of("[UNK]"));
+        assertAnalyzesTo(analyzer, " \tHeLLo!how  \n Are yoU? [UNK]", new String[] { "HeLLo", "!", "how", "Are", "yoU", "?", "[UNK]" });
+        assertAnalyzesTo(analyzer, "Hello [UNK].", new String[] { "Hello", "[UNK]", "." });
+        assertAnalyzesTo(analyzer, "Hello [UNK]?", new String[] { "Hello", "[UNK]", "?" });
+        assertAnalyzesTo(analyzer, "Hello [UNK]!!", new String[] { "Hello", "[UNK]", "!", "!" });
+        assertAnalyzesTo(analyzer, "Hello-[UNK]", new String[] { "Hello", "-", "[UNK]" });
+        assertAnalyzesTo(analyzer, "Hello~[UNK][UNK]", new String[] { "Hello", "~", "[UNK]", "[UNK]" });
+        assertAnalyzesTo(analyzer, "Hello-[unk]", new String[] { "Hello", "-", "[", "unk", "]" });
     }
 
     public void testSplitCJK() throws Exception {
-        try (Analyzer analyzer = basicAnalyzerFromSettings(true, true, false, List.of("[UNK]"))) {
-            var tokens = basicTokenize(analyzer, "hello ah\u535A\u63A8zz");
-            assertThat(tokenStrings(tokens), contains("hello", "ah", "\u535A", "\u63A8", "zz"));
-        }
-    }
-
-    public void testSplitCJKWhenNoneExist() throws Exception {
-        try (Analyzer analyzer = basicAnalyzerFromSettings(true, true, false, List.of("[UNK]"))) {
-            var tokens = basicTokenize(analyzer, "hello world");
-            assertThat(tokenStrings(tokens), contains("hello", "world"));
-        }
+        Analyzer analyzer = basicAnalyzerFromSettings(true, true, false, List.of("[UNK]"));
+        assertAnalyzesTo(analyzer, "hello ah\u535A\u63A8zz", new String[] { "hello", "ah", "\u535A", "\u63A8", "zz" });
+        assertAnalyzesTo(analyzer, "hello world", new String[] { "hello", "world" });
     }
 
     public void testStripAccents() throws Exception {
-        try (Analyzer analyzer = basicAnalyzerFromSettings(true, true, true, List.of("[UNK]"))) {
-            var tokens = basicTokenize(analyzer, "HäLLo how are you");
-            assertThat(tokenStrings(tokens), contains("HaLLo", "how", "are", "you"));
-        }
+        Analyzer analyzer = basicAnalyzerFromSettings(true, true, true, List.of("[UNK]"));
+        assertAnalyzesTo(analyzer, "HäLLo how are you", new String[] { "HaLLo", "how", "are", "you" });
     }
 
     public void testIsPunctuation() {
@@ -108,10 +69,6 @@ public class BasicTokenFilterTests extends ESTestCase {
         assertFalse(BasicTokenFilter.isPunctuationMark(' '));
         assertFalse(BasicTokenFilter.isPunctuationMark('A'));
         assertTrue(BasicTokenFilter.isPunctuationMark('['));
-    }
-
-    private List<String> tokenStrings(List<DelimitedToken> tokens) {
-        return tokens.stream().map(DelimitedToken::charSequence).map(CharSequence::toString).collect(Collectors.toList());
     }
 
     public static Analyzer basicAnalyzerFromSettings(

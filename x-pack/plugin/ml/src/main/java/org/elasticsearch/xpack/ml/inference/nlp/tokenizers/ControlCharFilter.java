@@ -50,25 +50,25 @@ public class ControlCharFilter extends BaseCharFilter {
         CharArrayList charArrayList = new CharArrayList(1024);
         char[] temp = new char[1024];
         int totalRead = 0;
+        int diff = 0;
         for (int cnt = input.read(temp); cnt > 0; cnt = input.read(temp)) {
             int pos = 0;
             while (pos < cnt) {
                 int start = pos;
                 while (start < cnt) {
-                    int category = Character.getType(temp[start]);
-                    if (category < Character.CONTROL || category > Character.SURROGATE) {
+                    if (isControlChar(temp[start]) == false) {
                         break;
                     }
                     start++;
                 }
                 if (start > pos) {
-                    addOffCorrectMap(pos + totalRead, start + totalRead);
+                    diff += (start - pos);
+                    addOffCorrectMap(pos + totalRead, diff);
                 }
                 int size = 0;
                 while (size < (cnt - start)) {
-                    int category = Character.getType(temp[start + size]);
                     // While the category is not a control char; read.
-                    if (category < Character.CONTROL || category > Character.SURROGATE) {
+                    if (isControlChar(temp[start + size]) == false) {
                         size++;
                     } else {
                         break;
@@ -80,6 +80,15 @@ public class ControlCharFilter extends BaseCharFilter {
             totalRead += cnt;
         }
         transformedInput = new CharArrayReader(charArrayList.toArray());
+    }
+
+    private static boolean isControlChar(char c) {
+        if (c == '\n' || c == '\r' || c == '\t') {
+            return false;
+        }
+        int category = Character.getType(c);
+
+        return category >= Character.CONTROL && category <= Character.SURROGATE;
     }
 
 }

@@ -198,13 +198,12 @@ public final class BasicTokenFilter extends TokenFilter {
             if (matchingTokens.isEmpty() == false) {
                 tokens.addAll(matchingTokens);
             }
-            this.current = captureState();
             DelimitedToken token = tokens.removeFirst();
             termAtt.setEmpty().append(token.charSequence());
             offsetAtt.setOffset(token.startOffset(), token.endOffset());
+            this.current = captureState();
             return true;
         }
-        current = null; // not really needed, but for safety
         return false;
     }
 

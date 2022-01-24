@@ -426,7 +426,7 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Submits a cluster state update task; unlike {@link #submitStateUpdateTask(String, ClusterStateTaskListener, ClusterStateTaskConfig, ClusterStateTaskExecutor)}, submitted updates will not be batched.
+     * Submits a cluster state update task
      * @param source     the source of the cluster state update task
      * @param updateTask the full context for the cluster state update
      * @param executor

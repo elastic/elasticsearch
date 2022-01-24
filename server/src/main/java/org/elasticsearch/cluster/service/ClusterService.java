@@ -223,7 +223,7 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Submits a cluster state update task; unlike {@link #submitStateUpdateTask(String, ClusterStateTaskListener, ClusterStateTaskConfig, ClusterStateTaskExecutor)}.
+     * Submits a cluster state update task
      * @param source     the source of the cluster state update task
      * @param updateTask the full context for the cluster state update
      * @param executor   the executor to use for the submitted task.

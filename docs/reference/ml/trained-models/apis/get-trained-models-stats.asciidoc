@@ -116,6 +116,10 @@ The desired number of nodes for model allocation.
 (integer)
 The sum of `error_count` for all nodes in the deployment.
 
+`inference_count`:::
+(integer)
+The sum of `inference_count` for all nodes in the deployment.
+
 `inference_threads`:::
 (integer)
 The number of threads used by the inference process.

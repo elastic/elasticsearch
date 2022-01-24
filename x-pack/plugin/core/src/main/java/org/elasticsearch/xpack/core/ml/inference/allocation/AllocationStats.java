@@ -399,6 +399,10 @@ public class AllocationStats implements ToXContentObject, Writeable {
         int totalErrorCount = nodeStats.stream().mapToInt(NodeStats::getErrorCount).sum();
         int totalRejectedExecutionCount = nodeStats.stream().mapToInt(NodeStats::getRejectedExecutionCount).sum();
         int totalTimeoutCount = nodeStats.stream().mapToInt(NodeStats::getTimeoutCount).sum();
+        long totalInferenceCount = nodeStats.stream()
+            .filter(n -> n.getInferenceCount().isPresent())
+            .mapToLong(n -> n.getInferenceCount().get())
+            .sum();
 
         if (totalErrorCount > 0) {
             builder.field("error_count", totalErrorCount);
@@ -408,6 +412,9 @@ public class AllocationStats implements ToXContentObject, Writeable {
         }
         if (totalTimeoutCount > 0) {
             builder.field("timeout_count", totalTimeoutCount);
+        }
+        if (totalInferenceCount > 0) {
+            builder.field("inference_count", totalInferenceCount);
         }
 
         builder.startArray("nodes");

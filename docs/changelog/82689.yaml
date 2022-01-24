@@ -1,0 +1,6 @@
+pr: 82689
+summary: Enhancement/prevent 6.8 indices upgrade
+area: Infra/Core
+type: enhancement
+issues:
+ - 81326

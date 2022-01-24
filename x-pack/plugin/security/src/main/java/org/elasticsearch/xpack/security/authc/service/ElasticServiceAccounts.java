@@ -40,6 +40,15 @@ final class ElasticServiceAccounts {
                     .privileges("write", "create_index", "auto_configure")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
+                    // APM Server (and hence Fleet Server, which issues its API Keys) needs additional privileges
+                    // for the non-sensitive "sampled traces" data stream:
+                    // - "maintenance" privilege to refresh indices
+                    // - "monitor" privilege to be able to query index stats for the global checkpoint
+                    // - "read" privilege to search the documents
+                    .indices("traces-apm.sampled-*")
+                    .privileges("read", "monitor", "maintenance")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-*")
                     // Fleet Server needs "maintenance" privilege to be able to perform operations with "refresh"
                     .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance")

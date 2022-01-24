@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class GetDesiredNodesAction extends ActionType<GetDesiredNodesAction.Response> {
     public static final GetDesiredNodesAction INSTANCE = new GetDesiredNodesAction();
@@ -74,6 +75,19 @@ public class GetDesiredNodesAction extends ActionType<GetDesiredNodesAction.Resp
             builder.field("desired_nodes", desiredNodes);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Response response = (Response) o;
+            return Objects.equals(desiredNodes, response.desiredNodes);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(desiredNodes);
         }
     }
 }

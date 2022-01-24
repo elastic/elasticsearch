@@ -383,8 +383,13 @@ public class InitialNodeSecurityAutoConfiguration {
             builder.append(System.lineSeparator());
             builder.append("  If you're running in Docker, copy the enrollment token and run:");
             builder.append(System.lineSeparator());
-            builder.append("  " + cmdOn + "docker run -e \"ENROLLMENT_TOKEN=<token>\" docker.elastic.co/elasticsearch/elasticsearch:" +
-                Version.CURRENT + cmdOff);
+            builder.append(
+                "  "
+                    + cmdOn
+                    + "docker run -e \"ENROLLMENT_TOKEN=<token>\" docker.elastic.co/elasticsearch/elasticsearch:"
+                    + Version.CURRENT
+                    + cmdOff
+            );
         }
 
         builder.append(System.lineSeparator());

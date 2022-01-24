@@ -177,7 +177,7 @@ include::{es-repo-dir}/setup/restart-cluster.asciidoc[tag=disable_shard_alloc]
 +
 --
 While you can continue indexing during the rolling restart, shard recovery
-is much faster if you temporarily stop non-essential indexing and perform a
+can be faster if you temporarily stop non-essential indexing and perform a
 <<indices-flush, flush>>.
 
 [source,console]

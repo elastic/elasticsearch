@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,7 +36,12 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AnonymousUserIntegTests extends SecurityIntegTestCase {
-    private boolean authorizationExceptionsEnabled = randomBoolean();
+    private static boolean authorizationExceptionsEnabled;
+
+    @BeforeClass
+    public static void maybeEnableAnonymousAuthorizationException() {
+        authorizationExceptionsEnabled = randomBoolean();
+    }
 
     @Override
     protected boolean addMockHttpTransport() {

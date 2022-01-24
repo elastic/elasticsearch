@@ -241,8 +241,7 @@ size::
 When results are trimmed, buckets are prioritized based on the volume of
 documents they contain.
 
-shard_size::    Optional. To allow for more accurate counting of the top cells
-                returned in the final result the aggregation defaults to
-                returning `max(10,(size x number-of-shards))` buckets from each
-                shard. If this heuristic is undesirable, the number considered
-                from each shard can be over-ridden using this parameter.
+shard_size::
+(Optional, integer) Number of buckets returned from each shard. Defaults to
+`max(10,(size x number-of-shards))` to allow for more a accurate count of the
+top cells in the final result.

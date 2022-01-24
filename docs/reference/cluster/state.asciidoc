@@ -24,15 +24,15 @@ diagnostic purposes.
 The _cluster state_ is an internal data structure which keeps track of a
 variety of information needed by every node, including:
 
-* the identity and attributes of the other nodes in the cluster
+* The identity and attributes of the other nodes in the cluster
 
-* the cluster-wide settings
+* Cluster-wide settings
 
-* the index metadata, including the mapping and settings for each index
+* Index metadata, including the mapping and settings for each index
 
-* the location and status of every shard copy in the cluster
+* The location and status of every shard copy in the cluster
 
-The elected master ensures that every node in the cluster has a copy of the
+The elected master node ensures that every node in the cluster has a copy of the
 same cluster state. The cluster state API lets you retrieve a representation of
 this internal state for debugging or diagnostic purposes. You may need to
 consult the {es} source code to determine the precise meaning of the response.
@@ -44,21 +44,21 @@ the query parameter `?local=true`.
 
 {es} may need to expend significant effort to compute a response to this API in
 larger clusters, and the response may comprise a very large quantity of data.
-If you use this API repeatedly then your cluster may become unstable.
+If you use this API repeatedly, your cluster may become unstable.
 
 [[cluster-state-api-unstable-warning]]
 WARNING: The response is a representation of an internal data structure. Its
 format is not subject to the same compatibility guarantees as other more stable
 APIs and may change from version to version. **Do not query this API using
 external monitoring tools.** Instead, obtain the information you require using
-other, more stable, <<cluster,cluster APIs>>.
+other more stable <<cluster,cluster APIs>>.
 
 [[cluster-state-api-path-params]]
 ==== {api-path-parms-title}
 
-The cluster state can sometimes be very large and {es} may consume significant
+The cluster state can sometimes be very large, and {es} may consume significant
 resources while computing a response to this API. To reduce the size of the
-response you can request only the part of the cluster state in which you are
+response, you can request only the part of the cluster state in which you are
 interested:
 
 `<metrics>`::

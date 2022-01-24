@@ -60,9 +60,20 @@ public class ProfileServiceTests extends ESTestCase {
             "enabled": true,
             "user": {
               "username": "foo",
+              "roles": [
+                "role1",
+                "role2"
+              ],
               "realm": {
-                "name": "realm_name",
-                "type": "realm_type",
+                "name": "realm_name_1",
+                "type": "realm_type_1",
+                "domain": {
+                  "name": "domainA",
+                  "realms": [
+                    { "name": "realm_name_1", "type": "realm_type_1" },
+                    { "name": "realm_name_2", "type": "realm_type_2" }
+                  ]
+                },
                 "node_name": "node1"
               },
               "email": "foo@example.com",
@@ -72,11 +83,6 @@ public class ProfileServiceTests extends ESTestCase {
             },
             "last_synchronized": %s,
             "access": {
-              "roles": [
-                "role1",
-                "role2"
-              ],
-              "applications": {}
             },
             "application_data": {
               "app1": { "name": "app1" },
@@ -153,8 +159,17 @@ public class ProfileServiceTests extends ESTestCase {
                     uid,
                     true,
                     lastSynchronized,
-                    new Profile.ProfileUser("foo", "realm_name", null, "foo@example.com", "User Foo", "Curious Foo", true),
-                    new Profile.Access(List.of("role1", "role2"), Map.of()),
+                    new Profile.ProfileUser(
+                        "foo",
+                        List.of("role1", "role2"),
+                        "realm_name_1",
+                        null,
+                        "foo@example.com",
+                        "User Foo",
+                        "Curious Foo",
+                        true
+                    ),
+                    Map.of(),
                     applicationData,
                     new Profile.VersionControl(1, 0)
                 )

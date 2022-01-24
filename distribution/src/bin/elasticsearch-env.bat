@@ -35,11 +35,6 @@ if "%ES_BUNDLED_JDK%" == "false" (
 
 cd /d "%ES_HOME%"
 
-rem now set the path to java, pass "nojava" arg to skip setting ES_JAVA_HOME and JAVA
-if "%1" == "nojava" (
-   exit /b
-)
-
 rem comparing to empty string makes this equivalent to bash -v check on env var
 rem and allows to effectively force use of the bundled jdk when launching ES
 rem by setting ES_JAVA_HOME=

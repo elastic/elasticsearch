@@ -56,7 +56,7 @@ public class ApiKeyGenerator {
 
         final Subject effectiveSubject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
 
-        // TODO: retain current behaviour that User of an API key authentication has no roles.
+        // Retain current behaviour that User of an API key authentication has no roles
         if (effectiveSubject.getType() == Subject.Type.API_KEY) {
             roleDescriptorsListener.onResponse(Set.of());
             return;

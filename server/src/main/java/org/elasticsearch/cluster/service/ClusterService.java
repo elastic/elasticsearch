@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collections;
+import java.util.List;
 
 public class ClusterService extends AbstractLifecycleComponent {
     private final MasterService masterService;
@@ -259,7 +259,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         ClusterStateTaskConfig config,
         ClusterStateTaskExecutor<T> executor
     ) {
-        masterService.submitStateUpdateTasks(source, Collections.singletonMap(task, task), config, executor);
+        masterService.submitStateUpdateTasks(source, List.of(task), config, executor);
     }
 
 }

@@ -21,7 +21,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.ProviderFactory;
-import org.jetbrains.annotations.Nullable;
 
 import javax.inject.Inject;
 
@@ -78,7 +77,6 @@ public class RestTestBasePlugin implements Plugin<Project> {
             .configureEach(t -> t.finalizedBy(project.getTasks().withType(FixtureStop.class)));
     }
 
-    @Nullable
     private String systemProperty(String propName) {
         return providerFactory.systemProperty(propName).forUseAtConfigurationTime().getOrNull();
     }

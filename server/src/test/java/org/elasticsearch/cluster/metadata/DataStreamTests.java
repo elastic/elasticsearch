@@ -14,6 +14,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -34,8 +35,10 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstanc
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
@@ -524,9 +527,10 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
     public void testValidate() {
         {
-            // Valid case:
-            Instant currentTime = Instant.now();
+            // Valid cases:
+            Instant currentTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
 
+            // These ranges are on the edge of each other temporal boundaries.
             Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
             Instant end1 = currentTime.minus(2, ChronoUnit.HOURS);
             Instant start2 = currentTime.minus(2, ChronoUnit.HOURS);
@@ -536,6 +540,31 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             var clusterState = DataStreamTestHelper.getClusterStateWithDataStream(
                 dataStreamName,
                 List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
+            );
+            DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+            assertThat(dataStream, notNullValue());
+            assertThat(dataStream.getIndices(), hasSize(2));
+            assertThat(
+                IndexSettings.TIME_SERIES_START_TIME.get(clusterState.getMetadata().index(dataStream.getIndices().get(0)).getSettings()),
+                equalTo(start1)
+            );
+            assertThat(
+                IndexSettings.TIME_SERIES_END_TIME.get(clusterState.getMetadata().index(dataStream.getIndices().get(0)).getSettings()),
+                equalTo(end1)
+            );
+            assertThat(
+                IndexSettings.TIME_SERIES_START_TIME.get(clusterState.getMetadata().index(dataStream.getIndices().get(1)).getSettings()),
+                equalTo(start2)
+            );
+            assertThat(
+                IndexSettings.TIME_SERIES_END_TIME.get(clusterState.getMetadata().index(dataStream.getIndices().get(1)).getSettings()),
+                equalTo(end2)
+            );
+
+            // Create a temporal gap between, this is valid and shouldn't fail:
+            DataStreamTestHelper.getClusterStateWithDataStream(
+                dataStreamName,
+                List.of(Tuple.tuple(start1, end1.minus(1, ChronoUnit.MINUTES)), Tuple.tuple(start2.plus(1, ChronoUnit.MINUTES), end2))
             );
         }
         {

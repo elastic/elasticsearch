@@ -476,6 +476,10 @@
             "executions": {
               "type": "alias",
               "path": "kibana.rules.executions"
+            },
+            "timestamp": {
+              "type": "alias",
+              "path": "@timestamp"
             }
           }
         },
@@ -508,6 +512,10 @@
             "executions": {
               "type": "alias",
               "path": "kibana.actions.executions"
+            },
+            "timestamp": {
+              "type": "alias",
+              "path": "@timestamp"
             }
           }
         },

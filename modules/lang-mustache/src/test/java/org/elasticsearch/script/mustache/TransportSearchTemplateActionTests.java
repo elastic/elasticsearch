@@ -13,6 +13,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -21,6 +23,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.FailBeforeVersionQueryBuilder;
 import org.elasticsearch.search.NewlyReleasedQueryBuilder;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,7 +69,15 @@ public class TransportSearchTemplateActionTests extends ESTestCase {
     }
 
     public void testCCSCompatibilityCheck() throws Exception {
-        Settings settings = Settings.builder().put("node.name", TransportSearchTemplateActionTests.class.getSimpleName()).build();
+        Settings settings = Settings.builder()
+            .put("node.name", TransportSearchTemplateAction.class.getSimpleName())
+            .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
+            .build();
+        ClusterService clusterService = new ClusterService(
+            settings,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            new ThreadPool(settings)
+        );
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
         ThreadPool threadPool = new ThreadPool(settings);
@@ -75,7 +86,6 @@ public class TransportSearchTemplateActionTests extends ESTestCase {
 
             SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest();
             searchTemplateRequest.setScriptType(ScriptType.INLINE);
-            searchTemplateRequest.setCcsCompatibilityCheck(true);
             searchTemplateRequest.setRequest(new SearchRequest());
             String query = """
                 { "query": { "fail_before_current_version" : { }}}
@@ -85,6 +95,7 @@ public class TransportSearchTemplateActionTests extends ESTestCase {
 
             TransportSearchTemplateAction action = new TransportSearchTemplateAction(
                 transportService,
+                clusterService,
                 actionFilters,
                 TestTemplateService.instance(),
                 xContentRegistry,

@@ -11,7 +11,7 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.VersionCheckingStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.SearchService;
 
 /**
  * Using the 'check_ccs_compatibility' on rest requests, clients can ask for an early
@@ -24,34 +24,7 @@ import org.elasticsearch.rest.RestRequest;
  */
 public class CCSVersionCheckHelper {
 
-    public static final String CCS_VERSION_CHECK_FLAG = "check_ccs_compatibility";
     public static final Version checkVersion = Version.CURRENT.previousFirstMinor();
-
-    /**
-     * run the writeableRequest through serialization to the previous minor version if the 'check_ccs_compatibility' is set on the request
-     */
-    public static void checkCCSVersionCompatibility(RestRequest request, Writeable writeableRequest) {
-        if (request.paramAsBoolean(CCS_VERSION_CHECK_FLAG, false)) {
-            // try serializing this request to a stream with previous minor version
-            try {
-                writeableRequest.writeTo(new VersionCheckingStreamOutput(checkVersion));
-            } catch (Exception e) {
-                // if we cannot serialize, raise this as an error to indicate to the caller that CCS has problems with this request
-                throw new IllegalArgumentException(
-                    "parts of request ["
-                        + request.method()
-                        + " "
-                        + request.path()
-                        + "] are not compatible with version "
-                        + checkVersion
-                        + " and the '"
-                        + CCS_VERSION_CHECK_FLAG
-                        + "' is enabled.",
-                    e
-                );
-            }
-        }
-    }
 
     /**
      * run the writeableRequest through serialization to the previous minor version
@@ -67,8 +40,8 @@ public class CCSVersionCheckHelper {
                     + "] are not compatible with version "
                     + checkVersion
                     + " and the '"
-                    + CCS_VERSION_CHECK_FLAG
-                    + "' is enabled.",
+                    + SearchService.CCS_VERSION_CHECK_SETTING.getKey()
+                    + "' setting is enabled.",
                 e
             );
         }

@@ -151,4 +151,5 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
         }
         return output.toByteArray();
     }
+
 }

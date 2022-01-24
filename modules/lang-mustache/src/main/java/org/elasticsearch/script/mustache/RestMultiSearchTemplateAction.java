@@ -14,7 +14,6 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.rest.action.search.CCSVersionCheckHelper;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 
@@ -90,9 +89,6 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                 SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
                 if (searchTemplateRequest.getScript() != null) {
                     searchTemplateRequest.setRequest(searchRequest);
-                    searchTemplateRequest.setCcsCompatibilityCheck(
-                        restRequest.paramAsBoolean(CCSVersionCheckHelper.CCS_VERSION_CHECK_FLAG, false)
-                    );
                     multiRequest.add(searchTemplateRequest);
                 } else {
                     throw new IllegalArgumentException("Malformed search template");

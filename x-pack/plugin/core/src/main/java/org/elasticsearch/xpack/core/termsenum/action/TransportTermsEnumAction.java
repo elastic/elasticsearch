@@ -137,6 +137,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
     @Override
     protected void doExecute(Task task, TermsEnumRequest request, ActionListener<TermsEnumResponse> listener) {
+        // TODO add CCS compatibility check here
         new AsyncBroadcastAction(task, request, listener).start();
     }
 

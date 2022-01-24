@@ -75,7 +75,6 @@ public class TransportMultiSearchTemplateActionTests extends ESTestCase {
 
             SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest();
             searchTemplateRequest.setScriptType(ScriptType.INLINE);
-            searchTemplateRequest.setCcsCompatibilityCheck(true);
             searchTemplateRequest.setRequest(new SearchRequest());
             String query = """
                 { "query": { "fail_before_current_version" : { }}}

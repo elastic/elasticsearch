@@ -47,7 +47,6 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
     private TestSearchExtPlugin searchExtPlugin;
     private NamedXContentRegistry xContentRegistry;
 
-    @Override
     public void setUp() throws Exception {
         super.setUp();
         searchExtPlugin = new TestSearchExtPlugin();
@@ -285,6 +284,5 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
             builder.endObject();
             return builder;
         }
-
     }
 }

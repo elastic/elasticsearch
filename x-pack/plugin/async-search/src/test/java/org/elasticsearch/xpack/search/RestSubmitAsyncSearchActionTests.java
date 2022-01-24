@@ -8,66 +8,27 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.search.CCSVersionCheckHelper;
-import org.elasticsearch.search.FailBeforeVersionQueryBuilder;
-import org.elasticsearch.search.NewlyReleasedQueryBuilder;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
 
     private RestSubmitAsyncSearchAction action;
-    private static NamedXContentRegistry xContentRegistry;
-
-    /**
-     * setup for the whole base test class
-     */
-    @BeforeClass
-    public static void init() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
-        List<org.elasticsearch.xcontent.NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
-        namedXContents.add(
-            new NamedXContentRegistry.Entry(
-                QueryBuilder.class,
-                new ParseField(FailBeforeVersionQueryBuilder.NAME),
-                FailBeforeVersionQueryBuilder::fromXContent,
-                RestApiVersion.onOrAfter(RestApiVersion.current())
-            )
-        );
-        namedXContents.add(
-            new NamedXContentRegistry.Entry(
-                QueryBuilder.class,
-                new ParseField(NewlyReleasedQueryBuilder.NAME),
-                NewlyReleasedQueryBuilder::fromXContent,
-                RestApiVersion.onOrAfter(RestApiVersion.current())
-            )
-        );
-        xContentRegistry = new NamedXContentRegistry(namedXContents);
-    }
 
     @Before
     public void setUpAction() {
@@ -79,6 +40,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
      * Check that the appropriate defaults are set on the {@link SubmitAsyncSearchRequest} if
      * no parameters are specified on the rest request itself.
      */
+    @SuppressWarnings("unchecked")
     public void testRequestParameterDefaults() throws IOException {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {
@@ -130,6 +92,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
         );
     }
 
+    @SuppressWarnings("unchecked")
     private <T> void doTestParameter(
         String paramName,
         String paramValue,
@@ -157,73 +120,5 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
         }
         assertThat(executeCalled.get(), equalTo(true));
         verifyingClient.reset();
-    }
-
-    public void testCCSCheckCompatibilityFlag() throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put(CCSVersionCheckHelper.CCS_VERSION_CHECK_FLAG, "true");
-
-        String query = """
-            { "query": { "fail_before_current_version" : { }}}
-            """;
-
-        {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-                .withPath("/some_index/_async_search")
-                .withParams(params)
-                .withContent(new BytesArray(query), XContentType.JSON)
-                .build();
-
-            Exception ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
-            assertEquals(
-                "parts of request [POST /some_index/_async_search] are not compatible with version 8.0.0 and the 'check_ccs_compatibility' "
-                    + "is enabled.",
-                ex.getMessage()
-            );
-            assertEquals("This query isn't serializable to nodes on or before 8.0.0", ex.getCause().getMessage());
-        }
-
-        String newQueryBuilderInside = """
-            { "query": { "new_released_query" : { }}}
-            """;
-
-        {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-                .withPath("/some_index/_async_search")
-                .withParams(params)
-                .withContent(new BytesArray(newQueryBuilderInside), XContentType.JSON)
-                .build();
-
-            Exception ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
-            assertEquals(
-                "parts of request [POST /some_index/_async_search] are not compatible with version 8.0.0 and the 'check_ccs_compatibility' "
-                    + "is enabled.",
-                ex.getMessage()
-            );
-            assertEquals(
-                "NamedWritable [org.elasticsearch.search.NewlyReleasedQueryBuilder] was released in "
-                    + "version 8.1.0 and was not supported in version 8.0.0",
-                ex.getCause().getMessage()
-            );
-        }
-
-        // this shouldn't fail without the flag enabled
-        params = new HashMap<>();
-        if (randomBoolean()) {
-            params.put(CCSVersionCheckHelper.CCS_VERSION_CHECK_FLAG, "false");
-        }
-        {
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-                .withPath("/some_index/_async_search")
-                .withParams(params)
-                .withContent(new BytesArray(query), XContentType.JSON)
-                .build();
-            action.prepareRequest(request, verifyingClient);
-        }
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return xContentRegistry;
     }
 }

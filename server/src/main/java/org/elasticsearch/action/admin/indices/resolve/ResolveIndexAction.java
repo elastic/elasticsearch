@@ -459,6 +459,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 request.indicesOptions(),
                 request.indices()
             );
+            // TODO add CCS check here
             final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             final Metadata metadata = clusterState.metadata();
             List<ResolvedIndex> indices = new ArrayList<>();

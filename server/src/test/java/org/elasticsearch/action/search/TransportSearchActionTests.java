@@ -1432,7 +1432,7 @@ public class TransportSearchActionTests extends ESTestCase {
                             + "preference='null', requestCache=null, scroll=null, maxConcurrentShardRequests=0, batchedReduceSize=512, "
                             + "preFilterShardSize=null, allowPartialSearchResults=null, localClusterAlias=null, "
                             + "getOrCreateAbsoluteStartMillis=-1, ccsMinimizeRoundtrips=true, source={\"query\":{\"dummy\":{}}}}] "
-                            + "are not compatible with version 8.0.0 and the 'check_ccs_compatibility' is enabled.",
+                            + "are not compatible with version 8.0.0 and the 'search.check_ccs_compatibility' setting is enabled.",
                         ex.getMessage()
                     );
                     assertEquals("This query isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());

@@ -47,10 +47,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 builder.put(IndexSettings.MODE.getKey(), indexMode);
 
                 if (indexMode == IndexMode.TIME_SERIES) {
-                    TimeValue lookAheadTime = allSettings.getAsTime(
-                        IndexSettings.LOOK_AHEAD_TIME.getKey(),
-                        IndexSettings.LOOK_AHEAD_TIME.getDefault(allSettings)
-                    );
+                    TimeValue lookAheadTime = IndexSettings.LOOK_AHEAD_TIME.get(allSettings);
                     Instant start;
                     if (dataStream == null) {
                         start = Instant.ofEpochMilli(resolvedAt).minusMillis(lookAheadTime.getMillis());

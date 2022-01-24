@@ -131,10 +131,10 @@ public class MetadataUpdateSettingsService {
                 RoutingTable.Builder routingTableBuilder = null;
                 Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
 
-                // allow to change any settings to a close index, and only allow dynamic settings to be changed
+                // allow to change any settings to a closed index, and only allow dynamic settings to be changed
                 // on an open index
                 Set<Index> openIndices = new HashSet<>();
-                Set<Index> closeIndices = new HashSet<>();
+                Set<Index> closedIndices = new HashSet<>();
                 final String[] actualIndices = new String[request.indices().length];
                 for (int i = 0; i < request.indices().length; i++) {
                     Index index = request.indices()[i];
@@ -143,7 +143,7 @@ public class MetadataUpdateSettingsService {
                     if (metadata.getState() == IndexMetadata.State.OPEN) {
                         openIndices.add(index);
                     } else {
-                        closeIndices.add(index);
+                        closedIndices.add(index);
                     }
                 }
 
@@ -191,7 +191,7 @@ public class MetadataUpdateSettingsService {
                 );
 
                 updateIndexSettings(
-                    closeIndices,
+                    closedIndices,
                     metadataBuilder,
                     (index, indexSettings) -> indexScopedSettings.updateSettings(
                         closedSettings,
@@ -249,7 +249,7 @@ public class MetadataUpdateSettingsService {
                         final IndexMetadata updatedMetadata = updatedState.metadata().getIndexSafe(index);
                         indicesService.verifyIndexMetadata(currentMetadata, updatedMetadata);
                     }
-                    for (Index index : closeIndices) {
+                    for (Index index : closedIndices) {
                         final IndexMetadata currentMetadata = currentState.metadata().getIndexSafe(index);
                         final IndexMetadata updatedMetadata = updatedState.metadata().getIndexSafe(index);
                         // Verifies that the current index settings can be updated with the updated dynamic settings.

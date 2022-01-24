@@ -83,8 +83,10 @@ public class MetadataUpdateSettingsService {
                     builder.failure(task, e);
                 }
             }
-            // reroute in case things change that require it (like number of replicas)
-            state = allocationService.reroute(state, "settings update");
+            if (state != currentState) {
+                // reroute in case things change that require it (like number of replicas)
+                state = allocationService.reroute(state, "settings update");
+            }
             return builder.build(state);
         };
     }

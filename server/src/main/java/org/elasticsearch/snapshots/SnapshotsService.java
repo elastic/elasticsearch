@@ -241,7 +241,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     public void createSnapshot(final CreateSnapshotRequest request, final ActionListener<Snapshot> listener) {
         final String repositoryName = request.repository();
-        final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
+        final String snapshotName = IndexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
         validate(repositoryName, snapshotName);
         // TODO: create snapshot UUID in CreateSnapshotRequest and make this operation idempotent to cleanly deal with transport layer
         // retries
@@ -455,7 +455,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             listener.onFailure(new RepositoryException(repositoryName, "cannot create snapshot in a readonly repository"));
             return;
         }
-        final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.target());
+        final String snapshotName = IndexNameExpressionResolver.resolveDateMathExpression(request.target());
         validate(repositoryName, snapshotName);
         // TODO: create snapshot UUID in CloneSnapshotRequest and make this operation idempotent to cleanly deal with transport layer
         // retries

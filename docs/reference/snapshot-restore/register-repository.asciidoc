@@ -70,11 +70,17 @@ To manage repositories in {kib}, go to the main menu and click **Stack
 Management** > **Snapshot and Restore** > **Repositories**. To register a
 snapshot repository, click **Register repository**.
 
+You can also register a repository using the <<put-snapshot-repo-api,Create
+snapshot repository API>>.
+
 [discrete]
 [[snapshot-repo-types]]
 === Snapshot repository types
 
-Supported snapshot repository types vary based on your deployment type.
+Supported snapshot repository types vary based on your deployment type:
+
+* <<ess-repo-types>>
+* <<self-managed-repo-types>>
 
 [discrete]
 [[ess-repo-types]]
@@ -103,7 +109,7 @@ clusters].
 [[self-managed-repo-types]]
 ==== Self-managed repository types
 
-If you run the {es} on your own hardware, you can use the following built-in
+If you run {es} on your own hardware, you can use the following built-in
 snapshot repository types:
 
 * <<repository-azure,Azure>>

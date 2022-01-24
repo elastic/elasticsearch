@@ -429,6 +429,7 @@ public final class InternalTestCluster extends TestCluster {
             Integer.MAX_VALUE,
             0,
             TimeUnit.SECONDS,
+            true,
             EsExecutors.daemonThreadFactory("test_" + clusterName),
             new ThreadContext(Settings.EMPTY)
         );

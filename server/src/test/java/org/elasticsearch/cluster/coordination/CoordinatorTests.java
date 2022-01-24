@@ -93,6 +93,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
+@TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
     /**
@@ -1478,6 +1479,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @TestLogging(
+        reason = "test includes assertions about Coordinator and JoinHelper logging",
+        value = "org.elasticsearch.cluster.coordination.Coordinator:WARN,org.elasticsearch.cluster.coordination.JoinHelper:INFO"
+    )
     public void testNodeCannotJoinIfJoinPingValidationFailsOnMaster() throws IllegalAccessException {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 3))) {
             cluster.runRandomly();
@@ -1578,6 +1583,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @TestLogging(
+        reason = "test includes assertions about JoinHelper logging",
+        value = "org.elasticsearch.cluster.coordination.JoinHelper:INFO"
+    )
     public void testCannotJoinClusterWithDifferentUUID() throws IllegalAccessException {
         try (Cluster cluster1 = new Cluster(randomIntBetween(1, 3))) {
             cluster1.runRandomly();
@@ -1854,6 +1863,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
+    @TestLogging(
+        reason = "testing ClusterFormationFailureHelper logging",
+        value = "org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper:WARN"
+    )
     public void testLogsWarningPeriodicallyIfClusterNotFormed() throws IllegalAccessException {
         final long warningDelayMillis;
         final Settings settings;
@@ -1948,7 +1961,11 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    @TestLogging(reason = "testing debug logging of LagDetector", value = "org.elasticsearch.cluster.coordination.LagDetector:DEBUG")
+    @TestLogging(
+        reason = "testing LagDetector and CoordinatorPublication logging",
+        value = "org.elasticsearch.cluster.coordination.LagDetector:DEBUG,"
+            + "org.elasticsearch.cluster.coordination.Coordinator.CoordinatorPublication:INFO"
+    )
     public void testLogsMessagesIfPublicationDelayed() throws IllegalAccessException {
         try (Cluster cluster = new Cluster(between(3, 5))) {
             cluster.runRandomly();

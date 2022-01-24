@@ -339,6 +339,16 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected boolean allowDocValueBasedQueries() {
+            return true;
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return isIndexed() || hasDocValues();
+        }
+
+        @Override
         public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
             throws IOException {
             IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();

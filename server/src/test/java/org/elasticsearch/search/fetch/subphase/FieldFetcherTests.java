@@ -1005,25 +1005,24 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     }
 
     public void testNestedPrefix() throws IOException {
-        String mapping = """
-            {
-              "_doc": {
-                "properties" : {
-                  "foo" : {
-                    "type" : "nested",
-                    "properties" : {
-                      "nested_field" : {
-                        "type" : "keyword"
-                      }
-                    }
-                  },
-                  "foo_bar" : {
-                    "type" : "double"
-                  }
-                }
-              }
-            }
-            """;
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("nested_field")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("foo_bar")
+            .field("type", "double")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
         MapperService mapperService = createMapperService(mapping);
         XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("foo_bar", 3.1).endObject();
         // the field should be returned

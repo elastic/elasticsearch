@@ -146,7 +146,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         context.doc().add(new SortedSetDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
     }
 
-    public static BytesReference buildTsidField(Map<String, BytesReference> dimensionFields) throws IOException {
+    public static BytesReference buildTsidField(SortedMap<String, BytesReference> dimensionFields) throws IOException {
         if (dimensionFields == null || dimensionFields.isEmpty()) {
             throw new IllegalArgumentException("Dimension fields are missing.");
         }

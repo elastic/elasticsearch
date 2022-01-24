@@ -275,11 +275,14 @@ public class MasterServiceTests extends ESTestCase {
                 "testClusterStateTaskListenerThrowingExceptionIsOkay",
                 update,
                 ClusterStateTaskConfig.build(Priority.NORMAL),
-                new ClusterStateTaskExecutor<Object>() {
+                new ClusterStateTaskExecutor<>() {
                     @Override
-                    public ClusterTasksResult<Object> execute(ClusterState currentState, List<Object> tasks) {
+                    public ClusterTasksResult<ClusterStateTaskListener> execute(
+                        ClusterState currentState,
+                        List<ClusterStateTaskListener> tasks
+                    ) {
                         ClusterState newClusterState = ClusterState.builder(currentState).build();
-                        return ClusterTasksResult.builder().successes(tasks).build(newClusterState);
+                        return ClusterTasksResult.<ClusterStateTaskListener>builder().successes(tasks).build(newClusterState);
                     }
 
                     @Override
@@ -287,8 +290,7 @@ public class MasterServiceTests extends ESTestCase {
                         published.set(true);
                         latch.countDown();
                     }
-                },
-                update
+                }
             );
 
             latch.await();
@@ -607,8 +609,7 @@ public class MasterServiceTests extends ESTestCase {
                                     threadName,
                                     update,
                                     ClusterStateTaskConfig.build(randomFrom(Priority.values())),
-                                    executor,
-                                    update
+                                    executor
                                 );
                             } else {
                                 masterService.submitStateUpdateTasks(
@@ -685,8 +686,7 @@ public class MasterServiceTests extends ESTestCase {
                 (currentState, tasks) -> {
                     ClusterState newClusterState = ClusterState.builder(currentState).build();
                     return ClusterTasksResult.<ClusterStateTaskListener>builder().successes(tasks).build(newClusterState);
-                },
-                update
+                }
             );
 
             latch.await();

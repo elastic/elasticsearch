@@ -426,9 +426,8 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Submits a cluster state update task; unlike {@link #submitStateUpdateTask(String, Object, ClusterStateTaskConfig,
-     * ClusterStateTaskExecutor, ClusterStateTaskListener)}, submitted updates will not be batched.
-     *  @param source     the source of the cluster state update task
+     * Submits a cluster state update task; unlike {@link #submitStateUpdateTask(String, ClusterStateTaskListener, ClusterStateTaskConfig, ClusterStateTaskExecutor)}, submitted updates will not be batched.
+     * @param source     the source of the cluster state update task
      * @param updateTask the full context for the cluster state update
      * @param executor
      *
@@ -438,7 +437,7 @@ public class MasterService extends AbstractLifecycleComponent {
         T updateTask,
         ClusterStateTaskExecutor<T> executor
     ) {
-        submitStateUpdateTask(source, updateTask, updateTask, executor, updateTask);
+        submitStateUpdateTask(source, updateTask, updateTask, executor);
     }
 
     /**
@@ -450,24 +449,21 @@ public class MasterService extends AbstractLifecycleComponent {
      * tasks will all be executed on the executor in a single batch
      *
      * @param source   the source of the cluster state update task
-     * @param task     the state needed for the cluster state update task
+     * @param task     the state and the callback needed for the cluster state update task
      * @param config   the cluster state update task configuration
      * @param executor the cluster state update task executor; tasks
      *                 that share the same executor will be executed
      *                 batches on this executor
-     * @param listener callback after the cluster state update task
-     *                 completes
      * @param <T>      the type of the cluster state update task state
      *
      */
-    public <T> void submitStateUpdateTask(
+    public <T extends ClusterStateTaskListener> void submitStateUpdateTask(
         String source,
         T task,
         ClusterStateTaskConfig config,
-        ClusterStateTaskExecutor<T> executor,
-        ClusterStateTaskListener listener
+        ClusterStateTaskExecutor<T> executor
     ) {
-        submitStateUpdateTasks(source, Collections.singletonMap(task, listener), config, executor);
+        submitStateUpdateTasks(source, Collections.singletonMap(task, task), config, executor);
     }
 
     /**

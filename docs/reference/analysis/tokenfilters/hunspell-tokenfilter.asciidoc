@@ -3,12 +3,11 @@
 
 Basic support for hunspell stemming. Hunspell dictionaries will be
 picked up from a dedicated hunspell directory on the filesystem
-(`<path.conf>/hunspell`). Each dictionary is expected to
+(`<$ES_PATH_CON>/hunspell`). Each dictionary is expected to
 have its own directory named after its associated locale (language).
 This dictionary directory is expected to hold a single `*.aff` and
 one or more `*.dic` files (all of which will automatically be picked up).
-For example, assuming the default hunspell location is used, the
-following directory layout will define the `en_US` dictionary:
+For example, the following directory layout will define the `en_US` dictionary:
 
 [source,txt]
 --------------------------------------------------
@@ -72,9 +71,7 @@ The hunspell token filter accepts four options:
     `language` are used instead - so one of these has to be set.
 
 `dictionary`::
-    The name of a dictionary. The path to your hunspell
-    dictionaries should be configured via
-    `indices.analysis.hunspell.dictionary.location` before.
+    The name of a dictionary.
 
 `dedup`::
     If only unique terms should be returned, this needs to be
@@ -91,7 +88,7 @@ the stemming is determined by the quality of the dictionary.
 [float]
 ==== Dictionary loading
 
-By default, the default Hunspell directory (`config/hunspell/`) is checked
+By default, the Hunspell directory (`<$ES_PATH_CON>/hunspell/`) is checked
 for dictionaries when the node starts up, and any dictionaries are
 automatically loaded.
 

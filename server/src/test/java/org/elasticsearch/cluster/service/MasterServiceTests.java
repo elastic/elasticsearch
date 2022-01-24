@@ -265,7 +265,7 @@ public class MasterServiceTests extends ESTestCase {
             ClusterStateTaskListener update = new ClusterStateTaskListener() {
                 @Override
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    throw new IllegalStateException();
+                    throw new RuntimeException("testing exception handling");
                 }
 
                 @Override
@@ -480,7 +480,7 @@ public class MasterServiceTests extends ESTestCase {
 
             public void execute() {
                 if (executed.compareAndSet(false, true) == false) {
-                    throw new AssertionError("Task [] should only be executed once");
+                    throw new AssertionError("Task [" + id + "] should only be executed once");
                 } else {
                     executedTasks.incrementAndGet();
                 }
@@ -535,6 +535,7 @@ public class MasterServiceTests extends ESTestCase {
 
             @Override
             public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
+                int totalCount = 0;
                 for (Set<Task> group : assignments) {
                     long count = tasks.stream().filter(group::contains).count();
                     assertThat(
@@ -542,7 +543,9 @@ public class MasterServiceTests extends ESTestCase {
                         count,
                         anyOf(equalTo(0L), equalTo((long) group.size()))
                     );
+                    totalCount += count;
                 }
+                assertThat("All tasks should belong to this executor", totalCount, equalTo(tasks.size()));
                 tasks.forEach(Task::execute);
                 executed.addAndGet(tasks.size());
                 ClusterState maybeUpdatedClusterState = currentState;
@@ -550,7 +553,7 @@ public class MasterServiceTests extends ESTestCase {
                     maybeUpdatedClusterState = ClusterState.builder(currentState).build();
                     batches.incrementAndGet();
                     assertThat(
-                        "All cluster state modifications should be executed on a single thread at the moment",
+                        "All cluster state modifications should be executed on a single thread",
                         semaphore.tryAcquire(),
                         equalTo(true)
                     );

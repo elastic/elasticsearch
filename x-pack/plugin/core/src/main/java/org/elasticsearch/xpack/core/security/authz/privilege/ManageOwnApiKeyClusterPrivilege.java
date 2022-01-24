@@ -59,8 +59,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         protected boolean extendedCheck(String action, TransportRequest request, Authentication authentication) {
             if (request instanceof CreateApiKeyRequest) {
                 return true;
-            } else if (request instanceof GetApiKeyRequest) {
-                final GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
+            } else if (request instanceof final GetApiKeyRequest getApiKeyRequest) {
                 return checkIfUserIsOwnerOfApiKeys(
                     authentication,
                     getApiKeyRequest.getApiKeyId(),
@@ -68,8 +67,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                     getApiKeyRequest.getRealmName(),
                     getApiKeyRequest.ownedByAuthenticatedUser()
                 );
-            } else if (request instanceof InvalidateApiKeyRequest) {
-                final InvalidateApiKeyRequest invalidateApiKeyRequest = (InvalidateApiKeyRequest) request;
+            } else if (request instanceof final InvalidateApiKeyRequest invalidateApiKeyRequest) {
                 final String[] apiKeyIds = invalidateApiKeyRequest.getIds();
                 if (apiKeyIds == null) {
                     return checkIfUserIsOwnerOfApiKeys(
@@ -91,8 +89,7 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                             )
                         );
                 }
-            } else if (request instanceof QueryApiKeyRequest) {
-                final QueryApiKeyRequest queryApiKeyRequest = (QueryApiKeyRequest) request;
+            } else if (request instanceof final QueryApiKeyRequest queryApiKeyRequest) {
                 return queryApiKeyRequest.isFilterForCurrentUser();
             }
             throw new IllegalArgumentException(

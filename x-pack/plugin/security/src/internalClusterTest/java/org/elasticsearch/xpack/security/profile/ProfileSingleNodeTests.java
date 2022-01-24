@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.profile;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -24,6 +25,9 @@ import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileRequest;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
+import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
@@ -32,6 +36,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -281,6 +286,66 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
             DocumentMissingException.class,
             () -> client().execute(UpdateProfileDataAction.INSTANCE, updateProfileDataRequest3).actionGet()
         );
+    }
+
+    public void testSearchProfiles() {
+        final SecureString nativeRacUserPassword = new SecureString("super_secret_password".toCharArray());
+        final String nativeRacUserPasswordHash = new String(getFastStoredHashAlgoForTests().hash(nativeRacUserPassword));
+        final Map<String, String> users = Map.of(
+            "user_foo",
+            "Very Curious User Foo",
+            "user_bar",
+            "Super Curious Admin Bar",
+            "user_baz",
+            "Very Anxious User Baz",
+            "user_qux",
+            "Super Anxious Admin Qux"
+        );
+        users.forEach((key, value) -> {
+            final PutUserRequest putUserRequest1 = new PutUserRequest();
+            putUserRequest1.username(key);
+            putUserRequest1.fullName(value);
+            putUserRequest1.roles("rac_role");
+            putUserRequest1.passwordHash(nativeRacUserPasswordHash.toCharArray());
+            assertThat(client().execute(PutUserAction.INSTANCE, putUserRequest1).actionGet().created(), is(true));
+            doActivateProfile(key, nativeRacUserPassword);
+        });
+
+        final SearchProfilesResponse.ProfileHit[] profiles1 = doSearch(null);
+        assertThat(extraUsernames(profiles1), equalTo(users.keySet()));
+
+        final SearchProfilesResponse.ProfileHit[] profiles2 = doSearch(randomFrom("super admin", "admin super"));
+        assertThat(extraUsernames(profiles2), equalTo(Set.of("user_bar", "user_qux")));
+
+        // Prefix match on full name
+        final SearchProfilesResponse.ProfileHit[] profiles3 = doSearch("ver");
+        assertThat(extraUsernames(profiles3), equalTo(Set.of("user_foo", "user_baz")));
+
+        // Prefix match on the username
+        final SearchProfilesResponse.ProfileHit[] profiles4 = doSearch("user");
+        assertThat(extraUsernames(profiles4), equalTo(users.keySet()));
+        // Documents scored higher are those with matches in more fields
+        assertThat(extraUsernames(Arrays.copyOfRange(profiles4, 0, 2)), equalTo(Set.of("user_foo", "user_baz")));
+
+        // Match of different terms on different fields
+        final SearchProfilesResponse.ProfileHit[] profiles5 = doSearch(randomFrom("admin very", "very admin"));
+        assertThat(extraUsernames(profiles5), equalTo(users.keySet()));
+    }
+
+    private SearchProfilesResponse.ProfileHit[] doSearch(String query) {
+        final SearchProfilesRequest searchProfilesRequest = new SearchProfilesRequest(null, query, 10);
+        final SearchProfilesResponse searchProfilesResponse =
+            client().execute(SearchProfilesAction.INSTANCE, searchProfilesRequest).actionGet();
+        assertThat(searchProfilesResponse.getTotalHits().relation, is(TotalHits.Relation.EQUAL_TO));
+        return searchProfilesResponse.getProfileHits();
+    }
+
+    private Set<String> extraUsernames(SearchProfilesResponse.ProfileHit[] profileHits) {
+        return Arrays.stream(profileHits)
+            .map(SearchProfilesResponse.ProfileHit::profile)
+            .map(Profile::user)
+            .map(Profile.ProfileUser::username)
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     private Profile doActivateProfile(String username, SecureString password) {

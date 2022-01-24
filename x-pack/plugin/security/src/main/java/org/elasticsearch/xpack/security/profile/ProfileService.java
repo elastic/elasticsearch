@@ -28,13 +28,17 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -43,6 +47,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
+import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
@@ -157,6 +163,69 @@ public class ProfileService {
             buildUpdateRequest(request.getUid(), builder, request.getRefreshPolicy(), request.getIfPrimaryTerm(), request.getIfSeqNo()),
             listener.map(updateResponse -> AcknowledgedResponse.TRUE)
         );
+    }
+
+    public void searchProfile(SearchProfilesRequest request, ActionListener<SearchProfilesResponse> listener) {
+        tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
+            final BoolQueryBuilder query = QueryBuilders.boolQuery().must(QueryBuilders.termQuery("user_profile.enabled", true));
+            if (Strings.hasText(request.getQuery())) {
+                query.must(
+                    QueryBuilders.multiMatchQuery(
+                        request.getQuery(),
+                        "user_profile.user.username",
+                        "user_profile.user.username._2gram",
+                        "user_profile.user.username._3gram",
+                        "user_profile.user.full_name",
+                        "user_profile.user.full_name._2gram",
+                        "user_profile.user.full_name._3gram",
+                        "user_profile.user.display_name",
+                        "user_profile.user.display_name._2gram",
+                        "user_profile.user.display_name._3gram"
+                    ).type(MultiMatchQueryBuilder.Type.BOOL_PREFIX)
+                );
+            }
+            final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS)
+                .setQuery(query)
+                .setSize(request.getSize())
+                .addSort("_score", SortOrder.DESC)
+                .addSort("user_profile.uid", SortOrder.ASC)
+                .request();
+
+            frozenProfileIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    SearchAction.INSTANCE,
+                    searchRequest,
+                    ActionListener.wrap(searchResponse -> {
+                        final SearchHits searchHits = searchResponse.getHits();
+                        final SearchHit[] hits = searchHits.getHits();
+                        final SearchProfilesResponse.ProfileHit[] profileHits;
+                        if (hits.length == 0) {
+                            profileHits = new SearchProfilesResponse.ProfileHit[0];
+                        } else {
+                            profileHits = new SearchProfilesResponse.ProfileHit[hits.length];
+                            for (int i = 0; i < hits.length; i++) {
+                                final SearchHit hit = hits[i];
+                                final VersionedDocument versionedDocument = new VersionedDocument(
+                                    buildProfileDocument(hit.getSourceRef()),
+                                    hit.getPrimaryTerm(),
+                                    hit.getSeqNo()
+                                );
+                                profileHits[i] = new SearchProfilesResponse.ProfileHit(
+                                    versionedDocument.toProfile(null, request.getDataKeys()),
+                                    hit.getScore()
+                                );
+                            }
+                        }
+                        listener.onResponse(
+                            new SearchProfilesResponse(profileHits, searchResponse.getTook().millis(), searchHits.getTotalHits())
+                        );
+                    }, listener::onFailure)
+                )
+            );
+        });
     }
 
     private void getVersionedDocument(String uid, ActionListener<VersionedDocument> listener) {

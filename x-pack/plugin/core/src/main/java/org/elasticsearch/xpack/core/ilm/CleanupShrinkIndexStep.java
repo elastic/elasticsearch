@@ -58,7 +58,7 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
         }
 
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
-        final String shrinkIndexName = lifecycleState.getShrinkIndexName();
+        final String shrinkIndexName = lifecycleState.shrinkIndexName();
         // if the shrink index was not generated there is nothing to delete so we move on
         if (Strings.hasText(shrinkIndexName) == false) {
             listener.onResponse(null);

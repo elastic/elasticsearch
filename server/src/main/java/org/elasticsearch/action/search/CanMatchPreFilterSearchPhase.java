@@ -162,7 +162,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
                 searchShardIterator.getOriginalIndices().indicesOptions(),
                 Collections.emptyList(),
                 getNumShards(),
-                timeProvider.getAbsoluteStartMillis(),
+                timeProvider.absoluteStartMillis(),
                 searchShardIterator.getClusterAlias()
             );
             final ShardSearchRequest request = canMatchNodeRequest.createShardSearchRequest(buildShardLevelRequest(searchShardIterator));
@@ -350,30 +350,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         }
     }
 
-    private static class SendingTarget {
-        @Nullable
-        private final String clusterAlias;
-        @Nullable
-        private final String nodeId;
-
-        SendingTarget(@Nullable String clusterAlias, @Nullable String nodeId) {
-            this.clusterAlias = clusterAlias;
-            this.nodeId = nodeId;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            SendingTarget that = (SendingTarget) o;
-            return Objects.equals(clusterAlias, that.clusterAlias) && Objects.equals(nodeId, that.nodeId);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(clusterAlias, nodeId);
-        }
-    }
+    private record SendingTarget(@Nullable String clusterAlias, @Nullable String nodeId) {}
 
     private CanMatchNodeRequest createCanMatchRequest(Map.Entry<SendingTarget, List<SearchShardIterator>> entry) {
         final SearchShardIterator first = entry.getValue().get(0);
@@ -391,7 +368,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             first.getOriginalIndices().indicesOptions(),
             shardLevelRequests,
             getNumShards(),
-            timeProvider.getAbsoluteStartMillis(),
+            timeProvider.absoluteStartMillis(),
             first.getClusterAlias()
         );
     }

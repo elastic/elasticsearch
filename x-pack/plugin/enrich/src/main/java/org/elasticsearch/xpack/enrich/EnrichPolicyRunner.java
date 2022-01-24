@@ -514,7 +514,7 @@ public class EnrichPolicyRunner implements Runnable {
                     }
                     Map<Integer, IndexShardSegments> indexShards = indexSegments.getShards();
                     assert indexShards.size() == 1 : "Expected enrich index to contain only one shard";
-                    ShardSegments[] shardSegments = indexShards.get(0).getShards();
+                    ShardSegments[] shardSegments = indexShards.get(0).shards();
                     assert shardSegments.length == 1 : "Expected enrich index to contain no replicas at this point";
                     ShardSegments primarySegments = shardSegments[0];
                     if (primarySegments.getSegments().size() > 1) {

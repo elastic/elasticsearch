@@ -88,7 +88,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
     ) {
         return listener -> {
             TaskInfo taskInfo = captureResponse(TaskInfo.class, listener);
-            assertEquals(sliceStatuses, ((BulkByScrollTask.Status) taskInfo.getStatus()).getSliceStatuses());
+            assertEquals(sliceStatuses, ((BulkByScrollTask.Status) taskInfo.status()).getSliceStatuses());
         };
     }
 

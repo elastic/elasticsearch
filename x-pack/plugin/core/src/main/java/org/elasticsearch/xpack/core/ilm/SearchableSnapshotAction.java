@@ -217,7 +217,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
                 LifecycleExecutionState lifecycleExecutionState = indexMetadata.getLifecycleExecutionState();
-                if (lifecycleExecutionState.getSnapshotName() == null) {
+                if (lifecycleExecutionState.snapshotName() == null) {
                     // No name exists, so it must be generated
                     logger.trace(
                         "no snapshot name for index [{}] in policy [{}] exists, so one will be generated",
@@ -227,7 +227,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                     return false;
                 }
 
-                if (this.snapshotRepository.equals(lifecycleExecutionState.getSnapshotRepository()) == false) {
+                if (this.snapshotRepository.equals(lifecycleExecutionState.snapshotRepository()) == false) {
                     // A different repository is being used
                     // TODO: allow this behavior instead of throwing an exception
                     throw new IllegalArgumentException("searchable snapshot indices may be converted only within the same repository");
@@ -238,9 +238,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
                 logger.debug(
                     "an existing snapshot [{}] in repository [{}] (index name: [{}]) "
                         + "will be used for mounting [{}] as a searchable snapshot",
-                    lifecycleExecutionState.getSnapshotName(),
-                    lifecycleExecutionState.getSnapshotRepository(),
-                    lifecycleExecutionState.getSnapshotIndexName(),
+                    lifecycleExecutionState.snapshotName(),
+                    lifecycleExecutionState.snapshotRepository(),
+                    lifecycleExecutionState.snapshotIndexName(),
                     index.getName()
                 );
                 return true;

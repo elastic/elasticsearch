@@ -446,7 +446,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             ListTasksResponse response = client.execute(ListTasksAction.INSTANCE, request).get();
             List<String> activeTasks = response.getTasks()
                 .stream()
-                .filter(t -> t.getAction().startsWith(ListTasksAction.NAME) == false)
+                .filter(t -> t.action().startsWith(ListTasksAction.NAME) == false)
                 .map(TaskInfo::toString)
                 .collect(Collectors.toList());
             assertThat(activeTasks, empty());

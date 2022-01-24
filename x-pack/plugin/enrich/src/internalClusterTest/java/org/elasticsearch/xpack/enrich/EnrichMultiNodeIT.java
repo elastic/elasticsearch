@@ -303,8 +303,8 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
         // Best effort, sometimes the enrich policy task will not be visible yet or will have already finished
         if (tasks.isEmpty() == false) {
             try {
-                final GetTaskResponse getTaskResponse = client().admin().cluster().prepareGetTask(tasks.get(0).getTaskId()).get();
-                assertEquals(getTaskResponse.getTask().getTask().getAction(), EnrichPolicyExecutor.TASK_ACTION);
+                final GetTaskResponse getTaskResponse = client().admin().cluster().prepareGetTask(tasks.get(0).taskId()).get();
+                assertEquals(getTaskResponse.getTask().getTask().action(), EnrichPolicyExecutor.TASK_ACTION);
             } catch (ResourceNotFoundException e) {
                 // ignored, could be the task has already finished
             }

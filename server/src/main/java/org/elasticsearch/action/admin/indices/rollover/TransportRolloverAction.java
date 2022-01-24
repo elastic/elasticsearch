@@ -140,8 +140,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     rolloverRequest.getNewIndexName(),
                     rolloverRequest.getCreateIndexRequest()
                 );
-                final String trialSourceIndexName = trialRolloverNames.sourceName;
-                final String trialRolloverIndexName = trialRolloverNames.rolloverName;
+                final String trialSourceIndexName = trialRolloverNames.sourceName();
+                final String trialRolloverIndexName = trialRolloverNames.rolloverName();
 
                 rolloverService.validateIndexName(oldState, trialRolloverIndexName);
 
@@ -195,7 +195,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         if (stats != null) {
             return conditions.stream()
                 .map(condition -> condition.evaluate(stats))
-                .collect(Collectors.toMap(result -> result.condition.toString(), result -> result.matched));
+                .collect(Collectors.toMap(result -> result.condition().toString(), Condition.Result::matched));
         } else {
             // no conditions matched
             return conditions.stream().collect(Collectors.toMap(Condition::toString, cond -> false));
@@ -266,7 +266,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest()
             );
-            final String sourceIndexName = rolloverNames.sourceName;
+            final String sourceIndexName = rolloverNames.sourceName();
 
             // Re-evaluate the conditions, now with our final source index name
             final Map<String, Boolean> postConditionResults = evaluateConditions(
@@ -300,11 +300,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 // even though we're single threaded, it's possible for the
                 // rollover names generated before the actual rollover to be
                 // different due to things like date resolution
-                sourceIndex.set(rolloverResult.sourceIndexName);
-                rolloverIndex.set(rolloverResult.rolloverIndexName);
+                sourceIndex.set(rolloverResult.sourceIndexName());
+                rolloverIndex.set(rolloverResult.rolloverIndexName());
 
                 // Return the new rollover cluster state, which includes the changes that create the new index
-                return rolloverResult.clusterState;
+                return rolloverResult.clusterState();
             } else {
                 // Upon re-evaluation of the conditions, none were met, so
                 // therefore do not perform a rollover, returning the current

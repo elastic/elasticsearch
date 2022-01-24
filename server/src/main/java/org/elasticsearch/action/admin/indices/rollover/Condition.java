@@ -70,30 +70,10 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
     /**
      * Holder for index stats used to evaluate conditions
      */
-    public static class Stats {
-        public final long numDocs;
-        public final long indexCreated;
-        public final ByteSizeValue indexSize;
-        public final ByteSizeValue maxPrimaryShardSize;
-
-        public Stats(long numDocs, long indexCreated, ByteSizeValue indexSize, ByteSizeValue maxPrimaryShardSize) {
-            this.numDocs = numDocs;
-            this.indexCreated = indexCreated;
-            this.indexSize = indexSize;
-            this.maxPrimaryShardSize = maxPrimaryShardSize;
-        }
-    }
+    public record Stats(long numDocs, long indexCreated, ByteSizeValue indexSize, ByteSizeValue maxPrimaryShardSize) {}
 
     /**
      * Holder for evaluated condition result
      */
-    public static class Result {
-        public final Condition<?> condition;
-        public final boolean matched;
-
-        protected Result(Condition<?> condition, boolean matched) {
-            this.condition = condition;
-            this.matched = matched;
-        }
-    }
+    public record Result(Condition<?> condition, boolean matched) {}
 }

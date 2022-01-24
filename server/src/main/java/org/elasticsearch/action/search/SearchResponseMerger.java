@@ -398,31 +398,9 @@ final class SearchResponseMerger {
      * make their ShardIds different, which is not the case if the index is really the same one from the same cluster, in which case we
      * need to look at the cluster alias and make sure to assign a different shardIndex based on that.
      */
-    private static final class ShardIdAndClusterAlias implements Comparable<ShardIdAndClusterAlias> {
-        private final ShardId shardId;
-        private final String clusterAlias;
-
-        ShardIdAndClusterAlias(ShardId shardId, String clusterAlias) {
-            this.shardId = shardId;
+    private record ShardIdAndClusterAlias(ShardId shardId, String clusterAlias) implements Comparable<ShardIdAndClusterAlias> {
+        private ShardIdAndClusterAlias {
             assert clusterAlias != null : "clusterAlias is null";
-            this.clusterAlias = clusterAlias;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            ShardIdAndClusterAlias that = (ShardIdAndClusterAlias) o;
-            return shardId.equals(that.shardId) && clusterAlias.equals(that.clusterAlias);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(shardId, clusterAlias);
         }
 
         @Override

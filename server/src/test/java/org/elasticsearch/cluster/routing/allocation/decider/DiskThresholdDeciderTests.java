@@ -774,7 +774,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             AllocationCommand moveAllocationCommand = new MoveAllocationCommand("test", 0, "node2", "node3");
             AllocationCommands cmds = new AllocationCommands(moveAllocationCommand);
 
-            clusterState = strategy.reroute(clusterState, cmds, false, false).getClusterState();
+            clusterState = strategy.reroute(clusterState, cmds, false, false).clusterState();
             logShardStates(clusterState);
         }
 
@@ -825,7 +825,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             AllocationCommands cmds = new AllocationCommands(moveAllocationCommand);
 
             clusterState = startInitializingShardsAndReroute(strategy, clusterState);
-            clusterState = strategy.reroute(clusterState, cmds, false, false).getClusterState();
+            clusterState = strategy.reroute(clusterState, cmds, false, false).clusterState();
             logShardStates(clusterState);
 
             clusterInfoReference.set(overfullClusterInfo);

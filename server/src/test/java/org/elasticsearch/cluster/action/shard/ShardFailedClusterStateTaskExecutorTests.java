@@ -195,7 +195,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                 null,
                 false
             );
-            ClusterState appliedState = executor.execute(clusterState, Collections.singletonList(failShardOnly)).resultingState;
+            ClusterState appliedState = executor.execute(clusterState, Collections.singletonList(failShardOnly)).resultingState();
             Set<String> newInSync = appliedState.metadata().index(INDEX).inSyncAllocationIds(0);
             assertThat(newInSync, equalTo(oldInSync));
         }
@@ -209,7 +209,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                 null,
                 true
             );
-            ClusterState appliedState = executor.execute(clusterState, Collections.singletonList(failAndMarkAsStale)).resultingState;
+            ClusterState appliedState = executor.execute(clusterState, Collections.singletonList(failAndMarkAsStale)).resultingState();
             Set<String> newInSync = appliedState.metadata().index(INDEX).inSyncAllocationIds(0);
             assertThat(Sets.difference(oldInSync, newInSync), contains(failedAllocationId));
         }
@@ -316,14 +316,14 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         boolean clusterStateChanged
     ) {
         // there should be as many task results as tasks
-        assertEquals(taskResultList.size(), result.executionResults.size());
+        assertEquals(taskResultList.size(), result.executionResults().size());
 
         for (Tuple<FailedShardEntry, ClusterStateTaskExecutor.TaskResult> entry : taskResultList) {
             // every task should have a corresponding task result
-            assertTrue(result.executionResults.containsKey(entry.v1()));
+            assertTrue(result.executionResults().containsKey(entry.v1()));
 
             // the task results are as expected
-            assertEquals(entry.v1().toString(), entry.v2().isSuccess(), result.executionResults.get(entry.v1()).isSuccess());
+            assertEquals(entry.v1().toString(), entry.v2().isSuccess(), result.executionResults().get(entry.v1()).isSuccess());
         }
 
         List<ShardRouting> shards = clusterState.getRoutingTable().allShards();
@@ -341,16 +341,16 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                 }
             } else {
                 // check we saw the expected failure
-                ClusterStateTaskExecutor.TaskResult actualResult = result.executionResults.get(entry.v1());
+                ClusterStateTaskExecutor.TaskResult actualResult = result.executionResults().get(entry.v1());
                 assertThat(actualResult.getFailure(), instanceOf(entry.v2().getFailure().getClass()));
                 assertThat(actualResult.getFailure().getMessage(), equalTo(entry.v2().getFailure().getMessage()));
             }
         }
 
         if (clusterStateChanged) {
-            assertNotSame(clusterState, result.resultingState);
+            assertNotSame(clusterState, result.resultingState());
         } else {
-            assertSame(clusterState, result.resultingState);
+            assertSame(clusterState, result.resultingState());
         }
     }
 

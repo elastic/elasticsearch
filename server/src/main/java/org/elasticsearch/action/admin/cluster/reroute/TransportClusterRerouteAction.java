@@ -216,12 +216,12 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                 request.explain(),
                 request.isRetryFailed()
             );
-            clusterStateToSend = commandsResult.getClusterState();
+            clusterStateToSend = commandsResult.clusterState();
             explanations = commandsResult.explanations();
             if (request.dryRun()) {
                 return currentState;
             }
-            return commandsResult.getClusterState();
+            return commandsResult.clusterState();
         }
     }
 }

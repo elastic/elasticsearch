@@ -306,10 +306,10 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
             // We should have the information about the cancelled task in the cancel operation response
             assertEquals(1, response.getTasks().size());
-            assertEquals(mainTask.getId(), response.getTasks().get(0).getId());
+            assertEquals(mainTask.getId(), response.getTasks().get(0).id());
             // Verify that all cancelled tasks reported that they support cancellation
             for (TaskInfo taskInfo : response.getTasks()) {
-                assertTrue(taskInfo.isCancellable());
+                assertTrue(taskInfo.cancellable());
             }
         }
 
@@ -385,7 +385,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         final TaskManager taskManager = testNodes[0].transportService.getTaskManager();
         CancellableNodesRequest parentRequest = new CancellableNodesRequest("parent");
         final Task parentTask = taskManager.register("test", "test", parentRequest);
-        final TaskId parentTaskId = parentTask.taskInfo(testNodes[0].getNodeId(), false).getTaskId();
+        final TaskId parentTaskId = parentTask.taskInfo(testNodes[0].getNodeId(), false).taskId();
         taskManager.setBan(
             new TaskId(testNodes[0].getNodeId(), parentTask.getId()),
             "test",

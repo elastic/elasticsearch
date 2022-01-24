@@ -69,7 +69,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
 
         String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-        final String snapshotRepository = lifecycleState.getSnapshotRepository();
+        final String snapshotRepository = lifecycleState.snapshotRepository();
         if (Strings.hasText(snapshotRepository) == false) {
             listener.onFailure(
                 new IllegalStateException(
@@ -79,7 +79,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             return;
         }
 
-        final String snapshotName = lifecycleState.getSnapshotName();
+        final String snapshotName = lifecycleState.snapshotName();
         if (Strings.hasText(snapshotName) == false) {
             listener.onFailure(
                 new IllegalStateException("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]")
@@ -99,7 +99,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             return;
         }
 
-        final String snapshotIndexName = lifecycleState.getSnapshotIndexName();
+        final String snapshotIndexName = lifecycleState.snapshotIndexName();
         if (snapshotIndexName == null) {
             // This index had its searchable snapshot created prior to a version where we captured
             // the original index name, so make our best guess at the name

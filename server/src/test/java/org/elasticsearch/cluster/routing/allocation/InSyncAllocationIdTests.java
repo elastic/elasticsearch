@@ -116,7 +116,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             new AllocationCommands(new AllocateEmptyPrimaryAllocationCommand("test", 0, "node1", true)),
             false,
             false
-        ).getClusterState();
+        ).clusterState();
 
         // check that in-sync allocation ids are reset by forcing an empty primary
         assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(0));
@@ -167,7 +167,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             Arrays.asList(
                 new FailedShardEntry(shardRoutingTable.shardId(), replicaShard.allocationId().getId(), primaryTerm, "dummy", null, true)
             )
-        ).resultingState;
+        ).resultingState();
 
         assertThat(clusterState.metadata().index("test").inSyncAllocationIds(0).size(), equalTo(1));
     }
@@ -196,7 +196,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         Collections.shuffle(failureEntries, random());
         logger.info("Failing {}", failureEntries);
 
-        clusterState = failedClusterStateTaskExecutor.execute(clusterState, failureEntries).resultingState;
+        clusterState = failedClusterStateTaskExecutor.execute(clusterState, failureEntries).resultingState();
 
         assertThat(
             clusterState.metadata().index("test").inSyncAllocationIds(0),
@@ -204,7 +204,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         );
 
         // resend shard failures to check if they are ignored
-        clusterState = failedClusterStateTaskExecutor.execute(clusterState, failureEntries).resultingState;
+        clusterState = failedClusterStateTaskExecutor.execute(clusterState, failureEntries).resultingState();
 
         assertThat(
             clusterState.metadata().index("test").inSyncAllocationIds(0),
@@ -341,7 +341,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             Collections.singletonList(
                 new FailedShardEntry(shardRoutingTable.shardId(), primaryShard.allocationId().getId(), 0L, "dummy", null, true)
             )
-        ).resultingState;
+        ).resultingState();
 
         assertThat(clusterState.routingTable().index("test").shard(0).assignedShards().size(), equalTo(0));
         // in-sync allocation ids should not be updated

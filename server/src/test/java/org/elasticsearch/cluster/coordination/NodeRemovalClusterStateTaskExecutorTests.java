@@ -53,7 +53,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
             clusterState,
             tasks
         );
-        assertThat(result.resultingState, equalTo(clusterState));
+        assertThat(result.resultingState(), equalTo(clusterState));
     }
 
     public void testRerouteAfterRemovingNodes() throws Exception {
@@ -94,7 +94,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         verify(allocationService).disassociateDeadNodes(eq(remainingNodesClusterState.get()), eq(true), any(String.class));
 
         for (final NodeRemovalClusterStateTaskExecutor.Task task : tasks) {
-            assertNull(result.resultingState.nodes().get(task.node().getId()));
+            assertNull(result.resultingState().nodes().get(task.node().getId()));
         }
     }
 

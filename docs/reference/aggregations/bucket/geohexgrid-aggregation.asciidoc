@@ -17,8 +17,8 @@ cover only a small area.
 * Low precision keys have a smaller range for x and y, and represent tiles that
 each cover a large area.
 
-See https://h3geo.org/docs/core-library/restable[the table od cell areas for H3]
-resolutions on how precision (zoom) correlates to size on the ground.
+See https://h3geo.org/docs/core-library/restable[the table of cell areas for H3
+resolutions] on how precision (zoom) correlates to size on the ground.
 Precision for this aggregation can be between 0 and 15, inclusive.
 
 WARNING: The highest-precision geohex for precision 15 produces cells that cover

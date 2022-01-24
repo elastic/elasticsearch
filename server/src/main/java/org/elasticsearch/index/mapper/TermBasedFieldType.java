@@ -8,7 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.sandbox.search.DocValuesTermsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -35,6 +37,10 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
         super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
     }
 
+    protected boolean allowDocValueBasedQueries() {
+        return false;
+    }
+
     /** Returns the indexed value used to construct search "values".
      *  This method is used for the default implementations of most
      *  query factory methods such as {@link #termQuery}. */
@@ -55,15 +61,31 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
-        failIfNotIndexed();
-        return new TermQuery(new Term(name(), indexedValueForSearch(value)));
+        if (allowDocValueBasedQueries()) {
+            failIfNotIndexedNorDocValuesFallback(context);
+        } else {
+            failIfNotIndexed();
+        }
+        if (isIndexed()) {
+            return new TermQuery(new Term(name(), indexedValueForSearch(value)));
+        } else {
+            return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+        }
     }
 
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-        failIfNotIndexed();
+        if (allowDocValueBasedQueries()) {
+            failIfNotIndexedNorDocValuesFallback(context);
+        } else {
+            failIfNotIndexed();
+        }
         BytesRef[] bytesRefs = values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new);
-        return new TermInSetQuery(name(), bytesRefs);
+        if (isIndexed()) {
+            return new TermInSetQuery(name(), bytesRefs);
+        } else {
+            return new DocValuesTermsQuery(name(), bytesRefs);
+        }
     }
 
 }

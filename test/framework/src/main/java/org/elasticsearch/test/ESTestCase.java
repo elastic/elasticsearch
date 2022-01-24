@@ -1727,4 +1727,17 @@ public abstract class ESTestCase extends LuceneTestCase {
             return String.format(Locale.ROOT, "%s: %s", level.name(), message);
         }
     }
+
+    /**
+     * Call method at the beginning of a test to disable its execution
+     * until a given Lucene version is released and integrated into Elasticsearch
+     * @param luceneVersionWithFix the lucene release to wait for
+     * @param message an additional message or link with information on the fix
+     */
+    protected void skipTestWaitingForLuceneFix(org.apache.lucene.util.Version luceneVersionWithFix, String message) {
+        final boolean currentVersionHasFix = Version.CURRENT.luceneVersion.onOrAfter(luceneVersionWithFix);
+        assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
+        fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
+    }
+
 }

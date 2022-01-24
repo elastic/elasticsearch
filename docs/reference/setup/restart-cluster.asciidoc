@@ -20,7 +20,7 @@ time, so the service remains uninterrupted.
 include::{es-repo-dir}/upgrade/disable-shard-alloc.asciidoc[]
 --
 // end::disable_shard_alloc[]
-// tag::stop_indexing[]
+
 . *Stop indexing and perform a flush.*
 +
 --
@@ -31,7 +31,7 @@ Performing a <<indices-flush, flush>> speeds up shard recovery.
 POST /_flush
 --------------------------------------------------
 --
-// end::stop_indexing[]
+
 //tag::stop_ml[]
 . *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
 +

@@ -39,6 +39,9 @@ setup:
               keyword:
                 type: keyword
                 index: false
+              boolean:
+                type: boolean
+                index: false
 
   - do:
       index:
@@ -54,6 +57,7 @@ setup:
           short: 1
           date: "2017/01/01"
           keyword: "key1"
+          boolean: "false"
 
   - do:
       index:
@@ -69,6 +73,7 @@ setup:
           short: 2
           date: "2017/01/02"
           keyword: "key2"
+          boolean: "true"
 
   - do:
       indices.refresh: {}
@@ -251,4 +256,31 @@ setup:
       search:
         index: test
         body: { query: { range: { keyword: { gte: "key1" } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test match query on boolean field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { boolean: { query: "false" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test terms query on boolean field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { boolean: [ "false", "true" ] } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test range query on boolean field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { boolean: { gte: "false" } } } }
   - length:   { hits.hits: 2  }

@@ -570,11 +570,12 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
         assertIdAligns(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("o.f1", f1);
-            b.startObject("o");
-            {
-                b.field("f2", f2);
-            }
-            b.endObject();
+            b.startObject("o").field("f2", f2).endObject();
+        });
+        assertIdAligns(mapperService, b -> {
+            b.field("@timestamp", "2022-01-01T01:00:00Z");
+            b.startObject("o").field("f1", f2).endObject();
+            b.field("o.f2", f1);
         });
     }
 

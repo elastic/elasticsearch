@@ -261,6 +261,13 @@ routing field with dot in name:
                   end_time: 2021-04-29T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
+            mappings:
+              properties:
+                o:
+                  properties:
+                    f:
+                      type: keyword
+                      time_series_dimension: true
 
   - do:
       index:
@@ -269,6 +276,5 @@ routing field with dot in name:
         op_type: index
         body:
           "@timestamp": "2021-04-28T18:51:03.142Z"
-          o:
-            f: cat
-  - match: {_id: W1c4VWb-0Rl5AQAA}
+          o.f: cat
+  - match: {_id: DV0tCmb-0Rl5AQAA}

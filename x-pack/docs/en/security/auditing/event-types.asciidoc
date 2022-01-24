@@ -871,4 +871,3 @@ that have been previously described:
                                  This attribute is only provided for authentication using a service account token.
 
 
-include::{es-repo-dir}/api-conventions.asciidoc[]

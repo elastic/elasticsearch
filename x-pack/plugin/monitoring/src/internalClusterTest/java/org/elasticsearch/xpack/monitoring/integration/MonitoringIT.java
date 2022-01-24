@@ -456,6 +456,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
      * Returns a {@link MonitoredSystem} supported by the Monitoring Bulk API
      */
     private static MonitoredSystem randomSystem() {
-        return randomFrom(MonitoredSystem.LOGSTASH, MonitoredSystem.KIBANA, MonitoredSystem.BEATS, MonitoredSystem.ENTERPRISE_SEARCH);
+        return randomFrom(MonitoredSystem.LOGSTASH, MonitoredSystem.KIBANA, MonitoredSystem.BEATS);
     }
 }

@@ -429,13 +429,13 @@ You can also run an {es} container using both a custom UID and GID. You
 must ensure that file permissions will not prevent {es} from executing. You
 can use one of two options:
 
-* Pass the `--group-add 0` command line option to `docker run`. This
-  ensures that the user under which {es} is running is also a member of the
-  `root` (GID 0) group inside the container.
-* Bind-mound the `config`, `data` and `logs`
+* Bind-mount the `config`, `data` and `logs`
   directories. If you intend to install plugins and prefer not to
   <<_c_customized_image, create a custom Docker image>>, you must also
   bind-mount the `plugins` directory.
+* Pass the `--group-add 0` command line option to `docker run`. This
+  ensures that the user under which {es} is running is also a member of the
+  `root` (GID 0) group inside the container.
 
 ===== Increase ulimits for nofile and nproc
 

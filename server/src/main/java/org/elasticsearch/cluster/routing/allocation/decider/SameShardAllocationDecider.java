@@ -94,7 +94,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
                 // check if its on the same host as the one we want to allocate to
                 assert Strings.hasLength(checkNode.getHostAddress()) : checkNode;
                 if (checkNode.getHostAddress().equals(node.node().getHostAddress())) {
-                    return allocation.debugDecision() ? debugNoAlreadyAllocatedToHost(node, allocation) : Decision.NO;
+                    return allocation.debugDecision() ? debugNoAlreadyAllocatedToHost(node, checkNode, allocation) : Decision.NO;
                 }
             }
         }
@@ -106,15 +106,16 @@ public class SameShardAllocationDecider extends AllocationDecider {
         return canAllocate(shardRouting, node, allocation);
     }
 
-    private static Decision debugNoAlreadyAllocatedToHost(RoutingNode node, RoutingAllocation allocation) {
+    private static Decision debugNoAlreadyAllocatedToHost(RoutingNode newNode, DiscoveryNode existingNode, RoutingAllocation allocation) {
         return allocation.decision(
             Decision.NO,
             NAME,
-            "can not allocate to this node [%s], a copy of this shard is already allocated to another node "
-                + "at the same host address [%s], and [%s] is [true] which "
-                + "forbids more than one node on this host from holding a copy of this shard",
-            node.nodeId(),
-            node.node().getHostAddress(),
+            """
+                cannot allocate to node [%s] because a copy of this shard is already allocated to node [%s] with the same host \
+                address [%s] and [%s] is [true] which forbids more than one node on each host from holding a copy of this shard""",
+            newNode.nodeId(),
+            existingNode.getId(),
+            newNode.node().getHostAddress(),
             CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey()
         );
     }

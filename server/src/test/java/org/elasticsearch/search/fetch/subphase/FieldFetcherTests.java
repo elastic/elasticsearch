@@ -1002,6 +1002,33 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.get("date_field").getValues().get(1), equalTo("12"));
     }
 
+    public void testNestedPrefix() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("foo")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("nestedField")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("foo_bar")
+            .field("type", "double")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        MapperService mapperService = createMapperService(mapping);
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("stops_number", 3.1).endObject();
+        // the field should be returned
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "stops_number");
+        assertThat(fields.get("stops_number").getValues().size(), equalTo(1));
+    }
+
     /**
      * Field patterns retrieved with "include_unmapped" use an automaton with a maximal allowed size internally.
      * This test checks we have a bound in place to avoid misuse of this with exceptionally large field patterns

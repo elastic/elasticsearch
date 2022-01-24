@@ -19,6 +19,7 @@ import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.core.filter.AbstractFilter;
 import org.apache.logging.log4j.message.Message;
+import org.elasticsearch.common.Strings;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -35,8 +36,9 @@ import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIE
  * passed by a user on a HTTP header.
  * This filter works by using a lruKeyCache - a set of keys which prevents a second message with the same key to be logged.
  * The lruKeyCache has a size limited to 128, which when breached will remove the oldest entries.
- *
+ * <p>
  * It is possible to disable use of `x-opaque-id` as a key with {@link RateLimitingFilter#setUseXOpaqueIdEnabled(boolean) }
+ *
  * @see <a href="https://logging.apache.org/log4j/2.x/manual/filters.htmlf">Log4j2 Filters</a>
  */
 @Plugin(name = "RateLimitingFilter", category = Node.CATEGORY, elementType = Filter.ELEMENT_TYPE)
@@ -79,7 +81,10 @@ public class RateLimitingFilter extends AbstractFilter {
     private String getKey(ESLogMessage esLogMessage) {
         final String key = esLogMessage.get(KEY_FIELD_NAME);
         final String productOrigin = esLogMessage.get(ELASTIC_ORIGIN_FIELD_NAME);
-        if (useXOpaqueIdEnabled && KIBANA_OPRDUCT_ORIGIN.equals(productOrigin) == false) {
+        if (Strings.isNullOrEmpty(productOrigin) == false) {
+            return productOrigin + key;
+        }
+        if (useXOpaqueIdEnabled) {
             String xOpaqueId = esLogMessage.get(X_OPAQUE_ID_FIELD_NAME);
             return xOpaqueId + key;
         }

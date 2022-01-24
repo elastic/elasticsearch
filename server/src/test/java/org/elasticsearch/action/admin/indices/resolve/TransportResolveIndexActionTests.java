@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.action.fieldcaps;
+package org.elasticsearch.action.admin.indices.resolve;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -17,8 +17,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -27,13 +25,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class TransportFieldCapabilitiesActionTests extends ESTestCase {
+public class TransportResolveIndexActionTests extends ESTestCase {
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
 
@@ -53,37 +50,34 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
         try {
             TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
 
-            FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest();
-            fieldCapsRequest.indexFilter(new DummyQueryBuilder() {
+            ResolveIndexAction.Request request = new ResolveIndexAction.Request(new String[] { "test" }) {
                 @Override
-                protected void doWriteTo(StreamOutput out) throws IOException {
+                public void writeTo(StreamOutput out) throws IOException {
+                    super.writeTo(out);
                     if (out.getVersion().before(Version.CURRENT)) {
-                        throw new IllegalArgumentException("This query isn't serializable to nodes before " + Version.CURRENT);
+                        throw new IllegalArgumentException("This request isn't serializable to nodes before " + Version.CURRENT);
                     }
                 }
-            });
+            };
 
-            IndicesService indicesService = mock(IndicesService.class);
-            when(indicesService.getAllMetadataFields()).thenReturn(Collections.singleton("_index"));
             ClusterService clusterService = new ClusterService(
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 threadPool
             );
-            TransportFieldCapabilitiesAction action = new TransportFieldCapabilitiesAction(
+            ResolveIndexAction.TransportAction action = new ResolveIndexAction.TransportAction(
                 transportService,
                 clusterService,
                 threadPool,
                 actionFilters,
-                indicesService,
                 null
             );
 
             IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> action.doExecute(null, fieldCapsRequest, new ActionListener<FieldCapabilitiesResponse>() {
+                () -> action.doExecute(null, request, new ActionListener<ResolveIndexAction.Response>() {
                     @Override
-                    public void onResponse(FieldCapabilitiesResponse response) {}
+                    public void onResponse(ResolveIndexAction.Response response) {}
 
                     @Override
                     public void onFailure(Exception e) {}
@@ -91,11 +85,11 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
             );
 
             assertEquals(
-                "parts of writeable [org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest/unset] "
+                "parts of writeable [org.elasticsearch.action.admin.indices.resolve.TransportResolveIndexActionTests$2/unset] "
                     + "are not compatible with version 8.0.0 and the 'search.check_ccs_compatibility' setting is enabled.",
                 ex.getMessage()
             );
-            assertEquals("This query isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());
+            assertEquals("This request isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }

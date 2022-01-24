@@ -156,15 +156,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) totalSuccess));
     }
 
-    static final class IndexingResult {
-        final int numSuccess;
-        final int numFailures;
-
-        IndexingResult(int numSuccess, int numFailures) {
-            this.numSuccess = numSuccess;
-            this.numFailures = numFailures;
-        }
-    }
+    record IndexingResult(int numSuccess, int numFailures) {}
 
     static IndexingResult indexDocs(int numRequests, int numThreads) throws Exception {
         final AtomicInteger completedRequests = new AtomicInteger();

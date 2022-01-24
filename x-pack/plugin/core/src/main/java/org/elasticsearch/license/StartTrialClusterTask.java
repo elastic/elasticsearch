@@ -55,7 +55,7 @@ public class StartTrialClusterTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
         LicensesMetadata oldLicensesMetadata = oldState.metadata().custom(LicensesMetadata.TYPE);
         logger.debug("started self generated trial license: {}", oldLicensesMetadata);
 

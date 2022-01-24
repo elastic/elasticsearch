@@ -199,7 +199,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     );
                 }
 
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     // index created
                     // 3.
                     client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
@@ -335,7 +335,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         // Update rollup metadata to include this index
         clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 // Everything went well, time to delete the temporary index
                 deleteTmpIndex(originalIndexName, tmpIndexName, listener, null);
             }

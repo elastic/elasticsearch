@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -114,7 +115,7 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
             case 2 -> {
                 emptyBucketInfo = null;
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

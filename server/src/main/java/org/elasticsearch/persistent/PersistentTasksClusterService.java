@@ -131,7 +131,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 PersistentTasksCustomMetadata tasks = newState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                 if (tasks != null) {
                     PersistentTask<?> task = tasks.getTask(taskId);
@@ -190,7 +190,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 // Using old state since in the new state the task is already gone
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(oldState, id));
             }
@@ -221,7 +221,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 // Using old state since in the new state the task is already gone
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(oldState, id));
             }
@@ -264,7 +264,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(newState, taskId));
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -305,7 +305,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(newState, taskId));
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -406,7 +406,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 reassigningTasks.set(false);
                 if (isAnyTaskUnassigned(newState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE))) {
                     periodicRechecker.rescheduleIfNecessary();

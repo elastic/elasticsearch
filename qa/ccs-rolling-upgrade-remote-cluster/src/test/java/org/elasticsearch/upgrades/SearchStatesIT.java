@@ -75,45 +75,7 @@ public class SearchStatesIT extends ESRestTestCase {
     private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
     private static final String CLUSTER_ALIAS = "remote_cluster";
 
-    static class Node {
-        final String id;
-        final String name;
-        final Version version;
-        final String transportAddress;
-        final String httpAddress;
-        final Map<String, Object> attributes;
-
-        Node(String id, String name, Version version, String transportAddress, String httpAddress, Map<String, Object> attributes) {
-            this.id = id;
-            this.name = name;
-            this.version = version;
-            this.transportAddress = transportAddress;
-            this.httpAddress = httpAddress;
-            this.attributes = attributes;
-        }
-
-        @Override
-        public String toString() {
-            return "Node{"
-                + "id='"
-                + id
-                + '\''
-                + ", name='"
-                + name
-                + '\''
-                + ", version="
-                + version
-                + ", transportAddress='"
-                + transportAddress
-                + '\''
-                + ", httpAddress='"
-                + httpAddress
-                + '\''
-                + ", attributes="
-                + attributes
-                + '}';
-        }
-    }
+    record Node(String id, String name, Version version, String transportAddress, String httpAddress, Map<String, Object> attributes) {}
 
     static List<Node> getNodes(RestClient restClient) throws IOException {
         Response response = restClient.performRequest(new Request("GET", "_nodes"));

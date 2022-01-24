@@ -32,7 +32,6 @@ import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -184,40 +183,14 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
      * use this a the key for our HashMap, it's best to control the implementation as there's no guarantee that Gradle's
      * various {@link TestDescriptor} implementations reliably implement equals and hashCode.
      */
-    public static class Descriptor {
-        private final String name;
-        private final String className;
-        private final String parent;
-
-        private Descriptor(String name, String className, String parent) {
-            this.name = name;
-            this.className = className;
-            this.parent = parent;
-        }
+    public record Descriptor(String name, String className, String parent) {
 
         public static Descriptor of(TestDescriptor d) {
             return new Descriptor(d.getName(), d.getClassName(), d.getParent() == null ? null : d.getParent().toString());
         }
 
-        public String getClassName() {
-            return className;
-        }
-
         public String getFullName() {
             return className + "." + name;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Descriptor that = (Descriptor) o;
-            return Objects.equals(name, that.name) && Objects.equals(className, that.className) && Objects.equals(parent, that.parent);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, className, parent);
         }
     }
 
@@ -226,7 +199,7 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
         private final Writer writer;
 
         EventWriter(Descriptor descriptor) {
-            this.outputFile = new File(outputDirectory, descriptor.getClassName() + ".out");
+            this.outputFile = new File(outputDirectory, descriptor.className() + ".out");
 
             FileOutputStream fos;
             try {

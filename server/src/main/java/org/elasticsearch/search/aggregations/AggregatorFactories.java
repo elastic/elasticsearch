@@ -438,14 +438,14 @@ public class AggregatorFactories {
                 String[] bucketsPaths = builder.getBucketsPaths();
                 for (String bucketsPath : bucketsPaths) {
                     List<AggregationPath.PathElement> bucketsPathElements = AggregationPath.parse(bucketsPath).getPathElements();
-                    String firstAggName = bucketsPathElements.get(0).name;
+                    String firstAggName = bucketsPathElements.get(0).name();
                     if (bucketsPath.equals("_count") || bucketsPath.equals("_key")) {
                         continue;
                     } else if (aggBuildersMap.containsKey(firstAggName)) {
                         AggregationBuilder aggBuilder = aggBuildersMap.get(firstAggName);
                         for (int i = 1; i < bucketsPathElements.size(); i++) {
                             PathElement pathElement = bucketsPathElements.get(i);
-                            String aggName = pathElement.name;
+                            String aggName = pathElement.name();
                             if ((i == bucketsPathElements.size() - 1) && (aggName.equalsIgnoreCase("_key") || aggName.equals("_count"))) {
                                 break;
                             } else {

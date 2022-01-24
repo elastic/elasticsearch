@@ -162,7 +162,7 @@ public class MetadataIndexStateService {
                 }
 
                 @Override
-                public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
+                public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
                     if (oldState == newState) {
                         assert blockedIndices.isEmpty() : "List of blocked indices is not empty but cluster state wasn't changed";
                         listener.onResponse(new CloseIndexResponse(true, false, Collections.emptyList()));
@@ -198,7 +198,6 @@ public class MetadataIndexStateService {
 
                                                 @Override
                                                 public void clusterStateProcessed(
-                                                    final String source,
                                                     final ClusterState oldState,
                                                     final ClusterState newState
                                                 ) {
@@ -465,7 +464,7 @@ public class MetadataIndexStateService {
                 }
 
                 @Override
-                public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
+                public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
                     if (oldState == newState) {
                         assert blockedIndices.isEmpty() : "List of blocked indices is not empty but cluster state wasn't changed";
                         listener.onResponse(new AddIndexBlockResponse(true, false, Collections.emptyList()));
@@ -506,7 +505,6 @@ public class MetadataIndexStateService {
 
                                                 @Override
                                                 public void clusterStateProcessed(
-                                                    final String source,
                                                     final ClusterState oldState,
                                                     final ClusterState newState
                                                 ) {

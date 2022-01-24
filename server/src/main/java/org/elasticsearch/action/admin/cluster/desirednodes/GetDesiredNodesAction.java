@@ -29,59 +29,21 @@ public class GetDesiredNodesAction extends ActionType<GetDesiredNodesAction.Resp
         super(NAME, Response::new);
     }
 
-    public static Request latestDesiredNodesRequest() {
-        return new Request(Request.Mode.LATEST);
-    }
-
-    public static Request allDesiredNodesRequest() {
-        return new Request(Request.Mode.ALL);
-    }
-
     public static class Request extends MasterNodeReadRequest<Request> {
-        public enum Mode {
-            ALL((byte) 0),
-            LATEST((byte) 1);
-
-            private final byte value;
-
-            Mode(byte value) {
-                this.value = value;
-            }
-
-            static Mode fromValue(byte value) {
-                return switch (value) {
-                    case 0 -> ALL;
-                    case 1 -> LATEST;
-                    default -> throw new IllegalArgumentException("No Mode for value [" + value + "]");
-                };
-            }
-        }
-
-        private final Mode mode;
-
-        Request(Mode mode) {
-            this.mode = mode;
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.mode = Mode.fromValue(in.readByte());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeByte(mode.value);
         }
 
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public String toString() {
-            return "Request{" + "mode=" + mode + '}';
         }
     }
 

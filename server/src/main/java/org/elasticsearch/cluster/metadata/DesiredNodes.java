@@ -48,7 +48,6 @@ public record DesiredNodes(String historyID, int version, List<DesiredNode> node
     public DesiredNodes {
         assert historyID != null && historyID.isBlank() == false;
         assert version >= 0;
-        assert nodes.isEmpty() == false;
         checkForDuplicatedExternalIDs(nodes);
     }
 
@@ -89,8 +88,8 @@ public record DesiredNodes(String historyID, int version, List<DesiredNode> node
         Set<String> nodeIDs = new HashSet<>(nodes.size());
         Set<String> duplicatedIDs = new HashSet<>();
         for (DesiredNode node : nodes) {
-            String externalID = node.externalID();
-            if (externalID != null && externalID.isBlank() == false) {
+            String externalID = node.externalId();
+            if (externalID != null) {
                 if (nodeIDs.add(externalID) == false) {
                     duplicatedIDs.add(externalID);
                 }

@@ -17,15 +17,15 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
+import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.DesiredNode;
-import org.elasticsearch.cluster.metadata.DesiredNodeSerializationTests;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
+import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -44,7 +44,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
+public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase {
 
     public static final DesiredNodesSettingsValidator NO_OP_SETTINGS_VALIDATOR = new DesiredNodesSettingsValidator(null) {
         @Override
@@ -185,7 +185,7 @@ public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             currentDesiredNodes.historyID(),
             currentDesiredNodes.version(),
-            randomList(1, 10, DesiredNodeSerializationTests::randomDesiredNode)
+            randomList(1, 10, DesiredNodesTestCase::randomDesiredNodeWithRandomSettings)
         );
 
         IllegalArgumentException exception = expectThrows(
@@ -208,8 +208,8 @@ public class TransportUpdateDesiredNodesActionTests extends ESTestCase {
             currentDesiredNodes.nodes()
         );
 
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
+        VersionConflictException exception = expectThrows(
+            VersionConflictException.class,
             () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request)
         );
         assertThat(exception.getMessage(), containsString("has been superseded by version"));

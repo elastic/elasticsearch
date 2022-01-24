@@ -22,11 +22,13 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.cluster.metadata.DesiredNodeSerializationTests.randomDesiredNode;
-import static org.elasticsearch.cluster.metadata.DesiredNodeSerializationTests.randomSettings;
-import static org.elasticsearch.cluster.metadata.DesiredNodesSerializationTests.randomDesiredNodes;
+import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
+import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodesWithRandomSettings;
+import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomSettings;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class DesiredNodesSettingsValidatorTests extends ESTestCase {
 
@@ -47,14 +49,13 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings, Collections.emptySet());
         final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
 
-        final DesiredNodes desiredNodes = new DesiredNodes(
-            UUIDs.randomBase64UUID(),
-            randomIntBetween(1, 20),
-            randomList(1, 20, () -> randomDesiredNode(Version.CURRENT, settingsProvider))
-        );
+        final DesiredNodes desiredNodes = randomDesiredNodes(Version.CURRENT, settingsProvider);
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));
-        assertThat(exception.getMessage(), containsString("Failed to parse value"));
+        assertThat(exception.getMessage(), containsString("Nodes in positions"));
+        assertThat(exception.getMessage(), containsString("contain invalid settings"));
+        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
+        assertThat(exception.getSuppressed()[0].getMessage(), containsString("Failed to parse value"));
     }
 
     public void testUnknownSettingsInKnownVersionsAreInvalid() {
@@ -63,18 +64,17 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
         final DesiredNodes desiredNodes = randomDesiredNodes();
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));
-        assertThat(exception.getMessage(), containsString("has unknown settings"));
+        assertThat(exception.getMessage(), containsString("Nodes in positions"));
+        assertThat(exception.getMessage(), containsString("contain invalid settings"));
+        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
+        assertThat(exception.getSuppressed()[0].getMessage(), containsString("has unknown settings"));
     }
 
     public void testUnknownSettingsInUnknownVersionsAreValid() {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet(), Collections.emptySet());
         final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
 
-        final DesiredNodes desiredNodes = new DesiredNodes(
-            UUIDs.randomBase64UUID(),
-            randomIntBetween(1, 100),
-            randomList(1, 10, () -> randomDesiredNode(Version.fromString("99.9.0")))
-        );
+        final DesiredNodes desiredNodes = randomDesiredNodesWithRandomSettings(Version.fromString("99.9.0"));
         validator.validate(desiredNodes);
     }
 
@@ -91,14 +91,13 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings);
         final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
 
-        final DesiredNodes desiredNodes = new DesiredNodes(
-            UUIDs.randomBase64UUID(),
-            randomIntBetween(1, 20),
-            randomList(1, 20, () -> randomDesiredNode(Version.CURRENT, settingsProvider))
-        );
+        final DesiredNodes desiredNodes = randomDesiredNodes(Version.CURRENT, settingsProvider);
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));
-        assertThat(exception.getMessage(), containsString("External id missing"));
+        assertThat(exception.getMessage(), containsString("Nodes in positions"));
+        assertThat(exception.getMessage(), containsString("contain invalid settings"));
+        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
+        assertThat(exception.getSuppressed()[0].getMessage(), containsString("[node.external_id] is missing or empty"));
     }
 
     public void testSettingOverrides() {

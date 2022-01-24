@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.cluster.metadata.DesiredNodesSerializationTests.randomDesiredNodes;
+import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 
 public class DesiredNodesMetadataSerializationTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
     @Override

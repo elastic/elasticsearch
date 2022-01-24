@@ -102,7 +102,8 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
         return builder;
     }
 
-    public String externalID() {
-        return NODE_EXTERNAL_ID_SETTING.get(settings);
+    public String externalId() {
+        String externalId = NODE_EXTERNAL_ID_SETTING.get(settings);
+        return externalId.isBlank() ? null : externalId;
     }
 }

@@ -25,17 +25,12 @@ public class RestGetDesiredNodesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(RestRequest.Method.GET, "_cluster/desired_nodes"),
-            new Route(RestRequest.Method.GET, "_cluster/desired_nodes/_latest")
-        );
+        return List.of(new Route(RestRequest.Method.GET, "_cluster/desired_nodes"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final GetDesiredNodesAction.Request getDesiredNodesRequest = request.path().endsWith("_latest")
-            ? GetDesiredNodesAction.latestDesiredNodesRequest()
-            : GetDesiredNodesAction.allDesiredNodesRequest();
+        final GetDesiredNodesAction.Request getDesiredNodesRequest = new GetDesiredNodesAction.Request();
         getDesiredNodesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getDesiredNodesRequest.masterNodeTimeout()));
         return restChannel -> client.execute(
             GetDesiredNodesAction.INSTANCE,

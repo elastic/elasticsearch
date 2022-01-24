@@ -10,17 +10,15 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 
-import static org.elasticsearch.cluster.metadata.DesiredNodeSerializationTests.randomDesiredNode;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class DesiredNodesTests extends ESTestCase {
+public class DesiredNodesTests extends DesiredNodesTestCase {
 
     public void testDuplicatedExternalIDsAreNotAllowed() {
         final String duplicatedExternalID = UUIDs.randomBase64UUID();

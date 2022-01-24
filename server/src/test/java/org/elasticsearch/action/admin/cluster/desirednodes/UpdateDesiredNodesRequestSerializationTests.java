@@ -15,7 +15,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.metadata.DesiredNodeSerializationTests.randomDesiredNode;
+import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodeWithRandomSettings;
 
 public class UpdateDesiredNodesRequestSerializationTests extends AbstractWireSerializingTestCase<UpdateDesiredNodesRequest> {
     @Override
@@ -41,7 +41,7 @@ public class UpdateDesiredNodesRequestSerializationTests extends AbstractWireSer
         return new UpdateDesiredNodesRequest(
             UUIDs.randomBase64UUID(),
             randomIntBetween(0, 1000),
-            randomList(0, 100, () -> randomDesiredNode(nodesVersion))
+            randomList(0, 100, () -> randomDesiredNodeWithRandomSettings(nodesVersion))
         );
     }
 }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -19,19 +18,17 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
+import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Locale;
 
 import static java.lang.String.format;
@@ -130,21 +127,6 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             return currentState.metadata().custom(DesiredNodesMetadata.TYPE);
         } else {
             return DesiredNodesMetadata.EMPTY;
-        }
-    }
-
-    public static class VersionConflictException extends ElasticsearchException {
-        public VersionConflictException(String msg, Object... args) {
-            super(msg, args);
-        }
-
-        public VersionConflictException(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.CONFLICT;
         }
     }
 }

@@ -1561,10 +1561,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             Version.V_8_0_0
         ),
         DESIRED_NODES_VERSION_CONFLICT_EXCEPTION(
-            org.elasticsearch.action.admin.cluster.desirednodes.TransportUpdateDesiredNodesAction.VersionConflictException.class,
-            org.elasticsearch.action.admin.cluster.desirednodes.TransportUpdateDesiredNodesAction.VersionConflictException::new,
+            org.elasticsearch.cluster.desirednodes.VersionConflictException.class,
+            org.elasticsearch.cluster.desirednodes.VersionConflictException::new,
             164,
-            Version.V_8_0_0
+            Version.V_8_1_0
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

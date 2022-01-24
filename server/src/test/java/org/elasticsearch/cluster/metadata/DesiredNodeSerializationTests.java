@@ -8,19 +8,11 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.function.Consumer;
-
-import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 
 public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<DesiredNode> {
     @Override
@@ -35,54 +27,6 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
 
     @Override
     protected DesiredNode createTestInstance() {
-        return randomDesiredNode();
-    }
-
-    public static DesiredNode randomDesiredNode() {
-        return randomDesiredNode(Version.CURRENT);
-    }
-
-    public static DesiredNode randomDesiredNode(Version version) {
-        return randomDesiredNode(version, DesiredNodeSerializationTests::putRandomSetting);
-    }
-
-    public static DesiredNode randomDesiredNode(Version version, Consumer<Settings.Builder> settingsProvider) {
-        return randomDesiredNode(version, randomIntBetween(1, 256), settingsProvider);
-    }
-
-    public static DesiredNode randomDesiredNode(Version version, int processors, Consumer<Settings.Builder> settingsProvider) {
-        return new DesiredNode(
-            randomSettings(settingsProvider),
-            processors,
-            ByteSizeValue.ofGb(randomIntBetween(1, 1024)),
-            ByteSizeValue.ofTb(randomIntBetween(1, 40)),
-            version
-        );
-    }
-
-    public static Settings randomSettings(Consumer<Settings.Builder> settingsProvider) {
-        int numSettings = randomIntBetween(0, 20);
-        Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(NODE_EXTERNAL_ID_SETTING.getKey(), UUIDs.randomBase64UUID());
-
-        for (int i = 0; i < numSettings; i++) {
-            settingsProvider.accept(settingsBuilder);
-        }
-        return settingsBuilder.build();
-    }
-
-    private static void putRandomSetting(Settings.Builder settings) {
-        final String key = randomAlphaOfLength(10);
-        switch (randomIntBetween(0, 7)) {
-            case 0 -> settings.put(key, randomAlphaOfLength(20));
-            case 1 -> settings.put(key, randomInt());
-            case 2 -> settings.put(key, randomLong());
-            case 3 -> settings.put(key, randomFloat());
-            case 4 -> settings.put(key, randomDouble());
-            case 5 -> settings.put(key, TimeValue.timeValueMillis(randomIntBetween(1, 1000)));
-            case 6 -> settings.put(key, ByteSizeValue.ofGb(randomIntBetween(1, 20)));
-            case 7 -> settings.putList(key, randomList(1, 10, () -> randomAlphaOfLength(20)));
-            default -> throw new IllegalArgumentException();
-        }
+        return DesiredNodesTestCase.randomDesiredNodeWithRandomSettings();
     }
 }

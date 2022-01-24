@@ -10,17 +10,21 @@ package org.elasticsearch.action.admin.cluster.desirednodes;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.After;
 
 import java.util.function.Consumer;
 
-import static org.elasticsearch.cluster.metadata.DesiredNodeSerializationTests.randomDesiredNode;
+import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
+import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_IDLE;
+import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -30,6 +34,11 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
+
+    @After
+    public void cleanDesiredNodes() {
+        deleteDesiredNodes();
+    }
 
     public void testUpdateDesiredNodes() {
         final DesiredNodes desiredNodes = putRandomDesiredNodes();
@@ -60,8 +69,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             desiredNodes.nodes()
         );
 
-        final TransportUpdateDesiredNodesAction.VersionConflictException exception = expectThrows(
-            TransportUpdateDesiredNodesAction.VersionConflictException.class,
+        final VersionConflictException exception = expectThrows(
+            VersionConflictException.class,
             () -> updateDesiredNodes(backwardsDesiredNodes)
         );
         assertThat(exception.getMessage(), containsString("has been superseded by version"));
@@ -107,12 +116,15 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
     public void testSettingsAreValidated() {
         final DesiredNodes desiredNodes = randomDesiredNodes(
-            settings -> { settings.put(SETTING_HTTP_TCP_KEEP_IDLE.getKey(), Integer.MIN_VALUE); }
+            settings -> settings.put(SETTING_HTTP_TCP_KEEP_IDLE.getKey(), Integer.MIN_VALUE)
         );
 
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
+        assertThat(exception.getMessage(), containsString("Nodes in positions"));
+        assertThat(exception.getMessage(), containsString("contain invalid settings"));
+        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
         assertThat(
-            exception.getMessage(),
+            exception.getSuppressed()[0].getMessage(),
             containsString("Failed to parse value [-2147483648] for setting [http.tcp.keep_idle] must be >= -1")
         );
     }
@@ -123,7 +135,10 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         );
 
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
-        assertThat(exception.getMessage(), containsString("has unknown settings [desired_nodes.random_setting]"));
+        assertThat(exception.getMessage(), containsString("Nodes in positions"));
+        assertThat(exception.getMessage(), containsString("contain invalid settings"));
+        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
+        assertThat(exception.getSuppressed()[0].getMessage(), containsString("has unknown settings [desired_nodes.random_setting]"));
     }
 
     public void testUnknownSettingsAreAllowedInFutureVersions() {
@@ -172,14 +187,33 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final DesiredNodes desiredNodes = putRandomDesiredNodes();
         assertThat(getLatestDesiredNodes(), is(equalTo(desiredNodes)));
 
-        final DeleteDesiredNodesAction.Request request = new DeleteDesiredNodesAction.Request();
-        assertAcked(client().execute(DeleteDesiredNodesAction.INSTANCE, request).actionGet());
+        deleteDesiredNodes();
 
         assertThat(getLatestDesiredNodes(), is(nullValue()));
     }
 
+    public void testEmptyExternalIDIsInvalid() {
+        final Consumer<Settings.Builder> settingsConsumer = (settings) -> settings.put(NODE_EXTERNAL_ID_SETTING.getKey(), "    ");
+        final DesiredNodes desiredNodes = new DesiredNodes(
+            UUIDs.randomBase64UUID(),
+            randomIntBetween(1, 20),
+            randomList(1, 20, () -> randomDesiredNode(Version.CURRENT, settingsConsumer))
+        );
+
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
+        assertThat(exception.getMessage(), containsString("Nodes in positions"));
+        assertThat(exception.getMessage(), containsString("contain invalid settings"));
+        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
+        assertThat(exception.getSuppressed()[0].getMessage(), containsString("[node.external_id] is missing or empty"));
+    }
+
+    private void deleteDesiredNodes() {
+        final DeleteDesiredNodesAction.Request request = new DeleteDesiredNodesAction.Request();
+        assertAcked(client().execute(DeleteDesiredNodesAction.INSTANCE, request).actionGet());
+    }
+
     private DesiredNodes getLatestDesiredNodes() {
-        final GetDesiredNodesAction.Request request = GetDesiredNodesAction.latestDesiredNodesRequest();
+        final GetDesiredNodesAction.Request request = new GetDesiredNodesAction.Request();
         final GetDesiredNodesAction.Response response = client().execute(GetDesiredNodesAction.INSTANCE, request).actionGet();
         return response.getDesiredNodes();
     }
@@ -199,19 +233,4 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         assertAcked(client().execute(UpdateDesiredNodesAction.INSTANCE, request).actionGet());
     }
 
-    private DesiredNodes randomDesiredNodes() {
-        return randomDesiredNodes((settings) -> {});
-    }
-
-    private DesiredNodes randomDesiredNodes(Consumer<Settings.Builder> settingsConsumer) {
-        return randomDesiredNodes(Version.CURRENT, settingsConsumer);
-    }
-
-    private DesiredNodes randomDesiredNodes(Version version, Consumer<Settings.Builder> settingsConsumer) {
-        return new DesiredNodes(
-            UUIDs.randomBase64UUID(),
-            randomIntBetween(1, 20),
-            randomList(1, 10, () -> randomDesiredNode(version, settingsConsumer))
-        );
-    }
 }

@@ -8,23 +8,25 @@
 
 package org.elasticsearch.cluster.desirednodes;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.createNodeProcessorsSetting;
+import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 
 public class DesiredNodesSettingsValidator {
     private final ClusterSettings clusterSettings;
@@ -34,22 +36,35 @@ public class DesiredNodesSettingsValidator {
     }
 
     public void validate(DesiredNodes desiredNodes) {
-        final List<RuntimeException> exceptions = new ArrayList<>();
-        for (DesiredNode node : desiredNodes.nodes()) {
+        final List<Tuple<Integer, RuntimeException>> exceptions = new ArrayList<>();
+        final List<DesiredNode> nodes = desiredNodes.nodes();
+        for (int i = 0; i < nodes.size(); i++) {
+            final DesiredNode node = nodes.get(i);
             try {
                 validate(node);
             } catch (RuntimeException e) {
-                // TODO: add nodeID
-                exceptions.add(e);
+                exceptions.add(Tuple.tuple(i, e));
             }
         }
 
-        ExceptionsHelper.rethrowAndSuppress(exceptions);
+        if (exceptions.isEmpty() == false) {
+            final String nodeIndicesWithFailures = exceptions.stream()
+                .map(Tuple::v1)
+                .map(i -> Integer.toString(i))
+                .collect(Collectors.joining(","));
+            IllegalArgumentException invalidSettingsException = new IllegalArgumentException(
+                format(Locale.ROOT, "Nodes in positions [%s] contain invalid settings", nodeIndicesWithFailures)
+            );
+            for (Tuple<Integer, RuntimeException> exceptionTuple : exceptions) {
+                invalidSettingsException.addSuppressed(exceptionTuple.v2());
+            }
+            throw invalidSettingsException;
+        }
     }
 
     private void validate(DesiredNode node) {
-        if (node.externalID() == null || node.externalID().isEmpty()) {
-            throw new IllegalArgumentException("External id missing");
+        if (node.externalId() == null) {
+            throw new IllegalArgumentException(format(Locale.ROOT, "[%s] is missing or empty", NODE_EXTERNAL_ID_SETTING.getKey()));
         }
 
         final Settings settings = node.settings();
@@ -79,7 +94,7 @@ public class DesiredNodesSettingsValidator {
 
         if (unknownSettings.isEmpty() == false && node.version().onOrBefore(Version.CURRENT)) {
             throw new IllegalArgumentException(
-                format(Locale.ROOT, "Node [%s] has unknown settings %s", node.externalID(), unknownSettings)
+                format(Locale.ROOT, "Node [%s] has unknown settings %s", node.externalId(), unknownSettings)
             );
         }
 
@@ -96,4 +111,5 @@ public class DesiredNodesSettingsValidator {
         }
         return setting;
     }
+
 }

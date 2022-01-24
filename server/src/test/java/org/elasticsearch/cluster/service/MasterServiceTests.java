@@ -523,7 +523,7 @@ public class MasterServiceTests extends ESTestCase {
         final int numberOfThreads = randomIntBetween(2, 8);
         final int taskSubmissionsPerThread = randomIntBetween(1, 64);
         final int numberOfExecutors = Math.max(1, numberOfThreads / 4);
-        final Semaphore semaphore = new Semaphore(numberOfExecutors);
+        final Semaphore semaphore = new Semaphore(1);
 
         class TaskExecutor implements ClusterStateTaskExecutor<Task> {
 
@@ -549,7 +549,11 @@ public class MasterServiceTests extends ESTestCase {
                 if (randomBoolean()) {
                     maybeUpdatedClusterState = ClusterState.builder(currentState).build();
                     batches.incrementAndGet();
-                    semaphore.acquire();
+                    assertThat(
+                        "All cluster state modifications should be executed on a single thread at the moment",
+                        semaphore.tryAcquire(),
+                        equalTo(true)
+                    );
                 }
                 return ClusterTasksResult.<Task>builder().successes(tasks).build(maybeUpdatedClusterState);
             }
@@ -627,8 +631,8 @@ public class MasterServiceTests extends ESTestCase {
 
             // wait until all the cluster state updates have been processed
             processedStatesLatch.get().await();
-            // and until all of the publication callbacks have completed
-            semaphore.acquire(numberOfExecutors);
+            // and until all the publication callbacks have completed
+            semaphore.acquire();
 
             // assert the number of executed tasks is correct
             assertThat(submittedTasks.get(), equalTo(totalTasks.get()));

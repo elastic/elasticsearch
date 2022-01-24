@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
+import com.carrotsearch.hppc.IntArrayList;
+import com.ibm.icu.text.Normalizer;
+import com.ibm.icu.text.Normalizer2;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenFilter;
@@ -21,6 +25,7 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.PrimitiveIterator;
+import java.util.function.IntPredicate;
 
 /**
  * Assumes that the text is already whitespace tokenized
@@ -31,7 +36,11 @@ public final class BasicTokenFilter extends TokenFilter {
 
     private final CharSeqTokenTrieNode neverSplit;
     protected final LinkedList<DelimitedToken> tokens;
+    private final boolean isStripAccents;
     private final CharArraySet neverSplitSet;
+    private final Normalizer2 normalizer;
+    private final StringBuilder accentBuffer = new StringBuilder();
+    private final IntPredicate splitOn;
 
     private State current;
 
@@ -42,24 +51,18 @@ public final class BasicTokenFilter extends TokenFilter {
         List<String> neverSplit,
         TokenStream input
     ) throws IOException {
-        if (isStripAccents) {
-            input = new StripAccentTokenFilter(input);
-        }
-        if (isTokenizeCjkChars) {
-            input = new CJKSplitTokenFilter(input);
-        }
         Analyzer analyzer = new Analyzer() {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {
                 WhitespaceTokenizer tokenizer = new WhitespaceTokenizer(512);
                 TokenStream stream = tokenizer;
-                if (isStripAccents) {
-                    stream = new StripAccentTokenFilter(stream);
-                }
-                if (isTokenizeCjkChars) {
-                    stream = new CJKSplitTokenFilter(stream);
-                }
-                stream = new BasicTokenFilter(stream, CharSeqTokenTrieNode.EMPTY, new CharArraySet(0, false));
+                stream = new BasicTokenFilter(
+                    stream,
+                    CharSeqTokenTrieNode.EMPTY,
+                    new CharArraySet(0, false),
+                    isStripAccents,
+                    isTokenizeCjkChars
+                );
                 return new TokenStreamComponents(tokenizer, stream);
             }
 
@@ -83,20 +86,30 @@ public final class BasicTokenFilter extends TokenFilter {
                 }
             }, false);
         }
-        return new BasicTokenFilter(input, neverSplitTree, neverSplitSet);
+        return new BasicTokenFilter(input, neverSplitTree, neverSplitSet, isStripAccents, isTokenizeCjkChars);
     }
 
-    public BasicTokenFilter(TokenStream input, CharSeqTokenTrieNode neverSplit, CharArraySet neverSplitSet) {
+    public BasicTokenFilter(
+        TokenStream input,
+        CharSeqTokenTrieNode neverSplit,
+        CharArraySet neverSplitSet,
+        boolean isStripAccents,
+        boolean isTokenizeCjkChars
+    ) {
         super(input);
         this.neverSplit = neverSplit;
         this.neverSplitSet = neverSplitSet;
         this.tokens = new LinkedList<>();
+        this.isStripAccents = isStripAccents;
+        this.normalizer = Normalizer2.getNFDInstance();
+        this.splitOn = cp -> (isTokenizeCjkChars && isCjkChar(cp)) || isPunctuationMark(cp);
     }
 
     @Override
     public void reset() throws IOException {
         super.reset();
         tokens.clear();
+        accentBuffer.setLength(0);
         current = null;
     }
 
@@ -112,17 +125,20 @@ public final class BasicTokenFilter extends TokenFilter {
         }
         current = null; // not really needed, but for safety
         if (input.incrementToken()) {
+            if (isStripAccents) {
+                stripAccent();
+            }
             if (neverSplitSet.contains(termAtt)) {
                 return true;
             }
             int startOffset = offsetAtt.startOffset();
-            // split punctuation!!!
+            // split punctuation and maybe cjk chars!!!
             LinkedList<DelimitedToken> splits = new LinkedList<>();
             int charIndex = 0;
             int lastCharSplit = 0;
             for (PrimitiveIterator.OfInt it = termAtt.codePoints().iterator(); it.hasNext();) {
                 int cp = it.next();
-                if (isPunctuationMark(cp)) {
+                if (splitOn.test(cp)) {
                     int charCount = charIndex - lastCharSplit;
                     if (charCount > 0) {
                         splits.add(
@@ -192,6 +208,32 @@ public final class BasicTokenFilter extends TokenFilter {
         return false;
     }
 
+    void stripAccent() {
+        if (normalizer.quickCheck(termAtt) != Normalizer.YES) {
+            accentBuffer.setLength(0);
+            normalizer.normalize(termAtt, accentBuffer);
+            IntArrayList badIndices = new IntArrayList();
+            IntArrayList charCount = new IntArrayList();
+            int index = 0;
+            for (PrimitiveIterator.OfInt it = accentBuffer.codePoints().iterator(); it.hasNext();) {
+                int cp = it.next();
+                if (Character.getType(cp) == Character.NON_SPACING_MARK) {
+                    badIndices.add(index);
+                    charCount.add(Character.charCount(cp));
+                }
+                index++;
+            }
+            for (int i = 0; i < badIndices.size(); i++) {
+                int badIndex = badIndices.get(i);
+                int count = charCount.get(i);
+                for (int j = 0; j < count && badIndex < accentBuffer.length(); j++) {
+                    accentBuffer.deleteCharAt(badIndex);
+                }
+            }
+            termAtt.setEmpty().append(accentBuffer);
+        }
+    }
+
     static boolean isPunctuationMark(int codePoint) {
         if ((codePoint >= 33 && codePoint <= 47)
             || (codePoint >= 58 && codePoint <= 64)
@@ -203,6 +245,19 @@ public final class BasicTokenFilter extends TokenFilter {
         int category = Character.getType(codePoint);
         return (category >= Character.DASH_PUNCTUATION && category <= Character.OTHER_PUNCTUATION)
             || (category >= Character.INITIAL_QUOTE_PUNCTUATION && category <= Character.FINAL_QUOTE_PUNCTUATION);
+    }
+
+    private static boolean isCjkChar(int codePoint) {
+        // https://en.wikipedia.org/wiki/CJK_Unified_Ideographs_(Unicode_block)
+        Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
+        return Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS.equals(block)
+            || Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS.equals(block)
+            || Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A.equals(block)
+            || Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B.equals(block)
+            || Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C.equals(block)
+            || Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D.equals(block)
+            || Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_E.equals(block)
+            || Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT.equals(block);
     }
 
 }

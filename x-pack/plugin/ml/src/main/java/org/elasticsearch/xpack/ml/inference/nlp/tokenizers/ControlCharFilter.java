@@ -49,6 +49,7 @@ public class ControlCharFilter extends BaseCharFilter {
     private void fill() throws IOException {
         CharArrayList charArrayList = new CharArrayList(1024);
         char[] temp = new char[1024];
+        int totalRead = 0;
         for (int cnt = input.read(temp); cnt > 0; cnt = input.read(temp)) {
             int pos = 0;
             while (pos < cnt) {
@@ -61,11 +62,12 @@ public class ControlCharFilter extends BaseCharFilter {
                     start++;
                 }
                 if (start > pos) {
-                    addOffCorrectMap(pos, start);
+                    addOffCorrectMap(pos + totalRead, start + totalRead);
                 }
                 int size = 0;
                 while (size < (cnt - start)) {
                     int category = Character.getType(temp[start + size]);
+                    // While the category is not a control char; read.
                     if (category < Character.CONTROL || category > Character.SURROGATE) {
                         size++;
                     } else {
@@ -75,6 +77,7 @@ public class ControlCharFilter extends BaseCharFilter {
                 charArrayList.add(temp, start, size);
                 pos = start + size;
             }
+            totalRead += cnt;
         }
         transformedInput = new CharArrayReader(charArrayList.toArray());
     }

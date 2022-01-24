@@ -79,6 +79,27 @@ public class BasicTokenFilterTests extends ESTestCase {
         }
     }
 
+    public void testSplitCJK() throws Exception {
+        try (Analyzer analyzer = basicAnalyzerFromSettings(true, true, false, List.of("[UNK]"))) {
+            var tokens = basicTokenize(analyzer, "hello ah\u535A\u63A8zz");
+            assertThat(tokenStrings(tokens), contains("hello", "ah", "\u535A", "\u63A8", "zz"));
+        }
+    }
+
+    public void testSplitCJKWhenNoneExist() throws Exception {
+        try (Analyzer analyzer = basicAnalyzerFromSettings(true, true, false, List.of("[UNK]"))) {
+            var tokens = basicTokenize(analyzer, "hello world");
+            assertThat(tokenStrings(tokens), contains("hello", "world"));
+        }
+    }
+
+    public void testStripAccents() throws Exception {
+        try (Analyzer analyzer = basicAnalyzerFromSettings(true, true, true, List.of("[UNK]"))) {
+            var tokens = basicTokenize(analyzer, "HäLLo how are you");
+            assertThat(tokenStrings(tokens), contains("HaLLo", "how", "are", "you"));
+        }
+    }
+
     public void testIsPunctuation() {
         assertTrue(BasicTokenFilter.isPunctuationMark('-'));
         assertTrue(BasicTokenFilter.isPunctuationMark('$'));

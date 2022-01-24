@@ -52,7 +52,27 @@ public class ControlCharFilterTests extends ESTestCase {
         int read = controlCharFilter.read(output, 0, 10);
         assertThat(read, equalTo(5));
         assertThat(new String(output, 0, read), equalTo("abbcc"));
+    }
 
+    public void testCorrectForLongString() throws IOException {
+        char[] charArray = new char[2000];
+        int i = 0;
+        for (; i < 1000; i++) {
+            charArray[i] = 'a';
+        }
+        charArray[i++] = Character.SURROGATE;
+        charArray[i++] = Character.CONTROL;
+        for (int j = 0; j < 997; j++) {
+            charArray[i++] = 'a';
+        }
+        charArray[i] = Character.CONTROL;
+        ControlCharFilter controlCharFilter = new ControlCharFilter(new CharArrayReader(charArray));
+        char[] output = new char[2000];
+        int read = controlCharFilter.read(output);
+        assertThat(read, equalTo(1997));
+        for (int j = 0; j < read; j++) {
+            assertEquals('a', output[j]);
+        }
     }
 
 }

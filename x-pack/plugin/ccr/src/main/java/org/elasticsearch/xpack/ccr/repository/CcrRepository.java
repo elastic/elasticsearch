@@ -43,6 +43,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -281,8 +282,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             Metadata remoteMetadata = response.getState().getMetadata();
 
             Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
-            Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = new HashMap<>(copiedSnapshotIds.size());
-            Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
+            Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = Maps.newMapWithExpectedSize(copiedSnapshotIds.size());
+            Map<IndexId, List<SnapshotId>> indexSnapshots = Maps.newMapWithExpectedSize(copiedSnapshotIds.size());
 
             ImmutableOpenMap<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
             for (String indexName : remoteMetadata.getConcreteAllIndices()) {

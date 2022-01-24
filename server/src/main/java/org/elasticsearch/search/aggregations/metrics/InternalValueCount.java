@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -64,6 +65,27 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
             valueCount += ((InternalValueCount) aggregation).value;
         }
         return new InternalValueCount(name, valueCount, getMetadata());
+    }
+
+    @Override
+    public InternalAggregation reduceSampled(
+        List<InternalAggregation> aggregations,
+        AggregationReduceContext reduceContext,
+        SamplingContext context
+    ) {
+        long valueCount = 0;
+        for (InternalAggregation aggregation : aggregations) {
+            valueCount += ((InternalValueCount) aggregation).value;
+        }
+        if (reduceContext.isFinalReduce()) {
+            valueCount = context.inverseScale(valueCount);
+        }
+        return new InternalValueCount(name, valueCount, getMetadata());
+    }
+
+    @Override
+    protected boolean mustReduceSampledOnSingleInternalAgg() {
+        return true;
     }
 
     @Override

@@ -597,6 +597,11 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.NONE;
     }

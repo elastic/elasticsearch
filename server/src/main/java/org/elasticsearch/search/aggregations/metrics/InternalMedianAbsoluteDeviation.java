@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -72,6 +73,15 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
         }
 
         return new InternalMedianAbsoluteDeviation(name, metadata, format, valueMerged);
+    }
+
+    @Override
+    public InternalAggregation reduceSampled(
+        List<InternalAggregation> aggregations,
+        AggregationReduceContext reduceContext,
+        SamplingContext context
+    ) {
+        return reduce(aggregations, reduceContext);
     }
 
     @Override

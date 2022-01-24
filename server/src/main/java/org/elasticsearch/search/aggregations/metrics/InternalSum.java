@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -68,6 +69,23 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
             kahanSummation.add(value);
         }
         return new InternalSum(name, kahanSummation.value(), format, getMetadata());
+    }
+
+    @Override
+    public InternalSum reduceSampled(
+        List<InternalAggregation> aggregations,
+        AggregationReduceContext reduceContext,
+        SamplingContext context
+    ) {
+        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+        aggregations.forEach(aggregation -> kahanSummation.add(((InternalSum) aggregation).sum));
+        final double summation = reduceContext.isFinalReduce() ? context.inverseScale(kahanSummation.value()) : kahanSummation.value();
+        return new InternalSum(name, summation, format, getMetadata());
+    }
+
+    @Override
+    protected boolean mustReduceSampledOnSingleInternalAgg() {
+        return true;
     }
 
     @Override

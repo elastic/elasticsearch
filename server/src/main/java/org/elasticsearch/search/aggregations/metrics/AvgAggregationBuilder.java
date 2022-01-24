@@ -65,6 +65,11 @@ public class AvgAggregationBuilder extends ValuesSourceAggregationBuilder.Single
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new AvgAggregationBuilder(this, factoriesBuilder, metadata);
     }

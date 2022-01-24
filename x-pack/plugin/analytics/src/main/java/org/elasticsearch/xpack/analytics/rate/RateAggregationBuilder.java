@@ -74,6 +74,11 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
         return new RateAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     /**
      * Read from a stream.
      */

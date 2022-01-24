@@ -15,6 +15,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.LongToLongFunction;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -104,6 +106,19 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
 
     @Override
     public InternalGeoCentroid reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+        return innerReduce(aggregations, l -> l);
+    }
+
+    @Override
+    public InternalAggregation reduceSampled(
+        List<InternalAggregation> aggregations,
+        AggregationReduceContext reduceContext,
+        SamplingContext context
+    ) {
+        return innerReduce(aggregations, reduceContext.isFinalReduce() ? context::inverseScale : l -> l);
+    }
+
+    private InternalGeoCentroid innerReduce(List<InternalAggregation> aggregations, LongToLongFunction countScaling) {
         double lonSum = Double.NaN;
         double latSum = Double.NaN;
         long totalCount = 0;
@@ -121,7 +136,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
             }
         }
         final GeoPoint result = (Double.isNaN(lonSum)) ? null : new GeoPoint(latSum / totalCount, lonSum / totalCount);
-        return new InternalGeoCentroid(name, result, totalCount, getMetadata());
+        return new InternalGeoCentroid(name, result, countScaling.apply(totalCount), getMetadata());
     }
 
     @Override

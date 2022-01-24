@@ -109,6 +109,11 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         }
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     /**
      * Set the {@code init} script.
      */

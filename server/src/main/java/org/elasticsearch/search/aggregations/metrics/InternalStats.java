@@ -12,6 +12,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.DoubleToDoubleFunction;
+import org.elasticsearch.search.aggregations.support.LongToLongFunction;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -156,6 +159,27 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
 
     @Override
     public InternalStats reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+        return innerReduce(aggregations, d -> d, l -> l);
+    }
+
+    @Override
+    public InternalStats reduceSampled(
+        List<InternalAggregation> aggregations,
+        AggregationReduceContext reduceContext,
+        SamplingContext context
+    ) {
+        return innerReduce(
+            aggregations,
+            reduceContext.isFinalReduce() ? context::inverseScale : d -> d,
+            reduceContext.isFinalReduce() ? context::inverseScale : l -> l
+        );
+    }
+
+    private InternalStats innerReduce(
+        List<InternalAggregation> aggregations,
+        DoubleToDoubleFunction sumScale,
+        LongToLongFunction countScale
+    ) {
         long count = 0;
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
@@ -170,7 +194,14 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             // accurate than naive summation.
             kahanSummation.add(stats.getSum());
         }
-        return new InternalStats(name, count, kahanSummation.value(), min, max, format, getMetadata());
+        count = countScale.apply(count);
+        double sum = sumScale.apply(kahanSummation.value());
+        return new InternalStats(name, count, sum, min, max, format, getMetadata());
+    }
+
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return true;
     }
 
     static class Fields {

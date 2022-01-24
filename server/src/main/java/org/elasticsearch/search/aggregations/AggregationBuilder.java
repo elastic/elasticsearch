@@ -186,6 +186,22 @@ public abstract class AggregationBuilder
         public static final ParseField VALUE_TYPE = new ParseField("value_type");
     }
 
+    /**
+     * Does this aggregation support running with in a sampling context.
+     *
+     * By default, it's false for all aggregations.
+     *
+     * If the sub-classed builder supports sampling, be sure of the following:
+     *
+     *  - That the generated {@link AggregatorFactory} to scales any user provided parameters
+     *  - That the resulting internal aggregation objects override the {@link InternalAggregation#reduceSampled} and scales any values
+     *    that require scaling.
+     * @return does this aggregation builder support sampling
+     */
+    public boolean supportsSampling() {
+        return false;
+    }
+
     @Override
     public String toString() {
         return Strings.toString(this);

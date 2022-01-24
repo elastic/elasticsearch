@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -242,6 +244,51 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public InternalExtendedStats reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+        return innerReduce(aggregations, (innerAggs, sumOfSqrs) -> {
+            final InternalStats stats = super.reduce(aggregations, reduceContext);
+            return new InternalExtendedStats(
+                name,
+                stats.getCount(),
+                stats.getSum(),
+                stats.getMin(),
+                stats.getMax(),
+                sumOfSqrs,
+                sigma,
+                format,
+                getMetadata()
+            );
+        });
+    }
+
+    @Override
+    public InternalExtendedStats reduceSampled(
+        List<InternalAggregation> aggregations,
+        AggregationReduceContext reduceContext,
+        SamplingContext context
+    ) {
+        return innerReduce(aggregations, (innerAggs, sumOfSqrs) -> {
+            if (reduceContext.isFinalReduce()) {
+                sumOfSqrs = context.inverseScale(sumOfSqrs);
+            }
+            final InternalStats stats = super.reduceSampled(aggregations, reduceContext, context);
+            return new InternalExtendedStats(
+                name,
+                stats.getCount(),
+                stats.getSum(),
+                stats.getMin(),
+                stats.getMax(),
+                sumOfSqrs,
+                sigma,
+                format,
+                getMetadata()
+            );
+        });
+    }
+
+    private InternalExtendedStats innerReduce(
+        List<InternalAggregation> aggregations,
+        BiFunction<List<InternalAggregation>, Double, InternalExtendedStats> newAgg
+    ) {
         double sumOfSqrs = 0;
         double compensationOfSqrs = 0;
         for (InternalAggregation aggregation : aggregations) {
@@ -259,18 +306,12 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
                 sumOfSqrs = newSumOfSqrs;
             }
         }
-        final InternalStats stats = super.reduce(aggregations, reduceContext);
-        return new InternalExtendedStats(
-            name,
-            stats.getCount(),
-            stats.getSum(),
-            stats.getMin(),
-            stats.getMax(),
-            sumOfSqrs,
-            sigma,
-            format,
-            getMetadata()
-        );
+        return newAgg.apply(aggregations, sumOfSqrs);
+    }
+
+    @Override
+    protected boolean mustReduceOnSingleInternalAgg() {
+        return true;
     }
 
     static class Fields {

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 
@@ -67,6 +69,9 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     /** get the number of documents */
     @Override
     public long getDocCount() {
+        if (results != null) {
+            return results.getDocCount();
+        }
         if (stats == null) {
             return 0;
         }
@@ -220,6 +225,30 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+        return innerReduce(
+            aggregations,
+            runningStats -> reduceContext.isFinalReduce()
+                ? new InternalMatrixStats(name, runningStats.docCount, runningStats, new MatrixStatsResults(runningStats), getMetadata())
+                : new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata())
+        );
+    }
+
+    @Override
+    public InternalAggregation reduceSampled(
+        List<InternalAggregation> aggregations,
+        AggregationReduceContext reduceContext,
+        SamplingContext context
+    ) {
+        return innerReduce(aggregations, runningStats -> {
+            if (reduceContext.isFinalReduce()) {
+                MatrixStatsResults results = new MatrixStatsResults(runningStats, context);
+                return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, getMetadata());
+            }
+            return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata());
+        });
+    }
+
+    private InternalAggregation innerReduce(List<InternalAggregation> aggregations, Function<RunningStats, InternalMatrixStats> newAgg) {
         // merge stats across all shards
         List<InternalAggregation> aggs = new ArrayList<>(aggregations);
         aggs.removeIf(p -> ((InternalMatrixStats) p).stats == null);
@@ -233,12 +262,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         for (InternalAggregation agg : aggs) {
             runningStats.merge(((InternalMatrixStats) agg).stats);
         }
-
-        if (reduceContext.isFinalReduce()) {
-            MatrixStatsResults matrixStatsResults = new MatrixStatsResults(runningStats);
-            return new InternalMatrixStats(name, matrixStatsResults.getDocCount(), runningStats, matrixStatsResults, getMetadata());
-        }
-        return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata());
+        return newAgg.apply(runningStats);
     }
 
     @Override

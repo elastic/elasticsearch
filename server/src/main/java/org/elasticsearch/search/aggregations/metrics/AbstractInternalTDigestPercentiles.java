@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -114,6 +115,15 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
             merged.add(percentiles.state);
         }
         return createReduced(getName(), keys, merged, keyed, getMetadata());
+    }
+
+    @Override
+    public AbstractInternalTDigestPercentiles reduceSampled(
+        List<InternalAggregation> aggregations,
+        AggregationReduceContext reduceContext,
+        SamplingContext context
+    ) {
+        return reduce(aggregations, reduceContext);
     }
 
     protected abstract AbstractInternalTDigestPercentiles createReduced(

@@ -226,7 +226,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
             .orElseThrow(() -> new IllegalArgumentException("Invalid system [" + system + "]"));
     }
 
-    private final List<LifecyclePolicy> ilmPolicies;
+    private final List<LifecyclePolicyConfig> ilmPolicies;
 
     public MonitoringTemplateRegistry(
         Settings nodeSettings,
@@ -241,7 +241,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         this.ilmPolicies = loadPolicies(nodeSettings);
     }
 
-    private List<LifecyclePolicy> loadPolicies(Settings nodeSettings) {
+    private List<LifecyclePolicyConfig> loadPolicies(Settings nodeSettings) {
         Map<String, String> templateVars = new HashMap<>();
         if (HISTORY_DURATION.exists(nodeSettings)) {
             templateVars.put(MONITORING_POLICY_RETENTION_VARIABLE, HISTORY_DURATION.get(nodeSettings).getStringRep());
@@ -253,8 +253,11 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
             templateVars.put(MONITORING_POLICY_RETENTION_VARIABLE, MONITORING_POLICY_DEFAULT_RETENTION);
             templateVars.put(MONITORING_POLICY_RETENTION_REASON_VARIABLE, "the monitoring plugin default");
         }
-        LifecyclePolicy monitoringPolicy = new LifecyclePolicyConfig(MONITORING_POLICY_NAME, "/monitoring-mb-ilm-policy.json", templateVars)
-            .load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY);
+        LifecyclePolicyConfig monitoringPolicy = new LifecyclePolicyConfig(
+            MONITORING_POLICY_NAME,
+            "/monitoring-mb-ilm-policy.json",
+            templateVars
+        );
         return Collections.singletonList(monitoringPolicy);
     }
 
@@ -306,12 +309,16 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
+    protected List<LifecyclePolicyConfig> getPolicyConfigs() {
         if (monitoringTemplatesEnabled) {
             return ilmPolicies;
         } else {
             return Collections.emptyList();
         }
+    }
+
+    List<LifecyclePolicy> getPolicies() {
+        return getPolicyConfigs().stream().map(p -> p.load(this.xContentRegistry)).collect(Collectors.toList());
     }
 
     @Override

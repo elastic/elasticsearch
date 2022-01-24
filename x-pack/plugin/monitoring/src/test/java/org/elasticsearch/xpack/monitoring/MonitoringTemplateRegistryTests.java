@@ -33,18 +33,20 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
+import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.junit.After;
 import org.junit.Before;
@@ -58,7 +60,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.monitoring.MonitoringField.HISTORY_DURATION;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -75,12 +76,23 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
     private ThreadPool threadPool;
     private VerifyingClient client;
 
+    private static final NamedXContentRegistry REGISTRY;
+    static {
+        REGISTRY = new NamedXContentRegistry(
+            List.of(
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)
+            )
+        );
+    }
+
     @Before
     public void createRegistryAndClient() {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        registry = new MonitoringTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        registry = new MonitoringTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, REGISTRY);
     }
 
     @After
@@ -113,10 +125,10 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY
+            REGISTRY
         );
         assertThat(disabledRegistry.getLegacyTemplateConfigs(), is(empty()));
-        assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
+        assertThat(disabledRegistry.getComposableTemplateConfigs(), is(empty()));
         assertThat(disabledRegistry.getPolicyConfigs(), hasSize(0));
     }
 
@@ -193,7 +205,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
                 clusterService,
                 threadPool,
                 client,
-                NamedXContentRegistry.EMPTY
+                REGISTRY
             );
             testRegistry.clusterChanged(event);
         } else {
@@ -212,7 +224,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getPolicies();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
@@ -244,7 +256,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getPolicies();
         assertThat(policies, hasSize(1));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
@@ -269,17 +281,12 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
         try (
             XContentParser parser = XContentType.JSON.xContent()
                 .createParser(
-                    XContentParserConfiguration.EMPTY.withRegistry(
-                        new NamedXContentRegistry(
-                            List.of(
-                                new NamedXContentRegistry.Entry(
-                                    LifecycleAction.class,
-                                    new ParseField(DeleteAction.NAME),
-                                    DeleteAction::parse
-                                )
-                            )
+                    new NamedXContentRegistry(
+                        List.of(
+                            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)
                         )
                     ),
+                    DeprecationHandler.IGNORE_DEPRECATIONS,
                     policyStr
                 )
         ) {

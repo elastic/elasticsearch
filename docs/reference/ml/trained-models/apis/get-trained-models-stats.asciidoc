@@ -97,17 +97,6 @@ The detailed allocation status given the deployment configuration.
 (integer)
 The current number of nodes where the model is allocated.
 
-`error_count`:::
-(integer)
-The sum of `error_count` for all nodes in the deployment.
-
-`rejected_execution_count`:::
-(integer)
-The sum of `rejected_execution_count` for all nodes in the deployment.
-Individual nodes reject an inference request if the inference queue is full.
-The queue size is controlled by the `queue_capacity` setting in the
-<<start-trained-model-deployment>> API.
-
 `state`:::
 (string)
 The detailed allocation state related to the nodes.
@@ -121,11 +110,11 @@ The detailed allocation state related to the nodes.
 `target_allocation_count`:::
 (integer)
 The desired number of nodes for model allocation.
-
-`timeout_count`:::
-(integer)
-The sum of `timeout_count` for all nodes in the deployment.
 ======
+
+`error_count`:::
+(integer)
+The sum of `error_count` for all nodes in the deployment.
 
 `inference_threads`:::
 (integer)
@@ -201,14 +190,20 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-id]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 ========
 
+`routing_state`:::
+(object)
+The current routing state and reason for the current routing state for this allocation.
++
+.Properties of routing_state
+[%collapsible%open]
+========
 `reason`:::
 (string)
 The reason for the current state. Usually only populated when the `routing_state` is `failed`.
 
 `routing_state`:::
-(object)
-The current routing state and reason for the current routing state for this allocation.
-+
+(string)
+The current routing state.
 --
 * `starting`: The model is attempting to allocate on this model, inference calls are not yet accepted.
 * `started`: The model is allocated and ready to accept inference requests.
@@ -216,6 +211,7 @@ The current routing state and reason for the current routing state for this allo
 * `stopped`: The model is fully deallocated from this node.
 * `failed`: The allocation attempt failed, see `reason` field for the potential cause.
 --
+========
 
 `rejected_execution_count`:::
 (integer)
@@ -231,6 +227,18 @@ The epoch timestamp when the allocation started.
 The number of inference requests that timed out before being processed.
 ======
 
+`rejected_execution_count`:::
+(integer)
+The sum of `rejected_execution_count` for all nodes in the deployment.
+Individual nodes reject an inference request if the inference queue is full.
+The queue size is controlled by the `queue_capacity` setting in the
+<<start-trained-model-deployment>> API.
+
+`reason`:::
+(string)
+The reason for the current deployment state.
+Usually only populated when the model is not deployed to a node.
+
 `start_time`:::
 (long)
 The epoch timestamp when the deployment started.
@@ -244,6 +252,10 @@ The overall state of the deployment. The values may be:
 * `started`: The deployment is usable as at least one node has the model allocated.
 * `stopping`: The deployment is preparing to stop and deallocate the model from the relevant nodes.
 --
+
+`timeout_count`:::
+(integer)
+The sum of `timeout_count` for all nodes in the deployment.
 
 `queue_capacity`:::
 (integer)

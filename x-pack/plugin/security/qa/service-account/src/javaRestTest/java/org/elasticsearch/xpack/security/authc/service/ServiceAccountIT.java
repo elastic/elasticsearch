@@ -103,6 +103,17 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
+                    "traces-apm.sampled-*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "monitor",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": [
                     ".fleet-*"
                   ],
                   "privileges": [

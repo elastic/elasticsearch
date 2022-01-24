@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -65,7 +66,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
             if (shardList == null || shardList.isEmpty()) {
                 shards = emptyMap();
             } else {
-                shards = new HashMap<>(shardList.size());
+                shards = Maps.newMapWithExpectedSize(shardList.size());
                 for (ClusterShardHealth shardHealth : shardList) {
                     shards.put(shardHealth.getShardId(), shardHealth);
                 }
@@ -172,7 +173,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
         status = ClusterHealthStatus.readFrom(in);
 
         int size = in.readVInt();
-        shards = new HashMap<>(size);
+        shards = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             ClusterShardHealth shardHealth = new ClusterShardHealth(in);
             shards.put(shardHealth.getShardId(), shardHealth);

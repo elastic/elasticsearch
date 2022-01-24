@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
@@ -35,21 +36,26 @@ public class FillMaskProcessor implements NlpTask.Processor {
 
     @Override
     public void validateInputs(List<String> inputs) {
+        ValidationException ve = new ValidationException();
         if (inputs.isEmpty()) {
-            throw ExceptionsHelper.badRequestException("input request is empty");
+            ve.addValidationError("input request is empty");
         }
 
         final String mask = tokenizer.getMaskToken();
         for (String input : inputs) {
             int maskIndex = input.indexOf(mask);
             if (maskIndex < 0) {
-                throw ExceptionsHelper.badRequestException("no {} token could be found", mask);
+                ve.addValidationError("no " + mask + " token could be found in the input");
             }
 
             maskIndex = input.indexOf(mask, maskIndex + mask.length());
             if (maskIndex > 0) {
                 throw ExceptionsHelper.badRequestException("only one {} token should exist in the input", mask);
             }
+        }
+
+        if (ve.validationErrors().isEmpty() == false) {
+            throw ve;
         }
     }
 

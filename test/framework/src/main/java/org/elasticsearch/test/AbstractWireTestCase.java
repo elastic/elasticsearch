@@ -12,9 +12,16 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -53,6 +60,74 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
     }
 
     /**
+     * Calls {@link Object#equals} on equal objects on many threads and verifies
+     * they all return true. Folks tend to assume this is true about
+     * {@link Object#equals} and it <strong>generally</strong> is. But some
+     * equals implementations violate this assumption and it's very surprising.
+     * This tries to fail when that assumption is violated.
+     */
+    public final void testConcurrentEquals() throws IOException, InterruptedException, ExecutionException {
+        T testInstance = createTestInstance();
+        T copy = copyInstance(testInstance);
+
+        /*
+         * 500 rounds seems to consistently reproduce the issue on Nik's
+         * laptop. Larger numbers are going to be slower but more likely
+         * to reproduce the issue.
+         */
+        int rounds = scaledRandomIntBetween(300, 5000);
+        concurrentTest(() -> {
+            for (int r = 0; r < rounds; r++) {
+                assertEquals(testInstance, copy);
+            }
+        });
+    }
+
+    /**
+     * Call some test on many threads in parallel.
+     */
+    protected void concurrentTest(Runnable r) throws InterruptedException, ExecutionException {
+        int threads = 5;
+        int tasks = threads * 2;
+        ExecutorService exec = Executors.newFixedThreadPool(threads);
+        try {
+            List<Future<?>> results = new ArrayList<>();
+            for (int t = 0; t < tasks; t++) {
+                results.add(exec.submit(r));
+            }
+            for (Future<?> f : results) {
+                f.get();
+            }
+        } finally {
+            exec.shutdown();
+        }
+    }
+
+    /**
+     * Calls {@link Object#hashCode} on the same object on many threads and
+     * verifies they return the same result. Folks tend to assume this is true
+     * about {@link Object#hashCode} and it <strong>generally</strong> is. But
+     * some hashCode implementations violate this assumption and it's very
+     * surprising. This tries to fail when that assumption is violated.
+     */
+    public final void testConcurrentHashCode() throws IOException, InterruptedException, ExecutionException {
+        T testInstance = createTestInstance();
+        int firstHashCode = testInstance.hashCode();
+
+        /*
+         * 500 rounds seems to consistently reproduce the issue on Nik's
+         * laptop. Larger numbers are going to be slower but more likely
+         * to reproduce the issue.
+         */
+        int rounds = scaledRandomIntBetween(300, 5000);
+        concurrentTest(() -> {
+            for (int r = 0; r < rounds; r++) {
+                assertEquals(firstHashCode, testInstance.hashCode());
+            }
+        });
+    }
+
+    /**
      * Test serialization and deserialization of the test instance.
      */
     public final void testSerialization() throws IOException {
@@ -60,6 +135,37 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
             T testInstance = createTestInstance();
             assertSerialization(testInstance);
         }
+    }
+
+    /**
+     * Test serializing the same object on many threads always
+     * deserializes to equal instances. Folks tend to assume this is true
+     * about serialization and it <strong>generally</strong> is. But
+     * some implementations violate this assumption and it's very
+     * surprising. This tries to fail when that assumption is violated.
+     * <p>
+     * Async search can serialize responses concurrently with other
+     * operations like {@link ToXContent#toXContent}. This doesn't
+     * check that exactly, but it's close.
+     */
+    public final void testConcurrentSerialization() throws IOException, InterruptedException, ExecutionException {
+        T testInstance = createTestInstance();
+
+        /*
+         * 500 rounds seems to consistently reproduce the issue on Nik's
+         * laptop. Larger numbers are going to be slower but more likely
+         * to reproduce the issue.
+         */
+        int rounds = scaledRandomIntBetween(300, 2000);
+        concurrentTest(() -> {
+            try {
+                for (int r = 0; r < rounds; r++) {
+                    assertSerialization(testInstance);
+                }
+            } catch (IOException e) {
+                throw new AssertionError("error serializing", e);
+            }
+        });
     }
 
     /**

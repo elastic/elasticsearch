@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -23,6 +25,32 @@ import java.util.Objects;
  * Represents one part of the execution of a {@link LifecycleAction}.
  */
 public abstract class Step {
+
+    /**
+     * Retrieves the current {@link Step.StepKey} from the lifecycle state. Note that
+     * it is illegal for the step to be set with the phase and/or action unset,
+     * or for the step to be unset with the phase and/or action set. All three
+     * settings must be either present or missing.
+     *
+     * @param lifecycleState the index custom data to extract the {@link Step.StepKey} from.
+     */
+    @Nullable
+    public static Step.StepKey getCurrentStepKey(LifecycleExecutionState lifecycleState) {
+        Objects.requireNonNull(lifecycleState, "cannot determine current step key as lifecycle state is null");
+        String currentPhase = lifecycleState.getPhase();
+        String currentAction = lifecycleState.getAction();
+        String currentStep = lifecycleState.getStep();
+        if (Strings.isNullOrEmpty(currentStep)) {
+            assert Strings.isNullOrEmpty(currentPhase) : "Current phase is not empty: " + currentPhase;
+            assert Strings.isNullOrEmpty(currentAction) : "Current action is not empty: " + currentAction;
+            return null;
+        } else {
+            assert Strings.isNullOrEmpty(currentPhase) == false;
+            assert Strings.isNullOrEmpty(currentAction) == false;
+            return new Step.StepKey(currentPhase, currentAction, currentStep);
+        }
+    }
+
     private final StepKey key;
     private final StepKey nextStepKey;
 

@@ -116,10 +116,6 @@ The desired number of nodes for model allocation.
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
-`model_size`:::
-(<<byte-units,byte value>>)
-The size of the loaded model in bytes.
-
 `nodes`:::
 (array of objects)
 The deployment stats for each node that currently has the model allocated.
@@ -248,6 +244,23 @@ section in <<cluster-nodes-stats>>.
 `model_id`:::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+`model_size_stats`:::
+(object)
+A collection of model size stats fields.
++
+.Properties of model size stats
+[%collapsible%open]
+=====
+
+`model_size_bytes`:::
+(integer)
+The size of the model in bytes.
+
+`required_native_memory_bytes`:::
+(integer)
+The amount of memory required to load the model in bytes.
+=====
 
 `pipeline_count`:::
 (integer)

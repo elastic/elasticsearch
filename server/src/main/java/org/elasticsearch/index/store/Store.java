@@ -328,6 +328,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public CheckIndex.Status checkIndex(PrintStream out) throws IOException {
         metadataLock.writeLock().lock();
         try (CheckIndex checkIndex = new CheckIndex(directory)) {
+            // Since 8.11 lucene performs index checking concurrently using disposable fixed thread pool executor by default.
+            // Setting thread count to 1 to keep prior behaviour (check is executed in single caller thread).
+            checkIndex.setThreadCount(1);
             checkIndex.setInfoStream(out);
             return checkIndex.checkIndex();
         } finally {

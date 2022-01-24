@@ -9,13 +9,13 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,7 +37,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
         String[] bucketsPaths = null;
         String format = null;
         GapPolicy gapPolicy = null;
-        Map<String, Object> params = new HashMap<>(5);
+        Map<String, Object> params = Maps.newMapWithExpectedSize(5);
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {

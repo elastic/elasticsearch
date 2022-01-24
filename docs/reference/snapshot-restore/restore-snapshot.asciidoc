@@ -678,9 +678,8 @@ To resolve this error, restore the snapshot to a compatible cluster version. See
 [discrete]
 ==== The index [<index>/<index-id>] was created with version [<x.y.z>] but the minimum compatible version is [<x1.y1.z1>]. It should be re-indexed in {es} <x1.y1> before upgrading to <x2.y2.z2>.
 
-include::index.asciidoc[tag=index-compat]
-
-include::index.asciidoc[tag=restore-reindex-workaround]
+Any index you restore from a snapshot must be compatible with the current
+cluster's version. See <<snapshot-index-compatibility>>.
 
 [discrete]
 ==== index, alias, and data stream names need to be unique, but the following duplicates were found [<alias>(alias of [<index>/<index-id>]]

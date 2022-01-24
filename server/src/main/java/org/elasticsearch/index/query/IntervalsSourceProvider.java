@@ -960,26 +960,17 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 return new ScriptFilterSource(input, script.getIdOrCode(), ifs);
             }
             IntervalsSource filterSource = filter.getSource(context, fieldType);
-            switch (type) {
-                case "containing":
-                    return Intervals.containing(input, filterSource);
-                case "contained_by":
-                    return Intervals.containedBy(input, filterSource);
-                case "not_containing":
-                    return Intervals.notContaining(input, filterSource);
-                case "not_contained_by":
-                    return Intervals.notContainedBy(input, filterSource);
-                case "overlapping":
-                    return Intervals.overlapping(input, filterSource);
-                case "not_overlapping":
-                    return Intervals.nonOverlapping(input, filterSource);
-                case "before":
-                    return Intervals.before(input, filterSource);
-                case "after":
-                    return Intervals.after(input, filterSource);
-                default:
-                    throw new IllegalArgumentException("Unknown filter type [" + type + "]");
-            }
+            return switch (type) {
+                case "containing" -> Intervals.containing(input, filterSource);
+                case "contained_by" -> Intervals.containedBy(input, filterSource);
+                case "not_containing" -> Intervals.notContaining(input, filterSource);
+                case "not_contained_by" -> Intervals.notContainedBy(input, filterSource);
+                case "overlapping" -> Intervals.overlapping(input, filterSource);
+                case "not_overlapping" -> Intervals.nonOverlapping(input, filterSource);
+                case "before" -> Intervals.before(input, filterSource);
+                case "after" -> Intervals.after(input, filterSource);
+                default -> throw new IllegalArgumentException("Unknown filter type [" + type + "]");
+            };
         }
 
         @Override

@@ -17,7 +17,7 @@ teardown:
 ---
 "Create a snapshot and then restore it":
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
       features: ["allowed_warnings"]
 

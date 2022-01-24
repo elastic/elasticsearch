@@ -10,13 +10,14 @@ package org.elasticsearch.common.util.concurrent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpTransportSettings;
 
@@ -126,7 +127,7 @@ public final class ThreadContext implements Writeable {
     }
 
     private Map<String, String> headers(ThreadContextStruct context, Set<String> headersToCopy) {
-        Map<String, String> map = new HashMap<>(headersToCopy.size(), 1);
+        Map<String, String> map = Maps.newMapWithExpectedSize(headersToCopy.size());
         for (String header : headersToCopy) {
             if (context.requestHeaders.containsKey(header)) {
                 map.put(header, context.requestHeaders.get(header));
@@ -352,7 +353,7 @@ public final class ThreadContext implements Writeable {
      */
     public Map<String, List<String>> getResponseHeaders() {
         Map<String, Set<String>> responseHeaders = threadLocal.get().responseHeaders;
-        HashMap<String, List<String>> map = new HashMap<>(responseHeaders.size());
+        Map<String, List<String>> map = Maps.newMapWithExpectedSize(responseHeaders.size());
 
         for (Map.Entry<String, Set<String>> entry : responseHeaders.entrySet()) {
             map.put(entry.getKey(), List.copyOf(entry.getValue()));

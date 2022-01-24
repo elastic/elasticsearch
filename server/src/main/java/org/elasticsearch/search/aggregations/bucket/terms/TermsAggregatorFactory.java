@@ -272,8 +272,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private static boolean isAggregationSort(BucketOrder order) {
         if (order instanceof InternalOrder.Aggregation) {
             return true;
-        } else if (order instanceof InternalOrder.CompoundOrder) {
-            InternalOrder.CompoundOrder compoundOrder = (CompoundOrder) order;
+        } else if (order instanceof CompoundOrder compoundOrder) {
             return compoundOrder.orderElements().stream().anyMatch(TermsAggregatorFactory::isAggregationSort);
         } else {
             return false;
@@ -341,8 +340,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
      * if the values source is not an instance of {@link ValuesSource.Bytes.WithOrdinals}.
      */
     private static long getMaxOrd(ValuesSource source, IndexSearcher searcher) throws IOException {
-        if (source instanceof ValuesSource.Bytes.WithOrdinals) {
-            ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) source;
+        if (source instanceof ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals) {
             return valueSourceWithOrdinals.globalMaxOrd(searcher);
         } else {
             return -1;
@@ -529,14 +527,13 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         };
 
         public static ExecutionMode fromString(String value) {
-            switch (value) {
-                case "global_ordinals":
-                    return GLOBAL_ORDINALS;
-                case "map":
-                    return MAP;
-                default:
-                    throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals]");
-            }
+            return switch (value) {
+                case "global_ordinals" -> GLOBAL_ORDINALS;
+                case "map" -> MAP;
+                default -> throw new IllegalArgumentException(
+                    "Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals]"
+                );
+            };
         }
 
         private final ParseField parseField;

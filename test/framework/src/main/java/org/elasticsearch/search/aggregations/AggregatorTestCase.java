@@ -302,7 +302,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             mappingLookup,
             null,
             getMockScriptService(),
-            xContentRegistry(),
+            parserConfig(),
             writableRegistry(),
             null,
             indexSearcher,
@@ -801,13 +801,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         Set<String> valueNames = new HashSet<>();
 
-        if (agg instanceof NumericMetricsAggregation.MultiValue) {
-            NumericMetricsAggregation.MultiValue multiValueAgg = (NumericMetricsAggregation.MultiValue) agg;
+        if (agg instanceof NumericMetricsAggregation.MultiValue multiValueAgg) {
             for (String name : multiValueAgg.valueNames()) {
                 valueNames.add(name);
             }
-        } else if (agg instanceof MultiValueAggregation) {
-            MultiValueAggregation multiValueAgg = (MultiValueAggregation) agg;
+        } else if (agg instanceof MultiValueAggregation multiValueAgg) {
             for (String name : multiValueAgg.valueNames()) {
                 valueNames.add(name);
             }

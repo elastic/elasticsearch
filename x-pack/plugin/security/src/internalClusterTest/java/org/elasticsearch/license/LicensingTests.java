@@ -16,10 +16,10 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -71,8 +71,8 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     private static final SecureString HASH_PASSWD = new SecureString(Hasher.BCRYPT4.hash(new SecureString("passwd".toCharArray())));
 
-    private static final String ROLES = SecuritySettingsSource.TEST_ROLE + """
-        :
+    private static final String ROLES = """
+        %s:
           cluster: [ all ]
           indices:
             - names: '*'
@@ -96,15 +96,13 @@ public class LicensingTests extends SecurityIntegTestCase {
           indices:
             - names: 'b'
               privileges: [all]
-        """;
+        """.formatted(SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
 
     private static final String USERS_ROLES = """
-        user:test_user,test_trans_client_user
-        transport_client:test_trans_client_user
         superuser:test_superuser
         role_a:user_a,user_b
         role_b:user_b
-        """;
+        """ + SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES;
 
     @Override
     protected String configRoles() {

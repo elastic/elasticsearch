@@ -154,17 +154,18 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
         assertValue(record, "result.actions.0.id", is("log"));
         assertValue(record, "result.actions.0.type", is("logging"));
         switch (mode) {
-            case SKIP: // the action should be manually skipped/throttled
+            case SKIP -> { // the action should be manually skipped/throttled
                 assertValue(record, "result.actions.0.status", is("throttled"));
                 assertValue(record, "result.actions.0.reason", is("manually skipped"));
-                break;
-            default:
+            }
+            default -> {
                 if (mode.simulate()) {
                     assertValue(record, "result.actions.0.status", is("simulated"));
                 } else {
                     assertValue(record, "result.actions.0.status", is("success"));
                 }
                 assertValue(record, "result.actions.0.logging.logged_text", is("_text"));
+            }
         }
     }
 }

@@ -264,8 +264,7 @@ final class SearchResponseMerger {
                 return shard.getShardId();
             }
             Throwable cause = failure.getCause();
-            if (cause instanceof ElasticsearchException) {
-                ElasticsearchException e = (ElasticsearchException) cause;
+            if (cause instanceof ElasticsearchException e) {
                 return e.getShardId();
             }
             return null;
@@ -335,8 +334,7 @@ final class SearchResponseMerger {
         assignShardIndex(shards);
         for (List<Suggest.Suggestion<?>> suggestions : groupedSuggestions.values()) {
             for (Suggest.Suggestion<?> suggestion : suggestions) {
-                if (suggestion instanceof CompletionSuggestion) {
-                    CompletionSuggestion completionSuggestion = (CompletionSuggestion) suggestion;
+                if (suggestion instanceof CompletionSuggestion completionSuggestion) {
                     for (CompletionSuggestion.Entry options : completionSuggestion) {
                         for (CompletionSuggestion.Entry.Option option : options) {
                             SearchShardTarget shard = option.getHit().getShard();
@@ -375,8 +373,7 @@ final class SearchResponseMerger {
         Object[] groupValues = null;
         if (topDocs instanceof TopFieldDocs) {
             sortFields = ((TopFieldDocs) topDocs).fields;
-            if (topDocs instanceof TopFieldGroups) {
-                TopFieldGroups topFieldGroups = (TopFieldGroups) topDocs;
+            if (topDocs instanceof TopFieldGroups topFieldGroups) {
                 groupField = topFieldGroups.field;
                 groupValues = topFieldGroups.groupValues;
             }

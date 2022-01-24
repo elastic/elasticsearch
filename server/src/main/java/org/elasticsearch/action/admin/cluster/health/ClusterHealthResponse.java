@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -26,7 +27,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -78,7 +78,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
             if (indexList == null || indexList.isEmpty()) {
                 indices = emptyMap();
             } else {
-                indices = new HashMap<>(indexList.size());
+                indices = Maps.newMapWithExpectedSize(indexList.size());
                 for (ClusterIndexHealth indexHealth : indexList) {
                     indices.put(indexHealth.getIndex(), indexHealth);
                 }

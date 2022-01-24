@@ -370,24 +370,23 @@ public class TasksIT extends ESIntegTestCase {
             assertEquals(mainTask.get(0).getTaskId(), taskInfo.getParentTaskId());
             assertTaskHeaders(taskInfo);
             switch (taskInfo.getAction()) {
-                case SearchTransportService.QUERY_ACTION_NAME:
-                case SearchTransportService.DFS_ACTION_NAME:
-                    assertTrue(taskInfo.getDescription(), Regex.simpleMatch("shardId[[test][*]]", taskInfo.getDescription()));
-                    break;
-                case SearchTransportService.QUERY_ID_ACTION_NAME:
-                    assertTrue(taskInfo.getDescription(), Regex.simpleMatch("id[*], indices[test]", taskInfo.getDescription()));
-                    break;
-                case SearchTransportService.FETCH_ID_ACTION_NAME:
-                    assertTrue(
-                        taskInfo.getDescription(),
-                        Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]", taskInfo.getDescription())
-                    );
-                    break;
-                case SearchTransportService.QUERY_CAN_MATCH_NAME:
-                    assertTrue(taskInfo.getDescription(), Regex.simpleMatch("shardId[[test][*]]", taskInfo.getDescription()));
-                    break;
-                default:
-                    fail("Unexpected action [" + taskInfo.getAction() + "] with description [" + taskInfo.getDescription() + "]");
+                case SearchTransportService.QUERY_ACTION_NAME, SearchTransportService.DFS_ACTION_NAME -> assertTrue(
+                    taskInfo.getDescription(),
+                    Regex.simpleMatch("shardId[[test][*]]", taskInfo.getDescription())
+                );
+                case SearchTransportService.QUERY_ID_ACTION_NAME -> assertTrue(
+                    taskInfo.getDescription(),
+                    Regex.simpleMatch("id[*], indices[test]", taskInfo.getDescription())
+                );
+                case SearchTransportService.FETCH_ID_ACTION_NAME -> assertTrue(
+                    taskInfo.getDescription(),
+                    Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]", taskInfo.getDescription())
+                );
+                case SearchTransportService.QUERY_CAN_MATCH_NAME -> assertTrue(
+                    taskInfo.getDescription(),
+                    Regex.simpleMatch("shardId[[test][*]]", taskInfo.getDescription())
+                );
+                default -> fail("Unexpected action [" + taskInfo.getAction() + "] with description [" + taskInfo.getDescription() + "]");
             }
             // assert that all task descriptions have non-zero length
             assertThat(taskInfo.getDescription().length(), greaterThan(0));

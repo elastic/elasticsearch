@@ -25,6 +25,7 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -178,12 +179,10 @@ public final class SearchPhaseController {
         SortField[] sortFields = null;
         String groupField = null;
         Object[] groupValues = null;
-        if (mergedTopDocs instanceof TopFieldDocs) {
-            TopFieldDocs fieldDocs = (TopFieldDocs) mergedTopDocs;
+        if (mergedTopDocs instanceof TopFieldDocs fieldDocs) {
             sortFields = fieldDocs.fields;
-            if (fieldDocs instanceof TopFieldGroups) {
+            if (fieldDocs instanceof TopFieldGroups topFieldGroups) {
                 isSortedByField = (fieldDocs.fields.length == 1 && fieldDocs.fields[0].getType() == SortField.Type.SCORE) == false;
-                TopFieldGroups topFieldGroups = (TopFieldGroups) fieldDocs;
                 groupField = topFieldGroups.field;
                 groupValues = topFieldGroups.groupValues;
             } else {
@@ -202,13 +201,11 @@ public final class SearchPhaseController {
         final int numShards = results.size();
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
-        } else if (topDocs instanceof TopFieldGroups) {
-            TopFieldGroups firstTopDocs = (TopFieldGroups) topDocs;
+        } else if (topDocs instanceof TopFieldGroups firstTopDocs) {
             final Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[numShards]);
             mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
-        } else if (topDocs instanceof TopFieldDocs) {
-            TopFieldDocs firstTopDocs = (TopFieldDocs) topDocs;
+        } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
             final Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
@@ -271,7 +268,7 @@ public final class SearchPhaseController {
         IntFunction<SearchPhaseResult> resultsLookup
     ) {
         if (reducedQueryPhase.isEmptyResult) {
-            return InternalSearchResponse.empty();
+            return InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
         }
         ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResults, resultsLookup);
@@ -460,7 +457,7 @@ public final class SearchPhaseController {
         // count the total (we use the query result provider here, since we might not get any hits (we scrolled past them))
         final Map<String, List<Suggestion<?>>> groupedSuggestions = hasSuggest ? new HashMap<>() : Collections.emptyMap();
         final Map<String, SearchProfileQueryPhaseResult> profileShardResults = hasProfileResults
-            ? new HashMap<>(queryResults.size())
+            ? Maps.newMapWithExpectedSize(queryResults.size())
             : Collections.emptyMap();
         int from = 0;
         int size = 0;
@@ -479,8 +476,7 @@ public final class SearchPhaseController {
                 for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
                     List<Suggestion<?>> suggestionList = groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>());
                     suggestionList.add(suggestion);
-                    if (suggestion instanceof CompletionSuggestion) {
-                        CompletionSuggestion completionSuggestion = (CompletionSuggestion) suggestion;
+                    if (suggestion instanceof CompletionSuggestion completionSuggestion) {
                         completionSuggestion.setShardIndex(result.getShardIndex());
                     }
                 }

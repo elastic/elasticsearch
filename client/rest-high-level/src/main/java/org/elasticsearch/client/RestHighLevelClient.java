@@ -2355,8 +2355,7 @@ public class RestHighLevelClient implements Closeable {
 
             @Override
             public void onFailure(Exception exception) {
-                if (exception instanceof ResponseException) {
-                    ResponseException responseException = (ResponseException) exception;
+                if (exception instanceof ResponseException responseException) {
                     Response response = responseException.getResponse();
                     if (ignores.contains(response.getStatusLine().getStatusCode())) {
                         try {
@@ -2426,8 +2425,7 @@ public class RestHighLevelClient implements Closeable {
 
             @Override
             public void onFailure(Exception exception) {
-                if (exception instanceof ResponseException) {
-                    ResponseException responseException = (ResponseException) exception;
+                if (exception instanceof ResponseException responseException) {
                     Response response = responseException.getResponse();
                     if (RestStatus.NOT_FOUND.getStatus() == response.getStatusLine().getStatusCode()) {
                         actionListener.onResponse(Optional.empty());

@@ -30,6 +30,21 @@ setup:
           }
   - do:
       transform.put_transform:
+        transform_id: "airline-transform-start-stop-no-deduce"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline-start-stop-no-deduce" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "settings": {
+              "deduce_mappings": false
+            }
+          }
+  - do:
+      transform.put_transform:
         transform_id: "airline-transform-start-stop-continuous"
         body: >
           {
@@ -58,6 +73,15 @@ teardown:
   - do:
       transform.delete_transform:
         transform_id: "airline-transform-start-stop"
+  - do:
+      transform.stop_transform:
+        wait_for_checkpoint: false
+        transform_id: "airline-transform-start-stop-no-deduce"
+        timeout: "10m"
+        wait_for_completion: true
+  - do:
+      transform.delete_transform:
+        transform_id: "airline-transform-start-stop-no-deduce"
   - do:
       transform.stop_transform:
         wait_for_checkpoint: false
@@ -104,6 +128,17 @@ teardown:
         index: airline-data-by-airline-start-stop
   - match: { airline-data-by-airline-start-stop.mappings.properties.airline.type: keyword }
   - match: { airline-data-by-airline-start-stop.mappings.properties.avg_response.type: double }
+
+---
+"Verify start transform creates destination index without mapping deduction":
+  - do:
+      transform.start_transform:
+        transform_id: "airline-transform-start-stop-no-deduce"
+  - match: { acknowledged: true }
+  - do:
+      indices.get_mapping:
+        index: airline-data-by-airline-start-stop-no-deduce
+  - match: { airline-data-by-airline-start-stop-no-deduce.mappings.properties: null }
 
 ---
 "Verify start transform reuses destination index":
@@ -345,9 +380,11 @@ teardown:
   - do:
       transform.get_transform_stats:
         transform_id: "*"
-  - match: { count: 3 }
+  - match: { count: 4 }
   - match: { transforms.0.state: "stopped" }
   - match: { transforms.1.state: "stopped" }
+  - match: { transforms.2.state: "stopped" }
+  - match: { transforms.3.state: "stopped" }
 
   - do:
       transform.delete_transform:

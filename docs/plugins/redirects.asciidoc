@@ -18,7 +18,7 @@ Looking for a hosted solution for Elasticsearch on AWS? Check out https://www.el
 The Elasticsearch `cloud-aws` plugin has been split into two separate plugins:
 
 *  <<discovery-ec2>> (`discovery-ec2`)
-*  <<repository-s3>> (`repository-s3`)
+*  {ref}/repository-s3.html[`repository-s3`]
 
 [role="exclude",id="cloud-azure"]
 === Azure Cloud Plugin
@@ -26,7 +26,7 @@ The Elasticsearch `cloud-aws` plugin has been split into two separate plugins:
 The `cloud-azure` plugin has been split into two separate plugins:
 
 *  <<discovery-azure-classic>> (`discovery-azure-classic`)
-*  <<repository-azure>> (`repository-azure`)
+*  {ref}/repository-azure.html[`repository-azure`]
 
 
 [role="exclude",id="cloud-gce"]

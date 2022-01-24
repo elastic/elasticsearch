@@ -49,38 +49,31 @@ public class SnapshotLifecyclePolicyMetadataTests extends AbstractSerializingTes
 
     @Override
     protected SnapshotLifecyclePolicyMetadata mutateInstance(SnapshotLifecyclePolicyMetadata instance) throws IOException {
-        switch (between(0, 5)) {
-            case 0:
-                return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setPolicy(randomValueOtherThan(instance.getPolicy(), () -> randomSnapshotLifecyclePolicy(randomAlphaOfLength(10))))
-                    .build();
-            case 1:
-                return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setVersion(randomValueOtherThan(instance.getVersion(), ESTestCase::randomNonNegativeLong))
-                    .build();
-            case 2:
-                return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setModifiedDate(randomValueOtherThan(instance.getModifiedDate(), ESTestCase::randomNonNegativeLong))
-                    .build();
-            case 3:
-                return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setHeaders(randomValueOtherThan(instance.getHeaders(), SnapshotLifecyclePolicyMetadataTests::randomHeaders))
-                    .build();
-            case 4:
-                return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setLastSuccess(
-                        randomValueOtherThan(instance.getLastSuccess(), SnapshotInvocationRecordTests::randomSnapshotInvocationRecord)
-                    )
-                    .build();
-            case 5:
-                return SnapshotLifecyclePolicyMetadata.builder(instance)
-                    .setLastFailure(
-                        randomValueOtherThan(instance.getLastFailure(), SnapshotInvocationRecordTests::randomSnapshotInvocationRecord)
-                    )
-                    .build();
-            default:
-                throw new AssertionError("failure, got illegal switch case");
-        }
+        return switch (between(0, 5)) {
+            case 0 -> SnapshotLifecyclePolicyMetadata.builder(instance)
+                .setPolicy(randomValueOtherThan(instance.getPolicy(), () -> randomSnapshotLifecyclePolicy(randomAlphaOfLength(10))))
+                .build();
+            case 1 -> SnapshotLifecyclePolicyMetadata.builder(instance)
+                .setVersion(randomValueOtherThan(instance.getVersion(), ESTestCase::randomNonNegativeLong))
+                .build();
+            case 2 -> SnapshotLifecyclePolicyMetadata.builder(instance)
+                .setModifiedDate(randomValueOtherThan(instance.getModifiedDate(), ESTestCase::randomNonNegativeLong))
+                .build();
+            case 3 -> SnapshotLifecyclePolicyMetadata.builder(instance)
+                .setHeaders(randomValueOtherThan(instance.getHeaders(), SnapshotLifecyclePolicyMetadataTests::randomHeaders))
+                .build();
+            case 4 -> SnapshotLifecyclePolicyMetadata.builder(instance)
+                .setLastSuccess(
+                    randomValueOtherThan(instance.getLastSuccess(), SnapshotInvocationRecordTests::randomSnapshotInvocationRecord)
+                )
+                .build();
+            case 5 -> SnapshotLifecyclePolicyMetadata.builder(instance)
+                .setLastFailure(
+                    randomValueOtherThan(instance.getLastFailure(), SnapshotInvocationRecordTests::randomSnapshotInvocationRecord)
+                )
+                .build();
+            default -> throw new AssertionError("failure, got illegal switch case");
+        };
     }
 
     public static SnapshotLifecyclePolicyMetadata createRandomPolicyMetadata(String policyId) {

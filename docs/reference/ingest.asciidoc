@@ -262,8 +262,8 @@ POST _reindex
 === Set a default pipeline
 
 Use the <<index-default-pipeline,`index.default_pipeline`>> index setting to set
-a default pipeline. {es} applies this pipeline if no `pipeline` parameter
-is specified.
+a default pipeline. {es} applies this pipeline to indexing requests if no
+`pipeline` parameter is specified.
 
 [discrete]
 [[set-final-pipeline]]
@@ -871,7 +871,7 @@ PUT _ingest/pipeline/my-pipeline
   "processors": [
     {
       "drop": {
-        "description": "If 'url.scheme' is 'http', set 'url.insecure' to true",
+        "description": "Drop documents that don't contain 'prod' tag",
         "if": { "id": "my-stored-script" }
       }
     }

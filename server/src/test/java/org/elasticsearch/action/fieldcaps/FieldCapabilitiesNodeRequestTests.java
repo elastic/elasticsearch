@@ -82,7 +82,7 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
     @Override
     protected FieldCapabilitiesNodeRequest mutateInstance(FieldCapabilitiesNodeRequest instance) throws IOException {
         switch (random().nextInt(5)) {
-            case 0:
+            case 0 -> {
                 List<ShardId> shardIds = randomShardIds(instance.shardIds().size() + 1);
                 return new FieldCapabilitiesNodeRequest(
                     shardIds,
@@ -92,7 +92,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.nowInMillis(),
                     instance.runtimeFields()
                 );
-            case 1:
+            }
+            case 1 -> {
                 String[] fields = randomFields(instance.fields().length + 2);
                 return new FieldCapabilitiesNodeRequest(
                     instance.shardIds(),
@@ -102,7 +103,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.nowInMillis(),
                     instance.runtimeFields()
                 );
-            case 2:
+            }
+            case 2 -> {
                 OriginalIndices originalIndices = randomOriginalIndices(instance.indices().length + 1);
                 return new FieldCapabilitiesNodeRequest(
                     instance.shardIds(),
@@ -112,7 +114,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.nowInMillis(),
                     instance.runtimeFields()
                 );
-            case 3:
+            }
+            case 3 -> {
                 QueryBuilder indexFilter = instance.indexFilter() == null ? QueryBuilders.matchAllQuery() : null;
                 return new FieldCapabilitiesNodeRequest(
                     instance.shardIds(),
@@ -122,7 +125,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.nowInMillis(),
                     instance.runtimeFields()
                 );
-            case 4:
+            }
+            case 4 -> {
                 long nowInMillis = instance.nowInMillis() + 100;
                 return new FieldCapabilitiesNodeRequest(
                     instance.shardIds(),
@@ -132,7 +136,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     nowInMillis,
                     instance.runtimeFields()
                 );
-            case 5:
+            }
+            case 5 -> {
                 Map<String, Object> runtimeFields = instance.runtimeFields() == null
                     ? Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5))
                     : null;
@@ -144,8 +149,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.nowInMillis(),
                     runtimeFields
                 );
-            default:
-                throw new IllegalStateException("The test should only allow 5 parameters mutated");
+            }
+            default -> throw new IllegalStateException("The test should only allow 5 parameters mutated");
         }
     }
 }

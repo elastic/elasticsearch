@@ -8,10 +8,11 @@
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -203,7 +204,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
             case 9:
                 Map<String, String> headers = info.getHeaders();
                 if (headers == null) {
-                    headers = new HashMap<>(1);
+                    headers = Maps.newMapWithExpectedSize(1);
                 } else {
                     headers = new HashMap<>(info.getHeaders());
                 }
@@ -233,7 +234,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
         Task.Status status = randomBoolean() ? randomRawTaskStatus() : null;
         String description = randomBoolean() ? randomAlphaOfLength(5) : null;
         long startTime = randomLong();
-        long runningTimeNanos = randomLong();
+        long runningTimeNanos = randomNonNegativeLong();
         boolean cancellable = randomBoolean();
         boolean cancelled = cancellable && randomBoolean();
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();

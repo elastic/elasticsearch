@@ -87,7 +87,9 @@ public class FieldFetcher {
                 if (nestedParentPaths.isEmpty() == false) {
                     // try to find the shortest nested parent path for this field
                     for (String nestedFieldPath : nestedParentPaths) {
-                        if (field.startsWith(nestedFieldPath)) {
+                        if (field.startsWith(nestedFieldPath)
+                            && field.length() > nestedFieldPath.length()
+                            && field.charAt(nestedFieldPath.length()) == '.') {
                             nestedParentPath = nestedFieldPath;
                             break;
                         }

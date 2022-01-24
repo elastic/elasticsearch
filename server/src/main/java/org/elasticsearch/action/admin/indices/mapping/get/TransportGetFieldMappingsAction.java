@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -87,8 +87,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
         Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mergedResponses = new HashMap<>();
         for (int i = 0; i < indexResponses.length(); i++) {
             Object element = indexResponses.get(i);
-            if (element instanceof GetFieldMappingsResponse) {
-                GetFieldMappingsResponse response = (GetFieldMappingsResponse) element;
+            if (element instanceof GetFieldMappingsResponse response) {
                 mergedResponses.putAll(response.mappings());
             }
         }

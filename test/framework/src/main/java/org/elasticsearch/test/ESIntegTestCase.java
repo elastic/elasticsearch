@@ -17,7 +17,6 @@ import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -51,12 +50,12 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
@@ -86,6 +85,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -156,7 +156,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -362,15 +361,15 @@ public abstract class ESIntegTestCase extends ESTestCase {
             return null;
         };
         switch (currentClusterScope) {
-            case SUITE:
+            case SUITE -> {
                 assert SUITE_SEED != null : "Suite seed was not initialized";
                 currentCluster = buildAndPutCluster(currentClusterScope, SUITE_SEED);
                 RandomizedContext.current().runWithPrivateRandomness(SUITE_SEED, setup);
-                break;
-            case TEST:
+            }
+            case TEST -> {
                 currentCluster = buildAndPutCluster(currentClusterScope, randomLong());
                 setup.call();
-                break;
+            }
         }
 
     }
@@ -461,12 +460,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
             );
         }
         switch (random.nextInt(4)) {
-            case 3:
+            case 3 -> {
                 final int maxThreadCount = RandomNumbers.randomIntBetween(random, 1, 4);
                 final int maxMergeCount = RandomNumbers.randomIntBetween(random, maxThreadCount, maxThreadCount + 4);
                 builder.put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), maxMergeCount);
                 builder.put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), maxThreadCount);
-                break;
+            }
         }
 
         return builder;
@@ -1119,13 +1118,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (cluster() != null && cluster().size() > 0) {
             final Client masterClient = client();
             Metadata metadata = masterClient.admin().cluster().prepareState().all().get().getState().metadata();
-            final Map<String, String> serializationParams = new HashMap<>(2);
+            final Map<String, String> serializationParams = Maps.newMapWithExpectedSize(2);
             serializationParams.put("binary", "true");
             serializationParams.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
             final ToXContent.Params serializationFormatParams = new ToXContent.MapParams(serializationParams);
 
             // when comparing XContent output, do not use binary format
-            final Map<String, String> compareParams = new HashMap<>(2);
+            final Map<String, String> compareParams = Maps.newMapWithExpectedSize(2);
             compareParams.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
             final ToXContent.Params compareFormatParams = new ToXContent.MapParams(compareParams);
 
@@ -1924,17 +1923,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
             return buildExternalCluster(clusterAddresses, clusterName);
         }
 
-        final String nodePrefix;
-        switch (scope) {
-            case TEST:
-                nodePrefix = TEST_CLUSTER_NODE_PREFIX;
-                break;
-            case SUITE:
-                nodePrefix = SUITE_CLUSTER_NODE_PREFIX;
-                break;
-            default:
-                throw new ElasticsearchException("Scope not supported: " + scope);
-        }
+        final String nodePrefix = switch (scope) {
+            case TEST -> TEST_CLUSTER_NODE_PREFIX;
+            case SUITE -> SUITE_CLUSTER_NODE_PREFIX;
+        };
 
         boolean supportsDedicatedMasters = getSupportsDedicatedMasters();
         int numDataNodes = getNumDataNodes();
@@ -1979,7 +1971,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Settings.Builder initialNodeSettings = Settings.builder();
         if (addMockTransportService()) {
             initialNodeSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
-            ;
         }
         return new NodeConfigurationSource() {
             @Override

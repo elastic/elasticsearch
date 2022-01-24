@@ -18,6 +18,7 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -170,4 +171,14 @@ public class StashTests extends ESTestCase {
         assertMap(actual, matchesMap().entry("key", matchesMap().entry("a", "foo${bar}")));
         assertThat(actual, not(sameInstance(map)));
     }
+
+    public void testMultipleVariableNamesInPath() throws Exception {
+        var stash = new Stash();
+        stash.stashValue("body", Map.of(".ds-k8s-2021-12-15-1", Map.of("data_stream", "k8s", "settings", Map.of(), "mappings", Map.of())));
+        stash.stashValue("backing_index", ".ds-k8s-2021-12-15-1");
+        assertThat(stash.getValue("$body.$backing_index.data_stream"), equalTo("k8s"));
+        assertThat(stash.getValue("$body.$backing_index.settings"), equalTo(Map.of()));
+        assertThat(stash.getValue("$body.$backing_index.mappings"), equalTo(Map.of()));
+    }
+
 }

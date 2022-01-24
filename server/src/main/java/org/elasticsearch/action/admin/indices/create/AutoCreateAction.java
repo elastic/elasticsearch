@@ -20,6 +20,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -29,6 +31,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -41,6 +44,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -69,6 +74,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         private final AutoCreateIndex autoCreateIndex;
         private final SystemIndices systemIndices;
 
+        private final ClusterStateTaskExecutor<CreateIndexTask> executor;
+
         @Inject
         public TransportAction(
             TransportService transportService,
@@ -79,7 +86,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             MetadataCreateIndexService createIndexService,
             MetadataCreateDataStreamService metadataCreateDataStreamService,
             AutoCreateIndex autoCreateIndex,
-            SystemIndices systemIndices
+            SystemIndices systemIndices,
+            AllocationService allocationService
         ) {
             super(
                 NAME,
@@ -97,6 +105,31 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
+            executor = (currentState, tasks) -> {
+                ClusterTasksResult.Builder<CreateIndexTask> builder = ClusterTasksResult.builder();
+                ClusterState state = currentState;
+                final Map<CreateIndexRequest, CreateIndexTask> successfulRequests = new HashMap<>(tasks.size());
+                for (CreateIndexTask task : tasks) {
+                    try {
+                        final CreateIndexTask successfulBefore = successfulRequests.putIfAbsent(task.request, task);
+                        if (successfulBefore == null) {
+                            state = task.execute(state);
+                        } else {
+                            // TODO: clean this up to just deduplicate the task listener instead of setting the generated name from
+                            // duplicate tasks here and then waiting for shards to become available multiple times in parallel for
+                            // each duplicate task
+                            task.indexNameRef.set(successfulBefore.indexNameRef.get());
+                        }
+                        builder.success(task);
+                    } catch (Exception e) {
+                        builder.failure(task, e);
+                    }
+                }
+                if (state != currentState) {
+                    state = allocationService.reroute(state, "auto-create");
+                }
+                return builder.build(state);
+            };
         }
 
         @Override
@@ -115,161 +148,168 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         new String[] { indexName },
                         ActiveShardCount.DEFAULT,
                         request.timeout(),
-                        shardsAcked -> { finalListener.onResponse(new CreateIndexResponse(true, shardsAcked, indexName)); },
+                        shardsAcked -> finalListener.onResponse(new CreateIndexResponse(true, shardsAcked, indexName)),
                         finalListener::onFailure
                     );
                 } else {
                     finalListener.onResponse(new CreateIndexResponse(false, false, indexName));
                 }
             }, finalListener::onFailure);
-            clusterService.submitStateUpdateTask(
-                "auto create [" + request.index() + "]",
-                new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
-
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        final SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.validateDataStreamAccess(
-                            request.index(),
-                            threadPool.getThreadContext()
-                        );
-                        final boolean isSystemDataStream = dataStreamDescriptor != null;
-                        final boolean isSystemIndex = isSystemDataStream == false && systemIndices.isSystemIndex(request.index());
-                        final ComposableIndexTemplate template = resolveTemplate(request, currentState.metadata());
-                        final boolean isDataStream = isSystemIndex == false
-                            && (isSystemDataStream || (template != null && template.getDataStreamTemplate() != null));
-
-                        if (isDataStream) {
-                            // This expression only evaluates to true when the argument is non-null and false
-                            if (isSystemDataStream == false && Boolean.FALSE.equals(template.getAllowAutoCreate())) {
-                                throw new IndexNotFoundException(
-                                    "composable template " + template.indexPatterns() + " forbids index auto creation"
-                                );
-                            }
-
-                            CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
-                                request.index(),
-                                dataStreamDescriptor,
-                                request.masterNodeTimeout(),
-                                request.timeout()
-                            );
-                            ClusterState clusterState = metadataCreateDataStreamService.createDataStream(createRequest, currentState);
-                            indexNameRef.set(clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName());
-                            return clusterState;
-                        } else {
-                            String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
-                            indexNameRef.set(indexName);
-                            if (isSystemIndex) {
-                                if (indexName.equals(request.index()) == false) {
-                                    throw new IllegalStateException("system indices do not support date math expressions");
-                                }
-                            } else {
-                                // This will throw an exception if the index does not exist and creating it is prohibited
-                                final boolean shouldAutoCreate = autoCreateIndex.shouldAutoCreate(indexName, currentState);
-
-                                if (shouldAutoCreate == false) {
-                                    // The index already exists.
-                                    return currentState;
-                                }
-                            }
-
-                            final SystemIndexDescriptor mainDescriptor = isSystemIndex
-                                ? systemIndices.findMatchingDescriptor(indexName)
-                                : null;
-                            final boolean isManagedSystemIndex = mainDescriptor != null && mainDescriptor.isAutomaticallyManaged();
-
-                            final CreateIndexClusterStateUpdateRequest updateRequest;
-
-                            if (isManagedSystemIndex) {
-                                final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
-                                    state.nodes().getSmallestNonClientNodeVersion()
-                                );
-                                if (descriptor == null) {
-                                    final String message = mainDescriptor.getMinimumNodeVersionMessage("auto-create index");
-                                    logger.warn(message);
-                                    throw new IllegalStateException(message);
-                                }
-
-                                updateRequest = buildSystemIndexUpdateRequest(indexName, descriptor);
-                            } else if (isSystemIndex) {
-                                updateRequest = buildUpdateRequest(indexName);
-
-                                if (Objects.isNull(request.settings())) {
-                                    updateRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
-                                } else if (false == request.settings().hasValue(SETTING_INDEX_HIDDEN)) {
-                                    updateRequest.settings(
-                                        Settings.builder().put(request.settings()).put(SETTING_INDEX_HIDDEN, true).build()
-                                    );
-                                } else if ("false".equals(request.settings().get(SETTING_INDEX_HIDDEN))) {
-                                    final String message = "Cannot auto-create system index ["
-                                        + indexName
-                                        + "] with [index.hidden] set to 'false'";
-                                    logger.warn(message);
-                                    throw new IllegalStateException(message);
-                                }
-                            } else {
-                                updateRequest = buildUpdateRequest(indexName);
-                            }
-
-                            return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
-                        }
-                    }
-
-                    private CreateIndexClusterStateUpdateRequest buildUpdateRequest(String indexName) {
-                        CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
-                            request.cause(),
-                            indexName,
-                            request.index()
-                        ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
-                        logger.debug("Auto-creating index {}", indexName);
-                        return updateRequest;
-                    }
-
-                    private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(
-                        String indexName,
-                        SystemIndexDescriptor descriptor
-                    ) {
-                        String mappings = descriptor.getMappings();
-                        Settings settings = descriptor.getSettings();
-                        String aliasName = descriptor.getAliasName();
-
-                        // if we are writing to the alias name, we should create the primary index here
-                        String concreteIndexName = indexName.equals(aliasName) ? descriptor.getPrimaryIndex() : indexName;
-
-                        CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
-                            request.cause(),
-                            concreteIndexName,
-                            request.index()
-                        ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
-
-                        updateRequest.waitForActiveShards(ActiveShardCount.ALL);
-
-                        if (mappings != null) {
-                            updateRequest.mappings(mappings);
-                        }
-                        if (settings != null) {
-                            updateRequest.settings(settings);
-                        }
-                        if (aliasName != null) {
-                            updateRequest.aliases(Set.of(new Alias(aliasName).isHidden(true)));
-                        }
-
-                        if (logger.isDebugEnabled()) {
-                            if (concreteIndexName.equals(indexName) == false) {
-                                logger.debug("Auto-creating backing system index {} for alias {}", concreteIndexName, indexName);
-                            } else {
-                                logger.debug("Auto-creating system index {}", concreteIndexName);
-                            }
-                        }
-
-                        return updateRequest;
-                    }
-                }
-            );
+            CreateIndexTask clusterTask = new CreateIndexTask(request, listener, indexNameRef);
+            clusterService.submitStateUpdateTask("auto create [" + request.index() + "]", clusterTask, clusterTask, executor, clusterTask);
         }
 
         @Override
         protected ClusterBlockException checkBlock(CreateIndexRequest request, ClusterState state) {
             return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.index());
+        }
+
+        // TODO: split the listner out of this task and use AckedClusterStateTaskListener directly to avoid the complicated listener
+        // construction upstream when instantiating these
+        private final class CreateIndexTask extends AckedClusterStateUpdateTask {
+
+            final CreateIndexRequest request;
+            final AtomicReference<String> indexNameRef;
+
+            CreateIndexTask(
+                CreateIndexRequest request,
+                ActionListener<AcknowledgedResponse> listener,
+                AtomicReference<String> indexNameRef
+            ) {
+                super(Priority.URGENT, request, listener);
+                this.request = request;
+                this.indexNameRef = indexNameRef;
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                final SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.validateDataStreamAccess(
+                    request.index(),
+                    threadPool.getThreadContext()
+                );
+                final boolean isSystemDataStream = dataStreamDescriptor != null;
+                final boolean isSystemIndex = isSystemDataStream == false && systemIndices.isSystemIndex(request.index());
+                final ComposableIndexTemplate template = resolveTemplate(request, currentState.metadata());
+                final boolean isDataStream = isSystemIndex == false
+                    && (isSystemDataStream || (template != null && template.getDataStreamTemplate() != null));
+
+                if (isDataStream) {
+                    // This expression only evaluates to true when the argument is non-null and false
+                    if (isSystemDataStream == false && Boolean.FALSE.equals(template.getAllowAutoCreate())) {
+                        throw new IndexNotFoundException(
+                            "composable template " + template.indexPatterns() + " forbids index auto creation"
+                        );
+                    }
+
+                    CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
+                        request.index(),
+                        dataStreamDescriptor,
+                        request.masterNodeTimeout(),
+                        request.timeout(),
+                        false
+                    );
+                    ClusterState clusterState = metadataCreateDataStreamService.createDataStream(createRequest, currentState);
+                    indexNameRef.set(clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName());
+                    return clusterState;
+                } else {
+                    String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
+                    indexNameRef.set(indexName);
+                    if (isSystemIndex) {
+                        if (indexName.equals(request.index()) == false) {
+                            throw new IllegalStateException("system indices do not support date math expressions");
+                        }
+                    } else {
+                        // This will throw an exception if the index does not exist and creating it is prohibited
+                        final boolean shouldAutoCreate = autoCreateIndex.shouldAutoCreate(indexName, currentState);
+
+                        if (shouldAutoCreate == false) {
+                            // The index already exists.
+                            return currentState;
+                        }
+                    }
+
+                    final SystemIndexDescriptor mainDescriptor = isSystemIndex ? systemIndices.findMatchingDescriptor(indexName) : null;
+                    final boolean isManagedSystemIndex = mainDescriptor != null && mainDescriptor.isAutomaticallyManaged();
+
+                    final CreateIndexClusterStateUpdateRequest updateRequest;
+
+                    if (isManagedSystemIndex) {
+                        final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
+                            currentState.nodes().getSmallestNonClientNodeVersion()
+                        );
+                        if (descriptor == null) {
+                            final String message = mainDescriptor.getMinimumNodeVersionMessage("auto-create index");
+                            logger.warn(message);
+                            throw new IllegalStateException(message);
+                        }
+
+                        updateRequest = buildSystemIndexUpdateRequest(indexName, descriptor);
+                    } else if (isSystemIndex) {
+                        updateRequest = buildUpdateRequest(indexName);
+
+                        if (Objects.isNull(request.settings())) {
+                            updateRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
+                        } else if (false == request.settings().hasValue(SETTING_INDEX_HIDDEN)) {
+                            updateRequest.settings(Settings.builder().put(request.settings()).put(SETTING_INDEX_HIDDEN, true).build());
+                        } else if ("false".equals(request.settings().get(SETTING_INDEX_HIDDEN))) {
+                            final String message = "Cannot auto-create system index [" + indexName + "] with [index.hidden] set to 'false'";
+                            logger.warn(message);
+                            throw new IllegalStateException(message);
+                        }
+                    } else {
+                        updateRequest = buildUpdateRequest(indexName);
+                    }
+
+                    return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
+                }
+            }
+
+            private CreateIndexClusterStateUpdateRequest buildUpdateRequest(String indexName) {
+                CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
+                    request.cause(),
+                    indexName,
+                    request.index()
+                ).ackTimeout(request.timeout()).performReroute(false).masterNodeTimeout(request.masterNodeTimeout());
+                logger.debug("Auto-creating index {}", indexName);
+                return updateRequest;
+            }
+
+            private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(String indexName, SystemIndexDescriptor descriptor) {
+                String mappings = descriptor.getMappings();
+                Settings settings = descriptor.getSettings();
+                String aliasName = descriptor.getAliasName();
+
+                // if we are writing to the alias name, we should create the primary index here
+                String concreteIndexName = indexName.equals(aliasName) ? descriptor.getPrimaryIndex() : indexName;
+
+                CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
+                    request.cause(),
+                    concreteIndexName,
+                    request.index()
+                ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout()).performReroute(false);
+
+                updateRequest.waitForActiveShards(ActiveShardCount.ALL);
+
+                if (mappings != null) {
+                    updateRequest.mappings(mappings);
+                }
+                if (settings != null) {
+                    updateRequest.settings(settings);
+                }
+                if (aliasName != null) {
+                    updateRequest.aliases(Set.of(new Alias(aliasName).isHidden(true)));
+                }
+
+                if (logger.isDebugEnabled()) {
+                    if (concreteIndexName.equals(indexName) == false) {
+                        logger.debug("Auto-creating backing system index {} for alias {}", concreteIndexName, indexName);
+                    } else {
+                        logger.debug("Auto-creating system index {}", concreteIndexName);
+                    }
+                }
+
+                return updateRequest;
+            }
         }
     }
 

@@ -82,6 +82,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
 
+    private final DiskIoBufferPool diskIoBufferPool;
+
     private TranslogWriter(
         final ShardId shardId,
         final Checkpoint initialCheckpoint,
@@ -95,7 +97,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         TranslogHeader header,
         final TragicExceptionHolder tragedy,
         final LongConsumer persistedSequenceNumberConsumer,
-        final BigArrays bigArrays
+        final BigArrays bigArrays,
+        final DiskIoBufferPool diskIoBufferPool
     ) throws IOException {
         super(initialCheckpoint.generation, channel, path, header);
         assert initialCheckpoint.offset == channel.position()
@@ -119,6 +122,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.persistedSequenceNumberConsumer = persistedSequenceNumberConsumer;
         this.bigArrays = bigArrays;
+        this.diskIoBufferPool = diskIoBufferPool;
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
     }
@@ -137,7 +141,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final long primaryTerm,
         TragicExceptionHolder tragedy,
         final LongConsumer persistedSequenceNumberConsumer,
-        final BigArrays bigArrays
+        final BigArrays bigArrays,
+        DiskIoBufferPool diskIoBufferPool
     ) throws IOException {
         final Path checkpointFile = file.getParent().resolve(Translog.CHECKPOINT_FILE_NAME);
 
@@ -178,7 +183,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 header,
                 tragedy,
                 persistedSequenceNumberConsumer,
-                bigArrays
+                bigArrays,
+                diskIoBufferPool
             );
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
@@ -254,18 +260,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 );
                 // TODO: We haven't had timestamp for Index operations in Lucene yet, we need to loosen this check without timestamp.
                 final boolean sameOp;
-                if (newOp instanceof Translog.Index && prvOp instanceof Translog.Index) {
-                    final Translog.Index o1 = (Translog.Index) prvOp;
-                    final Translog.Index o2 = (Translog.Index) newOp;
+                if (newOp instanceof final Translog.Index o2 && prvOp instanceof final Translog.Index o1) {
                     sameOp = Objects.equals(o1.id(), o2.id())
                         && Objects.equals(o1.source(), o2.source())
                         && Objects.equals(o1.routing(), o2.routing())
                         && o1.primaryTerm() == o2.primaryTerm()
                         && o1.seqNo() == o2.seqNo()
                         && o1.version() == o2.version();
-                } else if (newOp instanceof Translog.Delete && prvOp instanceof Translog.Delete) {
-                    final Translog.Delete o1 = (Translog.Delete) newOp;
-                    final Translog.Delete o2 = (Translog.Delete) prvOp;
+                } else if (newOp instanceof final Translog.Delete o1 && prvOp instanceof final Translog.Delete o2) {
                     sameOp = Objects.equals(o1.id(), o2.id())
                         && o1.primaryTerm() == o2.primaryTerm()
                         && o1.seqNo() == o2.seqNo()
@@ -461,13 +463,18 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             ensureOpen();
                             checkpointToSync = getCheckpoint();
                             toWrite = pollOpsToWrite();
-                            flushedSequenceNumbers = nonFsyncedSequenceNumbers;
-                            nonFsyncedSequenceNumbers = new LongArrayList(64);
+                            if (nonFsyncedSequenceNumbers.isEmpty()) {
+                                flushedSequenceNumbers = null;
+                            } else {
+                                flushedSequenceNumbers = nonFsyncedSequenceNumbers;
+                                nonFsyncedSequenceNumbers = new LongArrayList(64);
+                            }
                         }
 
                         try {
                             // Write ops will release operations.
                             writeAndReleaseOps(toWrite);
+                            assert channel.position() == checkpointToSync.offset;
                         } catch (final Exception ex) {
                             closeWithTragicEvent(ex);
                             throw ex;
@@ -476,13 +483,18 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // now do the actual fsync outside of the synchronized block such that
                     // we can continue writing to the buffer etc.
                     try {
-                        channel.force(false);
+                        assert lastSyncedCheckpoint.offset != checkpointToSync.offset || toWrite.length() == 0;
+                        if (lastSyncedCheckpoint.offset != checkpointToSync.offset) {
+                            channel.force(false);
+                        }
                         writeCheckpoint(checkpointChannel, checkpointPath, checkpointToSync);
                     } catch (final Exception ex) {
                         closeWithTragicEvent(ex);
                         throw ex;
                     }
-                    flushedSequenceNumbers.forEach((LongProcedure) persistedSequenceNumberConsumer::accept);
+                    if (flushedSequenceNumbers != null) {
+                        flushedSequenceNumbers.forEach((LongProcedure) persistedSequenceNumberConsumer::accept);
+                    }
                     assert lastSyncedCheckpoint.offset <= checkpointToSync.offset
                         : "illegal state: " + lastSyncedCheckpoint.offset + " <= " + checkpointToSync.offset;
                     lastSyncedCheckpoint = checkpointToSync; // write protected by syncLock
@@ -521,8 +533,20 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private void writeAndReleaseOps(ReleasableBytesReference toWrite) throws IOException {
         try (ReleasableBytesReference toClose = toWrite) {
             assert writeLock.isHeldByCurrentThread();
-            ByteBuffer ioBuffer = DiskIoBufferPool.getIoBuffer();
-
+            final int length = toWrite.length();
+            if (length == 0) {
+                return;
+            }
+            ByteBuffer ioBuffer = diskIoBufferPool.maybeGetDirectIOBuffer();
+            if (ioBuffer == null) {
+                // not using a direct buffer for writes from the current thread so just write without copying to the io buffer
+                BytesRefIterator iterator = toWrite.iterator();
+                BytesRef current;
+                while ((current = iterator.next()) != null) {
+                    Channels.writeToChannel(current.bytes, current.offset, current.length, channel);
+                }
+                return;
+            }
             BytesRefIterator iterator = toWrite.iterator();
             BytesRef current;
             while ((current = iterator.next()) != null) {

@@ -17,7 +17,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -311,6 +311,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 remoteDataStream.getMetadata(),
                 remoteDataStream.isHidden(),
                 true,
+                remoteDataStream.isSystem(),
                 remoteDataStream.isAllowCustomRouting()
             );
         } else {
@@ -341,6 +342,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 remoteDataStream.getMetadata(),
                 localDataStream.isHidden(),
                 localDataStream.isReplicated(),
+                localDataStream.isSystem(),
                 localDataStream.isAllowCustomRouting()
             );
         }

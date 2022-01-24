@@ -54,7 +54,10 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.InetAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -799,7 +802,10 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         bw.newLine();
                         bw.write("# Connections are encrypted and mutually authenticated");
                         bw.newLine();
-                        bw.write("#" + TransportSettings.HOST.getKey() + ": " + hostSettingValue(NetworkUtils.getAllAddresses()));
+                        if (false == shouldBindTransportToNonLocalhost(transportAddresses, NetworkUtils.getAllAddresses())) {
+                            bw.write("#");
+                        }
+                        bw.write(TransportSettings.HOST.getKey() + ": " + hostSettingValue(NetworkUtils.getAllAddresses()));
                         bw.newLine();
                     }
                     bw.newLine();
@@ -844,6 +850,42 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             return "[\"" + NODE_NAME_SETTING.get(environment.settings()) + "\"]";
         }
         return "[\"${HOSTNAME}\"]";
+    }
+
+    /**
+     * Determines if a node that is enrolling to an existing cluster should bind transport layer to a non-localhost
+     * address. If the other nodes of the cluster are on different hosts than this node, then the default configuration of
+     * binding transport layer to localhost will prevent this node to join the cluster even after "successful" enrollment.
+     * We check the non-localhost transport addresses that we receive during enrollment and if any of these are not in the
+     * list of non-localhost IP addresses that we gather from all interfaces of the current host, we assume that at least
+     * some other node in the cluster runs on another host.
+     * If we don't find any non localhost addresses on all interfaces of the current host, we don't attempt to bind to non localhost
+     * addresses as this would result on an error on startup.
+     * If the transport layer addresses we found out in enrollment are all localhost, we cannot be sure where we are still
+     * on the same host, but we assume that as it is safer to do so and do not bind to non localhost for this node either.
+     */
+    protected static boolean shouldBindTransportToNonLocalhost(List<String> transportStringAddresses, InetAddress[] localIP) {
+        List<String> remoteTransportAddresses = new ArrayList<>(transportStringAddresses.size());
+        List<String> localIPAddresses = Arrays.stream(localIP)
+            .filter(inetAddress -> inetAddress.isLoopbackAddress() == false)
+            .map(NetworkAddress::format)
+            .collect(Collectors.toList());
+        if (localIPAddresses.isEmpty()) {
+            return false;
+        }
+        for (String t : transportStringAddresses) {
+            try {
+                final URI uri = new URI("http://" + t);
+                final InetAddress address = InetAddress.getByName(uri.getHost());
+                if (address.isLoopbackAddress() == false) {
+                    remoteTransportAddresses.add(NetworkAddress.format(address));
+                }
+            } catch (UnknownHostException | URISyntaxException e) {
+                // we could fail here but if any of the transport addresses are usable, we can join the cluster
+            }
+        }
+        return remoteTransportAddresses.stream()
+            .anyMatch(remoteTransportAddress -> localIPAddresses.contains(remoteTransportAddress) == false);
     }
 
     protected String hostSettingValue(InetAddress[] allAddresses) {

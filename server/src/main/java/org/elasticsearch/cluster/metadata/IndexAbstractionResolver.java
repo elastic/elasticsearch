@@ -15,6 +15,7 @@ import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -54,30 +55,11 @@ public class IndexAbstractionResolver {
         );
     }
 
-    // TODO: remove
     public List<String> resolveIndexAbstractions(
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         Metadata metadata,
-        Set<String> availableIndexAbstractions,
-        boolean replaceWildcards,
-        boolean includeDataStreams
-    ) {
-        return resolveIndexAbstractions(
-            indices,
-            indicesOptions,
-            metadata,
-            new AvailableIndices(availableIndexAbstractions),
-            replaceWildcards,
-            includeDataStreams
-        );
-    }
-
-    public List<String> resolveIndexAbstractions(
-        Iterable<String> indices,
-        IndicesOptions indicesOptions,
-        Metadata metadata,
-        AvailableIndices availableIndices,
+        Collection<String> availableIndexAbstractions,
         boolean replaceWildcards,
         boolean includeDataStreams
     ) {
@@ -100,7 +82,7 @@ public class IndexAbstractionResolver {
                 if (replaceWildcards && Regex.isSimpleMatchPattern(dateMathName)) {
                     // continue
                     indexAbstraction = dateMathName;
-                } else if (availableIndices.isAvailableName(dateMathName)
+                } else if (availableIndexAbstractions.contains(dateMathName)
                     && isIndexVisible(
                         indexAbstraction,
                         dateMathName,
@@ -125,7 +107,7 @@ public class IndexAbstractionResolver {
             if (replaceWildcards && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
-                for (String authorizedIndex : availableIndices.getAvailableNames()) {
+                for (String authorizedIndex : availableIndexAbstractions) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
                             indexAbstraction,
@@ -153,7 +135,7 @@ public class IndexAbstractionResolver {
             } else if (dateMathName.equals(indexAbstraction)) {
                 if (minus) {
                     finalIndices.remove(indexAbstraction);
-                } else if (indicesOptions.ignoreUnavailable() == false || availableIndices.isAvailableName(indexAbstraction)) {
+                } else if (indicesOptions.ignoreUnavailable() == false || availableIndexAbstractions.contains(indexAbstraction)) {
                     finalIndices.add(indexAbstraction);
                 }
             }

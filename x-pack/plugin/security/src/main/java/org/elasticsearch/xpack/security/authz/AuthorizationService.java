@@ -24,7 +24,6 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.update.UpdateAction;
-import org.elasticsearch.cluster.metadata.AvailableIndices;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -130,7 +129,7 @@ public class AuthorizationService {
     private final Set<RequestInterceptor> requestInterceptors;
     private final XPackLicenseState licenseState;
     private final OperatorPrivilegesService operatorPrivilegesService;
-    private final LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory;
+
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
@@ -156,13 +155,16 @@ public class AuthorizationService {
         this.anonymousUser = anonymousUser;
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
-        this.rbacEngine = new RBACEngine(settings, rolesStore);
+        this.rbacEngine = new RBACEngine(
+            settings,
+            rolesStore,
+            new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings())
+        );
         this.authorizationEngine = authorizationEngine == null ? this.rbacEngine : authorizationEngine;
         this.requestInterceptors = requestInterceptors;
         this.settings = settings;
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
-        this.authzIndicesTimerFactory = new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings());
     }
 
     public void checkPrivileges(
@@ -405,33 +407,31 @@ public class AuthorizationService {
             }, clusterAuthzListener::onFailure));
         } else if (isIndexAction(action)) {
             final Metadata metadata = clusterService.state().metadata();
+            final AsyncSupplier<Set<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(
+                authzIndicesListener -> {
+                    authzEngine.loadAuthorizedIndices(requestInfo, authzInfo, metadata.getIndicesLookup(), authzIndicesListener);
+                }
+            );
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
                 final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
                 if (resolvedIndices != null) {
                     resolvedIndicesListener.onResponse(resolvedIndices);
                 } else {
-                    try {
-                        Consumer<Collection<String>> timeChecker = authzIndicesTimerFactory.newTimer(requestInfo);
-                        resolvedIndicesListener.onResponse(
-                            indicesAndAliasesResolver.resolve(
-                                action,
-                                request,
-                                metadata,
-                                new AvailableIndices(
-                                    metadata,
-                                    authzEngine.predicateForAuthorizedIndices(requestInfo, authzInfo),
-                                    timeChecker
-                                )
-                            )
-                        );
-                    } catch (Exception e) {
-                        auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
-                        if (e instanceof IndexNotFoundException) {
-                            listener.onFailure(e);
-                        } else {
-                            listener.onFailure(denialException(authentication, action, request, e));
-                        }
-                    }
+                    authorizedIndicesSupplier.getAsync(
+                        ActionListener.wrap(
+                            authorizedIndices -> resolvedIndicesListener.onResponse(
+                                indicesAndAliasesResolver.resolve(action, request, metadata, authorizedIndices)
+                            ),
+                            e -> {
+                                auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
+                                if (e instanceof IndexNotFoundException) {
+                                    listener.onFailure(e);
+                                } else {
+                                    listener.onFailure(denialException(authentication, action, request, e));
+                                }
+                            }
+                        )
+                    );
                 }
             });
             authzEngine.authorizeIndexAction(

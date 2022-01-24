@@ -83,6 +83,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -90,7 +91,9 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction.getApplicationNames;
@@ -114,10 +117,16 @@ public class RBACEngine implements AuthorizationEngine {
 
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
+    private final LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory;
 
-    public RBACEngine(Settings settings, CompositeRolesStore rolesStore) {
+    public RBACEngine(
+        Settings settings,
+        CompositeRolesStore rolesStore,
+        LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory
+    ) {
         this.rolesStore = rolesStore;
         this.fieldPermissionsCache = new FieldPermissionsCache(settings);
+        this.authzIndicesTimerFactory = authzIndicesTimerFactory;
     }
 
     @Override
@@ -449,7 +458,6 @@ public class RBACEngine implements AuthorizationEngine {
 
     }
 
-    // TODO: remove?
     @Override
     public void loadAuthorizedIndices(
         RequestInfo requestInfo,
@@ -459,17 +467,14 @@ public class RBACEngine implements AuthorizationEngine {
     ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo, indicesLookup));
+            listener.onResponse(
+                resolveAuthorizedIndicesFromRole(role, requestInfo, indicesLookup, () -> authzIndicesTimerFactory.newTimer(requestInfo))
+            );
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
             );
         }
-    }
-
-    @Override
-    public Predicate<IndexAbstraction> predicateForAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {
-        return buildPredicateForAuthorizedIndicesFromRole(ensureRBAC(authorizationInfo).getRole(), requestInfo);
     }
 
     @Override
@@ -664,46 +669,50 @@ public class RBACEngine implements AuthorizationEngine {
         return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs);
     }
 
-    // TODO: remove?
     static Set<String> resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Map<String, IndexAbstraction> lookup) {
+        return resolveAuthorizedIndicesFromRole(role, requestInfo, lookup, () -> LoadAuthorizedIndicesTimeChecker.NO_OP_CONSUMER);
+    }
+
+    static Set<String> resolveAuthorizedIndicesFromRole(
+        Role role,
+        RequestInfo requestInfo,
+        Map<String, IndexAbstraction> lookup,
+        Supplier<Consumer<Collection<String>>> timerSupplier
+    ) {
         Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
 
         // do not include data streams for actions that do not operate on data streams
         TransportRequest request = requestInfo.getRequest();
         final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
 
-        Set<String> indicesAndAliases = new HashSet<>();
-        // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
-        if (includeDataStreams) {
-            for (IndexAbstraction indexAbstraction : lookup.values()) {
-                if (predicate.test(indexAbstraction)) {
-                    indicesAndAliases.add(indexAbstraction.getName());
-                    if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-                        // add data stream and its backing indices for any authorized data streams
-                        for (Index index : indexAbstraction.getIndices()) {
-                            indicesAndAliases.add(index.getName());
+        return new AuthorizedIndicesSet(() -> {
+            Consumer<Collection<String>> timeChecker = timerSupplier.get();
+            Set<String> indicesAndAliases = new HashSet<>();
+            // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
+            if (includeDataStreams) {
+                for (IndexAbstraction indexAbstraction : lookup.values()) {
+                    if (predicate.test(indexAbstraction)) {
+                        indicesAndAliases.add(indexAbstraction.getName());
+                        if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+                            // add data stream and its backing indices for any authorized data streams
+                            for (Index index : indexAbstraction.getIndices()) {
+                                indicesAndAliases.add(index.getName());
+                            }
                         }
                     }
                 }
-            }
-        } else {
-            for (IndexAbstraction indexAbstraction : lookup.values()) {
-                if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM && predicate.test(indexAbstraction)) {
-                    indicesAndAliases.add(indexAbstraction.getName());
+            } else {
+                for (IndexAbstraction indexAbstraction : lookup.values()) {
+                    if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM && predicate.test(indexAbstraction)) {
+                        indicesAndAliases.add(indexAbstraction.getName());
+                    }
                 }
             }
-        }
-        return Collections.unmodifiableSet(indicesAndAliases);
-    }
-
-    static Predicate<IndexAbstraction> buildPredicateForAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo) {
-        final Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
-
-        // do not include data streams for actions that do not operate on data streams
-        TransportRequest request = requestInfo.getRequest();
-        final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
-
-        return indexAbstraction -> {
+            final Set<String> authorizedIndices = Collections.unmodifiableSet(indicesAndAliases);
+            timeChecker.accept(authorizedIndices);
+            return authorizedIndices;
+        }, name -> {
+            final IndexAbstraction indexAbstraction = lookup.get(name);
             if (indexAbstraction == null) {
                 return false;
             }
@@ -719,7 +728,7 @@ public class RBACEngine implements AuthorizationEngine {
             } else {
                 return indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM && predicate.test(indexAbstraction);
             }
-        };
+        });
     }
 
     private IndexAuthorizationResult buildIndicesAccessControl(
@@ -845,5 +854,97 @@ public class RBACEngine implements AuthorizationEngine {
             || action.equals(DeleteAsyncResultAction.NAME)
             || action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME)
             || action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
+    }
+
+    /**
+     * A lazily loaded Set for authorized indices. It avoids loading the set if only contains check is required.
+     * It only loads the set if iterating through it is necessary, i.e. when expanding wildcards.
+     */
+    private static class AuthorizedIndicesSet implements Set<String> {
+
+        private final Supplier<Set<String>> supplier;
+        private final Predicate<String> predicate;
+        private Set<String> authorizedIndices = null;
+
+        AuthorizedIndicesSet(Supplier<Set<String>> supplier, Predicate<String> predicate) {
+            this.supplier = Objects.requireNonNull(supplier);
+            this.predicate = Objects.requireNonNull(predicate);
+        }
+
+        private Set<String> getAuthorizedIndices() {
+            if (authorizedIndices == null) {
+                authorizedIndices = supplier.get();
+            }
+            return authorizedIndices;
+        }
+
+        @Override
+        public int size() {
+            return getAuthorizedIndices().size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return getAuthorizedIndices().isEmpty();
+        }
+
+        @Override
+        public boolean contains(Object o) {
+            if (authorizedIndices == null) {
+                return predicate.test((String) o);
+            } else {
+                return authorizedIndices.contains(o);
+            }
+        }
+
+        @Override
+        public Iterator<String> iterator() {
+            return getAuthorizedIndices().iterator();
+        }
+
+        @Override
+        public Object[] toArray() {
+            return getAuthorizedIndices().toArray();
+        }
+
+        @Override
+        public <T> T[] toArray(T[] a) {
+            return getAuthorizedIndices().toArray(a);
+        }
+
+        @Override
+        public boolean add(String s) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean remove(Object o) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean containsAll(Collection<?> c) {
+            return false;
+        }
+
+        @Override
+        public boolean addAll(Collection<? extends String> c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean retainAll(Collection<?> c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean removeAll(Collection<?> c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException();
+        }
     }
 }

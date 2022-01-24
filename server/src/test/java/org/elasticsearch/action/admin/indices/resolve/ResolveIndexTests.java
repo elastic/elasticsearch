@@ -220,7 +220,7 @@ public class ResolveIndexTests extends ESTestCase {
             List.of(requestedIndex),
             IndicesOptions.LENIENT_EXPAND_OPEN,
             metadata,
-            Set.of("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix),
+            List.of("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix),
             randomBoolean(),
             randomBoolean()
         );

@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Predicate;
 
 /**
  * <p>
@@ -153,15 +152,12 @@ public interface AuthorizationEngine {
      *                            alias or index
      * @param listener the listener to be notified of the authorization result
      */
-    // TODO: remove?
     void loadAuthorizedIndices(
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         Map<String, IndexAbstraction> indicesLookup,
         ActionListener<Set<String>> listener
     );
-
-    Predicate<IndexAbstraction> predicateForAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo);
 
     /**
      * Asynchronously checks that the permissions a user would have for a given list of names do

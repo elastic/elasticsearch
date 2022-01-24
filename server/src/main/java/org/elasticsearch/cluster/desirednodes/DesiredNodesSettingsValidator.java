@@ -85,8 +85,8 @@ public class DesiredNodesSettingsValidator {
 
         final Settings updatedSettings = unknownSettings.isEmpty() ? settings : updatedSettingsBuilder.build();
         final ClusterSettings updatedClusterSettings = hasOverriddenSettings
-            ? clusterSettings
-            : new ClusterSettings(updatedSettings, settingSet);
+            ? new ClusterSettings(updatedSettings, settingSet)
+            : clusterSettings;
         updatedClusterSettings.validate(updatedSettings, true);
     }
 

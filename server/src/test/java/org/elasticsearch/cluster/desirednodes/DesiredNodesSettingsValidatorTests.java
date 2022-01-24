@@ -107,7 +107,6 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
             Setting.intSetting("test.processors", masterNodeNumberOfCPUs, 1, masterNodeNumberOfCPUs, Setting.Property.NodeScope),
             NODE_EXTERNAL_ID_SETTING
         );
-        final Consumer<Settings.Builder> settingsProvider = settings -> settings.put("test.processors", 8);
 
         final int numberOfDesiredNodesCPUs = 128;
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings);
@@ -120,6 +119,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
                 return setting;
             }
         };
+        final Consumer<Settings.Builder> settingsProvider = settings -> settings.put("test.processors", numberOfDesiredNodesCPUs);
 
         final DesiredNodes desiredNodes = new DesiredNodes(
             UUIDs.randomBase64UUID(),
@@ -129,7 +129,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
                 20,
                 () -> new DesiredNode(
                     randomSettings(settingsProvider),
-                    randomIntBetween(masterNodeNumberOfCPUs + 1, numberOfDesiredNodesCPUs),
+                    numberOfDesiredNodesCPUs,
                     ByteSizeValue.ofGb(randomIntBetween(1, 1024)),
                     ByteSizeValue.ofTb(randomIntBetween(1, 40)),
                     Version.CURRENT

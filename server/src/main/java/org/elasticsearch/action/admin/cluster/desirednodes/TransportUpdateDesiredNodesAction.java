@@ -25,11 +25,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Locale;
 
 import static java.lang.String.format;
@@ -109,14 +111,11 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             }
 
             if (currentDesiredNodes.isSupersededBy(proposedDesiredNodes) == false) {
-                throw new ConflictException(
-                    format(
-                        Locale.ROOT,
-                        "version [%d] has been superseded by version [%d] for history [%s]",
-                        proposedDesiredNodes.version(),
-                        currentDesiredNodes.version(),
-                        currentDesiredNodes.historyID()
-                    )
+                throw new VersionConflictException(
+                    "version [{}] has been superseded by version [{}] for history [{}]",
+                    proposedDesiredNodes.version(),
+                    currentDesiredNodes.version(),
+                    currentDesiredNodes.historyID()
                 );
             }
         }
@@ -134,9 +133,13 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         }
     }
 
-    public static class ConflictException extends ElasticsearchException {
-        public ConflictException(String msg, Object... args) {
+    public static class VersionConflictException extends ElasticsearchException {
+        public VersionConflictException(String msg, Object... args) {
             super(msg, args);
+        }
+
+        public VersionConflictException(StreamInput in) throws IOException {
+            super(in);
         }
 
         @Override

@@ -94,12 +94,16 @@ public class GetDesiredNodesAction extends ActionType<GetDesiredNodesAction.Resp
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.desiredNodes = new DesiredNodes(in);
+            this.desiredNodes = in.readOptionalWriteable(DesiredNodes::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            desiredNodes.writeTo(out);
+            out.writeOptionalWriteable(desiredNodes);
+        }
+
+        public DesiredNodes getDesiredNodes() {
+            return desiredNodes;
         }
 
         @Override

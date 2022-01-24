@@ -47,9 +47,13 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
     }
 
     public static DesiredNode randomDesiredNode(Version version, Consumer<Settings.Builder> settingsProvider) {
+        return randomDesiredNode(version, randomIntBetween(1, 256), settingsProvider);
+    }
+
+    public static DesiredNode randomDesiredNode(Version version, int processors, Consumer<Settings.Builder> settingsProvider) {
         return new DesiredNode(
             randomSettings(settingsProvider),
-            randomIntBetween(1, 256),
+            processors,
             ByteSizeValue.ofGb(randomIntBetween(1, 1024)),
             ByteSizeValue.ofTb(randomIntBetween(1, 40)),
             version

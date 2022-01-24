@@ -694,7 +694,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     shardRouting.shardId().id(),
                     docsOnShard.stream()
                         // normalize primary term as the follower use its own term
-                        .map(d -> new DocIdSeqNoAndSource(d.getId(), d.getSource(), d.getSeqNo(), 1L, d.getVersion()))
+                        .map(d -> new DocIdSeqNoAndSource(d.id(), d.source(), d.seqNo(), 1L, d.version()))
                         .collect(Collectors.toList())
                 );
             } catch (AlreadyClosedException e) {

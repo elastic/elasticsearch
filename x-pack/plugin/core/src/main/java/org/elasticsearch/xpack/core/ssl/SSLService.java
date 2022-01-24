@@ -27,6 +27,7 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslDiagnostics;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -230,10 +231,10 @@ public class SSLService {
     public SSLIOSessionStrategy sslIOSessionStrategy(SslConfiguration config) {
         SSLContext sslContext = sslContext(config);
         String[] ciphers = supportedCiphers(sslParameters(sslContext).getCipherSuites(), config.getCipherSuites(), false);
-        String[] supportedProtocols = config.getSupportedProtocols().toArray(Strings.EMPTY_ARRAY);
+        String[] supportedProtocols = config.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
         HostnameVerifier verifier;
 
-        if (config.getVerificationMode().isHostnameVerificationEnabled()) {
+        if (config.verificationMode().isHostnameVerificationEnabled()) {
             verifier = SSLIOSessionStrategy.getDefaultHostnameVerifier();
         } else {
             verifier = NoopHostnameVerifier.INSTANCE;
@@ -244,7 +245,7 @@ public class SSLService {
     }
 
     public static HostnameVerifier getHostnameVerifier(SslConfiguration sslConfiguration) {
-        if (sslConfiguration.getVerificationMode().isHostnameVerificationEnabled()) {
+        if (sslConfiguration.verificationMode().isHostnameVerificationEnabled()) {
             return new DefaultHostnameVerifier();
         } else {
             return NoopHostnameVerifier.INSTANCE;
@@ -306,7 +307,7 @@ public class SSLService {
         SSLSocketFactory socketFactory = contextHolder.sslContext().getSocketFactory();
         final SecuritySSLSocketFactory securitySSLSocketFactory = new SecuritySSLSocketFactory(
             () -> contextHolder.sslContext().getSocketFactory(),
-            configuration.getSupportedProtocols().toArray(Strings.EMPTY_ARRAY),
+            configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY),
             supportedCiphers(socketFactory.getSupportedCipherSuites(), configuration.getCipherSuites(), false)
         );
         contextHolder.addReloadListener(securitySSLSocketFactory::reload);
@@ -329,9 +330,9 @@ public class SSLService {
         SSLContext sslContext = sslContext(configuration);
         SSLEngine sslEngine = sslContext.createSSLEngine(host, port);
         String[] ciphers = supportedCiphers(sslEngine.getSupportedCipherSuites(), configuration.getCipherSuites(), false);
-        String[] supportedProtocols = configuration.getSupportedProtocols().toArray(Strings.EMPTY_ARRAY);
+        String[] supportedProtocols = configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
         SSLParameters parameters = new SSLParameters(ciphers, supportedProtocols);
-        if (configuration.getVerificationMode().isHostnameVerificationEnabled() && host != null) {
+        if (configuration.verificationMode().isHostnameVerificationEnabled() && host != null) {
             // By default, an SSLEngine will not perform hostname verification. In order to perform hostname verification
             // we need to specify a EndpointIdentificationAlgorithm. We use the HTTPS algorithm to prevent against
             // man in the middle attacks for all of our connections.
@@ -339,7 +340,7 @@ public class SSLService {
         }
         // we use the cipher suite order so that we can prefer the ciphers we set first in the list
         parameters.setUseCipherSuitesOrder(true);
-        configuration.getClientAuth().configure(parameters);
+        configuration.clientAuth().configure(parameters);
 
         // many SSLEngine options can be configured using either SSLParameters or direct methods on the engine itself, but there is one
         // tricky aspect; if you set a value directly on the engine and then later set the SSLParameters the value set directly on the
@@ -355,7 +356,7 @@ public class SSLService {
      */
     public boolean isConfigurationValidForServerUsage(SslConfiguration sslConfiguration) {
         Objects.requireNonNull(sslConfiguration, "SslConfiguration cannot be null");
-        return sslConfiguration.getKeyConfig().hasKeyMaterial();
+        return sslConfiguration.keyConfig().hasKeyMaterial();
     }
 
     /**
@@ -363,7 +364,7 @@ public class SSLService {
      */
     public boolean isSSLClientAuthEnabled(SslConfiguration sslConfiguration) {
         Objects.requireNonNull(sslConfiguration, "SslConfiguration cannot be null");
-        return sslConfiguration.getClientAuth().enabled();
+        return sslConfiguration.clientAuth().enabled();
     }
 
     /**
@@ -469,8 +470,8 @@ public class SSLService {
         if (logger.isDebugEnabled()) {
             logger.debug("using ssl settings [{}]", sslConfiguration);
         }
-        X509ExtendedTrustManager trustManager = sslConfiguration.getTrustConfig().createTrustManager();
-        X509ExtendedKeyManager keyManager = sslConfiguration.getKeyConfig().createKeyManager();
+        X509ExtendedTrustManager trustManager = sslConfiguration.trustConfig().createTrustManager();
+        X509ExtendedKeyManager keyManager = sslConfiguration.keyConfig().createKeyManager();
         return createSslContext(keyManager, trustManager, sslConfiguration);
     }
 
@@ -490,7 +491,7 @@ public class SSLService {
         trustManager = wrapWithDiagnostics(trustManager, sslConfiguration);
         // Initialize sslContext
         try {
-            SSLContext sslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.getSupportedProtocols()));
+            SSLContext sslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.supportedProtocols()));
             sslContext.init(new X509ExtendedKeyManager[] { keyManager }, new X509ExtendedTrustManager[] { trustManager }, null);
 
             // check the supported ciphers and log them here to prevent spamming logs on every call
@@ -521,7 +522,7 @@ public class SSLService {
                     case 1 -> names.get(0);
                     default -> "(shared)";
                 };
-                return name + " (with trust configuration: " + configuration.getTrustConfig() + ")";
+                return name + " (with trust configuration: " + configuration.trustConfig() + ")";
             };
             trustManager = new DiagnosticTrustManager(trustManager, contextName, diagnosticLogger::warn);
         }
@@ -534,7 +535,7 @@ public class SSLService {
 
     private static Map<String, SslConfiguration> getSSLConfigurations(Environment env, Settings settings) {
         final Map<String, Settings> sslSettingsMap = getSSLSettingsMap(settings);
-        final Map<String, SslConfiguration> sslConfigurationMap = new HashMap<>(sslSettingsMap.size());
+        final Map<String, SslConfiguration> sslConfigurationMap = Maps.newMapWithExpectedSize(sslSettingsMap.size());
         sslSettingsMap.forEach((key, sslSettings) -> {
             if (key.endsWith(".")) {
                 // Drop trailing '.' so that any exception messages are consistent
@@ -596,7 +597,7 @@ public class SSLService {
      * Parses the settings to load all SslConfiguration objects that will be used.
      */
     Map<SslConfiguration, SSLContextHolder> loadSslConfigurations(Map<String, SslConfiguration> sslConfigurationMap) {
-        final Map<SslConfiguration, SSLContextHolder> sslContextHolders = new HashMap<>(sslConfigurationMap.size());
+        final Map<SslConfiguration, SSLContextHolder> sslContextHolders = Maps.newMapWithExpectedSize(sslConfigurationMap.size());
         sslConfigurationMap.forEach((key, sslConfiguration) -> {
             try {
                 sslContextHolders.computeIfAbsent(sslConfiguration, this::createSslContext);
@@ -669,9 +670,7 @@ public class SSLService {
             .stream()
             .map(SslConfiguration::getConfiguredCertificates)
             .flatMap(Collection::stream)
-            .map(
-                cert -> new CertificateInfo(cert.getPath(), cert.getFormat(), cert.getAlias(), cert.hasPrivateKey(), cert.getCertificate())
-            )
+            .map(cert -> new CertificateInfo(cert.path(), cert.format(), cert.alias(), cert.hasPrivateKey(), cert.certificate()))
             .collect(Sets.toUnmodifiableSortedSet());
     }
 
@@ -774,8 +773,8 @@ public class SSLService {
         SSLContextHolder(SSLContext context, SslConfiguration sslConfiguration) {
             this.context = context;
             this.sslConfiguration = sslConfiguration;
-            this.keyConfig = sslConfiguration.getKeyConfig();
-            this.trustConfig = sslConfiguration.getTrustConfig();
+            this.keyConfig = sslConfiguration.keyConfig();
+            this.trustConfig = sslConfiguration.trustConfig();
             this.reloadListeners = new ArrayList<>();
         }
 
@@ -796,7 +795,7 @@ public class SSLService {
                 X509ExtendedTrustManager loadedTrustManager = trustConfig.createTrustManager();
                 loadedTrustManager = wrapWithDiagnostics(loadedTrustManager, sslConfiguration);
 
-                SSLContext loadedSslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.getSupportedProtocols()));
+                SSLContext loadedSslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.supportedProtocols()));
                 loadedSslContext.init(
                     new X509ExtendedKeyManager[] { loadedKeyManager },
                     new X509ExtendedTrustManager[] { loadedTrustManager },

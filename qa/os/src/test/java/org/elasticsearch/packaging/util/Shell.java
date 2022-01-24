@@ -228,21 +228,13 @@ public class Shell {
         return String.format(Locale.ROOT, " env = [%s] workingDirectory = [%s]", env, workingDirectory);
     }
 
-    public static class Result {
-        public final int exitCode;
-        public final String stdout;
-        public final String stderr;
-
-        public Result(int exitCode, String stdout, String stderr) {
-            this.exitCode = exitCode;
-            this.stdout = stdout;
-            this.stderr = stderr;
-        }
+    public record Result(int exitCode, String stdout, String stderr) {
 
         public boolean isSuccess() {
             return exitCode == 0;
         }
 
+        @Override
         public String toString() {
             return String.format(Locale.ROOT, "exitCode = [%d] stdout = [%s] stderr = [%s]", exitCode, stdout.trim(), stderr.trim());
         }

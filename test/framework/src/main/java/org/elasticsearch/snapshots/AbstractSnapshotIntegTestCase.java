@@ -228,6 +228,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).setBlockAndFailOnWriteSnapFiles();
     }
 
+    public static void blockMasterOnAnyDataFile(final String repositoryName) {
+        AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).blockOnDataFiles();
+    }
+
     public static void blockMasterOnShardLevelSnapshotFile(final String repositoryName, String indexId) {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnMaster(repositoryName).setBlockOnShardLevelSnapFiles(indexId);
     }
@@ -630,6 +634,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected ActionFuture<AcknowledgedResponse> startDeleteSnapshot(String repoName, String snapshotName) {
         logger.info("--> deleting snapshot [{}] from repo [{}]", snapshotName, repoName);
         return clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).execute();
+    }
+
+    protected ActionFuture<AcknowledgedResponse> startDeleteSnapshots(String repoName, List<String> snapshotNames, String viaNode) {
+        logger.info("--> deleting snapshots {} from repo [{}]", snapshotNames, repoName);
+        return client(viaNode).admin().cluster().prepareDeleteSnapshot(repoName, snapshotNames.toArray(Strings.EMPTY_ARRAY)).execute();
     }
 
     protected static void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {

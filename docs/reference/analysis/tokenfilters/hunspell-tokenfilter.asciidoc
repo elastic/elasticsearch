@@ -55,7 +55,7 @@ To configure the setting for a specific locale, use the
 the `en_US` (American English) locale, the setting is
 `indices.analysis.hunspell.dictionary.en_US.ignore_case`).
 +
-It is also possible to add `settings.yml` file under the dictionary
+You can also add a `settings.yml` file under the dictionary
 directory which holds these settings. This overrides any other `ignore_case`
 settings defined in `elasticsearch.yml`.
 

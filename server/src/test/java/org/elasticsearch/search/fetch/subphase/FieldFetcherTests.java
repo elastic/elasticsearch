@@ -1023,10 +1023,10 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endObject();
 
         MapperService mapperService = createMapperService(mapping);
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("stops_number", 3.1).endObject();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("foo_bar", 3.1).endObject();
         // the field should be returned
-        Map<String, DocumentField> fields = fetchFields(mapperService, source, "stops_number");
-        assertThat(fields.get("stops_number").getValues().size(), equalTo(1));
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "foo_bar");
+        assertThat(fields.get("foo_bar").getValues().size(), equalTo(1));
     }
 
     /**

@@ -21,6 +21,7 @@ include::{es-repo-dir}/upgrade/disable-shard-alloc.asciidoc[]
 --
 // end::disable_shard_alloc[]
 
+// tag::stop_indexing[]
 . *Stop indexing and perform a flush.*
 +
 --
@@ -29,6 +30,7 @@ recovery.
 
 include::{es-repo-dir}/upgrade/synced-flush.asciidoc[]
 --
+// end::stop_indexing[]
 
 //tag::stop_ml[]
 . *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)

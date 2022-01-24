@@ -802,7 +802,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         bw.newLine();
                         bw.write("# Connections are encrypted and mutually authenticated");
                         bw.newLine();
-                        if (false == shouldBindTransportToNonLocalhost(transportAddresses, NetworkUtils.getAllAddresses())) {
+                        if (inEnrollmentMode
+                            && false == shouldBindTransportToNonLocalhost(transportAddresses, NetworkUtils.getAllAddresses())) {
                             bw.write("#");
                         }
                         bw.write(TransportSettings.HOST.getKey() + ": " + hostSettingValue(NetworkUtils.getAllAddresses()));

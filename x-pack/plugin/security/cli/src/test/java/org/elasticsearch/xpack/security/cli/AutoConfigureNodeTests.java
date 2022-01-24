@@ -244,6 +244,10 @@ public class AutoConfigureNodeTests extends ESTestCase {
         remoteAddresses = List.of("1.2.3.4:9300");
         localAddresses = new InetAddress[] { InetAddress.getByName("[::1]"), InetAddress.getByName("127.0.0.1") };
         assertThat(shouldBindTransportToNonLocalhost(remoteAddresses, localAddresses), equalTo(false));
+
+        remoteAddresses = List.of();
+        localAddresses = new InetAddress[] { InetAddress.getByName("192.168.0.1"), InetAddress.getByName("127.0.0.1") };
+        assertThat(shouldBindTransportToNonLocalhost(remoteAddresses, localAddresses), equalTo(false));
     }
 
     private boolean checkGeneralNameSan(X509Certificate certificate, String generalName, int generalNameTag) throws Exception {

@@ -44,6 +44,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -100,7 +101,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             true,
             Collections::emptyList,
             (n, c, o) -> Relations.parse(o),
-            m -> toType(m).relations
+            m -> toType(m).relations,
+            XContentBuilder::field,
+            Objects::toString
         ).setMergeValidator(ParentJoinFieldMapper::checkRelationsConflicts);
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();

@@ -112,7 +112,6 @@ public class MetadataIndexTemplateService {
 
     private static final Logger logger = LogManager.getLogger(MetadataIndexTemplateService.class);
     private final ClusterService clusterService;
-    private final AliasValidator aliasValidator;
     private final IndicesService indicesService;
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
@@ -124,7 +123,6 @@ public class MetadataIndexTemplateService {
     public MetadataIndexTemplateService(
         ClusterService clusterService,
         MetadataCreateIndexService metadataCreateIndexService,
-        AliasValidator aliasValidator,
         IndicesService indicesService,
         IndexScopedSettings indexScopedSettings,
         NamedXContentRegistry xContentRegistry,
@@ -132,7 +130,6 @@ public class MetadataIndexTemplateService {
         IndexSettingProviders indexSettingProviders
     ) {
         this.clusterService = clusterService;
-        this.aliasValidator = aliasValidator;
         this.indicesService = indicesService;
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
@@ -1406,7 +1403,6 @@ public class MetadataIndexTemplateService {
                 Collections.emptySet(),
                 MetadataIndexTemplateService.resolveAliases(stateWithIndex.metadata(), templateName),
                 stateWithIndex.metadata(),
-                new AliasValidator(),
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 xContentRegistry,
@@ -1589,7 +1585,7 @@ public class MetadataIndexTemplateService {
 
         for (Alias alias : aliases) {
             // we validate the alias only partially, as we don't know yet to which index it'll get applied to
-            aliasValidator.validateAliasStandalone(alias);
+            AliasValidator.validateAliasStandalone(alias);
             if (indexPatterns.contains(alias.name())) {
                 throw new IllegalArgumentException(
                     "alias [" + alias.name() + "] cannot be the same as any pattern in [" + String.join(", ", indexPatterns) + "]"

@@ -206,6 +206,19 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotFleetIndex), is(false));
         });
 
+        final IndexAbstraction apmSampledTracesIndex = mockIndexAbstraction("traces-apm.sampled-" + randomAlphaOfLengthBetween(1, 20));
+        assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(apmSampledTracesIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(apmSampledTracesIndex), is(false));
+
         final String kibanaApplication = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         final String privilegeName = randomAlphaOfLengthBetween(3, 16);
         assertThat(

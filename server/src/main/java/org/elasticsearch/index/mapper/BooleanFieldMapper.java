@@ -32,6 +32,7 @@ import org.elasticsearch.script.field.BooleanDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -80,7 +81,9 @@ public class BooleanFieldMapper extends FieldMapper {
             false,
             () -> null,
             (n, c, o) -> o == null ? null : XContentMapValues.nodeBooleanValue(o),
-            m -> toType(m).nullValue
+            m -> toType(m).nullValue,
+            XContentBuilder::field,
+            Objects::toString
         ).acceptsNull();
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);

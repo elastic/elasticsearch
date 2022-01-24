@@ -335,23 +335,37 @@ public class EsExecutors {
 
         @Override
         public void rejectedExecution(Runnable task, ThreadPoolExecutor executor) {
-            try {
-                final BlockingQueue<Runnable> queue = executor.getQueue();
-                // force queue policy should only be used with a scaling queue
-                assert queue instanceof ExecutorScalingQueue;
-                queue.put(task);
-                // we need to check again the executor state as it might have been concurrently shut down; in this case
-                // the executor's workers are shutting down and might have already picked up the task for execution.
-                if (rejectAfterShutdown && executor.isShutdown()) {
-                    if (executor.remove(task)) {
-                        incrementRejections();
-                        throw newRejectedException(task, executor, true);
+            if (rejectAfterShutdown) {
+                if (executor.isShutdown()) {
+                    reject(executor, task);
+                } else {
+                    put(executor, task);
+                    // we need to check again the executor state as it might have been concurrently shut down; in this case
+                    // the executor's workers are shutting down and might have already picked up the task for execution.
+                    if (executor.isShutdown() && executor.remove(task)) {
+                        reject(executor, task);
                     }
                 }
+            } else {
+                put(executor, task);
+            }
+        }
+
+        private void put(ThreadPoolExecutor executor, Runnable task) {
+            final BlockingQueue<Runnable> queue = executor.getQueue();
+            // force queue policy should only be used with a scaling queue
+            assert queue instanceof ExecutorScalingQueue;
+            try {
+                queue.put(task);
             } catch (final InterruptedException e) {
                 assert false : "a scaling queue never blocks so a put to it can never be interrupted";
                 throw new AssertionError(e);
             }
+        }
+
+        private void reject(ThreadPoolExecutor executor, Runnable task) {
+            incrementRejections();
+            throw newRejectedException(task, executor, true);
         }
     }
 

@@ -278,9 +278,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             if (rejectAfterShutdown) {
                 final EsRejectedExecutionException exception = expectThrows(
                     EsRejectedExecutionException.class,
-                    () -> scalingExecutor.execute(() -> {
-                        throw new AssertionError("should be rejected");
-                    })
+                    () -> scalingExecutor.execute(() -> { throw new AssertionError("should be rejected"); })
                 );
                 assertThat(exception.getLocalizedMessage(), allOf(containsString("rejected execution of "), containsString("(shutdown)")));
                 assertThat(exception.isExecutorShutdown(), equalTo(true));
@@ -361,8 +359,9 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
 
             assertBusy(() -> assertTrue(scalingExecutor.isTerminated()));
             assertThat(scalingExecutor.getCompletedTaskCount(), greaterThanOrEqualTo((long) max));
-            assertThat(scalingExecutor.getCompletedTaskCount(), lessThanOrEqualTo((long) max + barrier.getParties() - 1L));
-            assertThat(scalingExecutor.getCompletedTaskCount() + rejected.get(), equalTo((long) max + barrier.getParties() - 1L));
+            final long maxCompletedTasks = (long) max + barrier.getParties() - 1L;
+            assertThat(scalingExecutor.getCompletedTaskCount(), lessThanOrEqualTo(maxCompletedTasks));
+            assertThat(scalingExecutor.getCompletedTaskCount() + rejected.get(), equalTo(maxCompletedTasks));
             assertThat(scalingExecutor.getQueue().size(), equalTo(0));
             assertThat(scalingExecutor.getActiveCount(), equalTo(0));
 

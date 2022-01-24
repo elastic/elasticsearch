@@ -70,7 +70,7 @@ public final class TransformAggregations {
         "nested",
         "percentile_ranks",
         "range",
-        "random_sample",
+        "random_sampler",
         "reverse_nested",
         "sampler",
         "significant_terms", // https://github.com/elastic/elasticsearch/issues/51073

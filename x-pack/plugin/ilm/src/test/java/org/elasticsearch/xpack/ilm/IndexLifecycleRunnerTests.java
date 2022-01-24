@@ -175,7 +175,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
         runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
-        Mockito.verify(clusterService, times(1)).submitStateUpdateTask(anyString(), any(), any(), any(), any());
+        Mockito.verify(clusterService, times(1)).submitStateUpdateTask(anyString(), any(), any(), any());
     }
 
     public void testRunPolicyErrorStep() {
@@ -656,8 +656,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                     ilm-execute-cluster-state-steps [{"phase":"phase","action":"action","name":"cluster_state_action_step"} => null]"""),
                 Mockito.argThat(taskMatcher),
                 eq(IndexLifecycleRunner.ILM_TASK_CONFIG),
-                any(),
-                Mockito.argThat(taskMatcher)
+                any()
             );
         Mockito.verifyNoMoreInteractions(clusterService);
     }
@@ -684,8 +683,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                     ilm-execute-cluster-state-steps [{"phase":"phase","action":"action","name":"cluster_state_action_step"} => null]"""),
                 Mockito.argThat(taskMatcher),
                 eq(IndexLifecycleRunner.ILM_TASK_CONFIG),
-                any(),
-                Mockito.argThat(taskMatcher)
+                any()
             );
         Mockito.verifyNoMoreInteractions(clusterService);
     }
@@ -766,8 +764,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 Mockito.eq("ilm-set-step-info {policy [cluster_state_action_policy], index [my_index], currentStep [null]}"),
                 Mockito.argThat(taskMatcher),
                 eq(IndexLifecycleRunner.ILM_TASK_CONFIG),
-                any(),
-                Mockito.argThat(taskMatcher)
+                any()
             );
         Mockito.verifyNoMoreInteractions(clusterService);
     }

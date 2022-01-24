@@ -14,6 +14,10 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
@@ -37,6 +41,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -155,16 +160,25 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         public BooleanFieldType(String name) {
-            this(name, true, false, true, false, null, Collections.emptyMap());
+            this(name, true);
         }
 
-        public BooleanFieldType(String name, boolean searchable) {
-            this(name, searchable, false, true, false, null, Collections.emptyMap());
+        public BooleanFieldType(String name, boolean isIndexed) {
+            this(name, isIndexed, true);
+        }
+
+        public BooleanFieldType(String name, boolean isIndexed, boolean hasDocValues) {
+            this(name, isIndexed, isIndexed, hasDocValues, false, null, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return isIndexed() || hasDocValues();
         }
 
         @Override
@@ -209,6 +223,15 @@ public class BooleanFieldMapper extends FieldMapper {
             };
         }
 
+        private long docValueForSearch(Object value) {
+            BytesRef ref = indexedValueForSearch(value);
+            if (Values.TRUE.equals(ref)) {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
+
         @Override
         public Boolean valueForDisplay(Object value) {
             if (value == null) {
@@ -235,6 +258,30 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return super.termQuery(value, context);
+            } else {
+                return SortedNumericDocValuesField.newSlowExactQuery(name(), docValueForSearch(value));
+            }
+        }
+
+        @Override
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return super.termsQuery(values, context);
+            } else {
+                BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                for (Object value : values) {
+                    builder.add(termQuery(value, context), BooleanClause.Occur.SHOULD);
+                }
+                return new ConstantScoreQuery(builder.build());
+            }
+        }
+
+        @Override
         public Query rangeQuery(
             Object lowerTerm,
             Object upperTerm,
@@ -242,14 +289,35 @@ public class BooleanFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            failIfNotIndexed();
-            return new TermRangeQuery(
-                name(),
-                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                includeLower,
-                includeUpper
-            );
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return new TermRangeQuery(
+                    name(),
+                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                    includeLower,
+                    includeUpper
+                );
+            } else {
+                long l = 0;
+                long u = 1;
+                if (lowerTerm != null) {
+                    l = docValueForSearch(lowerTerm);
+                    if (includeLower == false) {
+                        l = Math.max(1, l + 1);
+                    }
+                }
+                if (upperTerm != null) {
+                    u = docValueForSearch(upperTerm);
+                    if (includeUpper == false) {
+                        l = Math.min(0, l - 1);
+                    }
+                }
+                if (l > u) {
+                    return new MatchNoDocsQuery();
+                }
+                return SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+            }
         }
     }
 

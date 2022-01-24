@@ -210,7 +210,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
         private final ThreadPool threadPool = new TestThreadPool(
             "TrackedCluster",
             // a single thread for "client" activities, to limit the number of activities all starting at once
-            new ScalingExecutorBuilder(CLIENT, 1, 1, TimeValue.ZERO, CLIENT)
+            new ScalingExecutorBuilder(CLIENT, 1, 1, TimeValue.ZERO, true, CLIENT)
         );
 
         private final AtomicBoolean shouldStop = new AtomicBoolean();

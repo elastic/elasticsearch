@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdateTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
@@ -86,6 +87,7 @@ import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -398,7 +400,7 @@ public class ClusterStateChanges {
                         failedShard.getFailure(),
                         failedShard.markAsStale()
                     ),
-                    ActionListener.wrap(() -> { throw new AssertionError("task should not complete"); })
+                    createTestListener()
                 )
             )
             .collect(Collectors.toList());
@@ -420,12 +422,15 @@ public class ClusterStateChanges {
             startedShards.entrySet()
                 .stream()
                 .map(
-                    e -> new StartedShardEntry(
-                        e.getKey().shardId(),
-                        e.getKey().allocationId().getId(),
-                        e.getValue(),
-                        "shard started",
-                        ShardLongFieldRange.UNKNOWN
+                    e -> new StartedShardUpdateTask(
+                        new StartedShardEntry(
+                            e.getKey().shardId(),
+                            e.getKey().allocationId().getId(),
+                            e.getValue(),
+                            "shard started",
+                            ShardLongFieldRange.UNKNOWN
+                        ),
+                        createTestListener()
                     )
                 )
                 .collect(Collectors.toList())
@@ -470,5 +475,9 @@ public class ClusterStateChanges {
         runnable.run();
         assertThat(result[0], notNullValue());
         return result[0];
+    }
+
+    private ActionListener<TransportResponse.Empty> createTestListener() {
+        return ActionListener.wrap(() -> { throw new AssertionError("task should not complete"); });
     }
 }

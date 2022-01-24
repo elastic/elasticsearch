@@ -202,27 +202,36 @@ configurations {
   integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
 }
 dependencies {
+  constraints {
+    api("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.getProperty('jackson')}") {
+      version {
+        strictly "${versions.getProperty('jackson')}"
+      }
+      because 'We want to use the exact same jackson version we use in production'
+    }
+  }
   api localGroovy()
   api gradleApi()
 
   api "org.elasticsearch:build-conventions:$version"
   api "org.elasticsearch.gradle:build-tools:$version"
 
-  api 'commons-codec:commons-codec:1.12'
+  // same version as http client transitive dep
+  api 'commons-codec:commons-codec:1.11'
   api 'org.apache.commons:commons-compress:1.19'
   api 'org.apache.ant:ant:1.10.8'
-  api 'com.netflix.nebula:gradle-extra-configurations-plugin:5.0.1'
-  api 'com.netflix.nebula:gradle-info-plugin:9.2.0'
+  api 'com.netflix.nebula:gradle-extra-configurations-plugin:7.0.0'
+  api 'com.netflix.nebula:gradle-info-plugin:11.1.0'
   api 'org.apache.rat:apache-rat:0.11'
   api "net.java.dev.jna:jna:${versions.getProperty('jna')}"
-  api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
+  api 'gradle.plugin.com.github.johnrengelman:shadow:7.1.2'
   // for our ide tweaking
-  api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.7'
+  api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:1.1.1'
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
   api 'de.thetaphi:forbiddenapis:3.2'
-  api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.0'
+  api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.13'
   api 'org.apache.maven:maven-model:3.6.2'
-  api 'com.networknt:json-schema-validator:1.0.36'
+  api 'com.networknt:json-schema-validator:1.0.65'
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.getProperty('jackson')}"
   api 'org.ow2.asm:asm:9.2'
   api 'org.ow2.asm:asm-tree:9.2'
@@ -231,7 +240,6 @@ dependencies {
   compileOnly "com.puppycrawl.tools:checkstyle:${versions.getProperty('checkstyle')}"
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation "com.puppycrawl.tools:checkstyle:${versions.getProperty('checkstyle')}"
-//  testImplementation "junit:junit:${versions.getProperty('junit')}"
   testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
   testImplementation 'org.mockito:mockito-core:1.9.5'
   testImplementation "org.hamcrest:hamcrest:${versions.getProperty('hamcrest')}"

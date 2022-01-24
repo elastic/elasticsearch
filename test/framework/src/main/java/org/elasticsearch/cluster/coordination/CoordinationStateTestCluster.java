@@ -193,17 +193,7 @@ public class CoordinationStateTestCluster {
         initialValue = randomLong();
     }
 
-    static class Message {
-        final DiscoveryNode sourceNode;
-        final DiscoveryNode targetNode;
-        final Object payload;
-
-        Message(DiscoveryNode sourceNode, DiscoveryNode targetNode, Object payload) {
-            this.sourceNode = sourceNode;
-            this.targetNode = targetNode;
-            this.payload = payload;
-        }
-    }
+    record Message(DiscoveryNode sourceNode, DiscoveryNode targetNode, Object payload) {}
 
     void reply(Message m, Object payload) {
         messages.add(new Message(m.targetNode, m.sourceNode, payload));

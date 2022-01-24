@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -28,7 +29,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -134,7 +134,7 @@ public class RestoreServiceTests extends ESTestCase {
         final PlainActionFuture<Void> listener = new PlainActionFuture<>();
 
         final int repositoryCount = between(1, 5);
-        final Map<String, Repository> repositories = new HashMap<>(repositoryCount);
+        final Map<String, Repository> repositories = Maps.newMapWithExpectedSize(repositoryCount);
         final Set<String> pendingRefreshes = new HashSet<>();
         final List<Runnable> finalAssertions = new ArrayList<>();
         while (repositories.size() < repositoryCount) {

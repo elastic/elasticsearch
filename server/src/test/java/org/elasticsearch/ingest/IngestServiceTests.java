@@ -42,6 +42,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
@@ -1420,7 +1421,7 @@ public class IngestServiceTests extends ESTestCase {
             handler.accept(RandomDocumentPicks.randomIngestDocument(random()), null);
             return null;
         }).when(processor).execute(any(), any());
-        Map<String, Processor.Factory> map = new HashMap<>(2);
+        Map<String, Processor.Factory> map = Maps.newMapWithExpectedSize(2);
         map.put("mock", (factories, tag, description, config) -> processor);
 
         IngestService ingestService = createWithProcessors(map);
@@ -1472,7 +1473,7 @@ public class IngestServiceTests extends ESTestCase {
             handler.accept(null, new RuntimeException("error"));
             return null;
         }).when(processorFailure).execute(any(IngestDocument.class), any());
-        Map<String, Processor.Factory> map = new HashMap<>(2);
+        Map<String, Processor.Factory> map = Maps.newMapWithExpectedSize(2);
         map.put("mock", (factories, tag, description, config) -> processor);
         map.put("failure-mock", (factories, tag, description, config) -> processorFailure);
         IngestService ingestService = createWithProcessors(map);

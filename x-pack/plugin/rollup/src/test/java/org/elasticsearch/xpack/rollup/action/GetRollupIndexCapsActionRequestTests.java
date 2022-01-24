@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -21,7 +22,6 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.rollup.action.TransportGetRollupIndexCapsAction.getCapsByRollupIndex;
@@ -54,7 +54,7 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractWireSerializin
         int indexCounter = 0;
         for (int j = 0; j < 5; j++) {
 
-            Map<String, Object> jobs = new HashMap<>(num);
+            Map<String, Object> jobs = Maps.newMapWithExpectedSize(num);
             for (int i = 0; i < num; i++) {
                 String jobName = randomAlphaOfLength(10);
                 String indexName = Integer.toString(indexCounter);
@@ -84,7 +84,7 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractWireSerializin
         int indexCounter = 0;
         for (int j = 0; j < 5; j++) {
 
-            Map<String, Object> jobs = new HashMap<>(1);
+            Map<String, Object> jobs = Maps.newMapWithExpectedSize(1);
             String jobName = randomAlphaOfLength(10);
             String indexName = Integer.toString(indexCounter);
             indexCounter += 1;
@@ -112,7 +112,7 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractWireSerializin
         int indexCounter = 0;
         for (int j = 0; j < 5; j++) {
 
-            Map<String, Object> jobs = new HashMap<>(1);
+            Map<String, Object> jobs = Maps.newMapWithExpectedSize(1);
             String jobName = randomAlphaOfLength(10);
             String indexName = Integer.toString(indexCounter);
             indexCounter += 1;
@@ -142,7 +142,7 @@ public class GetRollupIndexCapsActionRequestTests extends AbstractWireSerializin
         int indexCounter = 0;
         for (int j = 0; j < 5; j++) {
 
-            Map<String, Object> jobs = new HashMap<>(1);
+            Map<String, Object> jobs = Maps.newMapWithExpectedSize(1);
             String jobName = randomAlphaOfLength(10);
             String indexName = Integer.toString(indexCounter);
             indexCounter += 1;

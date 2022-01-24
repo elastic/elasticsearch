@@ -10,28 +10,38 @@ package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.util.json.Jackson;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
@@ -54,17 +64,15 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         });
     }
 
-    protected final S3Service service;
+    private final SetOnce<S3Service> service = new SetOnce<>();
+    private final Settings settings;
 
-    public S3RepositoryPlugin(final Settings settings) {
-        this(settings, new S3Service());
+    public S3RepositoryPlugin(Settings settings) {
+        this.settings = settings;
     }
 
-    S3RepositoryPlugin(final Settings settings, final S3Service service) {
-        this.service = Objects.requireNonNull(service, "S3 service must not be null");
-        // eagerly load client settings so that secure settings are read
-        final Map<String, S3ClientSettings> clientsSettings = S3ClientSettings.load(settings);
-        this.service.refreshAndClearCache(clientsSettings);
+    S3Service getService() {
+        return service.get();
     }
 
     // proxy method for testing
@@ -75,7 +83,30 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings
     ) {
-        return new S3Repository(metadata, registry, service, clusterService, bigArrays, recoverySettings);
+        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings);
+    }
+
+    @Override
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
+        service.set(s3Service(environment));
+        this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
+        return List.of(service);
+    }
+
+    S3Service s3Service(Environment environment) {
+        return new S3Service(environment);
     }
 
     @Override
@@ -118,11 +149,11 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     public void reload(Settings settings) {
         // secure settings should be readable
         final Map<String, S3ClientSettings> clientsSettings = S3ClientSettings.load(settings);
-        service.refreshAndClearCache(clientsSettings);
+        getService().refreshAndClearCache(clientsSettings);
     }
 
     @Override
     public void close() throws IOException {
-        service.close();
+        getService().close();
     }
 }

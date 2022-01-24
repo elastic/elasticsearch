@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
+import org.elasticsearch.search.aggregations.pipeline.MovAvgPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -478,6 +479,8 @@ public class SearchModuleTests extends ESTestCase {
     private static final String[] REST_COMPATIBLE_QUERIES = new String[] {
         TypeQueryV7Builder.NAME_V7.getPreferredName(),
         CommonTermsQueryBuilder.NAME_V7.getPreferredName() };
+    private static final String[] REST_COMPATIBLE_AGGREGATIONS = new String[] {
+        MovAvgPipelineAggregationBuilder.NAME_V7.getPreferredName() };
 
     /**
      * Dummy test {@link AggregationBuilder} used to test registering aggregation builders.
@@ -765,7 +768,7 @@ public class SearchModuleTests extends ESTestCase {
             .filter(e -> RestApiVersion.current().matches(e.restApiCompatibility))
             .collect(toSet()),
             // -1 because of the registered in the test
-            hasSize(searchModule.getNamedXContents().size() - REST_COMPATIBLE_QUERIES.length - 1)
+            hasSize(searchModule.getNamedXContents().size() - REST_COMPATIBLE_QUERIES.length - REST_COMPATIBLE_AGGREGATIONS.length - 1)
         );
 
         final List<NamedXContentRegistry.Entry> compatEntry = searchModule.getNamedXContents()

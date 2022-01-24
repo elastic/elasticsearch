@@ -109,40 +109,7 @@ public class ESLoggerUsageChecker {
         cr.accept(new ClassChecker(wrongUsageCallback, methodsToCheck), 0);
     }
 
-    public static class WrongLoggerUsage {
-        private final String className;
-        private final String methodName;
-        private final String logMethodName;
-        private final int line;
-        private final String errorMessage;
-
-        public WrongLoggerUsage(String className, String methodName, String logMethodName, int line, String errorMessage) {
-            this.className = className;
-            this.methodName = methodName;
-            this.logMethodName = logMethodName;
-            this.line = line;
-            this.errorMessage = errorMessage;
-        }
-
-        @Override
-        public String toString() {
-            return "WrongLoggerUsage{"
-                + "className='"
-                + className
-                + '\''
-                + ", methodName='"
-                + methodName
-                + '\''
-                + ", logMethodName='"
-                + logMethodName
-                + '\''
-                + ", line="
-                + line
-                + ", errorMessage='"
-                + errorMessage
-                + '\''
-                + '}';
-        }
+    public record WrongLoggerUsage(String className, String methodName, String logMethodName, int line, String errorMessage) {
 
         /**
          * Returns an error message that has the form of stack traces emitted by {@link Throwable#printStackTrace}

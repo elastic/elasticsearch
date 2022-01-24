@@ -53,6 +53,7 @@ import org.elasticsearch.script.field.ShortDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
@@ -138,7 +139,9 @@ public class NumberFieldMapper extends FieldMapper {
                 false,
                 () -> null,
                 (n, c, o) -> o == null ? null : type.parse(o, false),
-                m -> toType(m).nullValue
+                m -> toType(m).nullValue,
+                XContentBuilder::field,
+                Objects::toString
             ).acceptsNull();
 
             this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
@@ -1246,6 +1249,10 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(this.name());
+        }
+
         public boolean isSearchable() {
             return isIndexed() || hasDocValues();
         }

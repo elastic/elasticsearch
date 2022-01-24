@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
@@ -206,7 +207,7 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
             }
             case 3 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

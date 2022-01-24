@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableCluster
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
@@ -457,7 +458,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
             }
         }
-        if (getSuperuserRole) {
+        if (numberOfTimesToCall > 0 && getSuperuserRole) {
             verify(nativePrivilegeStore).getPrivileges(eq(Set.of("*")), eq(Set.of("*")), anyActionListener());
             // We can't verify the contents of the Set here because the set is mutated inside the method
             verify(reservedRolesStore, times(2)).accept(anySet(), anyActionListener());
@@ -1894,7 +1895,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     private void getRoleForRoleNames(CompositeRolesStore rolesStore, Collection<String> roleNames, ActionListener<Role> listener) {
         final Subject subject = mock(Subject.class);
-        when(subject.getRoleReferences(any())).thenReturn(List.of(new RoleReference.NamedRoleReference(roleNames.toArray(String[]::new))));
+        when(subject.getRoleReferenceIntersection(any())).thenReturn(
+            new RoleReferenceIntersection(new RoleReference.NamedRoleReference(roleNames.toArray(String[]::new)))
+        );
         rolesStore.getRole(subject, listener);
     }
 

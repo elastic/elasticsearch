@@ -8,8 +8,6 @@
 
 package org.elasticsearch.indices.cluster;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -43,12 +41,11 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdateTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
-import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -117,7 +114,6 @@ import static org.mockito.Mockito.when;
 public class ClusterStateChanges {
     private static final Settings SETTINGS = Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build();
 
-    private static final Logger logger = LogManager.getLogger(ClusterStateChanges.class);
     private final AllocationService allocationService;
     private final ClusterService clusterService;
     private final ShardStateAction.ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
@@ -151,8 +147,8 @@ public class ClusterStateChanges {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE
         );
-        shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
-        shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null, logger);
+        shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null);
+        shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null);
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);
@@ -252,7 +248,6 @@ public class ClusterStateChanges {
             clusterService,
             indicesService,
             allocationService,
-            new AliasValidator(),
             shardLimitValidator,
             environment,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
@@ -392,15 +387,18 @@ public class ClusterStateChanges {
     }
 
     public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {
-        List<FailedShardEntry> entries = failedShards.stream()
+        List<FailedShardUpdateTask> entries = failedShards.stream()
             .map(
-                failedShard -> new FailedShardEntry(
-                    failedShard.getRoutingEntry().shardId(),
-                    failedShard.getRoutingEntry().allocationId().getId(),
-                    0L,
-                    failedShard.getMessage(),
-                    failedShard.getFailure(),
-                    failedShard.markAsStale()
+                failedShard -> new FailedShardUpdateTask(
+                    new ShardStateAction.FailedShardEntry(
+                        failedShard.getRoutingEntry().shardId(),
+                        failedShard.getRoutingEntry().allocationId().getId(),
+                        0L,
+                        failedShard.getMessage(),
+                        failedShard.getFailure(),
+                        failedShard.markAsStale()
+                    ),
+                    ActionListener.wrap(() -> { throw new AssertionError("task should not complete"); })
                 )
             )
             .collect(Collectors.toList());

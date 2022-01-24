@@ -60,7 +60,6 @@ import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -493,15 +492,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testToQueryMultipleFieldsDisMaxQuery() throws Exception {
         Query query = queryStringQuery("test").field(TEXT_FIELD_NAME).field(KEYWORD_FIELD_NAME).toQuery(createSearchExecutionContext());
-        Query expected = new DisjunctionMaxQuery(
-            List.of(new TermQuery(new Term(TEXT_FIELD_NAME, "test")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))),
-            0
-        );
-        assertEquals(expected, query);
-    }
-
-    public void testToQueryFieldsWildcard() throws Exception {
-        Query query = queryStringQuery("test").field("mapped_str*").toQuery(createSearchExecutionContext());
         Query expected = new DisjunctionMaxQuery(
             List.of(new TermQuery(new Term(TEXT_FIELD_NAME, "test")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "test"))),
             0
@@ -1205,64 +1195,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     }
 
-    public void testDefaultField() throws Exception {
-        SearchExecutionContext context = createSearchExecutionContext();
-        // default value `*` sets leniency to true
-        Query query = new QueryStringQueryBuilder("hello").toQuery(context);
-        assertQueryWithAllFieldsWildcard(query);
-
-        try {
-            // `*` is in the list of the default_field => leniency set to true
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder().putList("index.query.default_field", TEXT_FIELD_NAME, "*", KEYWORD_FIELD_NAME).build()
-                    )
-                );
-            query = new QueryStringQueryBuilder("hello").toQuery(context);
-            assertQueryWithAllFieldsWildcard(query);
-
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder().putList("index.query.default_field", TEXT_FIELD_NAME, KEYWORD_FIELD_NAME + "^5").build()
-                    )
-                );
-            query = new QueryStringQueryBuilder("hello").toQuery(context);
-            Query expected = new DisjunctionMaxQuery(
-                Arrays.asList(
-                    new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
-                    new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")), 5.0f)
-                ),
-                0.0f
-            );
-            assertEquals(expected, query);
-        } finally {
-            // Reset the default value
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder().putList("index.query.default_field", "*").build()
-                    )
-                );
-        }
-    }
-
-    public void testAllFieldsWildcard() throws Exception {
-        SearchExecutionContext context = createSearchExecutionContext();
-        Query query = new QueryStringQueryBuilder("hello").field("*").toQuery(context);
-        assertQueryWithAllFieldsWildcard(query);
-
-        query = new QueryStringQueryBuilder("hello").field(TEXT_FIELD_NAME).field("*").field(KEYWORD_FIELD_NAME).toQuery(context);
-        assertQueryWithAllFieldsWildcard(query);
-    }
-
     /**
      * the quote analyzer should overwrite any other forced analyzer in quoted parts of the query
      */
@@ -1472,22 +1404,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(exc.getMessage(), CoreMatchers.containsString("negative [boost]"));
     }
 
-    public void testMergeBoosts() throws IOException {
-        Query query = new QueryStringQueryBuilder("first").type(MultiMatchQueryBuilder.Type.MOST_FIELDS)
-            .field(TEXT_FIELD_NAME, 0.3f)
-            .field(TEXT_FIELD_NAME.substring(0, TEXT_FIELD_NAME.length() - 2) + "*", 0.5f)
-            .toQuery(createSearchExecutionContext());
-        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-        Collection<Query> disjuncts = ((DisjunctionMaxQuery) query).getDisjuncts();
-        assertThat(
-            disjuncts,
-            hasItems(
-                new BoostQuery(new TermQuery(new Term(TEXT_FIELD_NAME, "first")), 0.075f),
-                new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "first")), 0.5f)
-            )
-        );
-    }
-
     private static IndexMetadata newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
         Settings build = Settings.builder().put(oldIndexSettings).put(indexSettings).build();
         return IndexMetadata.builder(name).settings(build).build();
@@ -1506,44 +1422,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(
             disjunctionMaxQuery.getDisjuncts(),
             hasItems(new TermQuery(new Term(TEXT_FIELD_NAME, "hello")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")))
-        );
-    }
-
-    /**
-     * Query terms that contain "now" can trigger a query to not be cacheable.
-     * This test checks the search context cacheable flag is updated accordingly.
-     */
-    public void testCachingStrategiesWithNow() throws IOException {
-        // if we hit all fields, this should contain a date field and should diable cachability
-        String query = "now " + randomAlphaOfLengthBetween(4, 10);
-        QueryStringQueryBuilder queryStringQueryBuilder = new QueryStringQueryBuilder(query);
-        assertQueryCachability(queryStringQueryBuilder, false);
-
-        // if we hit a date field with "now", this should diable cachability
-        queryStringQueryBuilder = new QueryStringQueryBuilder("now");
-        queryStringQueryBuilder.field(DATE_FIELD_NAME);
-        assertQueryCachability(queryStringQueryBuilder, false);
-
-        // everything else is fine on all fields
-        query = randomFrom("NoW", "nOw", "NOW") + " " + randomAlphaOfLengthBetween(4, 10);
-        queryStringQueryBuilder = new QueryStringQueryBuilder(query);
-        assertQueryCachability(queryStringQueryBuilder, true);
-    }
-
-    private void assertQueryCachability(QueryStringQueryBuilder qb, boolean cachingExpected) throws IOException {
-        SearchExecutionContext context = createSearchExecutionContext();
-        assert context.isCacheable();
-        /*
-         * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it
-         * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
-         * actual lucene query
-         */
-        QueryBuilder rewritten = rewriteQuery(qb, new SearchExecutionContext(context));
-        assertNotNull(rewritten.toQuery(context));
-        assertEquals(
-            "query should " + (cachingExpected ? "" : "not") + " be cacheable: " + qb.toString(),
-            cachingExpected,
-            context.isCacheable()
         );
     }
 

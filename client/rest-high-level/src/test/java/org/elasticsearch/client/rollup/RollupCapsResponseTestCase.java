@@ -15,6 +15,7 @@ import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfigTests;
 import org.elasticsearch.client.rollup.job.config.TermsGroupConfig;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -64,7 +65,7 @@ abstract class RollupCapsResponseTestCase<T> extends ESTestCase {
     @Before
     private void setupIndices() throws IOException {
         int numIndices = randomIntBetween(1, 5);
-        indices = new HashMap<>(numIndices);
+        indices = Maps.newMapWithExpectedSize(numIndices);
         for (int i = 0; i < numIndices; i++) {
             String indexName = "index_" + randomAlphaOfLength(10);
             int numJobs = randomIntBetween(1, 5);

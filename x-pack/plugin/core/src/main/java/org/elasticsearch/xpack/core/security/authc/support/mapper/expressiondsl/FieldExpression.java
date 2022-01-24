@@ -118,8 +118,7 @@ public final class FieldExpression implements RoleMapperExpression {
         }
 
         private static CharacterRunAutomaton buildAutomaton(Object value) {
-            if (value instanceof String) {
-                final String str = (String) value;
+            if (value instanceof final String str) {
                 if (Regex.isSimpleMatchPattern(str) || Automatons.isLuceneRegex(str)) {
                     return new CharacterRunAutomaton(Automatons.patterns(str));
                 }

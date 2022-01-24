@@ -30,9 +30,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
@@ -66,7 +68,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     @Before
     public void setUp() throws Exception {
-        service = new S3Service();
+        service = new S3Service(Mockito.mock(Environment.class));
         super.setUp();
     }
 

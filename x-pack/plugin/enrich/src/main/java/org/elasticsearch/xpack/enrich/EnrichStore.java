@@ -196,7 +196,7 @@ public final class EnrichStore {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 handler.accept(null);
             }
 

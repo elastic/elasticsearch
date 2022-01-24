@@ -7,14 +7,12 @@
  */
 package org.elasticsearch.cluster.routing;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -23,6 +21,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.support.MapXContentParser;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -34,6 +33,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -431,18 +431,6 @@ public class IndexRoutingTests extends ESTestCase {
         };
     }
 
-    public void testRoutingPathSpecifiedRouting() throws IOException {
-        IndexRouting routing = indexRoutingForPath(between(1, 5), randomAlphaOfLength(5));
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> routing.indexShard(null, randomAlphaOfLength(5), XContentType.JSON, source(Map.of()))
-        );
-        assertThat(
-            e.getMessage(),
-            equalTo("specifying routing is not supported because the destination index [test] is in time series mode")
-        );
-    }
-
     public void testRoutingPathEmptySource() throws IOException {
         IndexRouting routing = indexRoutingForPath(between(1, 5), randomAlphaOfLength(5));
         Exception e = expectThrows(
@@ -470,35 +458,13 @@ public class IndexRoutingTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("update is not supported because the destination index [test] is in time series mode"));
     }
 
-    public void testRoutingPathDelete() throws IOException {
-        IndexRouting routing = indexRoutingForPath(5, "foo");
-        assertThat(routing.deleteShard("j5DBhAAAAACTA9IZeQEAAA", null), equalTo(1));
-    }
-
-    public void testRoutingPathDeleteWithRouting() throws IOException {
-        IndexRouting routing = indexRoutingForPath(between(1, 5), "foo");
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> routing.deleteShard(randomAlphaOfLength(5), randomAlphaOfLength(5))
-        );
-        assertThat(
-            e.getMessage(),
-            equalTo("specifying routing is not supported because the destination index [test] is in time series mode")
-        );
-    }
-
-    public void testRoutingPathGet() throws IOException {
-        IndexRouting routing = indexRoutingForPath(5, "foo");
-        assertThat(routing.getShard("j5DBhAAAAACTA9IZeQEAAA", null), equalTo(1));
-    }
-
-    public void testRoutingPathGetWithRouting() throws IOException {
-        IndexRouting routing = indexRoutingForPath(between(1, 5), "foo");
-        Exception e = expectThrows(IllegalArgumentException.class, () -> routing.getShard(randomAlphaOfLength(5), randomAlphaOfLength(5)));
-        assertThat(
-            e.getMessage(),
-            equalTo("specifying routing is not supported because the destination index [test] is in time series mode")
-        );
+    public void testRoutingPathRead() throws IOException {
+        IndexRouting indexRouting = indexRoutingForPath(5, "foo");
+        String value = randomAlphaOfLength(5);
+        BytesReference source = source(Map.of("foo", value));
+        String docRouting = indexRouting.calculateRouting().apply(XContentType.JSON, source);
+        int indexShard = indexRouting.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source);
+        assertThat(shardIdForReadFromSourceExtracting(indexRouting, docRouting), equalTo(indexShard));
     }
 
     public void testRoutingPathCollectSearchWithRouting() throws IOException {
@@ -522,8 +488,7 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(
             routing,
             Map.of("foo", "cat", "bar", "dog", "foa", "a", "fob", "b"),
-            // Note that the fields are sorted
-            Math.floorMod(hash(List.of("foa", "a", "fob", "b", "foo", "cat")), shards)
+            Math.floorMod(hash(List.of("foa", "a", "fob", "b", "foo", "cat")), shards) // Note that the fields are sorted
         );
     }
 
@@ -533,7 +498,7 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(
             routing,
             Map.of("foo", Map.of("bar", "cat"), "baz", "dog"),
-            Math.floorMod(hash(List.of("foo.bar", "cat")), shards)
+            Math.floorMod(hash(List.of("foo", List.of("bar", "cat"))), shards)
         );
     }
 
@@ -543,20 +508,7 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(
             routing,
             Map.of("foo", Map.of("a", "cat"), "bar", Map.of("thing", "yay", "this", "too")),
-            Math.floorMod(hash(List.of("bar.thing", "yay", "bar.this", "too", "foo.a", "cat")), shards)
-        );
-    }
-
-    public void testNullRouting() throws IOException {
-        String str = randomAlphaOfLength(5);
-        int shards = between(2, 1000);
-        IndexRouting routing = indexRoutingForPath(shards, "foo,bar");
-        Map<String, Object> sourceWithNull = new HashMap<>();
-        sourceWithNull.put("foo", str);
-        sourceWithNull.put("bar", null);
-        assertThat(
-            routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source(sourceWithNull)),
-            equalTo(routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source(Map.of("foo", str))))
+            Math.floorMod(hash(List.of("bar", List.of("thing", "yay", "this", "too"), "foo", List.of("a", "cat"))), shards)
         );
     }
 
@@ -564,18 +516,50 @@ public class IndexRoutingTests extends ESTestCase {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         IndexRouting routing = indexRoutingForPath(version, 8, "dim.*,other.*,top");
         /*
-         * If these values change time series will be routed to unexpected shards.
-         * You may modify them with a new index created version, but when you do you
-         * must copy this test and patch the versions at the top. Because newer
-         * versions of Elasticsearch must continue to route based on the version
-         * on the index.
+         * These when we first added routing_path. If these values change
+         * time series will be routed to unexpected shards. You may modify
+         * them with a new index created version, but when you do you must
+         * copy this test and patch the versions at the top. Because newer
+         * versions of Elasticsearch must continue to route based on the
+         * version on the index.
          */
-        assertIndexShard(routing, Map.of("dim", Map.of("a", "a")), 7);
-        assertIndexShard(routing, Map.of("dim", Map.of("a", "b")), 2);
-        assertIndexShard(routing, Map.of("dim", Map.of("c", "d")), 5);
-        assertIndexShard(routing, Map.of("other", Map.of("a", "a")), 4);
-        assertIndexShard(routing, Map.of("top", "a"), 6);
-        assertIndexShard(routing, Map.of("dim", Map.of("c", "d"), "top", "b"), 6);
+        assertIndexShard(routing, Map.of("dim", Map.of("a", "a")), 0, equalTo("-MVn8A"));
+        assertIndexShard(routing, Map.of("dim", Map.of("a", "b")), 5, equalTo("Zfrrww"));
+        assertIndexShard(routing, Map.of("dim", Map.of("c", "d")), 4, equalTo("fKxedg"));
+        assertIndexShard(routing, Map.of("other", Map.of("a", "a")), 5, equalTo("RY76Nw"));
+        assertIndexShard(routing, Map.of("top", "a"), 3, equalTo("YxcvZg"));
+        assertIndexShard(routing, Map.of("dim", Map.of("c", "d"), "top", "b"), 2, equalTo("Agwaqw"));
+    }
+
+    public void testRoutingPathReadWithoutRouting() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting indexRouting = indexRoutingForPath(shards, "foo");
+        Exception e = expectThrows(ResourceNotFoundException.class, () -> shardIdForReadFromSourceExtracting(indexRouting, null));
+        assertThat(e.getMessage(), equalTo("routing is required because [test] is in time series mode"));
+    }
+
+    public void testRoutingPathReadWithInvalidString() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting indexRouting = indexRoutingForPath(shards, "foo");
+        Exception e = expectThrows(ResourceNotFoundException.class, () -> shardIdForReadFromSourceExtracting(indexRouting, "!@#"));
+        assertThat(e.getMessage(), equalTo("invalid routing [!@#] for index [test] in time series mode"));
+    }
+
+    public void testRoutingPathReadWithShortString() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting indexRouting = indexRoutingForPath(shards, "foo");
+        Exception e = expectThrows(ResourceNotFoundException.class, () -> shardIdForReadFromSourceExtracting(indexRouting, ""));
+        assertThat(e.getMessage(), equalTo("invalid routing [] for index [test] in time series mode"));
+    }
+
+    /**
+     * Extract a shardId from an {@link IndexRouting} that extracts routingusing a randomly
+     * chosen method. All of the random methods <strong>should</strong> return the
+     * same results.
+     */
+    private int shardIdForReadFromSourceExtracting(IndexRouting indexRouting, String docRouting) {
+        String id = randomBoolean() ? null : randomAlphaOfLength(5);
+        return randomBoolean() ? indexRouting.deleteShard(id, docRouting) : indexRouting.getShard(id, docRouting);
     }
 
     private IndexRouting indexRoutingForPath(int shards, String path) {
@@ -592,8 +576,16 @@ public class IndexRoutingTests extends ESTestCase {
         );
     }
 
-    private void assertIndexShard(IndexRouting routing, Map<String, Object> source, int expected) throws IOException {
-        assertThat(routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source(source)), equalTo(expected));
+    private void assertIndexShard(IndexRouting routing, Map<String, Object> source, int expectedShard) throws IOException {
+        assertIndexShard(routing, source, expectedShard, any(String.class));
+    }
+
+    private void assertIndexShard(IndexRouting routing, Map<String, Object> source, int expectedShard, Matcher<String> routingStringMatcher) throws IOException {
+        BytesReference sourceBytes = source(source);
+        assertThat(routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, sourceBytes), equalTo(expectedShard));
+        String routingString = routing.calculateRouting().apply(XContentType.JSON, sourceBytes);
+        assertThat(routingString, routingStringMatcher);
+        assertThat(shardIdForReadFromSourceExtracting(routing, routingString), equalTo(expectedShard));
     }
 
     private BytesReference source(Map<String, Object> doc) throws IOException {
@@ -613,17 +605,23 @@ public class IndexRoutingTests extends ESTestCase {
     /**
      * Build the hash we expect from the extracter.
      */
-    private int hash(List<String> keysAndValues) {
+    private int hash(List<?> keysAndValues) {
         assertThat(keysAndValues.size() % 2, equalTo(0));
         int hash = 0;
         for (int i = 0; i < keysAndValues.size(); i += 2) {
-            int keyHash = StringHelper.murmurhash3_x86_32(new BytesRef(keysAndValues.get(i)), 0);
-            int valueHash = StringHelper.murmurhash3_x86_32(
-                TimeSeriesIdFieldMapper.encodeTsidValue(keysAndValues.get(i + 1)).toBytesRef(),
-                0
-            );
-            hash = hash * 31 + (keyHash ^ valueHash);
+            int thisHash = Murmur3HashFunction.hash(keysAndValues.get(i).toString()) ^ expectedValueHash(keysAndValues.get(i + 1));
+            hash = hash * 31 + thisHash;
         }
         return hash;
+    }
+
+    private int expectedValueHash(Object value) {
+        if (value instanceof List) {
+            return hash((List<?>) value);
+        }
+        if (value instanceof String) {
+            return Murmur3HashFunction.hash((String) value);
+        }
+        throw new IllegalArgumentException("Unsupported value: " + value);
     }
 }

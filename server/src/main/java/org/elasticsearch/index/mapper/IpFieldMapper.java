@@ -459,7 +459,7 @@ public class IpFieldMapper extends FieldMapper {
             BytesReference bytes = context.getMetadataMapper(TimeSeriesIdFieldMapper.NAME) != null
                 ? TimeSeriesIdFieldMapper.encodeTsidValue(NetworkAddress.format(address))
                 : null;
-            context.doc().addDimension(fieldType().name(), bytes, false);
+            context.doc().addDimensionBytes(fieldType().name(), bytes);
         }
         if (indexed) {
             Field field = new InetAddressPoint(fieldType().name(), address);

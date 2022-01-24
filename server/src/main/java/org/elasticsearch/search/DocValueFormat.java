@@ -20,7 +20,6 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -707,7 +706,7 @@ public interface DocValueFormat extends NamedWriteable {
             }
 
             Map<?, ?> m = (Map<?, ?>) value;
-            SortedMap<BytesRef, CheckedConsumer<StreamOutput, IOException>> dimensions = new TreeMap<>();
+            SortedMap<String, BytesReference> dimensions = new TreeMap<>();
             for (Map.Entry<?, ?> entry : m.entrySet()) {
                 String k = (String) entry.getKey();
                 Object v = entry.getValue();
@@ -734,7 +733,7 @@ public interface DocValueFormat extends NamedWriteable {
                 }
 
                 assert bytes != null : "Could not parse fields in _tsid field [" + value + "].";
-                dimensions.put(new BytesRef(k), bytes::writeTo);
+                dimensions.put(k, bytes);
             }
 
             try {

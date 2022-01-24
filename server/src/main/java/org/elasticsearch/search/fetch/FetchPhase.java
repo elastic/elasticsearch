@@ -13,7 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -22,6 +24,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.LeafNestedDocuments;
@@ -29,7 +32,6 @@ import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
@@ -50,6 +52,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
@@ -114,7 +117,7 @@ public class FetchPhase {
 
         SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
 
-        List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext, profiler);
+        List<FetchSubPhaseProcessor> processors = getProcessors(context, fetchContext, profiler);
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         int currentReaderIndex = -1;
@@ -134,7 +137,7 @@ public class FetchPhase {
                     try {
                         currentReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
                         currentReaderIndex = readerIndex;
-                        if (currentReaderContext.reader()instanceof SequentialStoredFieldsLeafReader lf
+                        if (currentReaderContext.reader() instanceof SequentialStoredFieldsLeafReader lf
                             && hasSequentialDocs
                             && docs.length >= 10) {
                             // All the docs to fetch are adjacent but Lucene stored fields are optimized
@@ -180,7 +183,7 @@ public class FetchPhase {
         return new SearchHits(hits, totalHits, context.queryResult().getMaxScore());
     }
 
-    List<FetchSubPhaseProcessor> getProcessors(SearchShardTarget target, FetchContext context, Profiler profiler) {
+    List<FetchSubPhaseProcessor> getProcessors(SearchContext target, FetchContext context, Profiler profiler) {
         try {
             List<FetchSubPhaseProcessor> processors = new ArrayList<>();
             for (FetchSubPhase fsp : fetchSubPhases) {
@@ -189,9 +192,26 @@ public class FetchPhase {
                     processors.add(profiler.profile(fsp.getClass().getSimpleName(), "", processor));
                 }
             }
+            BiFunction<XContentType, BytesReference, String> calculateRouting = IndexRouting.fromIndexMetadata(
+                target.indexShard().indexSettings().getIndexMetadata()
+            ).calculateRouting();
+            if (calculateRouting != null) {
+                processors.add(profiler.profile("IndexRouting", "", new FetchSubPhaseProcessor() {
+                    @Override
+                    public void setNextReader(LeafReaderContext readerContext) throws IOException {}
+
+                    @Override
+                    public void process(HitContext hitContext) throws IOException {
+                        SourceLookup lookup = hitContext.sourceLookup();
+                        String routing = calculateRouting.apply(lookup.sourceContentType(), lookup.internalSourceRef());
+                        DocumentField field = new DocumentField(RoutingFieldMapper.NAME, List.of(routing));
+                        hitContext.hit().setMetaField(RoutingFieldMapper.NAME, field);
+                    }
+                }));
+            }
             return processors;
         } catch (Exception e) {
-            throw new FetchPhaseExecutionException(target, "Error building fetch sub-phases", e);
+            throw new FetchPhaseExecutionException(target.shardTarget(), "Error building fetch sub-phases", e);
         }
     }
 
@@ -252,7 +272,7 @@ public class FetchPhase {
     }
 
     private boolean sourceRequired(SearchContext context) {
-        return context.sourceRequested() || context.fetchFieldsContext() != null;
+        return context.sourceRequested() || context.fetchFieldsContext() != null; // TODO force source fetching if the routing needs it
     }
 
     private HitContext prepareHitContext(

@@ -33,7 +33,6 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -58,7 +57,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -143,9 +141,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private final IndexAnalyzers indexAnalyzers;
         private final ScriptCompiler scriptCompiler;
-        private final Predicate<String> isRoutingDimension;
 
-        public Builder(String name, IndexAnalyzers indexAnalyzers, ScriptCompiler scriptCompiler, Predicate<String> isRoutingDimension) {
+        public Builder(String name, IndexAnalyzers indexAnalyzers, ScriptCompiler scriptCompiler) {
             super(name);
             this.indexAnalyzers = indexAnalyzers;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
@@ -165,11 +162,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                     );
                 }
             }).precludesParameters(normalizer, ignoreAbove);
-            this.isRoutingDimension = isRoutingDimension;
         }
 
         public Builder(String name) {
-            this(name, null, ScriptCompiler.NONE, fullName -> false);
+            this(name, null, ScriptCompiler.NONE);
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -272,14 +268,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(
-            n,
-            c.getIndexAnalyzers(),
-            c.scriptCompiler(),
-            fullName -> Regex.simpleMatch(c.getIndexSettings().getIndexMetadata().getRoutingPaths(), fullName)
-        )
-    );
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler()));
 
     public static final class KeywordFieldType extends StringFieldType {
 
@@ -559,7 +548,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public void validateMatchedRoutingPath() {
-            System.err.println("matched routing path " + name());
+            // System.err.println("matched routing path " + name());
             if (false == isDimension) {
                 throw new IllegalArgumentException(
                     "All fields that match routing_path must be keywords with [time_series_dimension: true] "
@@ -593,7 +582,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final FieldValues<String> scriptValues;
     private final ScriptCompiler scriptCompiler;
     private final boolean dimension;
-    private final boolean routingDimension;
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -630,7 +618,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexAnalyzers = builder.indexAnalyzers;
         this.scriptCompiler = builder.scriptCompiler;
         this.dimension = builder.dimension.getValue();
-        this.routingDimension = builder.isRoutingDimension.test(name());
     }
 
     @Override
@@ -678,7 +665,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             // and ip fields), we keep this test because we must ensure that the value of this
             // dimension field is not larger than TimeSeriesIdFieldMapper.DIMENSION_VALUE_LIMIT
             BytesReference bytes = TimeSeriesIdFieldMapper.encodeTsidValue(value);
-            context.doc().addDimension(fieldType().name(), bytes, routingDimension);
+            context.doc().addDimensionBytes(fieldType().name(), bytes);
         }
 
         // convert to utf8 only once before feeding postings/dv/stored fields
@@ -731,6 +718,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexAnalyzers, scriptCompiler, fullName -> routingDimension).dimension(dimension).init(this);
+        return new Builder(simpleName(), indexAnalyzers, scriptCompiler).dimension(dimension).init(this);
     }
 }

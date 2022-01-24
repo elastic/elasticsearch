@@ -41,6 +41,9 @@ public class SourceLookup implements Map<String, Object> {
     private XContentType sourceContentType;
 
     public XContentType sourceContentType() {
+        if (sourceContentType == null) {
+            sourceContentType = XContentHelper.xContentType(sourceAsBytes);
+        }
         return sourceContentType;
     }
 
@@ -128,6 +131,7 @@ public class SourceLookup implements Map<String, Object> {
 
     public void setSource(BytesReference source) {
         this.sourceAsBytes = source;
+        this.sourceContentType = null;
     }
 
     public void setSourceContentType(XContentType sourceContentType) {

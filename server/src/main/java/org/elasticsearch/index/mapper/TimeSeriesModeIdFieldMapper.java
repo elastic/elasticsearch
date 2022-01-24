@@ -8,9 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import net.jpountz.xxhash.StreamingXXHash64;
-import net.jpountz.xxhash.XXHashFactory;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -19,22 +16,16 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.IndexRouting;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.MurmurHash3;
+import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.index.mapper.LuceneDocument.DimensionInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Map;
 
 /**
  * A mapper for the _id field. It does nothing since _id is neither indexed nor
@@ -108,42 +99,11 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
         super(new IdFieldType(), Lucene.KEYWORD_ANALYZER);
     }
 
-    @Override
-    public void postParse(DocumentParserContext context) throws IOException {
-        int routingHash = 0;
-        /*
-         * We use a 64 bit hash for non-routing fields because it is sort of
-         * our uniqueness of last resort. The routing hash and timestamp
-         * help with uniqueness, but we can't rely on them.
-         *
-         * It's entirely possible for the routing hash to be related to the
-         * non routing hash. Like, say, the routing hash is a data center
-         * and the non-routing hash is an ip of a node in the data center. In
-         * that case the routing hash isn't adding any uniqueness. So all it
-         * takes is a collision on the hash of the ip and the timestamp to
-         * cause trouble.
-         *
-         * We use XXHash64 here because it has a convenient interface and
-         * seems like a fine hash.
-         */
-        StreamingXXHash64 nonRoutingHash = null;
-        for (Map.Entry<BytesRef, DimensionInfo> entry : context.doc().getDimensions().entrySet()) {
-            BytesReference bytes = entry.getValue().tsidBytes();
-            if (entry.getValue().isRoutingDimension()) {
-                System.err.println("index time routing: " + entry.getKey().utf8ToString());
-                int thisHash = hash(entry.getKey()) ^ hash(bytes);
-                routingHash = 31 * routingHash + thisHash;
-            } else {
-                if (nonRoutingHash == null) {
-                    nonRoutingHash = XXHashFactory.fastestJavaInstance().newStreamingHash64(0);
-                }
-                hash(nonRoutingHash, bytes);
-            }
-        }
-        assert shardFromSource(context.indexSettings().getIndexMetadata(), context.sourceToParse()) == shardFromRoutingHash(
-            context.indexSettings().getIndexMetadata(),
-            routingHash
-        );
+    private static final long SEED = 0;
+
+    public void createField(DocumentParserContext context, BytesRef tsid) {
+        Hash128 hash = new Hash128();
+        MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);   // NOCOMMIT make me a 64 bit hash
 
         IndexableField[] timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         if (timestampFields.length == 0) {
@@ -153,85 +113,13 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
         }
         long timestamp = timestampFields[0].numericValue().longValue();
 
-        byte[] encoded = encode(routingHash, nonRoutingHash, timestamp);
+        byte[] encoded = new byte[16];
+        ByteUtils.writeLongLE(hash.h1, encoded, 0);
+        ByteUtils.writeLongLE(timestamp, encoded, 8);   // TODO compare disk usage for LE and BE on timestamp
 
-        /*
-         * It'd be more efficient to use the encoded bytes above but everything else
-         * assumes that id is a *string*. So we build one. Base 64, url style, without
-         * padding. The Uid encoding that the rest of ES wants the id to be treats
-         * that format fairly well.
-         */
         context.id(Base64.getUrlEncoder().withoutPadding().encodeToString(encoded));
-        assert Uid.isURLBase64WithoutPadding(context.id()); // Make
+        assert Uid.isURLBase64WithoutPadding(context.id()); // Make sure we get to use Uid's nice optimizations
         BytesRef uidEncoded = Uid.encodeId(context.id());
         context.doc().add(new Field(NAME, uidEncoded, Defaults.FIELD_TYPE));
-        assert routingHash == decodeRoutingHash(uidEncoded);
-    }
-
-    private static byte[] encode(int routingHash, StreamingXXHash64 nonRoutingHash, long timestamp) {
-        if (nonRoutingHash == null) {
-            byte[] encoded = new byte[12];
-            ByteUtils.writeIntLE(routingHash, encoded, 0);
-            ByteUtils.writeLongLE(timestamp, encoded, 4);
-            return encoded;
-        }
-        byte[] encoded = new byte[20];
-        ByteUtils.writeIntLE(routingHash, encoded, 0);
-        ByteUtils.writeLongLE(nonRoutingHash.getValue(), encoded, 4);
-        ByteUtils.writeLongLE(timestamp, encoded, 12);   // TODO compare disk usage for LE and BE on timestamp
-        return encoded;
-    }
-
-    public static int hash(BytesReference value) {
-        if (value.hasArray()) {
-            return StringHelper.murmurhash3_x86_32(value.array(), value.arrayOffset(), value.length(), 0);
-        }
-        return hash(value.toBytesRef());
-    }
-
-    public static void hash(StreamingXXHash64 hash, BytesReference bytes) {
-        if (bytes.hasArray()) {
-            hash.update(bytes.array(), bytes.arrayOffset(), bytes.length());
-        } else {
-            BytesRef r = bytes.toBytesRef();
-            hash.update(r.bytes, r.offset, r.length);
-        }
-    }
-
-    public static int hash(BytesRef value) {
-        return StringHelper.murmurhash3_x86_32(value, 0);
-    }
-
-    private static int decodeRoutingHash(BytesRef uidEncodedId) {
-        return decodeRoutingHash(Uid.decodeId(uidEncodedId.bytes, uidEncodedId.offset, uidEncodedId.length));
-    }
-
-    public static int decodeRoutingHash(String id) {
-        byte[] bytes;
-        try {
-            bytes = Base64.getUrlDecoder().decode(id);
-        } catch (IllegalArgumentException e) {
-            throw new ResourceNotFoundException("invalid id [{}]", e, id);
-        }
-        if (bytes.length < 4) {
-            /*
-             * Right now _ids are either 12 or 20 bytes, but we don't need
-             * to be super restrictive here. All we really need is our 4
-             * bytes. That'll let us change the id a fair bit later without
-             * worying about how old nodes will interpret the data.
-             */
-            throw new ResourceNotFoundException("invalid id [{}]: length was [{}]", id, bytes.length);
-        }
-        return ByteUtils.readIntLE(bytes, 0);
-    }
-
-    private static int shardFromSource(IndexMetadata metadata, SourceToParse sourceToParse) {
-        return IndexRouting.fromIndexMetadata(metadata).indexShard(null, null, sourceToParse.getXContentType(), sourceToParse.source());
-    }
-
-    private static int shardFromRoutingHash(IndexMetadata metadata, int routingHash) {
-        int routingNumShards = metadata.getRoutingNumShards();
-        int routingFactor = metadata.getRoutingFactor();
-        return Math.floorMod(routingHash, routingNumShards) / routingFactor;
     }
 }

@@ -15,8 +15,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -140,33 +138,31 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) throws IOException {
         assert fieldType().isIndexed() == false;
 
-        BytesReference timeSeriesId = buildTsidField(context.doc().getDimensions());
-        context.doc().add(new SortedSetDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
+        BytesReference timeSeriesId = buildTsidField(context.doc().getDimensionBytes());
+        BytesRef tsid = timeSeriesId.toBytesRef();
+        context.doc().add(new SortedSetDocValuesField(fieldType().name(), tsid));
+        TimeSeriesModeIdFieldMapper.INSTANCE.createField(context, tsid);
     }
 
-    public static BytesReference buildTsidField(SortedMap<BytesRef, ? extends CheckedConsumer<StreamOutput, IOException>> dimensions)
-        throws IOException {
+    public static BytesReference buildTsidField(SortedMap<String, BytesReference> dimensions) throws IOException {
         if (dimensions == null || dimensions.isEmpty()) {
             throw new IllegalArgumentException("Dimension fields are missing.");
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(dimensions.size());
-            for (Map.Entry<BytesRef, ? extends CheckedConsumer<StreamOutput, IOException>> entry : dimensions.entrySet()) {
-                if (entry.getKey().length > DIMENSION_NAME_LIMIT) {
+            for (Map.Entry<String, BytesReference> entry : dimensions.entrySet()) {
+                String fieldName = entry.getKey();
+                BytesRef fieldNameBytes = new BytesRef(fieldName);
+                int len = fieldNameBytes.length;
+                if (len > DIMENSION_NAME_LIMIT) {
                     throw new IllegalArgumentException(
-                        "Dimension name must be less than ["
-                            + DIMENSION_NAME_LIMIT
-                            + "] bytes but ["
-                            + entry.getKey().utf8ToString()
-                            + "] was ["
-                            + entry.getKey().length
-                            + "]."
+                        "Dimension name must be less than [" + DIMENSION_NAME_LIMIT + "] bytes but [" + fieldName + "] was [" + len + "]."
                     );
                 }
                 // Write field name in utf-8 instead of writeString's utf-16-ish thing
-                out.writeBytesRef(entry.getKey());
-                entry.getValue().accept(out);
+                out.writeBytesRef(fieldNameBytes);
+                entry.getValue().writeTo(out);
             }
 
             if (out.size() > LIMIT) {

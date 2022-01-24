@@ -9,6 +9,7 @@
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -41,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -249,6 +251,17 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         if (source != null) {
+            IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexSettings.getIndexMetadata());
+            BiFunction<XContentType, BytesReference, String> calculateRouting = indexRouting.calculateRouting();
+            if (calculateRouting != null) {
+                if (metadataFields == null) {
+                    metadataFields = new HashMap<>();
+                }
+                XContentType type = XContentHelper.xContentType(source);
+                String routing = calculateRouting.apply(type, source);
+                metadataFields.put(RoutingFieldMapper.CONTENT_TYPE, new DocumentField(RoutingFieldMapper.NAME, List.of(routing)));
+            }
+
             // apply request-level source filtering
             if (fetchSourceContext.fetchSource() == false) {
                 source = null;

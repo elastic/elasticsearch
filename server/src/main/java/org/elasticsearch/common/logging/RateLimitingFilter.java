@@ -43,7 +43,6 @@ import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIE
  */
 @Plugin(name = "RateLimitingFilter", category = Node.CATEGORY, elementType = Filter.ELEMENT_TYPE)
 public class RateLimitingFilter extends AbstractFilter {
-    private static final String KIBANA_OPRDUCT_ORIGIN = "kibana";
     // a flag to disable/enable use of xOpaqueId controlled by changing cluster setting
     private volatile boolean useXOpaqueIdEnabled = true;
 

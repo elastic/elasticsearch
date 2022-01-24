@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -630,7 +629,6 @@ public class Node implements Closeable {
                     .flatMap(p -> p.getAdditionalIndexSettingProviders().stream())
                     .collect(Collectors.toSet())
             );
-            final AliasValidator aliasValidator = new AliasValidator();
 
             final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
             final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
@@ -638,7 +636,6 @@ public class Node implements Closeable {
                 clusterService,
                 indicesService,
                 clusterModule.getAllocationService(),
-                aliasValidator,
                 shardLimitValidator,
                 environment,
                 settingsModule.getIndexScopedSettings(),
@@ -914,7 +911,6 @@ public class Node implements Closeable {
                 b.bind(MetaStateService.class).toInstance(metaStateService);
                 b.bind(PersistedClusterStateService.class).toInstance(persistedClusterStateService);
                 b.bind(IndicesService.class).toInstance(indicesService);
-                b.bind(AliasValidator.class).toInstance(aliasValidator);
                 b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
                 b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
                 b.bind(MetadataDataStreamsService.class).toInstance(metadataDataStreamsService);

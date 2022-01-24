@@ -9,9 +9,8 @@ A multi-bucket aggregation that groups <<geo-point,`geo_point`>>
 values into buckets that represent a grid.
 The resulting grid can be sparse and only
 contains cells that have matching data. Each cell corresponds to a
-https://h3geo.org/docs/core-library/h3Indexing#h3-cell-indexp[H3 cell index] a
-and labeled using the https://h3geo.org/docs/core-library/h3Indexing#h3index-representation
-[H3Index representation].
+https://h3geo.org/docs/core-library/h3Indexing#h3-cell-indexp[H3 cell index] and is
+labeled using the https://h3geo.org/docs/core-library/h3Indexing#h3index-representation[H3Index representation].
 
 * High precision keys have a larger range for x and y, and represent tiles that
 cover only a small area.

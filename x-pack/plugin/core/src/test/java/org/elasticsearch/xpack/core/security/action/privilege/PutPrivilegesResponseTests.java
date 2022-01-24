@@ -40,8 +40,8 @@ public class PutPrivilegesResponseTests extends ESTestCase {
 
     private void assertJsonEquals(String actual, String expected) throws IOException {
         try (
-            var actualParser = createParser(JsonXContent.jsonXContent, actual);
-            var expectedParser = createParser(JsonXContent.jsonXContent, expected)
+            XContentParser actualParser = createParser(JsonXContent.jsonXContent, actual);
+            XContentParser expectedParser = createParser(JsonXContent.jsonXContent, expected)
         ) {
             assertThat(actualParser.mapOrdered(), equalTo(expectedParser.mapOrdered()));
         }

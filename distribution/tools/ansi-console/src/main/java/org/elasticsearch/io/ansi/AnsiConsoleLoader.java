@@ -34,6 +34,11 @@ public class AnsiConsoleLoader implements Supplier<ConsoleLoader.Console> {
 
     public ConsoleLoader.Console get() {
         final AnsiPrintStream out = AnsiConsole.out();
+        return newConsole(out);
+    }
+
+    // package-private for tests
+    static @Nullable ConsoleLoader.Console newConsole(AnsiPrintStream out) {
         if (isValidConsole(out)) {
             return new ConsoleLoader.Console(out, () -> out.getTerminalWidth(), Ansi.isEnabled(), tryExtractPrintCharset(out));
         } else {
@@ -41,7 +46,7 @@ public class AnsiConsoleLoader implements Supplier<ConsoleLoader.Console> {
         }
     }
 
-    static boolean isValidConsole(AnsiPrintStream out) {
+    private static boolean isValidConsole(AnsiPrintStream out) {
         return out != null // cannot load stdout
             && out.getType() != AnsiType.Redirected // output is a pipe (etc)
             && out.getType() != AnsiType.Unsupported // could not determine terminal type
@@ -55,7 +60,7 @@ public class AnsiConsoleLoader implements Supplier<ConsoleLoader.Console> {
      */
     @SuppressForbidden(reason = "Best effort exposing print stream's charset with reflection")
     @Nullable
-    static Charset tryExtractPrintCharset(AnsiPrintStream ansiPrintStream) {
+    private static Charset tryExtractPrintCharset(AnsiPrintStream ansiPrintStream) {
         try {
             Method getOutMethod = ansiPrintStream.getClass().getDeclaredMethod("getOut");
             getOutMethod.setAccessible(true);
@@ -63,9 +68,10 @@ public class AnsiConsoleLoader implements Supplier<ConsoleLoader.Console> {
             Field charsetField = ansiOutputStream.getClass().getDeclaredField("cs");
             charsetField.setAccessible(true);
             return (Charset) charsetField.get(ansiOutputStream);
-        } catch (Exception e) {
+        } catch (Throwable t) {
             // has the library been upgraded and it now doesn't expose the same fields with the same names?
-            logger.info("Failed to detect JANSI's print stream encoding", e);
+            // is the Security Manager installed preventing the access
+            logger.info("Failed to detect JANSI's print stream encoding", t);
             return null;
         }
     }

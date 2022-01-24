@@ -25,9 +25,9 @@ if not defined ES_PATH_CONF (
 rem now make ES_PATH_CONF absolute
 for %%I in ("%ES_PATH_CONF%..") do set ES_PATH_CONF=%%~dpfI
 
-set ES_DISTRIBUTION_FLAVOR=default
-set ES_DISTRIBUTION_TYPE=zip
-set ES_BUNDLED_JDK=true
+set ES_DISTRIBUTION_FLAVOR=@es.distribution.flavor@
+set ES_DISTRIBUTION_TYPE=@es.distribution.type@
+set ES_BUNDLED_JDK=@es.bundled_jdk@
 
 if "%ES_BUNDLED_JDK%" == "false" (
   echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2
@@ -35,21 +35,22 @@ if "%ES_BUNDLED_JDK%" == "false" (
 
 cd /d "%ES_HOME%"
 
-rem now set the path to java, pass "nojava" arg to skip setting JAVA_HOME and JAVA
+rem now set the path to java, pass "nojava" arg to skip setting ES_JAVA_HOME and JAVA
 if "%1" == "nojava" (
    exit /b
 )
 
-rem compariing to empty string makes this equivalent to bash -v check on env var
+rem comparing to empty string makes this equivalent to bash -v check on env var
 rem and allows to effectively force use of the bundled jdk when launching ES
-rem by setting JAVA_HOME=
-if "%JAVA_HOME%" == "" (
-  set JAVA="%ES_HOME%\jdk\bin\java.exe"
-  set JAVA_HOME="%ES_HOME%\jdk"
-  set JAVA_TYPE=bundled jdk
+rem by setting ES_JAVA_HOME=
+if defined ES_JAVA_HOME (
+  set JAVA="%ES_JAVA_HOME%\bin\java.exe"
+  set JAVA_TYPE=ES_JAVA_HOME
 ) else (
-  set JAVA="%JAVA_HOME%\bin\java.exe"
-  set JAVA_TYPE=JAVA_HOME
+  rem use the bundled JDK (default)
+  set JAVA="%ES_HOME%\jdk\bin\java.exe"
+  set "ES_JAVA_HOME=%ES_HOME%\jdk"
+  set JAVA_TYPE=bundled JDK
 )
 
 if not exist !JAVA! (
@@ -63,6 +64,11 @@ if defined JAVA_TOOL_OPTIONS (
   set JAVA_TOOL_OPTIONS=
 )
 
+rem warn that we are not observing the value of $JAVA_HOME
+if defined JAVA_HOME (
+  echo warning: ignoring JAVA_HOME=%JAVA_HOME%; using %JAVA_TYPE% >&2
+)
+
 rem JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we
 rem warn them that we are not observing the value of %JAVA_OPTS%
 if defined JAVA_OPTS (
@@ -74,8 +80,6 @@ rem check the Java version
 %JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
 
 
-rem ##### OVERRIDE SECTION
-rem Proting from the official linux version...
 if "%ES_DISTRIBUTION_TYPE%" == "docker" (
   rem # Allow environment variables to be set by creating a file with the
   rem # contents, and setting an environment variable with the suffix _FILE to
@@ -106,7 +110,5 @@ if "%ES_DISTRIBUTION_TYPE%" == "docker" (
     )
 
     SET newparams=!newparams!!_es_config_params!
-    rem echo ###### debug #######
-    rem echo !newparams!
   )
 )

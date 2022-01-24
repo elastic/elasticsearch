@@ -379,9 +379,9 @@ public class UnSortedRollupShardIndexer extends RollupShardIndexer {
             return PointValues.Relation.CELL_CROSSES_QUERY;
         }
 
-        private void checkMinRounding(long rounding) {
-            if (rounding > lastRounding) {
-                nextRounding = rounding;
+        private void checkMinRounding(long roundingValue) {
+            if (roundingValue > lastRounding) {
+                nextRounding = roundingValue;
                 throw new CollectionTerminatedException();
             }
         }

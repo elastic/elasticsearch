@@ -282,7 +282,7 @@ public abstract class RollupIntegTestCase extends ESSingleNodeTestCase {
             }
         }
 
-        final CompositeAggregationBuilder composite = new CompositeAggregationBuilder(name, sources).size(1000);
+        final CompositeAggregationBuilder composite = new CompositeAggregationBuilder(name, sources).size(10000);
         if (config.getMetricsConfig() != null) {
             for (MetricConfig metricConfig : config.getMetricsConfig()) {
                 for (String metricName : metricConfig.getMetrics()) {

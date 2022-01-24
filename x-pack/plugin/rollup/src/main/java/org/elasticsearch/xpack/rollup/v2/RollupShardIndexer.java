@@ -166,8 +166,8 @@ public abstract class RollupShardIndexer {
         if (fieldType instanceof DateFieldMapper.DateFieldType == false) {
             throw new IllegalArgumentException("Wrong type for the timestamp field, " + "expected [date], got [" + fieldType.name() + "]");
         }
-        if (fieldType.isSearchable() == false) {
-            throw new IllegalArgumentException("The timestamp field [" + fieldType.name() + "]  is not searchable");
+        if (fieldType.isIndexed() == false) {
+            throw new IllegalArgumentException("The timestamp field [" + fieldType.name() + "]  is not indexed");
         }
     }
 
@@ -227,14 +227,14 @@ public abstract class RollupShardIndexer {
             .build();
     }
 
-    protected Rounding createRounding(RollupActionDateHistogramGroupConfig config) {
-        DateHistogramInterval interval = config.getInterval();
-        ZoneId zoneId = config.getTimeZone() != null ? ZoneId.of(config.getTimeZone()) : null;
+    protected Rounding createRounding(RollupActionDateHistogramGroupConfig groupConfig) {
+        DateHistogramInterval interval = groupConfig.getInterval();
+        ZoneId zoneId = groupConfig.getTimeZone() != null ? ZoneId.of(groupConfig.getTimeZone()) : null;
         Rounding.Builder tzRoundingBuilder;
-        if (config instanceof RollupActionDateHistogramGroupConfig.FixedInterval) {
+        if (groupConfig instanceof RollupActionDateHistogramGroupConfig.FixedInterval) {
             TimeValue timeValue = TimeValue.parseTimeValue(interval.toString(), null, getClass().getSimpleName() + ".interval");
             tzRoundingBuilder = Rounding.builder(timeValue);
-        } else if (config instanceof RollupActionDateHistogramGroupConfig.CalendarInterval) {
+        } else if (groupConfig instanceof RollupActionDateHistogramGroupConfig.CalendarInterval) {
             Rounding.DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString());
             tzRoundingBuilder = Rounding.builder(dateTimeUnit);
         } else {

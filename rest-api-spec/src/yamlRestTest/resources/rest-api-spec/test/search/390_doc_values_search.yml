@@ -273,7 +273,7 @@ setup:
   - do:
       search:
         index: test
-        body: { query: { terms: { keyword: [ "false", "true" ] } } }
+        body: { query: { terms: { boolean: [ "false", "true" ] } } }
   - length:   { hits.hits: 2  }
 
 ---
@@ -282,5 +282,5 @@ setup:
   - do:
       search:
         index: test
-        body: { query: { range: { keyword: { gte: "false" } } } }
+        body: { query: { range: { boolean: { gte: "false" } } } }
   - length:   { hits.hits: 2  }

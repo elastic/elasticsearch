@@ -229,11 +229,17 @@ chmod g+rwx esdatadir
 chgrp 0 esdatadir
 --------------------------------------------
 
-You can also run an {es} container using both a custom UID and GID. Unless you
-bind-mount each of the `config`, `data` and `logs` directories, you must pass
-the command line option `--group-add 0` to `docker run`. This ensures that the user
-under which {es} is running is also a member of the `root` (GID 0) group inside the
-container.
+You can also run an {es} container using both a custom UID and GID. You
+must ensure that file permissions will not prevent {es} from executing. You
+can use one of two options:
+
+* Bind-mount the `config`, `data` and `logs`
+  directories. If you intend to install plugins and prefer not to
+  <<_c_customized_image, create a custom Docker image>>, you must also
+  bind-mount the `plugins` directory.
+* Pass the `--group-add 0` command line option to `docker run`. This
+  ensures that the user under which {es} is running is also a member of the
+  `root` (GID 0) group inside the container.
 
 As a last resort, you can force the container to mutate the ownership of
 any bind-mounts used for the <<path-settings,data and log dirs>> through the
@@ -301,7 +307,7 @@ includes your desired <<set-jvm-heap-size,heap size>> settings.
 For testing, you can also manually set the heap size using the `ES_JAVA_OPTS`
 environment variable. For example, to use 16GB, specify `-e
 ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. The `ES_JAVA_OPTS` variable
-overrides all other JVM options. We do not recommend using `ES_JAVA_OPTS` in 
+overrides all other JVM options. We do not recommend using `ES_JAVA_OPTS` in
 production. The `docker-compose.yml` file above sets the heap size to 512MB.
 
 ===== Pin deployments to a specific image version

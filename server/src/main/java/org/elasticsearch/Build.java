@@ -16,14 +16,14 @@ import org.elasticsearch.core.Booleans;
 import java.io.IOException;
 import java.net.URL;
 import java.security.CodeSource;
-import java.util.Objects;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
 /**
  * Information about a build of Elasticsearch.
  */
-public class Build {
+public record Build(Flavor flavor, Type type, String hash, String date, boolean isSnapshot, String version) {
+
     /**
      * The current build of Elasticsearch. Filled with information scanned at
      * startup from the jar.
@@ -176,8 +176,6 @@ public class Build {
         CURRENT = new Build(flavor, type, hash, date, isSnapshot, version);
     }
 
-    private final boolean isSnapshot;
-
     /**
      * The location of the code source for Elasticsearch
      *
@@ -186,29 +184,6 @@ public class Build {
     static URL getElasticsearchCodeSourceLocation() {
         final CodeSource codeSource = Build.class.getProtectionDomain().getCodeSource();
         return codeSource == null ? null : codeSource.getLocation();
-    }
-
-    private final Flavor flavor;
-    private final Type type;
-    private final String hash;
-    private final String date;
-    private final String version;
-
-    public Build(final Flavor flavor, final Type type, final String hash, final String date, boolean isSnapshot, String version) {
-        this.flavor = flavor;
-        this.type = type;
-        this.hash = hash;
-        this.date = date;
-        this.isSnapshot = isSnapshot;
-        this.version = version;
-    }
-
-    public String hash() {
-        return hash;
-    }
-
-    public String date() {
-        return date;
     }
 
     public static Build readBuild(StreamInput in) throws IOException {
@@ -233,32 +208,20 @@ public class Build {
         out.writeString(build.hash());
         out.writeString(build.date());
         out.writeBoolean(build.isSnapshot());
-        out.writeString(build.getQualifiedVersion());
+        out.writeString(build.qualifiedVersion());
     }
 
     /**
      * Get the version as considered at build time
-     *
+     * <p>
      * Offers a way to get the fully qualified version as configured by the build.
      * This will be the same as {@link Version} for production releases, but may include on of the qualifier ( e.x alpha1 )
      * or -SNAPSHOT for others.
      *
      * @return the fully qualified build
      */
-    public String getQualifiedVersion() {
+    public String qualifiedVersion() {
         return version;
-    }
-
-    public Flavor flavor() {
-        return flavor;
-    }
-
-    public Type type() {
-        return type;
-    }
-
-    public boolean isSnapshot() {
-        return isSnapshot;
     }
 
     /**
@@ -274,41 +237,4 @@ public class Build {
     public String toString() {
         return "[" + flavor.displayName() + "][" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
     }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        Build build = (Build) o;
-
-        if (flavor.equals(build.flavor) == false) {
-            return false;
-        }
-
-        if (type.equals(build.type) == false) {
-            return false;
-        }
-
-        if (isSnapshot != build.isSnapshot) {
-            return false;
-        }
-        if (hash.equals(build.hash) == false) {
-            return false;
-        }
-        if (version.equals(build.version) == false) {
-            return false;
-        }
-        return date.equals(build.date);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(flavor, type, isSnapshot, hash, date, version);
-    }
-
 }

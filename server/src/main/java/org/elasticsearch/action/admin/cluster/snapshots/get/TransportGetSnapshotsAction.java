@@ -854,18 +854,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     }
 
-    private static final class SnapshotsInRepo {
+    private record SnapshotsInRepo(List<SnapshotInfo> snapshotInfos, int totalCount, int remaining) {
 
-        private final List<SnapshotInfo> snapshotInfos;
-
-        private final int totalCount;
-
-        private final int remaining;
-
-        SnapshotsInRepo(List<SnapshotInfo> snapshotInfos, int totalCount, int remaining) {
-            this.snapshotInfos = snapshotInfos;
-            this.totalCount = totalCount;
-            this.remaining = remaining;
-        }
     }
 }

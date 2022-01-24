@@ -21,11 +21,11 @@ See https://h3geo.org/docs/core-library/restable[the table of cell areas for H3
 resolutions] on how precision (zoom) correlates to size on the ground.
 Precision for this aggregation can be between 0 and 15, inclusive.
 
-WARNING: The highest-precision geohex for precision 15 produces cells that cover
-less than a 10cm by 10cm of land and so high-precision requests can be very
-costly in terms of RAM and result sizes. Please see the example below on how
-to first filter the aggregation to a smaller geographic area before requesting
-high-levels of detail.
+WARNING: High-precision requests can be very expensive in terms of RAM and
+result sizes. For example, the highest-precision geohex with a precision of `15`
+produces cells that cover less than 10cm by 10cm. We recommend you use a
+filter to limit high-precision requests to a smaller geographic area. For an example,
+refer to <<geohexgrid-high-precision-ex>>.
 
 You can only use `geohex_grid` to aggregate an explicitly mapped `geo_point`.
 If the `geo_point` field contains an array, `geohex_grid` aggregates all the array values.

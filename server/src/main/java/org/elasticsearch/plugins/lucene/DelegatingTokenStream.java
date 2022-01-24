@@ -34,8 +34,7 @@ public class DelegatingTokenStream extends TokenStream {
 
     @Override
     public final boolean incrementToken() throws IOException {
-        clearAttributes();
-
+        // clearAttributes();
         AnalyzeToken currentToken = tokenStream.incrementToken();
 
         if (currentToken == null) {
@@ -46,11 +45,11 @@ public class DelegatingTokenStream extends TokenStream {
     }
 
     private void setState(AnalyzeToken currentToken) {
-        posIncrAtt.setPositionIncrement(currentToken.getPosition());
-        offsetAtt.setOffset(currentToken.getStartOffset(), currentToken.getEndOffset());
-        typeAtt.setType(currentToken.getType());
-        posLenAtt.setPositionLength(currentToken.getPositionLength());
-        termAtt.setEmpty().append(currentToken.getTerm());
+        posIncrAtt.setPositionIncrement(currentToken.position());
+        offsetAtt.setOffset(currentToken.startOffset(), currentToken.endOffset());
+        typeAtt.setType(currentToken.type());
+        posLenAtt.setPositionLength(currentToken.positionLength());
+        termAtt.setEmpty().append(currentToken.term());
     }
 
     @Override

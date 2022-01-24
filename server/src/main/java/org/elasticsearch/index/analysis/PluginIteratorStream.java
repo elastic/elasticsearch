@@ -70,11 +70,11 @@ public class PluginIteratorStream extends Tokenizer implements ReaderProvider {
     }
 
     private void setState(AnalyzeToken currentToken) {
-        posIncrAtt.setPositionIncrement(currentToken.getPosition());
-        offsetAtt.setOffset(currentToken.getStartOffset(), currentToken.getEndOffset());
-        typeAtt.setType(currentToken.getType());
-        posLenAtt.setPositionLength(currentToken.getPositionLength());
-        termAtt.setEmpty().append(currentToken.getTerm());
+        posIncrAtt.setPositionIncrement(currentToken.position());
+        offsetAtt.setOffset(currentToken.startOffset(), currentToken.endOffset());
+        typeAtt.setType(currentToken.type());
+        posLenAtt.setPositionLength(currentToken.positionLength());
+        termAtt.setEmpty().append(currentToken.term());
     }
 
     @Override

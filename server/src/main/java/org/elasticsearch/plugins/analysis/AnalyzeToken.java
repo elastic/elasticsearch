@@ -11,12 +11,12 @@ package org.elasticsearch.plugins.analysis;
 import java.util.Objects;
 
 public class AnalyzeToken {
-    private final String term;
-    private final int startOffset;
-    private final int endOffset;
-    private final int position;
-    private final int positionLength;
-    private final String type;
+    private String term;
+    private int startOffset;
+    private int endOffset;
+    private int position;
+    private int positionLength;
+    private String type;
 
     @Override
     public boolean equals(Object o) {
@@ -40,6 +40,10 @@ public class AnalyzeToken {
         return Objects.hash(term, startOffset, endOffset, position, positionLength, type);
     }
 
+    public AnalyzeToken() {
+
+    }
+
     public AnalyzeToken(String term, int position, int startOffset, int endOffset, int positionLength, String type) {
         this.term = term;
         this.position = position;
@@ -49,27 +53,57 @@ public class AnalyzeToken {
         this.type = type;
     }
 
-    public String getTerm() {
+    public String term() {
         return this.term;
     }
 
-    public int getStartOffset() {
+    public int startOffset() {
         return this.startOffset;
     }
 
-    public int getEndOffset() {
+    public int endOffset() {
         return this.endOffset;
     }
 
-    public int getPosition() {
+    public int position() {
         return this.position;
     }
 
-    public int getPositionLength() {
+    public int positionLength() {
         return this.positionLength;
     }
 
-    public String getType() {
+    public String type() {
         return this.type;
+    }
+
+    public AnalyzeToken term(String term) {
+        this.term = term;
+        return this;
+    }
+
+    public AnalyzeToken type(String type) {
+        this.type = type;
+        return this;
+    }
+
+    public AnalyzeToken startOffset(int startOffset) {
+        this.startOffset = startOffset;
+        return this;
+    }
+
+    public AnalyzeToken endOffset(int endOffset) {
+        this.endOffset = endOffset;
+        return this;
+    }
+
+    public AnalyzeToken position(int position) {
+        this.position = position;
+        return this;
+    }
+
+    public AnalyzeToken positionLength(int positionLength) {
+        this.positionLength = positionLength;
+        return this;
     }
 }

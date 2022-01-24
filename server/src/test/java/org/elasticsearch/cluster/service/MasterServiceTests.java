@@ -524,7 +524,6 @@ public class MasterServiceTests extends ESTestCase {
         final int taskSubmissionsPerThread = randomIntBetween(1, 64);
         final int numberOfExecutors = Math.max(1, numberOfThreads / 4);
         final Semaphore semaphore = new Semaphore(numberOfExecutors);
-        final List<Set<Task>> taskGroups = new ArrayList<>();
 
         class TaskExecutor implements ClusterStateTaskExecutor<Task> {
 
@@ -532,10 +531,11 @@ public class MasterServiceTests extends ESTestCase {
             private final AtomicInteger assigned = new AtomicInteger();
             private final AtomicInteger batches = new AtomicInteger();
             private final AtomicInteger published = new AtomicInteger();
+            private final List<Set<Task>> assignments = new ArrayList<>();
 
             @Override
             public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
-                for (Set<Task> group : taskGroups) {
+                for (Set<Task> group : assignments) {
                     long count = tasks.stream().filter(group::contains).count();
                     assertThat(
                         "batched set should be executed together or not at all. Expected " + group + "s. Executing " + tasks,
@@ -574,9 +574,9 @@ public class MasterServiceTests extends ESTestCase {
                 var executor = randomFrom(executors);
                 var tasks = Set.copyOf(randomList(3, () -> new Task(totalTasks.getAndIncrement())));
 
-                taskGroups.add(tasks);
                 assignments.add(Tuple.tuple(executor, tasks));
                 executor.assigned.addAndGet(tasks.size());
+                executor.assignments.add(tasks);
             }
         }
         processedStatesLatch.set(new CountDownLatch(totalTasks.get()));

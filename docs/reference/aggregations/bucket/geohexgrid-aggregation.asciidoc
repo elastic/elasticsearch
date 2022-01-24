@@ -236,9 +236,10 @@ bounds::
 Accepts the same bounding box formats as the
 <<query-dsl-geo-bounding-box-query-accepted-formats,geo-bounding box query>>.
 
-size::          Optional. The maximum number of geohex buckets to return
-                (defaults to 10,000). When results are trimmed, buckets are
-                prioritised based on the volumes of documents they contain.
+size::
+(Optional, integer) Maximum number of buckets to return. Defaults to 10,000.
+When results are trimmed, buckets are prioritized based on the volume of
+documents they contain.
 
 shard_size::    Optional. To allow for more accurate counting of the top cells
                 returned in the final result the aggregation defaults to

@@ -16,7 +16,6 @@ public enum MonitoredSystem {
     KIBANA("kibana"),
     LOGSTASH("logstash"),
     BEATS("beats"),
-    ENTERPRISE_SEARCH("enterprise_search"),
     UNKNOWN("unknown");
 
     private final String system;
@@ -35,7 +34,6 @@ public enum MonitoredSystem {
             case "kibana" -> KIBANA;
             case "logstash" -> LOGSTASH;
             case "beats" -> BEATS;
-            case "enterprise_search" -> ENTERPRISE_SEARCH;
             default ->
                 // Return an "unknown" monitored system
                 // that can easily be filtered out if

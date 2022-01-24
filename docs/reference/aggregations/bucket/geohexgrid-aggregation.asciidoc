@@ -29,12 +29,12 @@ to first filter the aggregation to a smaller geographic area before requesting
 high-levels of detail.
 
 You can only use `geohex_grid` to aggregate an explicitly mapped `geo_point`.
-If the `geo_point` field contains an array, `geotile_grid` aggregates all the array values.
+If the `geo_point` field contains an array, `geohex_grid` aggregates all the array values.
 
 
 ==== Simple low-precision request
 
-[source,console,id=geotilegrid-aggregation-example]
+[source,console,id=geohexgrid-aggregation-example]
 --------------------------------------------------
 PUT /museums
 {
@@ -67,7 +67,7 @@ POST /museums/_search?size=0
     "large-grid": {
       "geohex_grid": {
         "field": "location",
-        "precision": 8
+        "precision": 4
       }
     }
   }
@@ -84,15 +84,15 @@ Response:
     "large-grid": {
       "buckets": [
         {
-          "key": "8/131/84",
+          "key": "841969dffffffff",
           "doc_count": 3
         },
         {
-          "key": "8/129/88",
+          "key": "841fb47ffffffff",
           "doc_count": 2
         },
         {
-          "key": "8/131/85",
+          "key": "841fa4dffffffff",
           "doc_count": 1
         }
       ]
@@ -147,15 +147,15 @@ POST /museums/_search?size=0
       "zoom1": {
         "buckets": [
           {
-            "key": "22/2154412/1378379",
+            "key": "8c1969c9b2617ff",
             "doc_count": 1
           },
           {
-            "key": "22/2154385/1378332",
+            "key": "8c1969526d753ff",
             "doc_count": 1
           },
           {
-            "key": "22/2154259/1378425",
+            "key": "8c1969526d26dff",
             "doc_count": 1
           }
         ]
@@ -177,7 +177,7 @@ without an additional `geo_bounding_box` query for filtering the points prior to
 It is an independent bounding box that can intersect with, be equal to, or be disjoint
 to any additional `geo_bounding_box` queries defined in the context of the aggregation.
 
-[source,console,id=geotilegrid-aggregation-with-bounds]
+[source,console,id=geohexgrid-aggregation-with-bounds]
 --------------------------------------------------
 POST /museums/_search?size=0
 {
@@ -205,15 +205,15 @@ POST /museums/_search?size=0
     "tiles-in-bounds": {
       "buckets": [
         {
-          "key": "22/2154412/1378379",
+          "key": "8c1969c9b2617ff",
           "doc_count": 1
         },
         {
-          "key": "22/2154385/1378332",
+          "key": "8c1969526d753ff",
           "doc_count": 1
         },
         {
-          "key": "22/2154259/1378425",
+          "key": "8c1969526d26dff",
           "doc_count": 1
         }
       ]
@@ -234,7 +234,7 @@ precision::     Optional. The integer zoom of the key used to define
 
 bounds::         Optional. The bounding box to filter the points in the bucket.
 
-size::          Optional. The maximum number of geohash buckets to return
+size::          Optional. The maximum number of geohex buckets to return
                 (defaults to 10,000). When results are trimmed, buckets are
                 prioritised based on the volumes of documents they contain.
 

@@ -576,7 +576,7 @@ public class MasterServiceTests extends ESTestCase {
         for (int i = 0; i < numberOfThreads; i++) {
             for (int j = 0; j < taskSubmissionsPerThread; j++) {
                 var executor = randomFrom(executors);
-                var tasks = Set.copyOf(randomList(3, () -> new Task(totalTasks.getAndIncrement())));
+                var tasks = Set.copyOf(randomList(1, 3, () -> new Task(totalTasks.getAndIncrement())));
 
                 assignments.add(Tuple.tuple(executor, tasks));
                 executor.assigned.addAndGet(tasks.size());

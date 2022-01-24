@@ -239,6 +239,10 @@ public class MetadataUpdateSettingsService {
                     .blocks(changedBlocks ? blocks.build() : currentState.blocks())
                     .build();
 
+                // we need to tweak auto expand replicas in order to avoid tripping assertions in
+                // AllocationService.reroute(RoutingAllocation allocation) -- this is far from ideal
+                updatedState = allocationService.adaptAutoExpandReplicas(updatedState);
+
                 try {
                     for (Index index : openIndices) {
                         final IndexMetadata currentMetadata = currentState.metadata().getIndexSafe(index);

@@ -771,16 +771,16 @@ class GeoPolygonDecomposer {
         /**
          * Set the intersection of this line segment with the given dateline
          *
-         * @param slope slope of the intersection [0..1]
+         * @param position position of the intersection [0..1]
          * @param dateline of the intersection
          */
-        void setIntersection(double slope, double dateline) {
-            if (slope == 0) {
+        void setIntersection(double position, double dateline) {
+            if (position == 0) {
                 this.intersect = coordinate;
-            } else if (slope == 1) {
+            } else if (position == 1) {
                 this.intersect = next.coordinate;
             } else {
-                final double y = coordinate.getY() + slope * (next.coordinate.getY() - coordinate.getY());
+                final double y = coordinate.getY() + position * (next.coordinate.getY() - coordinate.getY());
                 this.intersect = new Point(dateline, y);
             }
         }

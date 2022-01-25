@@ -27,7 +27,8 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isInd
  * This setting or rather it's value is expanded into a min and max value which requires special handling
  * based on the number of datanodes in the cluster. This class handles all the parsing and streamlines the access to these values.
  */
-public final class AutoExpandReplicas {
+public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabled) {
+
     // the value we recognize in the "max" position to mean all the nodes
     private static final String ALL_NODES_VALUE = "all";
 
@@ -78,11 +79,7 @@ public final class AutoExpandReplicas {
         return new AutoExpandReplicas(min, max, true);
     }
 
-    private final int minReplicas;
-    private final int maxReplicas;
-    private final boolean enabled;
-
-    private AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabled) {
+    public AutoExpandReplicas {
         if (minReplicas > maxReplicas) {
             throw new IllegalArgumentException(
                 "["
@@ -93,13 +90,6 @@ public final class AutoExpandReplicas {
                     + maxReplicas
             );
         }
-        this.minReplicas = minReplicas;
-        this.maxReplicas = maxReplicas;
-        this.enabled = enabled;
-    }
-
-    int getMinReplicas() {
-        return minReplicas;
     }
 
     int getMaxReplicas(int numDataNodes) {
@@ -120,7 +110,7 @@ public final class AutoExpandReplicas {
                 }
             }
 
-            final int min = getMinReplicas();
+            final int min = minReplicas();
             final int max = getMaxReplicas(numMatchingDataNodes);
             int numberOfReplicas = numMatchingDataNodes - 1;
             if (numberOfReplicas < min) {

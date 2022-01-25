@@ -220,7 +220,6 @@ dependencies {
   api 'commons-codec:commons-codec:1.11'
   api 'org.apache.commons:commons-compress:1.19'
   api 'org.apache.ant:ant:1.10.8'
-  api 'com.netflix.nebula:gradle-extra-configurations-plugin:7.0.0'
   api 'com.netflix.nebula:gradle-info-plugin:11.1.0'
   api 'org.apache.rat:apache-rat:0.11'
   api "net.java.dev.jna:jna:${versions.getProperty('jna')}"

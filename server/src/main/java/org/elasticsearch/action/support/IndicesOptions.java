@@ -34,7 +34,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  * Controls how to deal with unavailable concrete indices (closed or missing), how wildcard expressions are expanded
  * to actual indices (all, closed or open indices) and how to deal with wildcard expressions that resolve to no indices.
  */
-public class IndicesOptions implements ToXContentFragment {
+public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> expandWildcards) implements ToXContentFragment {
 
     public enum WildcardStates {
         OPEN,
@@ -145,14 +145,6 @@ public class IndicesOptions implements ToXContentFragment {
         EnumSet.noneOf(WildcardStates.class)
     );
 
-    private final EnumSet<Option> options;
-    private final EnumSet<WildcardStates> expandWildcards;
-
-    public IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> expandWildcards) {
-        this.options = options;
-        this.expandWildcards = expandWildcards;
-    }
-
     /**
      * @return Whether specified concrete indices should be ignored when unavailable (missing or closed)
      */
@@ -162,9 +154,9 @@ public class IndicesOptions implements ToXContentFragment {
 
     /**
      * @return Whether to ignore if a wildcard expression resolves to no concrete indices.
-     *         The `_all` string or empty list of indices count as wildcard expressions too.
-     *         Also when an alias points to a closed index this option decides if no concrete indices
-     *         are allowed.
+     * The `_all` string or empty list of indices count as wildcard expressions too.
+     * Also when an alias points to a closed index this option decides if no concrete indices
+     * are allowed.
      */
     public boolean allowNoIndices() {
         return options.contains(Option.ALLOW_NO_INDICES);
@@ -224,14 +216,14 @@ public class IndicesOptions implements ToXContentFragment {
     /**
      * @return a copy of the {@link WildcardStates} that these indices options will expand to
      */
-    public EnumSet<WildcardStates> getExpandWildcards() {
+    public EnumSet<WildcardStates> expandWildcards() {
         return EnumSet.copyOf(expandWildcards);
     }
 
     /**
      * @return a copy of the {@link Option}s that these indices options will use
      */
-    public EnumSet<Option> getOptions() {
+    public EnumSet<Option> options() {
         return EnumSet.copyOf(options);
     }
 
@@ -452,7 +444,7 @@ public class IndicesOptions implements ToXContentFragment {
 
     public static IndicesOptions fromXContent(XContentParser parser, @Nullable IndicesOptions defaults) throws IOException {
         boolean parsedWildcardStates = false;
-        EnumSet<WildcardStates> wildcardStates = defaults == null ? null : defaults.getExpandWildcards();
+        EnumSet<WildcardStates> wildcardStates = defaults == null ? null : defaults.expandWildcards();
         Boolean allowNoIndices = defaults == null ? null : defaults.allowNoIndices();
         Boolean ignoreUnavailable = defaults == null ? null : defaults.ignoreUnavailable();
         boolean ignoreThrottled = defaults == null ? false : defaults.ignoreThrottled();
@@ -538,7 +530,7 @@ public class IndicesOptions implements ToXContentFragment {
 
     /**
      * @return indices options that requires every specified index to exist, expands wildcards only to open indices and
-     *         allows that no indices are resolved from wildcard expressions (not returning an error).
+     * allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions strictExpandOpen() {
         return STRICT_EXPAND_OPEN;
@@ -546,8 +538,8 @@ public class IndicesOptions implements ToXContentFragment {
 
     /**
      * @return indices options that requires every specified index to exist, expands wildcards only to open indices,
-     *         allows that no indices are resolved from wildcard expressions (not returning an error) and forbids the
-     *         use of closed indices by throwing an error.
+     * allows that no indices are resolved from wildcard expressions (not returning an error) and forbids the
+     * use of closed indices by throwing an error.
      */
     public static IndicesOptions strictExpandOpenAndForbidClosed() {
         return STRICT_EXPAND_OPEN_FORBID_CLOSED;
@@ -555,8 +547,8 @@ public class IndicesOptions implements ToXContentFragment {
 
     /**
      * @return indices options that requires every specified index to exist, expands wildcards only to open indices,
-     *         allows that no indices are resolved from wildcard expressions (not returning an error),
-     *         forbids the use of closed indices by throwing an error and ignores indices that are throttled.
+     * allows that no indices are resolved from wildcard expressions (not returning an error),
+     * forbids the use of closed indices by throwing an error and ignores indices that are throttled.
      */
     public static IndicesOptions strictExpandOpenAndForbidClosedIgnoreThrottled() {
         return STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED;
@@ -572,7 +564,7 @@ public class IndicesOptions implements ToXContentFragment {
 
     /**
      * @return indices option that requires every specified index to exist, expands wildcards to both open and closed indices, includes
-     *         hidden indices, and allows that no indices are resolved from wildcard expressions (not returning an error).
+     * hidden indices, and allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions strictExpandHidden() {
         return STRICT_EXPAND_OPEN_CLOSED_HIDDEN;
@@ -588,7 +580,7 @@ public class IndicesOptions implements ToXContentFragment {
 
     /**
      * @return indices options that ignores unavailable indices, expands wildcards only to open indices and
-     *         allows that no indices are resolved from wildcard expressions (not returning an error).
+     * allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions lenientExpandOpen() {
         return LENIENT_EXPAND_OPEN;
@@ -596,7 +588,7 @@ public class IndicesOptions implements ToXContentFragment {
 
     /**
      * @return indices options that ignores unavailable indices, expands wildcards to open and hidden indices, and
-     *         allows that no indices are resolved from wildcard expressions (not returning an error).
+     * allows that no indices are resolved from wildcard expressions (not returning an error).
      */
     public static IndicesOptions lenientExpandOpenHidden() {
         return LENIENT_EXPAND_OPEN_HIDDEN;
@@ -616,26 +608,6 @@ public class IndicesOptions implements ToXContentFragment {
      */
     public static IndicesOptions lenientExpandHidden() {
         return LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-
-        if (obj.getClass() != getClass()) {
-            return false;
-        }
-
-        IndicesOptions other = (IndicesOptions) obj;
-        return options.equals(other.options) && expandWildcards.equals(other.expandWildcards);
-    }
-
-    @Override
-    public int hashCode() {
-        int result = options.hashCode();
-        return 31 * result + expandWildcards.hashCode();
     }
 
     @Override

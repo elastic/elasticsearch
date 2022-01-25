@@ -324,7 +324,7 @@ public class ShardStateAction {
             List<StaleShard> staleShardsToBeApplied = new ArrayList<>();
 
             for (FailedShardUpdateTask task : tasks) {
-                FailedShardEntry entry = task.getEntry();
+                FailedShardEntry entry = task.entry();
                 IndexMetadata indexMetadata = currentState.metadata().index(entry.getShardId().getIndex());
                 if (indexMetadata == null) {
                     // tasks that correspond to non-existent indices are marked as successful
@@ -532,19 +532,9 @@ public class ShardStateAction {
         }
     }
 
-    public static class FailedShardUpdateTask implements ClusterStateTaskListener {
-
-        private final FailedShardEntry entry;
-        private final ActionListener<TransportResponse.Empty> listener;
-
-        public FailedShardUpdateTask(FailedShardEntry entry, ActionListener<TransportResponse.Empty> listener) {
-            this.entry = entry;
-            this.listener = listener;
-        }
-
-        public FailedShardEntry getEntry() {
-            return entry;
-        }
+    public record FailedShardUpdateTask(FailedShardEntry entry, ActionListener<TransportResponse.Empty> listener)
+        implements
+            ClusterStateTaskListener {
 
         @Override
         public void onFailure(Exception e) {
@@ -561,11 +551,6 @@ public class ShardStateAction {
         @Override
         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             listener.onResponse(TransportResponse.Empty.INSTANCE);
-        }
-
-        @Override
-        public String toString() {
-            return "FailedShardUpdateTask{entry=" + entry + ", listener=" + listener + "}";
         }
     }
 

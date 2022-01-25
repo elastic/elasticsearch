@@ -152,7 +152,7 @@ public class BatchedRerouteService implements RerouteService {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     ActionListener.onResponse(currentListeners, newState);
                 }
             }, ClusterStateTaskExecutor.unbatched());

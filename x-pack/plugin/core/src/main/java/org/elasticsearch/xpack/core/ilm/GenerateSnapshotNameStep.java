@@ -84,7 +84,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
         newCustomData.setSnapshotIndexName(index.getName());
         newCustomData.setSnapshotRepository(snapshotRepository);
-        if (lifecycleState.getSnapshotName() == null) {
+        if (lifecycleState.snapshotName() == null) {
             // generate and validate the snapshotName
             String snapshotNamePrefix = ("<{now/d}-" + index.getName() + "-" + policy + ">").toLowerCase(Locale.ROOT);
             String snapshotName = generateSnapshotName(snapshotNamePrefix);

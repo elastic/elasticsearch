@@ -39,9 +39,9 @@ public class ReleaseHighlightsGenerator {
     static String generateFile(QualifiedVersion version, String template, List<ChangelogEntry> entries) throws IOException {
         final List<String> priorVersions = new ArrayList<>();
 
-        if (version.getMinor() > 0) {
-            final int major = version.getMajor();
-            for (int minor = version.getMinor(); minor >= 0; minor--) {
+        if (version.minor() > 0) {
+            final int major = version.major();
+            for (int minor = version.minor(); minor >= 0; minor--) {
                 String majorMinor = major + "." + minor;
                 String fileSuffix = "";
                 if (major == 7 && minor < 7) {

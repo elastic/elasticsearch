@@ -57,7 +57,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 future.onResponse(null);
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -90,7 +90,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
         assertBusy(() -> {
             updateClusterState(clusterService, s -> ClusterState.builder(s).build());
             final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-            assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.getAction().equals(ClusterStateAction.NAME)));
+            assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.action().equals(ClusterStateAction.NAME)));
         });
 
         updateClusterState(clusterService, s -> ClusterState.builder(s).removeCustom(AssertingCustom.NAME).build());

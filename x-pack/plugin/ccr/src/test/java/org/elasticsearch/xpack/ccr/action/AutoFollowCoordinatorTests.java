@@ -28,6 +28,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
@@ -339,7 +340,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     public void testAutoFollowerWithNoActivePatternsDoesNotStart() {
         final String remoteCluster = randomAlphaOfLength(5);
 
-        final Map<String, AutoFollowPattern> autoFollowPatterns = new HashMap<>(2);
+        final Map<String, AutoFollowPattern> autoFollowPatterns = Maps.newMapWithExpectedSize(2);
         autoFollowPatterns.put(
             "pattern_1",
             new AutoFollowPattern(
@@ -383,11 +384,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             )
         );
 
-        final Map<String, List<String>> followedLeaderIndexUUIDs = new HashMap<>(2);
+        final Map<String, List<String>> followedLeaderIndexUUIDs = Maps.newMapWithExpectedSize(2);
         followedLeaderIndexUUIDs.put("pattern_1", List.of("uuid1", "uuid2"));
         followedLeaderIndexUUIDs.put("pattern_2", Collections.emptyList());
 
-        final Map<String, Map<String, String>> headers = new HashMap<>(2);
+        final Map<String, Map<String, String>> headers = Maps.newMapWithExpectedSize(2);
         headers.put("pattern_1", singletonMap("header", "value"));
         headers.put("pattern_2", emptyMap());
 

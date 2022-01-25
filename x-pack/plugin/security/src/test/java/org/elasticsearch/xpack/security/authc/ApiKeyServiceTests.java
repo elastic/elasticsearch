@@ -1434,6 +1434,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testGetApiKeyMetadata() throws IOException {
         final Authentication apiKeyAuthentication = mock(Authentication.class);
         when(apiKeyAuthentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
+        when(apiKeyAuthentication.isAuthenticatedWithApiKey()).thenCallRealMethod();
         final Map<String, Object> apiKeyMetadata = ApiKeyTests.randomMetadata();
         if (apiKeyMetadata == null) {
             when(apiKeyAuthentication.getMetadata()).thenReturn(Map.of());

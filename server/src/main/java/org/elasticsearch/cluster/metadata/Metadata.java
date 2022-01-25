@@ -36,6 +36,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
@@ -69,6 +70,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -133,9 +135,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
 
         EnumSet<XContentContext> context();
-    }
 
-    public interface NonRestorableCustom extends Custom {}
+        /**
+         * @return true if this custom could be restored from snapshot
+         */
+        default boolean isRestorable() {
+            return context().contains(XContentContext.SNAPSHOT);
+        }
+    }
 
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING = Setting.boolSetting(
         "cluster.blocks.read_only",
@@ -212,6 +219,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private SortedMap<String, IndexAbstraction> indicesLookup;
     private final Map<String, MappingMetadata> mappingsByHash;
 
+    private final Version oldestIndexVersion;
+
     private Metadata(
         String clusterUUID,
         boolean clusterUUIDCommitted,
@@ -233,7 +242,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         String[] allClosedIndices,
         String[] visibleClosedIndices,
         SortedMap<String, IndexAbstraction> indicesLookup,
-        Map<String, MappingMetadata> mappingsByHash
+        Map<String, MappingMetadata> mappingsByHash,
+        Version oldestIndexVersion
     ) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
@@ -256,6 +266,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.visibleClosedIndices = visibleClosedIndices;
         this.indicesLookup = indicesLookup;
         this.mappingsByHash = mappingsByHash;
+        this.oldestIndexVersion = oldestIndexVersion;
     }
 
     public Metadata withIncrementedVersion() {
@@ -280,7 +291,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             allClosedIndices,
             visibleClosedIndices,
             indicesLookup,
-            mappingsByHash
+            mappingsByHash,
+            oldestIndexVersion
         );
     }
 
@@ -321,6 +333,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     public CoordinationMetadata coordinationMetadata() {
         return this.coordinationMetadata;
+    }
+
+    public Version oldestIndexVersion() {
+        return this.oldestIndexVersion;
     }
 
     public boolean hasAlias(String alias) {
@@ -1062,6 +1078,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
             builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
         }
+
         return builder.build();
     }
 
@@ -1472,6 +1489,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
+        public Builder removeCustomIf(BiPredicate<String, Custom> p) {
+            customs.removeAll(p::test);
+            return this;
+        }
+
         public Builder customs(ImmutableOpenMap<String, Custom> customs) {
             customs.stream().forEach(entry -> Objects.requireNonNull(entry.getValue(), entry.getKey()));
             this.customs.putAll(customs);
@@ -1603,6 +1625,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             final List<String> visibleClosedIndices = new ArrayList<>();
             final Set<String> allAliases = new HashSet<>();
             final ImmutableOpenMap<String, IndexMetadata> indicesMap = indices.build();
+
+            int oldestIndexVersionId = Version.CURRENT.id;
+
             for (IndexMetadata indexMetadata : indicesMap.values()) {
                 final String name = indexMetadata.getIndex().getName();
                 boolean added = allIndices.add(name);
@@ -1623,6 +1648,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     }
                 }
                 indexMetadata.getAliases().keysIt().forEachRemaining(allAliases::add);
+                oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCreationVersion().id);
             }
 
             final ArrayList<String> duplicates = new ArrayList<>();
@@ -1745,7 +1771,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 allClosedIndicesArray,
                 visibleClosedIndicesArray,
                 indicesLookup,
-                Collections.unmodifiableMap(mappingsByHash)
+                Collections.unmodifiableMap(mappingsByHash),
+                Version.fromId(oldestIndexVersionId)
             );
         }
 
@@ -1895,6 +1922,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     builder.endObject();
                 }
             }
+
             builder.endObject();
         }
 
@@ -2025,7 +2053,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     private static final ToXContent.Params FORMAT_PARAMS;
     static {
-        Map<String, String> params = new HashMap<>(2);
+        Map<String, String> params = Maps.newMapWithExpectedSize(2);
         params.put("binary", "true");
         params.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
         FORMAT_PARAMS = new MapParams(params);

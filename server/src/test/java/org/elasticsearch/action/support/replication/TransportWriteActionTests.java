@@ -320,15 +320,15 @@ public class TransportWriteActionTests extends ESTestCase {
                 randomLong(),
                 randomLong()
             );
-            transport.handleResponse(captures[0].requestId, response);
+            transport.handleResponse(captures[0].requestId(), response);
             assertTrue(listener.isDone());
             assertThat(listener.get(), equalTo(response));
         } else if (randomBoolean()) {
-            transport.handleRemoteError(captures[0].requestId, new ElasticsearchException("simulated"));
+            transport.handleRemoteError(captures[0].requestId(), new ElasticsearchException("simulated"));
             assertTrue(listener.isDone());
             assertListenerThrows("listener should reflect remote error", listener, ElasticsearchException.class);
         } else {
-            transport.handleError(captures[0].requestId, new TransportException("simulated"));
+            transport.handleError(captures[0].requestId(), new TransportException("simulated"));
             assertTrue(listener.isDone());
             assertListenerThrows("listener should reflect remote error", listener, TransportException.class);
         }
@@ -346,26 +346,26 @@ public class TransportWriteActionTests extends ESTestCase {
         // A write replication action proxy should fail the shard
         assertEquals(1, shardFailedRequests.length);
         CapturingTransport.CapturedRequest shardFailedRequest = shardFailedRequests[0];
-        ShardStateAction.FailedShardEntry shardEntry = (ShardStateAction.FailedShardEntry) shardFailedRequest.request;
+        ShardStateAction.FailedShardEntry shardEntry = (ShardStateAction.FailedShardEntry) shardFailedRequest.request();
         // the shard the request was sent to and the shard to be failed should be the same
         assertEquals(shardEntry.getShardId(), replica.shardId());
         assertEquals(shardEntry.getAllocationId(), replica.allocationId().getId());
         if (randomBoolean()) {
             // simulate success
-            transport.handleResponse(shardFailedRequest.requestId, TransportResponse.Empty.INSTANCE);
+            transport.handleResponse(shardFailedRequest.requestId(), TransportResponse.Empty.INSTANCE);
             assertTrue(success.get());
             assertNull(failure.get());
         } else if (randomBoolean()) {
             // simulate the primary has been demoted
             transport.handleRemoteError(
-                shardFailedRequest.requestId,
+                shardFailedRequest.requestId(),
                 new ShardStateAction.NoLongerPrimaryShardException(replica.shardId(), "shard-failed-test")
             );
             assertFalse(success.get());
             assertNotNull(failure.get());
         } else {
             // simulated a node closing exception
-            transport.handleRemoteError(shardFailedRequest.requestId, new NodeClosedException(state.nodes().getLocalNode()));
+            transport.handleRemoteError(shardFailedRequest.requestId(), new NodeClosedException(state.nodes().getLocalNode()));
             assertFalse(success.get());
             assertNotNull(failure.get());
         }

@@ -104,8 +104,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     @Override
     public void applyFailedShards(final List<FailedShard> failedShards, final RoutingAllocation allocation) {
         for (FailedShard failedShard : failedShards) {
-            Releasables.close(asyncFetchStarted.remove(failedShard.getRoutingEntry().shardId()));
-            Releasables.close(asyncFetchStore.remove(failedShard.getRoutingEntry().shardId()));
+            Releasables.close(asyncFetchStarted.remove(failedShard.routingEntry().shardId()));
+            Releasables.close(asyncFetchStore.remove(failedShard.routingEntry().shardId()));
         }
     }
 

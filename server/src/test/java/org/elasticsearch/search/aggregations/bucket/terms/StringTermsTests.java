@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -86,7 +87,7 @@ public class StringTermsTests extends InternalTermsTestCase {
                 }
                 case 8 -> {
                     if (metadata == null) {
-                        metadata = new HashMap<>(1);
+                        metadata = Maps.newMapWithExpectedSize(1);
                     } else {
                         metadata = new HashMap<>(instance.getMetadata());
                     }
@@ -121,7 +122,7 @@ public class StringTermsTests extends InternalTermsTestCase {
                 case 2 -> minDocCount += between(1, 100);
                 case 3 -> {
                     if (metadata == null) {
-                        metadata = new HashMap<>(1);
+                        metadata = Maps.newMapWithExpectedSize(1);
                     } else {
                         metadata = new HashMap<>(instance.getMetadata());
                     }

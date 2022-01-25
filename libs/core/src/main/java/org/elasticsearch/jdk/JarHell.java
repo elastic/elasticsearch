@@ -61,7 +61,7 @@ public class JarHell {
     }
 
     // #### TODO. update the class/module path as required to enable checks.
-    //  we want checks to ensure that plugins don't collide pkg name with modules
+    // we want checks to ensure that plugins don't collide pkg name with modules
 
     /**
      * Checks the current classpath for duplicate classes

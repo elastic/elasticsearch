@@ -98,7 +98,7 @@ teardown:
   # interpreted as a stashed value, if we tried to use it as the value of "password_hash".
   - do:
       warnings:
-        - "this request accesses system indices: [.security-7], but in a future major version, direct access to system indices will be prevented by default"
+        - "this request accesses system indices: [.security-7], but in a future major version, direct access to system indices may be prevented by default"
       get:
         index: .security
         id: user-joe

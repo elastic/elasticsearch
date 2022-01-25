@@ -53,6 +53,14 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
     }
 
+    public void testTrailingDotsAreStripped() throws IOException {
+
+        assertXContentMatches("""
+            {"test":{"with":{"dots":"value"}},"nodots":"value"}""", """
+            {"test.":{"with.":{"dots":"value"}},"nodots":"value"}""");
+
+    }
+
     public void testSkipChildren() throws IOException {
         XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
             { "test.with.dots" : "value", "nodots" : "value2" }"""));

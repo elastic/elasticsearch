@@ -12,11 +12,16 @@ import org.apache.http.client.fluent.Request;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.Version;
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.FileUtils;
+import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.List;
 
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
@@ -41,9 +46,8 @@ public class PackageUpgradeTests extends PackagingTestCase {
     public void test10InstallBwcVersion() throws Exception {
         installation = installPackage(sh, bwcDistribution);
         assertInstalled(bwcDistribution);
+        possiblyRemoveSecurityConfiguration(installation);
         // TODO: Add more tests here to assert behavior when updating from < v8 to > v8 with implicit/explicit behavior,
-        // maybe as part of https://github.com/elastic/elasticsearch/pull/76879
-        ServerUtils.disableSecurityFeatures(installation);
     }
 
     public void test11ModifyKeystore() throws Exception {
@@ -90,12 +94,10 @@ public class PackageUpgradeTests extends PackagingTestCase {
             installation = Packages.forceUpgradePackage(sh, distribution);
         } else {
             installation = Packages.upgradePackage(sh, distribution);
-            verifySecurityNotAutoConfigured(installation);
         }
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
-        // Upgrade overwrites the configuration file because we run with --force-confnew so we need to disable security again
-        ServerUtils.disableSecurityFeatures(installation);
+        verifySecurityNotAutoConfigured(installation);
     }
 
     public void test21CheckUpgradedVersion() throws Exception {
@@ -109,5 +111,23 @@ public class PackageUpgradeTests extends PackagingTestCase {
         assertThat(response2, containsString("World"));
         String response3 = ServerUtils.makeRequest(Request.Get("http://localhost:9200/library2/_doc/1?pretty"));
         assertThat(response3, containsString("Darkness"));
+    }
+
+    private void possiblyRemoveSecurityConfiguration(Installation es) throws IOException {
+        ServerUtils.disableSecurityFeatures(installation);
+        if (Files.exists(installation.config("certs"))) {
+            FileUtils.rm(installation.config("certs"));
+        }
+        // remove security auto-configuration entries, in case bwc was > 8, since we disable security
+        for (String entry : List.of(
+            "xpack.security.transport.ssl.keystore.secure_password",
+            "xpack.security.transport.ssl.truststore.secure_password",
+            "xpack.security.http.ssl.keystore.secure_password",
+            "autoconfiguration.password_hash"
+        )) {
+            if (installation.executables().keystoreTool.run("list").stdout().contains(entry)) {
+                installation.executables().keystoreTool.run("remove " + entry);
+            }
+        }
     }
 }

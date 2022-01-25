@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdateTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
@@ -86,6 +87,7 @@ import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -391,14 +393,14 @@ public class ClusterStateChanges {
             .map(
                 failedShard -> new FailedShardUpdateTask(
                     new ShardStateAction.FailedShardEntry(
-                        failedShard.getRoutingEntry().shardId(),
-                        failedShard.getRoutingEntry().allocationId().getId(),
+                        failedShard.routingEntry().shardId(),
+                        failedShard.routingEntry().allocationId().getId(),
                         0L,
-                        failedShard.getMessage(),
-                        failedShard.getFailure(),
+                        failedShard.message(),
+                        failedShard.failure(),
                         failedShard.markAsStale()
                     ),
-                    ActionListener.wrap(() -> { throw new AssertionError("task should not complete"); })
+                    createTestListener()
                 )
             )
             .collect(Collectors.toList());
@@ -420,12 +422,15 @@ public class ClusterStateChanges {
             startedShards.entrySet()
                 .stream()
                 .map(
-                    e -> new StartedShardEntry(
-                        e.getKey().shardId(),
-                        e.getKey().allocationId().getId(),
-                        e.getValue(),
-                        "shard started",
-                        ShardLongFieldRange.UNKNOWN
+                    e -> new StartedShardUpdateTask(
+                        new StartedShardEntry(
+                            e.getKey().shardId(),
+                            e.getKey().allocationId().getId(),
+                            e.getValue(),
+                            "shard started",
+                            ShardLongFieldRange.UNKNOWN
+                        ),
+                        createTestListener()
                     )
                 )
                 .collect(Collectors.toList())
@@ -435,12 +440,12 @@ public class ClusterStateChanges {
     private <T> ClusterState runTasks(ClusterStateTaskExecutor<T> executor, ClusterState clusterState, List<T> entries) {
         try {
             ClusterTasksResult<T> result = executor.execute(clusterState, entries);
-            for (ClusterStateTaskExecutor.TaskResult taskResult : result.executionResults.values()) {
+            for (ClusterStateTaskExecutor.TaskResult taskResult : result.executionResults().values()) {
                 if (taskResult.isSuccess() == false) {
                     throw taskResult.getFailure();
                 }
             }
-            return result.resultingState;
+            return result.resultingState();
         } catch (Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);
         }
@@ -470,5 +475,9 @@ public class ClusterStateChanges {
         runnable.run();
         assertThat(result[0], notNullValue());
         return result[0];
+    }
+
+    private ActionListener<TransportResponse.Empty> createTestListener() {
+        return ActionListener.wrap(() -> { throw new AssertionError("task should not complete"); });
     }
 }

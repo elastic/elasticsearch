@@ -73,14 +73,14 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Ack
                 for (String index : request.indices()) {
                     IndexMetadata idxMeta = newState.metadata().index(index);
                     LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
-                    StepKey retryStep = new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(), lifecycleState.getStep());
+                    StepKey retryStep = new StepKey(lifecycleState.phase(), lifecycleState.action(), lifecycleState.step());
                     if (idxMeta == null) {
                         // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.
                         logger.debug(
                             "index ["
                                 + index
                                 + "] has been deleted after moving to step ["
-                                + lifecycleState.getStep()
+                                + lifecycleState.step()
                                 + "], skipping async action check"
                         );
                         return;

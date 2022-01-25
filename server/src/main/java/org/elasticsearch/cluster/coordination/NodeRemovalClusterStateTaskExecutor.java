@@ -25,25 +25,7 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
 
     private final AllocationService allocationService;
 
-    public static class Task implements ClusterStateTaskListener {
-
-        private final DiscoveryNode node;
-        private final String reason;
-        private final Runnable onClusterStateProcessed;
-
-        public Task(DiscoveryNode node, String reason, Runnable onClusterStateProcessed) {
-            this.node = node;
-            this.reason = reason;
-            this.onClusterStateProcessed = onClusterStateProcessed;
-        }
-
-        public DiscoveryNode node() {
-            return node;
-        }
-
-        public String reason() {
-            return reason;
-        }
+    public record Task(DiscoveryNode node, String reason, Runnable onClusterStateProcessed) implements ClusterStateTaskListener {
 
         @Override
         public void onFailure(final Exception e) {

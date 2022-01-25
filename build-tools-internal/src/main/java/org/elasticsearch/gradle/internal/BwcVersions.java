@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -284,7 +283,7 @@ public class BwcVersions {
     public record VersionPair(Version elasticsearch, Version lucene) implements Comparable<VersionPair> {
 
         @Override
-        public int compareTo(@NotNull VersionPair o) {
+        public int compareTo(VersionPair o) {
             // For ordering purposes, sort by Elasticsearch version
             return this.elasticsearch.compareTo(o.elasticsearch);
         }

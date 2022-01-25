@@ -156,7 +156,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 }
             }, finalListener::onFailure);
             CreateIndexTask clusterTask = new CreateIndexTask(request, listener, indexNameRef);
-            clusterService.submitStateUpdateTask("auto create [" + request.index() + "]", clusterTask, clusterTask, executor, clusterTask);
+            clusterService.submitStateUpdateTask("auto create [" + request.index() + "]", clusterTask, clusterTask, executor);
         }
 
         @Override
@@ -212,7 +212,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     indexNameRef.set(clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName());
                     return clusterState;
                 } else {
-                    String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
+                    String indexName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
                     indexNameRef.set(indexName);
                     if (isSystemIndex) {
                         if (indexName.equals(request.index()) == false) {

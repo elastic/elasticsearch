@@ -87,7 +87,7 @@ public class SystemAliasIT extends ESRestTestCase {
             request.setOptions(
                 expectWarnings(
                     "this request accesses system indices: [.internal-unmanaged-index-8], "
-                        + "but in a future major version, direct access to system indices will be prevented by default"
+                        + "but in a future major version, direct access to system indices may be prevented by default"
                 )
             );
             Response response = client().performRequest(request);
@@ -111,7 +111,7 @@ public class SystemAliasIT extends ESRestTestCase {
             request.setOptions(
                 expectWarnings(
                     "this request accesses system indices: [.internal-unmanaged-index-8], "
-                        + "but in a future major version, direct access to system indices will be prevented by default"
+                        + "but in a future major version, direct access to system indices may be prevented by default"
                 )
             );
             Response response = client().performRequest(request);
@@ -147,7 +147,7 @@ public class SystemAliasIT extends ESRestTestCase {
             request.setOptions(
                 expectWarnings(
                     "this request accesses system indices: [.internal-unmanaged-index-8], "
-                        + "but in a future major version, direct access to system indices will be prevented by default"
+                        + "but in a future major version, direct access to system indices may be prevented by default"
                 )
             );
             Response response = client().performRequest(request);
@@ -166,7 +166,7 @@ public class SystemAliasIT extends ESRestTestCase {
                 "this request accesses system indices: ["
                     + indexName
                     + "], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
+                    + "but in a future major version, direct access to system indices may be prevented by default"
             )
         );
         Response response = client().performRequest(request);
@@ -191,7 +191,7 @@ public class SystemAliasIT extends ESRestTestCase {
                 "this request accesses system indices: ["
                     + indexName
                     + "], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
+                    + "but in a future major version, direct access to system indices may be prevented by default"
             )
         );
         Response response = client().performRequest(request);

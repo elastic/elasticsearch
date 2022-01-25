@@ -240,7 +240,7 @@ public class IndexMappingTemplateAsserter {
             final String systemIndexWarning = "this request accesses system indices: ["
                 + indexName
                 + "], but in a future major version, "
-                + "direct access to system indices will be prevented by default";
+                + "direct access to system indices may be prevented by default";
             getIndexMapping.setOptions(ESRestTestCase.expectVersionSpecificWarnings(v -> {
                 v.current(systemIndexWarning);
                 v.compatible(systemIndexWarning);

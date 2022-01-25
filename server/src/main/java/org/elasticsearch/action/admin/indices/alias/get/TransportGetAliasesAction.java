@@ -188,7 +188,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
                 DeprecationCategory.API,
                 "open_system_index_access",
                 "this request accesses system indices: {}, but in a future major version, direct access to system "
-                    + "indices will be prevented by default",
+                    + "indices may be prevented by default",
                 systemIndicesNames
             );
         }

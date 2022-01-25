@@ -26,7 +26,7 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
     public void testGetFeatureUpgradeStatus() throws Exception {
 
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
-            + "access to system indices will be prevented by default";
+            + "access to system indices may be prevented by default";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             // setup - put something in the tasks index
             // create index

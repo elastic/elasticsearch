@@ -2258,7 +2258,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             new DeprecationWarning(
                 Level.WARN,
                 "this request accesses system indices: [.ml-meta, .ml-stuff, .watches], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
+                    + "but in a future major version, direct access to system indices may be prevented by default"
             )
         );
 
@@ -2276,7 +2276,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             new DeprecationWarning(
                 Level.WARN,
                 "this request accesses system indices: [.ml-meta], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
+                    + "but in a future major version, direct access to system indices may be prevented by default"
             )
         );
     }
@@ -2293,7 +2293,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             new DeprecationWarning(
                 Level.WARN,
                 "this request accesses system indices: [.watches], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
+                    + "but in a future major version, direct access to system indices may be prevented by default"
             )
         );
 
@@ -2311,7 +2311,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             new DeprecationWarning(
                 Level.WARN,
                 "this request accesses system indices: [.ml-meta, .ml-stuff], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
+                    + "but in a future major version, direct access to system indices may be prevented by default"
             )
         );
 
@@ -2363,7 +2363,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     new DeprecationWarning(
                         Level.WARN,
                         "this request accesses system indices: [.external-sys-idx], "
-                            + "but in a future major version, direct access to system indices will be prevented by default"
+                            + "but in a future major version, direct access to system indices may be prevented by default"
                     )
                 );
             }
@@ -2380,7 +2380,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     new DeprecationWarning(
                         Level.WARN,
                         "this request accesses system indices: [.external-sys-idx], "
-                            + "but in a future major version, direct access to system indices will be prevented by default"
+                            + "but in a future major version, direct access to system indices may be prevented by default"
                     )
                 );
             }

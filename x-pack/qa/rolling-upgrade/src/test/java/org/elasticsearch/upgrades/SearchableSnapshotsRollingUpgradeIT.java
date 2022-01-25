@@ -303,7 +303,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
                 request.setOptions(
                     expectWarnings(
                         "this request accesses system indices: [.snapshot-blob-cache], but in a future major "
-                            + "version, direct access to system indices will be prevented by default"
+                            + "version, direct access to system indices may be prevented by default"
                     )
                 );
                 request.addParameter("flat_settings", "true");

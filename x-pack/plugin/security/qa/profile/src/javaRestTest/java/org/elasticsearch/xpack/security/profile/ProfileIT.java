@@ -93,7 +93,7 @@ public class ProfileIT extends ESRestTestCase {
         indexRequest.setOptions(
             expectWarnings(
                 "this request accesses system indices: [.security-profile-8], but in a future major version, "
-                    + "direct access to system indices will be prevented by default"
+                    + "direct access to system indices may be prevented by default"
             )
         );
         assertOK(adminClient().performRequest(indexRequest));

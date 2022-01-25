@@ -109,7 +109,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             getSettingsRequest.setOptions(
                 expectWarnings(
                     "this request accesses system indices: [.security-7], but in a future major "
-                        + "version, direct access to system indices will be prevented by default"
+                        + "version, direct access to system indices may be prevented by default"
                 )
             );
             Response settingsResponse = client().performRequest(getSettingsRequest);
@@ -396,7 +396,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     indexRequest.setOptions(
                         expectWarnings(
                             "this request accesses system indices: [.security-7], but in a future major "
-                                + "version, direct access to system indices will be prevented by default"
+                                + "version, direct access to system indices may be prevented by default"
                         ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
                     );
                 } else {

@@ -125,7 +125,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             new DeprecationWarning(
                 Level.WARN,
                 "this request accesses system indices: [.b], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
+                    + "but in a future major version, direct access to system indices may be prevented by default"
             )
         );
     }
@@ -156,7 +156,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             new DeprecationWarning(
                 Level.WARN,
                 "this request accesses system indices: [.b], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
+                    + "but in a future major version, direct access to system indices may be prevented by default"
             )
         );
     }
@@ -186,7 +186,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             new DeprecationWarning(
                 Level.WARN,
                 "this request accesses system indices: [.b], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
+                    + "but in a future major version, direct access to system indices may be prevented by default"
             )
         );
     }

@@ -71,7 +71,7 @@ public class SuperuserIT extends SecurityInBasicRestTestCase {
         expectWarnings(
             request,
             "this request accesses system indices: [.security-7],"
-                + " but in a future major version, direct access to system indices will be prevented by default"
+                + " but in a future major version, direct access to system indices may be prevented by default"
         );
 
         Response response = client().performRequest(request);
@@ -114,7 +114,7 @@ public class SuperuserIT extends SecurityInBasicRestTestCase {
         expectWarnings(
             request,
             "this request accesses system indices: [.security-7],"
-                + " but in a future major version, direct access to system indices will be prevented by default"
+                + " but in a future major version, direct access to system indices may be prevented by default"
         );
 
         Response response = client().performRequest(request);

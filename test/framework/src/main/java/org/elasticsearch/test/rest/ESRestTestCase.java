@@ -97,7 +97,6 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
 import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.sort;
@@ -927,7 +926,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 // We don't know exactly which indices we're cleaning up in advance, so just accept all system index access warnings.
                 final String warning = warnings.get(0);
                 final boolean isSystemIndexWarning = warning.contains("this request accesses system indices")
-                    && warning.contains("but in a future major version, direct access to system indices will be prevented by default");
+                    && warning.contains("but in a future major version, direct access to system indices may be prevented by default");
                 return isSystemIndexWarning == false;
             }).build();
             deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);

@@ -111,7 +111,7 @@ public class FleetDataStreamIT extends ESRestTestCase {
             .setWarningsHandler(
                 warnings -> List.of(
                     "this request accesses system indices: [.fleet-artifacts-7], but "
-                        + "in a future major version, direct access to system indices will be prevented by default"
+                        + "in a future major version, direct access to system indices may be prevented by default"
                 ).equals(warnings) == false
             )
             .build();
@@ -209,7 +209,7 @@ public class FleetDataStreamIT extends ESRestTestCase {
         assertThatAPIWildcardResolutionWorks(
             singletonList(
                 "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system"
-                    + " indices will be prevented by default"
+                    + " indices may be prevented by default"
             ),
             ".f*"
         );

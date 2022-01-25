@@ -204,7 +204,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             getMappings.setOptions(
                 expectWarnings(
                     "this request accesses system indices: [.ml-config], but in a future major "
-                        + "version, direct access to system indices will be prevented by default"
+                        + "version, direct access to system indices may be prevented by default"
                 )
             );
             Response response = client().performRequest(getMappings);

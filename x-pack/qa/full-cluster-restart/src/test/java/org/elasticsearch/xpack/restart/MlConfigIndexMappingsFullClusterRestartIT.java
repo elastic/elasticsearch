@@ -96,7 +96,7 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
         Request getIndexMappingsRequest = new Request("GET", ".ml-config/_mappings");
         getIndexMappingsRequest.setOptions(expectVersionSpecificWarnings(v -> {
             final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct "
-                + "access to system indices will be prevented by default";
+                + "access to system indices may be prevented by default";
             v.current(systemIndexWarning);
             v.compatible(systemIndexWarning);
         }));

@@ -26,7 +26,7 @@ PUT /_cluster/desired_nodes/my_history/1
                  "node.attr.logical_availability_zone" : "zone-0"
             },
             "processors" : 8,
-            "memory" : "58gb",
+            "memory" : "59gb",
             "storage" : "1700gb",
             "version" : "8.1.0"
         }
@@ -79,11 +79,24 @@ The API returns the following result:
 --------------------------------------------------
 {
     "desired_nodes": {
-        "history_id": "<history_id>",
+        "history_id": <history_id>,
         "version": <version>,
-        "nodes": [<nodes>]
+        "nodes": [
+            {
+                "settings": <node_settings>,
+                "processors": <node_processors>,
+                "memory": "<node_memory>",
+                "storage": "<node_storage>",
+                "version": "<node_version>"
+            }
+        ]
     }
 }
 --------------------------------------------------
 // TEST[s/<history_id>/$body.desired_nodes.history_id/]
 // TEST[s/<version>/$body.desired_nodes.version/]
+// TEST[s/<node_settings>/$body.desired_nodes.nodes.0.settings/]
+// TEST[s/<node_processors>/$body.desired_nodes.nodes.0.processors/]
+// TEST[s/<node_memory>/$body.desired_nodes.nodes.0.memory/]
+// TEST[s/<node_storage>/$body.desired_nodes.nodes.0.storage/]
+// TEST[s/<node_version>/$body.desired_nodes.nodes.0.version/]

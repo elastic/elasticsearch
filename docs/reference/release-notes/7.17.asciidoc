@@ -27,7 +27,7 @@ Audit::
 
 Authorization::
 * Allow read template with cluster monitor privilege {es-pull}82046[#82046] (issue: {es-issue}78832[#78832])
-* Make authz perf log msg configurable and disabled by default {es-pull}82648[#82648] (issue: {es-issue}75439[#75439])
+* Make authorization performance log message configurable and disabled by default {es-pull}82648[#82648] (issue: {es-issue}75439[#75439])
 * Add {kib} system permissions for Endpoint action indices {es-pull}81953[#81953]
 
 ILM+SLM::

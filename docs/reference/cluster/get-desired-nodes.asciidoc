@@ -1,0 +1,89 @@
+[[get-desired-nodes-api]]
+=== Get desired nodes API
+++++
+<titleabbrev>Get desired nodes</titleabbrev>
+++++
+
+NOTE: {cloud-only}
+
+Get desired nodes.
+
+[[get-desired-nodes-api-request]]
+==== {api-request-title}
+
+//////////////////////////
+[source,console]
+--------------------------------------------------
+PUT /_cluster/desired_nodes/my_history/1
+{
+    "nodes" : [
+        {
+            "settings" : {
+                 "node.name" : "instance-000187",
+                 "node.external_id": "instance-000187",
+                 "node.roles" : ["data_hot"],
+                 "node.attr.data" : "hot",
+                 "node.attr.logical_availability_zone" : "zone-0"
+            },
+            "processors" : 8,
+            "memory" : "58gb",
+            "storage" : "1700gb",
+            "version" : "8.1.0"
+        }
+    ]
+}
+--------------------------------------------------
+// TESTSETUP
+
+
+[source,console]
+--------------------------------------------------
+DELETE /_cluster/desired_nodes
+--------------------------------------------------
+// TEST
+// TEARDOWN
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+GET /_cluster/desired_nodes
+--------------------------------------------------
+// TEST
+
+[[get-desired-nodes-api-prereqs]]
+==== {api-prereq-title}
+
+* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
+users can use this API.
+
+[[get-desired-nodes-api-desc]]
+==== {api-description-title}
+
+This API gets the current desired nodes.
+
+[[get-desired-nodes-api-examples]]
+==== {api-examples-title}
+
+This example gets the current desired nodes.
+
+[source,console]
+--------------------------------------------------
+GET /_cluster/desired_nodes
+--------------------------------------------------
+// TEST
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+    "desired_nodes": {
+        "history_id": "<history_id>",
+        "version": <version>,
+        "nodes": [<nodes>]
+    }
+}
+--------------------------------------------------
+// TEST[s/<history_id>/$body.desired_nodes.history_id/]
+// TEST[s/<version>/$body.desired_nodes.version/]

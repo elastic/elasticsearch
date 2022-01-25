@@ -1,0 +1,74 @@
+[[delete-desired-nodes-api]]
+=== Delete desired nodes API
+++++
+<titleabbrev>Delete desired nodes</titleabbrev>
+++++
+
+NOTE: {cloud-only}
+
+Delete desired nodes.
+
+[[delete-desired-nodes-policy-request]]
+==== {api-request-title}
+
+//////////////////////////
+[source,console]
+--------------------------------------------------
+PUT /_cluster/desired_nodes/history/1
+{
+    "nodes" : [
+        {
+            "settings" : {
+                 "node.name" : "instance-000187",
+                 "node.external_id": "instance-000187",
+                 "node.roles" : ["data_hot"],
+                 "node.attr.data" : "hot",
+                 "node.attr.logical_availability_zone" : "zone-0"
+            },
+            "processors" : 8,
+            "memory" : "58gb",
+            "storage" : "1700gb",
+            "version" : "8.1.0"
+        }
+    ]
+}
+--------------------------------------------------
+// TESTSETUP
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_cluster/desired_nodes
+--------------------------------------------------
+// TEST
+
+[[delete-desired-nodes-policy-prereqs]]
+==== {api-prereq-title}
+
+* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
+users can use this API.
+
+[[delete-desired-nodes-desc]]
+==== {api-description-title}
+
+This API deletes the desired nodes.
+
+[[delete-desired-nodes-examples]]
+==== {api-examples-title}
+
+This example deletes the current desired nodes.
+
+[source,console]
+--------------------------------------------------
+DELETE /_cluster/desired_nodes
+--------------------------------------------------
+// TEST
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------

@@ -628,7 +628,6 @@ public abstract class PackagingTestCase extends Assert {
      */
     public void verifySecurityAutoConfigured(Installation es) throws Exception {
         final String autoConfigDirName = "certs";
-        assertThat(Files.exists(es.config(autoConfigDirName)), Matchers.is(true));
         final Settings settings;
         if (es.distribution.isArchive()) {
             // We chown the installation on Windows to Administrators so that we can auto-configure it.

@@ -31,8 +31,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -82,10 +82,7 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
                     .filter(header -> "WWW-Authenticate".equalsIgnoreCase(header.getName()))
                     .map(Header::getValue)
                     .toList();
-                assertThat(
-                    wwwAuthenticateHeaders,
-                    containsInAnyOrder(containsString("Basic"), containsString("Bearer"), containsString("ApiKey"))
-                );
+                assertThat(wwwAuthenticateHeaders, hasItems(containsString("Basic"), containsString("ApiKey")));
                 assertThat(EntityUtils.toString(response.getEntity()), containsString("security_exception"));
             }
         }

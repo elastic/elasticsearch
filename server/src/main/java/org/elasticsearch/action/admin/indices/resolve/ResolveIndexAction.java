@@ -34,7 +34,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.rest.action.search.CCSVersionCheckHelper;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,6 +54,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
+
+import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
 
@@ -459,7 +460,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         @Override
         protected void doExecute(Task task, Request request, final ActionListener<Response> listener) {
             if (ccsCheckCompatibility) {
-                CCSVersionCheckHelper.checkCCSVersionCompatibility(request);
+                checkCCSVersionCompatibility(request);
             }
             final ClusterState clusterState = clusterService.state();
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(

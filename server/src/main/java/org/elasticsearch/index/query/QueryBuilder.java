@@ -9,6 +9,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xcontent.ToXContentObject;
 
@@ -65,5 +66,11 @@ public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject,
     @Override
     default QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         return this;
+    }
+
+    // TODO remove this and implement default in every QueryBuilder
+    @Override
+    default Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -172,11 +171,5 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
         return Objects.equals(name, other.name)
             && Objects.equals(metadata, other.metadata)
             && Objects.equals(factoriesBuilder, other.factoriesBuilder);
-    }
-
-    // TODO remove this and implement default in every QueryBuilder
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
     }
 }

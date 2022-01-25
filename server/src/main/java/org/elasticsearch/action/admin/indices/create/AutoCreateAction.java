@@ -156,7 +156,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 }
             }, finalListener::onFailure);
             CreateIndexTask clusterTask = new CreateIndexTask(request, listener, indexNameRef);
-            clusterService.submitStateUpdateTask("auto create [" + request.index() + "]", clusterTask, clusterTask, executor, clusterTask);
+            clusterService.submitStateUpdateTask("auto create [" + request.index() + "]", clusterTask, clusterTask, executor);
         }
 
         @Override

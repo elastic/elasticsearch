@@ -181,7 +181,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     String source = "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
                     RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, listener);
                     ClusterStateTaskConfig config = ClusterStateTaskConfig.build(Priority.NORMAL, rolloverRequest.masterNodeTimeout());
-                    clusterService.submitStateUpdateTask(source, rolloverTask, config, rolloverTaskExecutor, rolloverTask);
+                    clusterService.submitStateUpdateTask(source, rolloverTask, config, rolloverTaskExecutor);
                 } else {
                     // conditions not met
                     listener.onResponse(trialRolloverResponse);

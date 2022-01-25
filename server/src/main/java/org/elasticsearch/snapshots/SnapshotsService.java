@@ -3418,8 +3418,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             "update snapshot state",
             update,
             ClusterStateTaskConfig.build(Priority.NORMAL),
-            SHARD_STATE_EXECUTOR,
-            update
+            SHARD_STATE_EXECUTOR
         );
     }
 

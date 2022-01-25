@@ -65,11 +65,9 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -275,11 +273,14 @@ public class MasterServiceTests extends ESTestCase {
                 "testClusterStateTaskListenerThrowingExceptionIsOkay",
                 update,
                 ClusterStateTaskConfig.build(Priority.NORMAL),
-                new ClusterStateTaskExecutor<Object>() {
+                new ClusterStateTaskExecutor<>() {
                     @Override
-                    public ClusterTasksResult<Object> execute(ClusterState currentState, List<Object> tasks) {
+                    public ClusterTasksResult<ClusterStateTaskListener> execute(
+                        ClusterState currentState,
+                        List<ClusterStateTaskListener> tasks
+                    ) {
                         ClusterState newClusterState = ClusterState.builder(currentState).build();
-                        return ClusterTasksResult.builder().successes(tasks).build(newClusterState);
+                        return ClusterTasksResult.<ClusterStateTaskListener>builder().successes(tasks).build(newClusterState);
                     }
 
                     @Override
@@ -287,8 +288,7 @@ public class MasterServiceTests extends ESTestCase {
                         published.set(true);
                         latch.countDown();
                     }
-                },
-                update
+                }
             );
 
             latch.await();
@@ -602,18 +602,16 @@ public class MasterServiceTests extends ESTestCase {
                             var executor = assignment.v1();
                             submittedTasks.addAndGet(tasks.size());
                             if (tasks.size() == 1) {
-                                var update = tasks.iterator().next();
                                 masterService.submitStateUpdateTask(
                                     threadName,
-                                    update,
+                                    tasks.iterator().next(),
                                     ClusterStateTaskConfig.build(randomFrom(Priority.values())),
-                                    executor,
-                                    update
+                                    executor
                                 );
                             } else {
                                 masterService.submitStateUpdateTasks(
                                     threadName,
-                                    tasks.stream().collect(toMap(Function.<Task>identity(), Function.<ClusterStateTaskListener>identity())),
+                                    tasks,
                                     ClusterStateTaskConfig.build(randomFrom(Priority.values())),
                                     executor
                                 );
@@ -685,8 +683,7 @@ public class MasterServiceTests extends ESTestCase {
                 (currentState, tasks) -> {
                     ClusterState newClusterState = ClusterState.builder(currentState).build();
                     return ClusterTasksResult.<ClusterStateTaskListener>builder().successes(tasks).build(newClusterState);
-                },
-                update
+                }
             );
 
             latch.await();

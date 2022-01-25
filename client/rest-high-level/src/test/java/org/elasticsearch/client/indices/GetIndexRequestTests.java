@@ -10,11 +10,7 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.indices.GetIndexRequest.Feature;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 public class GetIndexRequestTests extends ESTestCase {
 

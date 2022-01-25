@@ -49,7 +49,7 @@ Java Low Level REST Client::
 * Expose HTTP client and allow overriding meta header {es-pull}81955[#81955]
 
 License::
-* Add DEBUG log when DLS/FLS usage is detected {es-pull}82182[#82182] (issue: {es-issue}79152[#79152])
+* Add `DEBUG` log when document level security and field level security usage is detected {es-pull}82182[#82182] (issue: {es-issue}79152[#79152])
 
 Machine Learning::
 * Move datafeed stats action off of master node {es-pull}82271[#82271]

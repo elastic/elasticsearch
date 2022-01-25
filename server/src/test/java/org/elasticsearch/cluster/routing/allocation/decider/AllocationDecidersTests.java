@@ -79,7 +79,7 @@ public class AllocationDecidersTests extends ESTestCase {
         }));
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
-        final RoutingAllocation allocation = new RoutingAllocation(deciders, clusterState.getRoutingNodes(), clusterState, null, null, 0L);
+        final RoutingAllocation allocation = new RoutingAllocation(deciders, clusterState, null, null, 0L);
 
         allocation.setDebugMode(mode);
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message");
@@ -219,7 +219,6 @@ public class AllocationDecidersTests extends ESTestCase {
 
         final RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
-            clusterState.getRoutingNodes(),
             clusterState,
             null,
             null,

@@ -92,7 +92,6 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
         // if the allocation has happened
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
-            clusterState.getRoutingNodes(),
             clusterState,
             null,
             null,

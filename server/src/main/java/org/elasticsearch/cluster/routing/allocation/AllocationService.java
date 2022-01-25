@@ -301,7 +301,6 @@ public class AllocationService {
     public ClusterState adaptAutoExpandReplicas(ClusterState clusterState) {
         final Supplier<RoutingAllocation> allocationSupplier = () -> new RoutingAllocation(
             allocationDeciders,
-            clusterState.getRoutingNodes(),
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),

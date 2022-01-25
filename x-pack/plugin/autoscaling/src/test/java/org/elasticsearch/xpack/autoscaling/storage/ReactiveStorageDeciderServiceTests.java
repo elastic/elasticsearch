@@ -536,7 +536,6 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
-            clusterState.getRoutingNodes(),
             clusterState,
             null,
             null,
@@ -648,7 +647,6 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
-            clusterState.getRoutingNodes(),
             clusterState,
             null,
             null,

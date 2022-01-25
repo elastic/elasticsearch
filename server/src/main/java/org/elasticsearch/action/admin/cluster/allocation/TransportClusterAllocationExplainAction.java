@@ -92,11 +92,9 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
         final ClusterState state,
         final ActionListener<ClusterAllocationExplainResponse> listener
     ) {
-        final RoutingNodes routingNodes = state.getRoutingNodes();
         final ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
         final RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
-            routingNodes,
             state,
             clusterInfo,
             snapshotsInfoService.snapshotShardSizes(),

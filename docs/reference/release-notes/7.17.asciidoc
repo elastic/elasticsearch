@@ -69,7 +69,7 @@ Aggregations::
 * Fix missing fields in range aggregation response for date fields {es-pull}82732[#82732] (issue: {es-issue}82688[#82688])
 
 Authorization::
-* Fix FLS for frozen tier {es-pull}82521[#82521] (issues: {es-issue}78988[#78988], {es-issue}82044[#82044])
+* Fix field level security for frozen tier {es-pull}82521[#82521] (issues: {es-issue}78988[#78988], {es-issue}82044[#82044])
 
 CRUD::
 * Fix potential listener leak in `TransportBulkAction` {es-pull}81894[#81894]

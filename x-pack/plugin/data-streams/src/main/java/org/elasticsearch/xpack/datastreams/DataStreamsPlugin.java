@@ -63,7 +63,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
 
     public static final Setting<TimeValue> TIME_SERIES_POLL_INTERVAL = Setting.timeSetting(
         "time_series.poll_interval",
-        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueMinutes(5),
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueMinutes(10),
         Setting.Property.NodeScope

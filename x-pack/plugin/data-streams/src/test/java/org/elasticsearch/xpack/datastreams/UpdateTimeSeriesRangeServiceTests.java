@@ -59,7 +59,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         assertThat(result, not(sameInstance(in)));
         assertThat(getEndTime(result, dataStreamName, 0), equalTo(previousEndTime1));
         assertThat(getEndTime(result, dataStreamName, 1), not(equalTo(previousEndTime2)));
-        assertThat(getEndTime(result, dataStreamName, 1), equalTo(now.plus(2, ChronoUnit.HOURS).plus(1, ChronoUnit.MINUTES)));
+        assertThat(getEndTime(result, dataStreamName, 1), equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES)));
     }
 
     public void testUpdateTimeSeriesTemporalRange_NoUpdateBecauseReplicated() {
@@ -124,8 +124,8 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         ClusterState before = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(mbBuilder).build();
         ClusterState result = instance.updateTimeSeriesTemporalRange(before, now);
         assertThat(result, not(sameInstance(before)));
-        assertThat(getEndTime(result, dataStreamName1, 0), equalTo(now.plus(2, ChronoUnit.HOURS).plus(1, ChronoUnit.MINUTES)));
-        assertThat(getEndTime(result, dataStreamName2, 0), equalTo(now.plus(2, ChronoUnit.HOURS).plus(1, ChronoUnit.MINUTES)));
+        assertThat(getEndTime(result, dataStreamName1, 0), equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES)));
+        assertThat(getEndTime(result, dataStreamName2, 0), equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES)));
         assertThat(getEndTime(result, dataStreamName3, 0), equalTo(start));
     }
 

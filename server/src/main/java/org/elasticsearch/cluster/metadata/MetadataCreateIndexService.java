@@ -196,8 +196,8 @@ public class MetadataCreateIndexService {
                 deprecationLogger.warn(
                     DeprecationCategory.INDICES,
                     "index_name_starts_with_dot",
-                    "index name [{}] starts with a dot '.', in the next major version, index names "
-                        + "starting with a dot are reserved for hidden indices and system indices",
+                    "index name [{}] starts with a dot '.', index names starting with a dot are reserved for hidden indices and system "
+                        + "indices and creating them will be blocked in a future version.",
                     index
                 );
             }

@@ -657,8 +657,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             // Check deprecations
             assertFalse(checkerService.validateDotIndex(".test2", false));
             assertWarnings(
-                "index name [.test2] starts with a dot '.', in the next major version, index "
-                    + "names starting with a dot are reserved for hidden indices and system indices"
+                "index name [.test2] starts with a dot '.', index names starting with a dot are reserved for hidden indices and system "
+                    + "indices and creating them will be blocked in a future version."
             );
 
             // Check non-system hidden indices don't trigger a warning

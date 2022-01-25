@@ -58,7 +58,6 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
         clusterService.submitStateUpdateTask("delete-desired-nodes", new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                // TODO: trigger allocation?
                 return currentState.copyAndUpdateMetadata(metadata -> metadata.removeCustom(DesiredNodesMetadata.TYPE));
             }
         }, ClusterStateTaskExecutor.unbatched());

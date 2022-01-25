@@ -114,7 +114,7 @@ Monitoring::
 
 Other::
 * Checking both node and cluster settings in `NodeDeprecationChecks` {es-pull}82487[#82487] (issue: {es-issue}82484[#82484])
-* Getting `deprecation.skip_deprecated_settings` to work with dynamic settings {es-pull}81836[#81836]
+* Change `deprecation.skip_deprecated_settings` to work with dynamic settings {es-pull}81836[#81836]
 * Ignore dynamic settings specified by `deprecation.skip_deprecated_settings` in node deprecation checks {es-pull}82883[#82883] (issue: {es-issue}82889[#82889])
 
 Search::

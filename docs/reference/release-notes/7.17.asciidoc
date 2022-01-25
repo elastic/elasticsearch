@@ -122,7 +122,7 @@ Search::
 
 Snapshot/Restore::
 * Always fail snapshot deletion listeners on master fail over {es-pull}82361[#82361] (issue: {es-issue}81596[#81596])
-* Fix Potential Repository Corruption during Master Failover {es-pull}82912[#82912] (issue: {es-issue}82911[#82911])
+* Fix potential repository corruption during master failover {es-pull}82912[#82912] (issue: {es-issue}82911[#82911])
 * Remove Requirement for Key Setting on Azure Client Settings {es-pull}82030[#82030]
 
 

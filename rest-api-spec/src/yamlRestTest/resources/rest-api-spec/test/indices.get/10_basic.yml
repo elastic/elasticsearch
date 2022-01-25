@@ -180,4 +180,4 @@ setup:
 
   - is_true: test_index.aliases
   - is_true: test_index.settings
-  - is_false: test_index.mappings
+  - match:   { test_index.mappings: {}}

@@ -66,7 +66,7 @@ Watcher::
 Aggregations::
 * Fix bucket keys format for range aggregations on float field {es-pull}81801[#81801] (issue: {es-issue}81749[#81749])
 * Fix cardinality aggregation in asynchronous search {es-pull}82108[#82108]
-* Fix: missing fields in range aggregation response for date fields {es-pull}82732[#82732] (issue: {es-issue}82688[#82688])
+* Fix missing fields in range aggregation response for date fields {es-pull}82732[#82732] (issue: {es-issue}82688[#82688])
 
 Authorization::
 * Fix FLS for frozen tier {es-pull}82521[#82521] (issues: {es-issue}78988[#78988], {es-issue}82044[#82044])

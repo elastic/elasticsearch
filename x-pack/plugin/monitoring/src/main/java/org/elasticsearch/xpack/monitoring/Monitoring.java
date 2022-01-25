@@ -319,11 +319,14 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
                         .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, templateSource)
                 ) {
                     IndexTemplateMetadata updatedTemplate = IndexTemplateMetadata.Builder.fromXContent(parser, templateName);
-                    logger.info("created template [{}] with version [{}]", templateName, MonitoringTemplateUtils.TEMPLATE_VERSION);
+                    logger.info("creating template [{}] with version [{}]", templateName, MonitoringTemplateUtils.TEMPLATE_VERSION);
                     createdTemplates.add(updatedTemplate);
                 } catch (IOException e) {
                     logger.error("unable to create template [" + templateName + "]", e);
                 }
+                // Loading a template involves IO to some specific locations, looking for files with set names.
+                // We're catching Exception here as we don't want to let anything that might fail in that process bubble up from the
+                // upgrade template metadata infrastructure as that would prevent a node from starting
             } catch (Exception e) {
                 logger.error("unable to create monitoring template", e);
             }

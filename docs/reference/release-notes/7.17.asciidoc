@@ -82,7 +82,7 @@ Geo::
 * `GeoPolygonDecomposer` might fail due to numerical errors when calculating intersection with the dateline {es-pull}82953[#82953] (issue: {es-issue}82840[#82840])
 
 ILM+SLM::
-* Data tiers: migrate the coldest node attribute {es-pull}81940[#81940] (issue: {es-issue}81633[#81633])
+* Migrate the coldest node attribute for data tier routing {es-pull}81940[#81940] (issue: {es-issue}81633[#81633])
 * ILM step retry safe refresh of the cached phase {es-pull}82613[#82613] (issue: {es-issue}81921[#81921])
 * ILM: fix allocate action to allow only `total_shards_per_node` {es-pull}81944[#81944] (issue: {es-issue}81943[#81943])
 

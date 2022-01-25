@@ -252,11 +252,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * to moving backwards due to NTP and other such complexities, etc.). There are also issues with
      * using a relative clock for reporting real time. Thus, we simply separate these two uses.
      */
-    static final class SearchTimeProvider {
-
-        private final long absoluteStartMillis;
-        private final long relativeStartNanos;
-        private final LongSupplier relativeCurrentNanosProvider;
+    record SearchTimeProvider(long absoluteStartMillis, long relativeStartNanos, LongSupplier relativeCurrentNanosProvider) {
 
         /**
          * Instantiates a new search time provider. The absolute start time is the real clock time
@@ -265,19 +261,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
          * operation took can be measured against the provided relative clock and the relative start
          * time.
          *
-         * @param absoluteStartMillis the absolute start time in milliseconds since the epoch
-         * @param relativeStartNanos the relative start time in nanoseconds
+         * @param absoluteStartMillis          the absolute start time in milliseconds since the epoch
+         * @param relativeStartNanos           the relative start time in nanoseconds
          * @param relativeCurrentNanosProvider provides the current relative time
          */
-        SearchTimeProvider(final long absoluteStartMillis, final long relativeStartNanos, final LongSupplier relativeCurrentNanosProvider) {
-            this.absoluteStartMillis = absoluteStartMillis;
-            this.relativeStartNanos = relativeStartNanos;
-            this.relativeCurrentNanosProvider = relativeCurrentNanosProvider;
-        }
-
-        long getAbsoluteStartMillis() {
-            return absoluteStartMillis;
-        }
+        SearchTimeProvider {}
 
         long buildTookInMillis() {
             return TimeUnit.NANOSECONDS.toMillis(relativeCurrentNanosProvider.getAsLong() - relativeStartNanos);
@@ -411,7 +399,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 );
             } else {
                 if (shouldMinimizeRoundtrips(rewritten)) {
-                    final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).getTaskId();
+                    final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
                     ccsRemoteReduce(
                         parentTaskId,
                         rewritten,
@@ -487,7 +475,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             }
         }, listener::onFailure);
-        Rewriteable.rewriteAndFetch(original, searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis), rewriteListener);
+        Rewriteable.rewriteAndFetch(original, searchService.getRewriteContext(timeProvider::absoluteStartMillis), rewriteListener);
     }
 
     static boolean shouldMinimizeRoundtrips(SearchRequest searchRequest) {
@@ -535,7 +523,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest,
                 indices.indices(),
                 clusterAlias,
-                timeProvider.getAbsoluteStartMillis(),
+                timeProvider.absoluteStartMillis(),
                 true
             );
             Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
@@ -598,7 +586,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchRequest,
                     indices.indices(),
                     clusterAlias,
-                    timeProvider.getAbsoluteStartMillis(),
+                    timeProvider.absoluteStartMillis(),
                     false
                 );
                 ActionListener<SearchResponse> ccsListener = createCCSListener(
@@ -630,7 +618,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchRequest,
                     localIndices.indices(),
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                    timeProvider.getAbsoluteStartMillis(),
+                    timeProvider.absoluteStartMillis(),
                     false
                 );
                 localSearchConsumer.accept(ccsLocalSearchRequest, ccsListener);
@@ -886,7 +874,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         List<String> frozenIndices = null;
-        Index[] indices = indexNameExpressionResolver.concreteIndices(clusterState, localIndices, timeProvider.getAbsoluteStartMillis());
+        Index[] indices = indexNameExpressionResolver.concreteIndices(clusterState, localIndices, timeProvider.absoluteStartMillis());
         for (Index index : indices) {
             IndexMetadata indexMetadata = clusterState.metadata().index(index);
             if (indexMetadata.getSettings().getAsBoolean("index.frozen", false)) {
@@ -1186,7 +1174,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     return action;
                 },
                 clusters,
-                searchService.getCoordinatorRewriteContextProvider(timeProvider::getAbsoluteStartMillis)
+                searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis)
             );
         } else {
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(

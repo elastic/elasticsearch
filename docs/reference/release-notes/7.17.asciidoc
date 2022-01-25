@@ -113,7 +113,7 @@ Monitoring::
 * Always attempt upgrade monitoring templates {es-pull}82713[#82713] (issue: {es-issue}82453[#82453])
 
 Other::
-* Checking both node and cluster settings in `NodeDeprecationChecks` {es-pull}82487[#82487] (issue: {es-issue}82484[#82484])
+* Check both node and cluster settings in `NodeDeprecationChecks` {es-pull}82487[#82487] (issue: {es-issue}82484[#82484])
 * Change `deprecation.skip_deprecated_settings` to work with dynamic settings {es-pull}81836[#81836]
 * Ignore dynamic settings specified by `deprecation.skip_deprecated_settings` in node deprecation checks {es-pull}82883[#82883] (issue: {es-issue}82889[#82889])
 

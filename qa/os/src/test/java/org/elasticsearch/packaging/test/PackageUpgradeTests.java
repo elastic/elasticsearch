@@ -46,7 +46,9 @@ public class PackageUpgradeTests extends PackagingTestCase {
     public void test10InstallBwcVersion() throws Exception {
         installation = installPackage(sh, bwcDistribution);
         assertInstalled(bwcDistribution);
-        possiblyRemoveSecurityConfiguration(installation);
+        if (installation.distribution.baseVersion.startsWith("8.")) {
+            possiblyRemoveSecurityConfiguration(installation);
+        }
         // TODO: Add more tests here to assert behavior when updating from < v8 to > v8 with implicit/explicit behavior,
     }
 
@@ -95,6 +97,11 @@ public class PackageUpgradeTests extends PackagingTestCase {
         } else {
             installation = Packages.upgradePackage(sh, distribution);
         }
+        // We add this so that we don't trigger the SecurityImplicitBehaviorBootstrapCheck in 8
+        if (bwcDistribution.baseVersion.startsWith("7.") && distribution.baseVersion.startsWith("8.")) {
+            ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.enabled", "false");
+        }
+
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
         verifySecurityNotAutoConfigured(installation);
@@ -115,8 +122,8 @@ public class PackageUpgradeTests extends PackagingTestCase {
 
     private void possiblyRemoveSecurityConfiguration(Installation es) throws IOException {
         ServerUtils.disableSecurityFeatures(installation);
-        if (Files.exists(installation.config("certs"))) {
-            FileUtils.rm(installation.config("certs"));
+        if (Files.exists(es.config("certs"))) {
+            FileUtils.rm(es.config("certs"));
         }
         // remove security auto-configuration entries, in case bwc was > 8, since we disable security
         for (String entry : List.of(
@@ -125,8 +132,8 @@ public class PackageUpgradeTests extends PackagingTestCase {
             "xpack.security.http.ssl.keystore.secure_password",
             "autoconfiguration.password_hash"
         )) {
-            if (installation.executables().keystoreTool.run("list").stdout().contains(entry)) {
-                installation.executables().keystoreTool.run("remove " + entry);
+            if (es.executables().keystoreTool.run("list").stdout().contains(entry)) {
+                es.executables().keystoreTool.run("remove " + entry);
             }
         }
     }

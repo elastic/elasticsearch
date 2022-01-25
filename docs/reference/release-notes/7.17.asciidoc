@@ -22,13 +22,13 @@ Transform::
 [float]
 === Enhancements
 
+Audit::
+* Emit `trace.id` into audit logs {es-pull}82849[#82849] (issue: {es-issue}74210[#74210])
+
 Authorization::
 * Make authz perf log msg configurable and disabled by default {es-pull}82648[#82648] (issue: {es-issue}75439[#75439])
 * Allow read template with cluster monitor privilege {es-pull}82046[#82046] (issue: {es-issue}78832[#78832])
 * [Security Solution] Add kibana system permissions for Endpoint action indices {es-pull}81953[#81953]
-
-Build::
-* Make `ValidateJsonNoKeywordsTask` gradle configuration cache ready [OPEN] {es-pull}82864[#82864]
 
 ILM+SLM::
 * Migrate legacy/v2/component templates away from custom attributes routing {es-pull}82472[#82472] (issue: {es-issue}82170[#82170])
@@ -43,7 +43,7 @@ Infra/Settings::
 Java Low Level REST Client::
 * LLRC: expose http client and allow overriding meta header {es-pull}81955[#81955]
 
-License::
+Licence::
 * Add DEBUG log when DLS/FLS usage is detected {es-pull}82182[#82182] (issue: {es-issue}79152[#79152])
 
 Machine Learning::
@@ -111,7 +111,6 @@ Snapshot/Restore::
 * Always fail snapshot deletion listeners on master fail over {es-pull}82361[#82361] (issue: {es-issue}81596[#81596])
 * Fix Potential Repository Corruption during Master Failover {es-pull}82912[#82912] (issue: {es-issue}82911[#82911])
 * Remove Requirement for Key Setting on Azure Client Settings {es-pull}82030[#82030]
-* Support GKE Workload Identity for Searchable Snapshots [OPEN] {es-pull}82974[#82974] (issue: {es-issue}82702[#82702])
 
 
 

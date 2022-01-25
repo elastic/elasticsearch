@@ -46,7 +46,7 @@ Infra/Settings::
 * Implement setting deduplication via string interning {es-pull}80493[#80493] (issues: {es-issue}77466[#77466], {es-issue}78892[#78892])
 
 Java Low Level REST Client::
-* LLRC: expose http client and allow overriding meta header {es-pull}81955[#81955]
+* Expose HTTP client and allow overriding meta header {es-pull}81955[#81955]
 
 License::
 * Add DEBUG log when DLS/FLS usage is detected {es-pull}82182[#82182] (issue: {es-issue}79152[#79152])

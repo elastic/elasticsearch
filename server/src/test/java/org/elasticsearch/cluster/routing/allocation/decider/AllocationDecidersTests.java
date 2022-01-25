@@ -217,13 +217,7 @@ public class AllocationDecidersTests extends ESTestCase {
             .numberOfReplicas(0)
             .build();
 
-        final RoutingAllocation allocation = new RoutingAllocation(
-            allocationDeciders,
-            clusterState,
-            null,
-            null,
-            0L
-        );
+        final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, 0L);
         assertSame(Decision.NO, allocationDeciders.canAllocate(shardRouting, routingNode, allocation));
         assertSame(Decision.NO, allocationDeciders.canRebalance(shardRouting, allocation));
         assertSame(Decision.NO, allocationDeciders.canRemain(shardRouting, routingNode, allocation));

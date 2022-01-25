@@ -616,13 +616,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .build();
 
         allocationService.reroute(clusterState, "foo");
-        RoutingAllocation allocationWithMissingSourceIndex = new RoutingAllocation(
-            null,
-            clusterStateWithMissingSourceIndex,
-            info,
-            null,
-            0
-        );
+        RoutingAllocation allocationWithMissingSourceIndex = new RoutingAllocation(null, clusterStateWithMissingSourceIndex, info, null, 0);
         assertEquals(42L, getExpectedShardSize(target, 42L, allocationWithMissingSourceIndex));
         assertEquals(42L, getExpectedShardSize(target2, 42L, allocationWithMissingSourceIndex));
     }

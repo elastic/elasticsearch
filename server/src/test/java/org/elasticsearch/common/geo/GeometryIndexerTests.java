@@ -509,6 +509,41 @@ public class GeometryIndexerTests extends ESTestCase {
         assertTrue(geometry instanceof MultiPolygon);
     }
 
+    public void testIssue82840() {
+        Polygon polygon = new Polygon(
+            new LinearRing(
+                new double[] { -143.10690080319134, -143.10690080319134, 62.41055750853541, -143.10690080319134 },
+                new double[] { -90.0, -30.033129816260214, -30.033129816260214, -90.0 }
+            )
+        );
+        MultiPolygon indexedCCW = new MultiPolygon(
+            Arrays.asList(
+                new Polygon(
+                    new LinearRing(
+                        new double[] { 180.0, 180.0, 62.41055750853541, 180.0 },
+                        new double[] { -75.67887564489237, -30.033129816260214, -30.033129816260214, -75.67887564489237 }
+                    )
+                ),
+                new Polygon(
+                    new LinearRing(
+                        new double[] { -180.0, -180.0, -143.10690080319134, -143.10690080319134, -180.0 },
+                        new double[] { -30.033129816260214, -75.67887564489237, -90.0, -30.033129816260214, -30.033129816260214 }
+                    )
+                )
+            )
+        );
+        GeoShapeIndexer indexerCCW = new GeoShapeIndexer(true, "test");
+        assertEquals(indexedCCW, indexerCCW.prepareForIndexing(polygon));
+        Polygon indexedCW = new Polygon(
+            new LinearRing(
+                new double[] { -143.10690080319134, 62.41055750853541, -143.10690080319134, -143.10690080319134 },
+                new double[] { -30.033129816260214, -30.033129816260214, -90.0, -30.033129816260214 }
+            )
+        );
+        GeoShapeIndexer indexerCW = new GeoShapeIndexer(false, "test");
+        assertEquals(indexedCW, indexerCW.prepareForIndexing(polygon));
+    }
+
     private XContentBuilder polygon(Boolean orientation, double... val) throws IOException {
         XContentBuilder pointGeoJson = XContentFactory.jsonBuilder().startObject();
         {

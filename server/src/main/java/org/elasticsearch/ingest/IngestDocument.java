@@ -10,6 +10,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyMap;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -741,7 +742,7 @@ public final class IngestDocument {
 
     public static Object deepCopy(Object value) {
         if (value instanceof Map<?, ?> mapValue) {
-            Map<Object, Object> copy = new HashMap<>(mapValue.size());
+            Map<Object, Object> copy = Maps.newMapWithExpectedSize(mapValue.size());
             for (Map.Entry<?, ?> entry : mapValue.entrySet()) {
                 copy.put(entry.getKey(), deepCopy(entry.getValue()));
             }

@@ -338,7 +338,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             ranPolicy.set(true);
             throw new AssertionError("invalid invocation");
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(), eq(IndexLifecycleRunner.ILM_TASK_CONFIG), any(), any());
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(), eq(IndexLifecycleRunner.ILM_TASK_CONFIG), any());
 
         doAnswer(invocationOnMock -> {
             OperationModeUpdateTask task = (OperationModeUpdateTask) invocationOnMock.getArguments()[1];

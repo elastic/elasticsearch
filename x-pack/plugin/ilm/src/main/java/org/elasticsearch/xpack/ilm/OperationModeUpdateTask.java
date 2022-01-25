@@ -154,7 +154,7 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
         if (ilmMode != null) {
             logger.info("ILM operation mode updated to {}", ilmMode);
         }

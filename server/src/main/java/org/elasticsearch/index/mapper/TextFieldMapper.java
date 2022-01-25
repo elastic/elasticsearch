@@ -242,7 +242,9 @@ public class TextFieldMapper extends FieldMapper {
             true,
             () -> DEFAULT_FILTER,
             TextFieldMapper::parseFrequencyFilter,
-            m -> ((TextFieldMapper) m).freqFilter
+            m -> ((TextFieldMapper) m).freqFilter,
+            XContentBuilder::field,
+            Objects::toString
         );
         final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
             "eager_global_ordinals",
@@ -257,7 +259,9 @@ public class TextFieldMapper extends FieldMapper {
             false,
             () -> null,
             TextFieldMapper::parsePrefixConfig,
-            m -> ((TextFieldMapper) m).indexPrefixes
+            m -> ((TextFieldMapper) m).indexPrefixes,
+            XContentBuilder::field,
+            Objects::toString
         ).acceptsNull();
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();

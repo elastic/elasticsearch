@@ -198,7 +198,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
                 .getMetadata()
                 .index("test")
                 .getLifecycleExecutionState();
-            assertThat(lifecycleState.getStep(), equalTo("complete"));
+            assertThat(lifecycleState.step(), equalTo("complete"));
         });
     }
 
@@ -467,7 +467,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
                 .getMetadata()
                 .index("test")
                 .getLifecycleExecutionState();
-            assertThat(lifecycleState.getStep(), equalTo("complete"));
+            assertThat(lifecycleState.step(), equalTo("complete"));
         });
     }
 

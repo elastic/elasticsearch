@@ -254,7 +254,7 @@ public class RetryTests extends ESIntegTestCase {
          */
         ListTasksResponse response = client().admin().cluster().prepareListTasks().setActions(action).setDetailed(true).get();
         assertThat(response.getTasks(), hasSize(1));
-        return (BulkByScrollTask.Status) response.getTasks().get(0).getStatus();
+        return (BulkByScrollTask.Status) response.getTasks().get(0).status();
     }
 
 }

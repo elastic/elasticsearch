@@ -316,13 +316,5 @@ public abstract class IndexRouting {
         }
     }
 
-    private static class NameAndHash {
-        private final String name;
-        private final int hash;
-
-        NameAndHash(String name, int hash) {
-            this.name = name;
-            this.hash = hash;
-        }
-    }
+    private record NameAndHash(String name, int hash) {}
 }

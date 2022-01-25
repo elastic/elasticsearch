@@ -123,7 +123,7 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
 
                 final ClusterStateObserver observer = new ClusterStateObserver(
                     clusterService,

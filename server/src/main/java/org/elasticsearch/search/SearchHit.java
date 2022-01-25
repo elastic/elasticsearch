@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
@@ -195,7 +196,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         shard(in.readOptionalWriteable(SearchShardTarget::new));
         size = in.readVInt();
         if (size > 0) {
-            innerHits = new HashMap<>(size);
+            innerHits = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 String key = in.readString();
                 SearchHits value = new SearchHits(in);
@@ -217,7 +218,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             DocumentField hitField = new DocumentField(in);
             fields = singletonMap(hitField.getName(), hitField);
         } else {
-            fields = new HashMap<>(size);
+            fields = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 DocumentField field = new DocumentField(in);
                 fields.put(field.getName(), field);

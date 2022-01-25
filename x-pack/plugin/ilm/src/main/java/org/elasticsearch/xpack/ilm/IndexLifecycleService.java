@@ -494,10 +494,10 @@ public class IndexLifecycleService
                 indexToMetadata -> Strings.hasText(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexToMetadata.getValue().getSettings()))
             )
             // Only look at indices in the shrink action
-            .filter(indexToMetadata -> ShrinkAction.NAME.equals(indexToMetadata.getValue().getLifecycleExecutionState().getAction()))
+            .filter(indexToMetadata -> ShrinkAction.NAME.equals(indexToMetadata.getValue().getLifecycleExecutionState().action()))
             // Only look at indices on a step that may potentially be dangerous if we removed the node
             .filter(indexToMetadata -> {
-                String step = indexToMetadata.getValue().getLifecycleExecutionState().getStep();
+                String step = indexToMetadata.getValue().getLifecycleExecutionState().step();
                 return SetSingleNodeAllocateStep.NAME.equals(step)
                     || CheckShrinkReadyStep.NAME.equals(step)
                     || ShrinkStep.NAME.equals(step)

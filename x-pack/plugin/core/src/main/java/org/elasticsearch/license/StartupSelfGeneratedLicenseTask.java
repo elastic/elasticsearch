@@ -43,7 +43,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
         LicensesMetadata licensesMetadata = newState.metadata().custom(LicensesMetadata.TYPE);
         if (logger.isDebugEnabled()) {
             logger.debug("registered self generated license: {}", licensesMetadata);

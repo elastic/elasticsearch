@@ -38,6 +38,7 @@ import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
+import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
@@ -59,6 +60,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.LineNumberReader;
 import java.io.UncheckedIOException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -126,6 +128,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private final ExecOperations execOperations;
+    private final FileOperations fileOperations;
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path workingDir;
 
@@ -180,6 +183,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         ExecOperations execOperations,
+        FileOperations fileOperations,
         File workingDirBase,
         Provider<File> runtimeJava
     ) {
@@ -191,6 +195,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
         this.execOperations = execOperations;
+        this.fileOperations = fileOperations;
         this.runtimeJava = runtimeJava;
         workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
         confPathRepo = workingDir.resolve("repo");
@@ -759,7 +764,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private File getBuildPluginFile(String name) {
-        return project.getRootProject().file("build-tools/src/main/resources/" + name);
+        URL resource = getClass().getResource(name);
+        return fileOperations.getResources().getText().fromUri(resource).asFile();
     }
 
     @Override

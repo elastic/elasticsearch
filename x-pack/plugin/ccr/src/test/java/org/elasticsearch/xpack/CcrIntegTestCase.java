@@ -536,7 +536,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             ListTasksResponse listTasksResponse = followerClient().admin().cluster().listTasks(listTasksRequest).get();
             int numNodeTasks = 0;
             for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
-                if (taskInfo.getAction().startsWith(ListTasksAction.NAME) == false) {
+                if (taskInfo.action().startsWith(ListTasksAction.NAME) == false) {
                     numNodeTasks++;
                 }
             }
@@ -694,7 +694,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                     shardRouting.shardId().id(),
                     docsOnShard.stream()
                         // normalize primary term as the follower use its own term
-                        .map(d -> new DocIdSeqNoAndSource(d.getId(), d.getSource(), d.getSeqNo(), 1L, d.getVersion()))
+                        .map(d -> new DocIdSeqNoAndSource(d.id(), d.source(), d.seqNo(), 1L, d.version()))
                         .collect(Collectors.toList())
                 );
             } catch (AlreadyClosedException e) {
@@ -908,7 +908,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 latch.countDown();
             }
         }, ClusterStateTaskExecutor.unbatched());

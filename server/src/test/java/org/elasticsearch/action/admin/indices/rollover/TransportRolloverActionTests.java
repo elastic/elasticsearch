@@ -97,7 +97,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         final ArgumentCaptor<Condition.Stats> argument = ArgumentCaptor.forClass(Condition.Stats.class);
         verify(condition).evaluate(argument.capture());
 
-        assertEquals(docsInPrimaryShards, argument.getValue().numDocs);
+        assertEquals(docsInPrimaryShards, argument.getValue().numDocs());
     }
 
     public void testEvaluateConditions() {

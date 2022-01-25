@@ -141,18 +141,18 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         );
         if (hasAggs
             // reduced aggregations can be null if all shards failed
-            && reducePhase.aggregations != null) {
+            && reducePhase.aggregations() != null) {
 
             // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result
-            long finalSize = DelayableWriteable.getSerializedSize(reducePhase.aggregations) - breakerSize;
+            long finalSize = DelayableWriteable.getSerializedSize(reducePhase.aggregations()) - breakerSize;
             pendingMerges.addWithoutBreaking(finalSize);
             logger.trace("aggs final reduction [{}] max [{}]", pendingMerges.aggsCurrentBufferSize, pendingMerges.maxAggsCurrentBufferSize);
         }
         progressListener.notifyFinalReduce(
             SearchProgressListener.buildSearchShards(results.asList()),
-            reducePhase.totalHits,
-            reducePhase.aggregations,
-            reducePhase.numReducePhases
+            reducePhase.totalHits(),
+            reducePhase.aggregations(),
+            reducePhase.numReducePhases()
         );
         return reducePhase;
     }
@@ -498,24 +498,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
     }
 
-    private static class MergeResult {
-        private final List<SearchShard> processedShards;
-        private final TopDocs reducedTopDocs;
-        private final InternalAggregations reducedAggs;
-        private final long estimatedSize;
-
-        private MergeResult(
-            List<SearchShard> processedShards,
-            TopDocs reducedTopDocs,
-            InternalAggregations reducedAggs,
-            long estimatedSize
-        ) {
-            this.processedShards = processedShards;
-            this.reducedTopDocs = reducedTopDocs;
-            this.reducedAggs = reducedAggs;
-            this.estimatedSize = estimatedSize;
-        }
-    }
+    private record MergeResult(
+        List<SearchShard> processedShards,
+        TopDocs reducedTopDocs,
+        InternalAggregations reducedAggs,
+        long estimatedSize
+    ) {}
 
     private static class MergeTask {
         private final List<SearchShard> emptyResults;

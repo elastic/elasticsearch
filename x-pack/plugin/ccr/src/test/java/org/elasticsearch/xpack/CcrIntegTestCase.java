@@ -536,7 +536,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             ListTasksResponse listTasksResponse = followerClient().admin().cluster().listTasks(listTasksRequest).get();
             int numNodeTasks = 0;
             for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
-                if (taskInfo.getAction().startsWith(ListTasksAction.NAME) == false) {
+                if (taskInfo.action().startsWith(ListTasksAction.NAME) == false) {
                     numNodeTasks++;
                 }
             }

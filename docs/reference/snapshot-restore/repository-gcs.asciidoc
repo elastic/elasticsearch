@@ -1,5 +1,5 @@
 [[repository-gcs]]
-=== Google Cloud Storage Repository
+=== Google Cloud Storage repository
 
 You can use the https://cloud.google.com/storage/[Google Cloud Storage]
 service as a repository for {ref}/modules-snapshots.html[Snapshot/Restore].
@@ -15,7 +15,7 @@ and create a new project. After your project is created, you must enable the
 Cloud Storage Service for your project.
 
 [[repository-gcs-creating-bucket]]
-===== Creating a Bucket
+===== Creating a bucket
 
 The Google Cloud Storage service uses the concept of a
 https://cloud.google.com/storage/docs/key-terms[bucket] as a container for all
@@ -38,7 +38,7 @@ For more detailed instructions, see the
 https://cloud.google.com/storage/docs/quickstart-console#create_a_bucket[Google Cloud documentation].
 
 [[repository-gcs-service-authentication]]
-===== Service Authentication
+===== Service authentication
 
 The repository must authenticate the requests it makes to the Google Cloud Storage
 service. It is common for Google client libraries to employ a strategy named https://cloud.google.com/docs/authentication/production#providing_credentials_to_your_application[application default credentials].
@@ -54,7 +54,7 @@ credentials if you are using an environment that does not support automatic
 credential discovery.
 
 [[repository-gcs-using-service-account]]
-===== Using a Service Account
+===== Using a service account
 You have to obtain and provide https://cloud.google.com/iam/docs/overview#service_account[service account credentials]
 manually.
 
@@ -125,7 +125,7 @@ of the client's `credentials_file` settings. They complete using the client as
 it was built when the operation started.
 
 [[repository-gcs-client]]
-==== Client Settings
+==== Client settings
 
 The client used to connect to Google Cloud Storage has a number of settings available.
 Client setting names are of the form `gcs.client.CLIENT_NAME.SETTING_NAME` and are specified
@@ -191,18 +191,8 @@ are marked as `Secure`.
     can be specified explicitly. For example, it can be used to switch between projects when the
     same credentials are usable for both the production and the development projects.
 
-`proxy.host`::
-    The host name of a proxy to connect to the Google Cloud Storage through.
-
-`proxy.port`::
-    The port of a proxy to connect to the Google Cloud Storage through.
-
-`proxy.type`::
-    The proxy type for the client. Supported values are `direct`, `http`, and `socks`.
-    The default value is `direct` (no proxy).
-
 [[repository-gcs-repository]]
-==== Repository Settings
+==== Repository settings
 
 The `gcs` repository type supports a number of settings to customize how data
 is stored in Google Cloud Storage.
@@ -262,7 +252,7 @@ include::repository-shared-settings.asciidoc[]
     Name used by the client when it uses the Google Cloud Storage service.
 
 [[repository-gcs-bucket-permission]]
-===== Recommended Bucket Permission
+===== Recommended bucket permission
 
 The service account used to access the bucket must have the "Writer" access to the bucket:
 

@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -48,8 +47,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.Stack;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -67,7 +64,6 @@ public class SeedHostsResolverTests extends ESTestCase {
     private List<TransportAddress> transportAddresses;
     private SeedHostsResolver seedHostsResolver;
     private ThreadPool threadPool;
-    private ExecutorService executorService;
     // close in reverse order as opened
     private Stack<Closeable> closeables;
 
@@ -75,23 +71,11 @@ public class SeedHostsResolverTests extends ESTestCase {
     public void startResolver() {
         threadPool = new TestThreadPool("node");
         transportAddresses = new ArrayList<>();
+        closeables = new Stack<>();
 
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
-
         recreateSeedHostsResolver(transportService);
-
-        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory("[" + getClass().getName() + "]");
-        executorService = EsExecutors.newScaling(
-            getClass().getName() + "/" + getTestName(),
-            0,
-            2,
-            60,
-            TimeUnit.SECONDS,
-            threadFactory,
-            threadPool.getThreadContext()
-        );
-        closeables = new Stack<>();
     }
 
     private void recreateSeedHostsResolver(TransportService transportService) {
@@ -118,7 +102,6 @@ public class SeedHostsResolverTests extends ESTestCase {
             }
             IOUtils.close(reverse);
         } finally {
-            terminate(executorService);
             terminate(threadPool);
         }
     }

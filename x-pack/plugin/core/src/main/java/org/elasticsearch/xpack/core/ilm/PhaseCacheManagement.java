@@ -71,7 +71,7 @@ public final class PhaseCacheManagement {
         logger.trace("[{}] updating cached phase definition for policy [{}]", index, updatedPolicy.getName());
         LifecycleExecutionState currentExState = idxMeta.getLifecycleExecutionState();
 
-        String currentPhase = currentExState.getPhase();
+        String currentPhase = currentExState.phase();
         PhaseExecutionInfo pei = new PhaseExecutionInfo(
             updatedPolicy.getName(),
             updatedPolicy.getPolicy().getPhases().get(currentPhase),
@@ -97,7 +97,7 @@ public final class PhaseCacheManagement {
      */
     public static boolean eligibleToCheckForRefresh(final IndexMetadata metadata) {
         LifecycleExecutionState executionState = metadata.getLifecycleExecutionState();
-        if (executionState == null || executionState.getPhaseDefinition() == null) {
+        if (executionState == null || executionState.phaseDefinition() == null) {
             return false;
         }
 
@@ -212,7 +212,7 @@ public final class PhaseCacheManagement {
             return false;
         }
 
-        final String phaseDef = executionState.getPhaseDefinition();
+        final String phaseDef = executionState.phaseDefinition();
         final Set<Step.StepKey> oldStepKeys = readStepKeys(xContentRegistry, client, phaseDef, currentPhase, licenseState);
         if (oldStepKeys == null) {
             logger.debug(

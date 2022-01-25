@@ -40,7 +40,7 @@ Infra/Core::
 
 Infra/Logging::
 * Adjust ILM policy for deprecation logs {es-pull}82833[#82833]
-* Do no use x-opaque-id for deduplicating elastic originating requests {es-pull}82855[#82855] (issue: {es-issue}82810[#82810])
+* Do no use `x-opaque-id` for deduplicating Elastic originating requests {es-pull}82855[#82855] (issue: {es-issue}82810[#82810])
 
 Infra/Settings::
 * Implement setting deduplication via string interning {es-pull}80493[#80493] (issues: {es-issue}77466[#77466], {es-issue}78892[#78892])

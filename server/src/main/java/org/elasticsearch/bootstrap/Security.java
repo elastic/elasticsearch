@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.lang.module.Configuration;
 import java.lang.module.ModuleReference;
 import java.lang.module.ResolvedModule;
 import java.lang.reflect.Field;
@@ -40,9 +41,11 @@ import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.Permissions;
 import java.security.Policy;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -118,10 +121,12 @@ final class Security {
     }
 
     private static Stream<URL> parseModulePath() {
-        return ModuleLayer.boot()
-            .configuration()
-            .modules()
-            .stream()
+        ModuleLayer layer = Security.class.getModule().getLayer();
+        return Stream.concat(
+                Stream.of(layer),
+                layer.parents().stream())
+            .map(ModuleLayer::configuration)
+            .flatMap(cf -> cf.modules().stream())
             .map(ResolvedModule::reference)
             .map(ModuleReference::location)
             .flatMap(Optional::stream)

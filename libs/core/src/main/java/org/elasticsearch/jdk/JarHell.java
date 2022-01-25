@@ -60,6 +60,9 @@ public class JarHell {
         System.out.println("no jar hell found");
     }
 
+    // #### TODO. update the class/module path as required to enable checks.
+    //  we want checks to ensure that plugins don't collide pkg name with modules
+
     /**
      * Checks the current classpath for duplicate classes
      * @param output A {@link String} {@link Consumer} to which debug output will be sent
@@ -92,6 +95,9 @@ public class JarHell {
      */
     @SuppressForbidden(reason = "resolves against CWD because that is how classpaths work")
     static Set<URL> parseClassPath(String classPath) {
+        if (classPath.isEmpty()) {
+            return Set.of();
+        }
         String pathSeparator = System.getProperty("path.separator");
         String fileSeparator = System.getProperty("file.separator");
         String elements[] = classPath.split(pathSeparator);

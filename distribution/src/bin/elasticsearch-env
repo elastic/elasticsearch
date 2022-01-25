@@ -33,7 +33,7 @@ done
 ES_HOME=`dirname "$ES_HOME"`
 
 # now set the classpath
-ES_CLASSPATH="$ES_HOME/lib/*"
+ES_CLASSPATH="$ES_HOME/lib/mods/*"  # for the initial launcher ! (make the CLI tools modules too)
 ES_MODULEPATH="$ES_HOME/lib/"
 
 # now set the path to java

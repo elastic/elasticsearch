@@ -1,0 +1,39 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.build'
+apply plugin: 'nebula.optional-base'
+
+archivesBaseName = 'elasticsearch-boot'
+
+dependencies {
+  // there are no dependencies beyond the JDK.
+}
+
+tasks.named("test").configure { enabled = false }
+// Since CLI does not depend on :server, it cannot run the jarHell task
+tasks.named("jarHell").configure { enabled = false }
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+plugins.withType(JavaPlugin) {
+  // Configure the version attribute.
+  tasks.withType(JavaCompile).configureEach {
+    it.options.compilerArgumentProviders.add(
+      (CommandLineArgumentProvider) { ->
+        return ["--module-version", project.version.toString()]
+      }
+    )
+    it.options.javaModuleVersion.set(
+      provider {
+        return project.version.toString()
+      }
+    )
+  }
+}

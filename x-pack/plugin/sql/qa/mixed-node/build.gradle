@@ -21,7 +21,7 @@ testClusters.configureEach {
 tasks.named("integTest").configure{ enabled = false}
 
 // A bug (https://github.com/elastic/elasticsearch/issues/68439) limits us to perform tests with versions from 7.10.3 onwards
-BuildParams.bwcVersions.withWireCompatiple(v -> v.onOrAfter("7.10.3") &&
+BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.3") &&
         v != VersionProperties.getElasticsearchVersion()) { bwcVersion, baseName ->
 
   def baseCluster = testClusters.register(baseName) {

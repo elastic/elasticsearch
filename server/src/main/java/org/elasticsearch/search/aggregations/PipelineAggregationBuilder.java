@@ -161,13 +161,11 @@ public abstract class PipelineAggregationBuilder
 
             @Override
             public void validateParentAggSequentiallyOrdered(String type, String name) {
-                if (parent instanceof HistogramAggregationBuilder) {
-                    HistogramAggregationBuilder histoParent = (HistogramAggregationBuilder) parent;
+                if (parent instanceof HistogramAggregationBuilder histoParent) {
                     if (histoParent.minDocCount() != 0) {
                         addValidationError("parent histogram of " + type + " aggregation [" + name + "] must have min_doc_count of 0");
                     }
-                } else if (parent instanceof DateHistogramAggregationBuilder) {
-                    DateHistogramAggregationBuilder histoParent = (DateHistogramAggregationBuilder) parent;
+                } else if (parent instanceof DateHistogramAggregationBuilder histoParent) {
                     if (histoParent.minDocCount() != 0) {
                         addValidationError("parent histogram of " + type + " aggregation [" + name + "] must have min_doc_count of 0");
                     }

@@ -73,7 +73,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
 
         licenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
-        verify(clusterService, times(1)).submitStateUpdateTask(any(), stateUpdater.capture());
+        verify(clusterService, times(1)).submitStateUpdateTask(any(), stateUpdater.capture(), any());
         ClusterState stateWithLicense = stateUpdater.getValue().execute(newState);
         LicensesMetadata licenseMetadata = stateWithLicense.metadata().custom(LicensesMetadata.TYPE);
         assertNotNull(licenseMetadata);

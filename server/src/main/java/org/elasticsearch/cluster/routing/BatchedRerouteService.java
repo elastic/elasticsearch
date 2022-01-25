@@ -14,6 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -90,7 +91,8 @@ public class BatchedRerouteService implements RerouteService {
             }
         }
         try {
-            clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE + "(" + reason + ")", new ClusterStateUpdateTask(priority) {
+            final String source = CLUSTER_UPDATE_TASK_SOURCE + "(" + reason + ")";
+            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(priority) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -113,7 +115,7 @@ public class BatchedRerouteService implements RerouteService {
                 }
 
                 @Override
-                public void onNoLongerMaster(String source) {
+                public void onNoLongerMaster() {
                     synchronized (mutex) {
                         if (pendingRerouteListeners == currentListeners) {
                             pendingRerouteListeners = null;
@@ -124,7 +126,7 @@ public class BatchedRerouteService implements RerouteService {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     synchronized (mutex) {
                         if (pendingRerouteListeners == currentListeners) {
                             pendingRerouteListeners = null;
@@ -150,10 +152,10 @@ public class BatchedRerouteService implements RerouteService {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     ActionListener.onResponse(currentListeners, newState);
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         } catch (Exception e) {
             synchronized (mutex) {
                 assert currentListeners.isEmpty() == (pendingRerouteListeners != currentListeners);

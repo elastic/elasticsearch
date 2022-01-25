@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -93,6 +95,27 @@ public class AuthenticationTests extends ESTestCase {
         assertCannotAccessResources(
             randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId1),
             randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId2)
+        );
+
+        final User user3 = randomValueOtherThanMany(
+            u -> u.principal().equals(user1.principal()) || u.principal().equals(user2.principal()),
+            AuthenticationTests::randomUser
+        );
+
+        // Same API key but run-as different user are not the same owner
+        assertCannotAccessResources(
+            randomApiKeyAuthentication(new User(user2, user1), apiKeyId1),
+            randomApiKeyAuthentication(new User(user3, user1), apiKeyId1)
+        );
+
+        // Same or different API key run-as the same user are the same owner
+        checkCanAccessResources(
+            randomApiKeyAuthentication(new User(user3, user1), apiKeyId1),
+            randomApiKeyAuthentication(new User(user3, user1), apiKeyId1)
+        );
+        checkCanAccessResources(
+            randomApiKeyAuthentication(new User(user3, user1), apiKeyId1),
+            randomApiKeyAuthentication(new User(user3, user2), apiKeyId2)
         );
     }
 
@@ -211,10 +234,27 @@ public class AuthenticationTests extends ESTestCase {
         return new Authentication(
             user,
             apiKeyRealm,
-            null,
+            user.isRunAs() ? new RealmRef("lookup_realm", "lookup_realm", randomAlphaOfLength(5)) : null,
             VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT),
             AuthenticationType.API_KEY,
             metadata
+        );
+    }
+
+    public static Authentication randomServiceAccountAuthentication() {
+        final RealmRef realmRef = new RealmRef("_service_account", "_service_account", randomAlphaOfLengthBetween(3, 8));
+        return new Authentication(
+            new User(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)),
+            realmRef,
+            null,
+            Version.CURRENT,
+            AuthenticationType.TOKEN,
+            Map.of(
+                "_token_name",
+                randomAlphaOfLength(8),
+                "_token_source",
+                randomFrom(TokenInfo.TokenSource.values()).name().toLowerCase(Locale.ROOT)
+            )
         );
     }
 

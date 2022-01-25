@@ -14,6 +14,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -433,7 +434,7 @@ public class Realms implements Iterable<Realm> {
     }
 
     private static Map<String, Object> convertToMapOfLists(Map<String, Object> map) {
-        Map<String, Object> converted = new HashMap<>(map.size());
+        Map<String, Object> converted = Maps.newMapWithExpectedSize(map.size());
         for (Entry<String, Object> entry : map.entrySet()) {
             converted.put(entry.getKey(), new ArrayList<>(Collections.singletonList(entry.getValue())));
         }

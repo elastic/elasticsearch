@@ -18,16 +18,12 @@ import java.util.List;
 public abstract class SamplingMethod implements Writeable {
 
     public static SamplingMethod fromString(String value) {
-        switch (value) {
-            case UpperTail.NAME:
-                return new UpperTail();
-            case LowerTail.NAME:
-                return new LowerTail();
-            case Uniform.NAME:
-                return new Uniform();
-            default:
-                throw new IllegalArgumentException("Unrecognized sampling_method [" + value + "]");
-        }
+        return switch (value) {
+            case UpperTail.NAME -> new UpperTail();
+            case LowerTail.NAME -> new LowerTail();
+            case Uniform.NAME -> new Uniform();
+            default -> throw new IllegalArgumentException("Unrecognized sampling_method [" + value + "]");
+        };
     }
 
     public static SamplingMethod fromStream(StreamInput in) throws IOException {

@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
@@ -208,10 +210,9 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
 
             if (columns != null) {
                 builder.startArray("columns");
-                {
-                    for (ColumnInfo column : columns) {
-                        column.toXContent(builder, params);
-                    }
+
+                for (ColumnInfo column : columns) {
+                    toXContent(column, builder, params);
                 }
                 builder.endArray();
             }
@@ -248,6 +249,23 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             if (cursor.equals("") == false) {
                 builder.field(CURSOR.getPreferredName(), cursor);
             }
+        }
+        return builder.endObject();
+    }
+
+    /**
+     * See sql-proto {@link org.elasticsearch.xpack.sql.proto.Payloads#generate(JsonGenerator, ColumnInfo)}
+     */
+    private static XContentBuilder toXContent(ColumnInfo info, XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        String table = info.table();
+        if (table != null && table.isEmpty() == false) {
+            builder.field("table", table);
+        }
+        builder.field("name", info.name());
+        builder.field("type", info.esType());
+        if (info.displaySize() != null) {
+            builder.field("display_size", info.displaySize());
         }
         return builder.endObject();
     }

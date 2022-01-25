@@ -59,15 +59,10 @@ public class Distribution {
      * @return whether this distribution is packaged as a Docker image.
      */
     public boolean isDocker() {
-        switch (packaging) {
-            case DOCKER:
-            case DOCKER_UBI:
-            case DOCKER_IRON_BANK:
-            case DOCKER_CLOUD:
-            case DOCKER_CLOUD_ESS:
-                return true;
-        }
-        return false;
+        return switch (packaging) {
+            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS -> true;
+            default -> false;
+        };
     }
 
     public enum Packaging {

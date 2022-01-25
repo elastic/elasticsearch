@@ -49,7 +49,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
     public void testRolloverClusterStateForDataStream() throws Exception {
         Instant now = Instant.now();
         String dataStreamName = "logs-my-app";
-        final DataStream dataStream = new DataStream(
+        final DataStream dataStream = DataStreamTestHelper.newInstance(
             dataStreamName,
             new DataStream.TimestampField("@timestamp"),
             List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid"))
@@ -103,9 +103,9 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
             String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
-            assertEquals(sourceIndexName, rolloverResult.sourceIndexName);
-            assertEquals(newIndexName, rolloverResult.rolloverIndexName);
-            Metadata rolloverMetadata = rolloverResult.clusterState.metadata();
+            assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
+            assertEquals(newIndexName, rolloverResult.rolloverIndexName());
+            Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
             assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
 

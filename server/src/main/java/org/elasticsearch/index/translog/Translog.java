@@ -1079,18 +1079,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
 
             public static Type fromId(byte id) {
-                switch (id) {
-                    case 1:
-                        return CREATE;
-                    case 2:
-                        return INDEX;
-                    case 3:
-                        return DELETE;
-                    case 4:
-                        return NO_OP;
-                    default:
-                        throw new IllegalArgumentException("no type mapped for [" + id + "]");
-                }
+                return switch (id) {
+                    case 1 -> CREATE;
+                    case 2 -> INDEX;
+                    case 3 -> DELETE;
+                    case 4 -> NO_OP;
+                    default -> throw new IllegalArgumentException("no type mapped for [" + id + "]");
+                };
             }
         }
 
@@ -1110,18 +1105,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          */
         static Operation readOperation(final StreamInput input) throws IOException {
             final Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());
-            switch (type) {
-                case CREATE:
-                    // the de-serialization logic in Index was identical to that of Create when create was deprecated
-                case INDEX:
-                    return new Index(input);
-                case DELETE:
-                    return new Delete(input);
-                case NO_OP:
-                    return new NoOp(input);
-                default:
-                    throw new AssertionError("no case for [" + type + "]");
-            }
+            return switch (type) {
+                // the de-serialization logic in Index was identical to that of Create when create was deprecated
+                case CREATE, INDEX -> new Index(input);
+                case DELETE -> new Delete(input);
+                case NO_OP -> new NoOp(input);
+            };
         }
 
         /**
@@ -1130,19 +1119,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         static void writeOperation(final StreamOutput output, final Operation operation) throws IOException {
             output.writeByte(operation.opType().id());
             switch (operation.opType()) {
-                case CREATE:
-                    // the serialization logic in Index was identical to that of Create when create was deprecated
-                case INDEX:
-                    ((Index) operation).write(output);
-                    break;
-                case DELETE:
-                    ((Delete) operation).write(output);
-                    break;
-                case NO_OP:
-                    ((NoOp) operation).write(output);
-                    break;
-                default:
-                    throw new AssertionError("no case for [" + operation.opType() + "]");
+                // the serialization logic in Index was identical to that of Create when create was deprecated
+                case CREATE, INDEX -> ((Index) operation).write(output);
+                case DELETE -> ((Delete) operation).write(output);
+                case NO_OP -> ((NoOp) operation).write(output);
+                default -> throw new AssertionError("no case for [" + operation.opType() + "]");
             }
         }
 

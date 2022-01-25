@@ -69,29 +69,28 @@ public class ClusterRequestConvertersTests extends ESTestCase {
         String timeout = ESTestCase.randomTimeValue();
         String masterTimeout = ESTestCase.randomTimeValue();
         switch (timeoutType) {
-            case "timeout":
+            case "timeout" -> {
                 healthRequest.timeout(timeout);
                 expectedParams.put("timeout", timeout);
                 // If Master Timeout wasn't set it uses the same value as Timeout
                 expectedParams.put("master_timeout", timeout);
-                break;
-            case "masterTimeout":
+            }
+            case "masterTimeout" -> {
                 expectedParams.put("timeout", "30s");
                 healthRequest.masterNodeTimeout(masterTimeout);
                 expectedParams.put("master_timeout", masterTimeout);
-                break;
-            case "both":
+            }
+            case "both" -> {
                 healthRequest.timeout(timeout);
                 expectedParams.put("timeout", timeout);
                 healthRequest.masterNodeTimeout(timeout);
                 expectedParams.put("master_timeout", timeout);
-                break;
-            case "none":
+            }
+            case "none" -> {
                 expectedParams.put("timeout", "30s");
                 expectedParams.put("master_timeout", "30s");
-                break;
-            default:
-                throw new UnsupportedOperationException();
+            }
+            default -> throw new UnsupportedOperationException();
         }
         RequestConvertersTests.setRandomWaitForActiveShards(healthRequest::waitForActiveShards, ActiveShardCount.NONE, expectedParams);
         if (ESTestCase.randomBoolean()) {

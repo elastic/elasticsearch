@@ -345,17 +345,11 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     private Realm mockRealm(RealmConfig config) {
-        Class<? extends Realm> cls;
-        switch (config.type()) {
-            case InternalRealms.FILE_TYPE:
-                cls = FileRealm.class;
-                break;
-            case InternalRealms.NATIVE_TYPE:
-                cls = NativeRealm.class;
-                break;
-            default:
-                throw new IllegalArgumentException("No factory for realm " + config);
-        }
+        Class<? extends Realm> cls = switch (config.type()) {
+            case InternalRealms.FILE_TYPE -> FileRealm.class;
+            case InternalRealms.NATIVE_TYPE -> NativeRealm.class;
+            default -> throw new IllegalArgumentException("No factory for realm " + config);
+        };
         final Realm mock = mock(cls);
         when(mock.type()).thenReturn(config.type());
         when(mock.name()).thenReturn(config.name());

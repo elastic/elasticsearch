@@ -158,6 +158,9 @@ import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesActio
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationAction;
@@ -445,6 +448,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(kibanaRole.cluster().check(GetBuiltinPrivilegesAction.NAME, request, authentication), is(true));
 
+        // User profile
+        assertThat(kibanaRole.cluster().check(GetProfileAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(ActivateProfileAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(UpdateProfileDataAction.NAME, request, authentication), is(true));
+
         // Everything else
         assertThat(kibanaRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
         assertThat(kibanaRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(true));
@@ -466,7 +474,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ReservedRolesStore.ALERTS_BACKING_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.ALERTS_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
             ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
-            ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13))
+            ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_ALIAS + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ReservedRolesStore.LISTS_INDEX + randomAlphaOfLength(randomIntBetween(0, 13)),
+            ReservedRolesStore.LISTS_ITEMS_INDEX + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
 
         // read-only index access, including cross cluster
@@ -1572,31 +1582,60 @@ public class ReservedRolesStoreTests extends ESTestCase {
         iac = superuserRole.indices().authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), lookup, fieldPermissionsCache);
         assertThat(iac.getIndexPermissions("aaaaaa").isGranted(), is(true));
         assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
+
+        // Read security indices => allowed
         iac = superuserRole.indices()
             .authorize(
-                randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME),
+                randomFrom(SearchAction.NAME, GetIndexAction.NAME),
                 Sets.newHashSet(RestrictedIndicesNames.SECURITY_MAIN_ALIAS),
                 lookup,
                 fieldPermissionsCache
             );
-        assertThat(iac.getIndexPermissions(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
-        assertThat(iac.getIndexPermissions(internalSecurityIndex).isGranted(), is(true));
+        assertThat("For " + iac, iac.getIndexPermissions(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
+        assertThat("For " + iac, iac.getIndexPermissions(internalSecurityIndex).isGranted(), is(true));
+
+        // Write security indices => denied
+        iac = superuserRole.indices()
+            .authorize(
+                randomFrom(IndexAction.NAME, DeleteIndexAction.NAME),
+                Sets.newHashSet(RestrictedIndicesNames.SECURITY_MAIN_ALIAS),
+                lookup,
+                fieldPermissionsCache
+            );
+        assertThat("For " + iac, iac.getIndexPermissions(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(false));
+        assertThat("For " + iac, iac.getIndexPermissions(internalSecurityIndex).isGranted(), is(false));
+
         assertTrue(superuserRole.indices().check(SearchAction.NAME));
         assertFalse(superuserRole.indices().check("unknown"));
 
         assertThat(superuserRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(true));
 
+        // Read security indices => allowed
         assertThat(
             superuserRole.indices()
-                .allowedIndicesMatcher(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME))
+                .allowedIndicesMatcher(randomFrom(GetAction.NAME, IndicesStatsAction.NAME))
                 .test(mockIndexAbstraction(RestrictedIndicesNames.SECURITY_MAIN_ALIAS)),
             is(true)
         );
         assertThat(
             superuserRole.indices()
-                .allowedIndicesMatcher(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME))
+                .allowedIndicesMatcher(randomFrom(GetAction.NAME, IndicesStatsAction.NAME))
                 .test(mockIndexAbstraction(internalSecurityIndex)),
             is(true)
+        );
+
+        // Write security indices => denied
+        assertThat(
+            superuserRole.indices()
+                .allowedIndicesMatcher(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME))
+                .test(mockIndexAbstraction(RestrictedIndicesNames.SECURITY_MAIN_ALIAS)),
+            is(false)
+        );
+        assertThat(
+            superuserRole.indices()
+                .allowedIndicesMatcher(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME))
+                .test(mockIndexAbstraction(internalSecurityIndex)),
+            is(false)
         );
     }
 
@@ -2241,6 +2280,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, ".siem-signals-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".alerts-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".preview.alerts-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".lists-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".items-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5) + "-transaction-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "auditbeat-" + randomIntBetween(0, 5));
@@ -2303,10 +2344,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".lists-" + randomIntBetween(0, 5));
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".items-" + randomIntBetween(0, 5));
         assertReadWriteDocsButNotDeleteIndexAllowed(role, "observability-annotations");
-        assertReadWriteDocsButNotDeleteIndexAllowed(role, ".alerts-" + randomIntBetween(0, 5));
-        assertReadWriteDocsButNotDeleteIndexAllowed(role, ".internal.alerts-" + randomIntBetween(0, 5));
-        assertReadWriteDocsButNotDeleteIndexAllowed(role, ".preview.alerts-" + randomIntBetween(0, 5));
-        assertReadWriteDocsButNotDeleteIndexAllowed(role, ".internal.preview.alerts-" + randomIntBetween(0, 5));
+        assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".alerts-" + randomIntBetween(0, 5));
+        assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".internal.alerts-" + randomIntBetween(0, 5));
+        assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".preview.alerts-" + randomIntBetween(0, 5));
+        assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".internal.preview.alerts-" + randomIntBetween(0, 5));
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));

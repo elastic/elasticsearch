@@ -193,7 +193,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
 
     private Entry mutateEntry(Entry entry) {
         switch (randomInt(8)) {
-            case 0:
+            case 0 -> {
                 boolean includeGlobalState = entry.includeGlobalState() == false;
                 return new Entry(
                     entry.snapshot(),
@@ -210,7 +210,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.userMetadata(),
                     entry.version()
                 );
-            case 1:
+            }
+            case 1 -> {
                 boolean partial = entry.partial() == false;
                 return new Entry(
                     entry.snapshot(),
@@ -227,7 +228,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.userMetadata(),
                     entry.version()
                 );
-            case 2:
+            }
+            case 2 -> {
                 List<String> dataStreams = Stream.concat(entry.dataStreams().stream(), Stream.of(randomAlphaOfLength(10)))
                     .collect(Collectors.toList());
                 return new Entry(
@@ -245,7 +247,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.userMetadata(),
                     entry.version()
                 );
-            case 3:
+            }
+            case 3 -> {
                 long startTime = randomValueOtherThan(entry.startTime(), ESTestCase::randomLong);
                 return new Entry(
                     entry.snapshot(),
@@ -262,7 +265,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.userMetadata(),
                     entry.version()
                 );
-            case 4:
+            }
+            case 4 -> {
                 long repositoryStateId = randomValueOtherThan(entry.startTime(), ESTestCase::randomLong);
                 return new Entry(
                     entry.snapshot(),
@@ -279,7 +283,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.userMetadata(),
                     entry.version()
                 );
-            case 5:
+            }
+            case 5 -> {
                 String failure = randomValueOtherThan(entry.failure(), () -> randomAlphaOfLengthBetween(2, 10));
                 return new Entry(
                     entry.snapshot(),
@@ -296,7 +301,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.userMetadata(),
                     entry.version()
                 );
-            case 6:
+            }
+            case 6 -> {
                 Map<String, IndexId> indices = new HashMap<>(entry.indices());
                 ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = entry.shards();
                 IndexId indexId = new IndexId(randomAlphaOfLength(10), randomAlphaOfLength(10));
@@ -323,7 +329,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.userMetadata(),
                     entry.version()
                 );
-            case 7:
+            }
+            case 7 -> {
                 Map<String, Object> userMetadata = entry.userMetadata() != null ? new HashMap<>(entry.userMetadata()) : new HashMap<>();
                 String key = randomAlphaOfLengthBetween(2, 10);
                 if (userMetadata.containsKey(key)) {
@@ -346,7 +353,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     userMetadata,
                     entry.version()
                 );
-            case 8:
+            }
+            case 8 -> {
                 List<SnapshotFeatureInfo> featureStates = randomList(
                     1,
                     5,
@@ -367,8 +375,8 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.userMetadata(),
                     entry.version()
                 );
-            default:
-                throw new IllegalArgumentException("invalid randomization case");
+            }
+            default -> throw new IllegalArgumentException("invalid randomization case");
         }
     }
 

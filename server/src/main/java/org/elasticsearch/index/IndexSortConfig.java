@@ -138,9 +138,9 @@ public final class IndexSortConfig {
         this.indexMode = indexSettings.getMode();
 
         if (this.indexMode == IndexMode.TIME_SERIES) {
-            this.sortSpecs = new FieldSortSpec[] {
-                new FieldSortSpec(TimeSeriesIdFieldMapper.NAME),
-                new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH) };
+            FieldSortSpec timeStampSpec = new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+            timeStampSpec.order = SortOrder.DESC;
+            this.sortSpecs = new FieldSortSpec[] { new FieldSortSpec(TimeSeriesIdFieldMapper.NAME), timeStampSpec };
             return;
         }
 

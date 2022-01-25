@@ -70,10 +70,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         Property.NodeScope
     );
 
-    private final Settings settings;
-
     public ShardsLimitAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        this.settings = settings;
         this.clusterShardLimit = CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING, this::setClusterShardLimit);
     }
@@ -100,7 +97,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         BiPredicate<Integer, Integer> decider
     ) {
         IndexMetadata indexMd = allocation.metadata().getIndexSafe(shardRouting.index());
-        final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMd.getSettings(), settings);
+        final int indexShardLimit = indexMd.getShardsPerNodeLimit();
         // Capture the limit here in case it changes during this method's
         // execution
         final int clusterShardLimit = this.clusterShardLimit;

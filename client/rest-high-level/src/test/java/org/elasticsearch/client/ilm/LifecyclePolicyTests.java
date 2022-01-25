@@ -226,60 +226,37 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
         List<String> phaseNames = Arrays.asList("hot", "warm", "cold", "delete");
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
         Function<String, Set<String>> validActions = (phase) -> {
-            switch (phase) {
-                case "hot":
-                    return VALID_HOT_ACTIONS;
-                case "warm":
-                    return VALID_WARM_ACTIONS;
-                case "cold":
-                    return VALID_COLD_ACTIONS;
-                case "delete":
-                    return VALID_DELETE_ACTIONS;
-                default:
-                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
-            }
+            return switch (phase) {
+                case "hot" -> VALID_HOT_ACTIONS;
+                case "warm" -> VALID_WARM_ACTIONS;
+                case "cold" -> VALID_COLD_ACTIONS;
+                case "delete" -> VALID_DELETE_ACTIONS;
+                default -> throw new IllegalArgumentException("invalid phase [" + phase + "]");
+            };
         };
         Function<String, Boolean> allowEmptyActions = (phase) -> {
-            switch (phase) {
-                case "hot":
-                case "warm":
-                case "cold":
-                    return true;
-                case "delete":
-                    return false;
-                default:
-                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
-            }
+            return switch (phase) {
+                case "hot", "warm", "cold" -> true;
+                case "delete" -> false;
+                default -> throw new IllegalArgumentException("invalid phase [" + phase + "]");
+            };
         };
         Function<String, LifecycleAction> randomAction = (action) -> {
-            switch (action) {
-                case AllocateAction.NAME:
-                    return AllocateActionTests.randomInstance();
-                case DeleteAction.NAME:
-                    return new DeleteAction();
-                case ForceMergeAction.NAME:
-                    return ForceMergeActionTests.randomInstance();
-                case ReadOnlyAction.NAME:
-                    return new ReadOnlyAction();
-                case RolloverAction.NAME:
-                    return RolloverActionTests.randomInstance();
-                case ShrinkAction.NAME:
-                    return ShrinkActionTests.randomInstance();
-                case FreezeAction.NAME:
-                    return new FreezeAction();
-                case WaitForSnapshotAction.NAME:
-                    return WaitForSnapshotActionTests.randomInstance();
-                case SetPriorityAction.NAME:
-                    return SetPriorityActionTests.randomInstance();
-                case UnfollowAction.NAME:
-                    return new UnfollowAction();
-                case SearchableSnapshotAction.NAME:
-                    return new SearchableSnapshotAction("repo", randomBoolean());
-                case MigrateAction.NAME:
-                    return new MigrateAction(randomBoolean());
-                default:
-                    throw new IllegalArgumentException("invalid action [" + action + "]");
-            }
+            return switch (action) {
+                case AllocateAction.NAME -> AllocateActionTests.randomInstance();
+                case DeleteAction.NAME -> new DeleteAction();
+                case ForceMergeAction.NAME -> ForceMergeActionTests.randomInstance();
+                case ReadOnlyAction.NAME -> new ReadOnlyAction();
+                case RolloverAction.NAME -> RolloverActionTests.randomInstance();
+                case ShrinkAction.NAME -> ShrinkActionTests.randomInstance();
+                case FreezeAction.NAME -> new FreezeAction();
+                case WaitForSnapshotAction.NAME -> WaitForSnapshotActionTests.randomInstance();
+                case SetPriorityAction.NAME -> SetPriorityActionTests.randomInstance();
+                case UnfollowAction.NAME -> new UnfollowAction();
+                case SearchableSnapshotAction.NAME -> new SearchableSnapshotAction("repo", randomBoolean());
+                case MigrateAction.NAME -> new MigrateAction(randomBoolean());
+                default -> throw new IllegalArgumentException("invalid action [" + action + "]");
+            };
         };
         TimeValue prev = null;
         boolean searchableSnapshotSeen = false;
@@ -318,33 +295,20 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
     }
 
     private LifecycleAction getTestAction(String actionName) {
-        switch (actionName) {
-            case AllocateAction.NAME:
-                return AllocateActionTests.randomInstance();
-            case DeleteAction.NAME:
-                return new DeleteAction();
-            case ForceMergeAction.NAME:
-                return ForceMergeActionTests.randomInstance();
-            case ReadOnlyAction.NAME:
-                return new ReadOnlyAction();
-            case RolloverAction.NAME:
-                return RolloverActionTests.randomInstance();
-            case ShrinkAction.NAME:
-                return ShrinkActionTests.randomInstance();
-            case FreezeAction.NAME:
-                return new FreezeAction();
-            case WaitForSnapshotAction.NAME:
-                return WaitForSnapshotActionTests.randomInstance();
-            case SetPriorityAction.NAME:
-                return SetPriorityActionTests.randomInstance();
-            case SearchableSnapshotAction.NAME:
-                return SearchableSnapshotActionTests.randomInstance();
-            case UnfollowAction.NAME:
-                return new UnfollowAction();
-            case MigrateAction.NAME:
-                return new MigrateAction(randomBoolean());
-            default:
-                throw new IllegalArgumentException("unsupported phase action [" + actionName + "]");
-        }
+        return switch (actionName) {
+            case AllocateAction.NAME -> AllocateActionTests.randomInstance();
+            case DeleteAction.NAME -> new DeleteAction();
+            case ForceMergeAction.NAME -> ForceMergeActionTests.randomInstance();
+            case ReadOnlyAction.NAME -> new ReadOnlyAction();
+            case RolloverAction.NAME -> RolloverActionTests.randomInstance();
+            case ShrinkAction.NAME -> ShrinkActionTests.randomInstance();
+            case FreezeAction.NAME -> new FreezeAction();
+            case WaitForSnapshotAction.NAME -> WaitForSnapshotActionTests.randomInstance();
+            case SetPriorityAction.NAME -> SetPriorityActionTests.randomInstance();
+            case SearchableSnapshotAction.NAME -> SearchableSnapshotActionTests.randomInstance();
+            case UnfollowAction.NAME -> new UnfollowAction();
+            case MigrateAction.NAME -> new MigrateAction(randomBoolean());
+            default -> throw new IllegalArgumentException("unsupported phase action [" + actionName + "]");
+        };
     }
 }

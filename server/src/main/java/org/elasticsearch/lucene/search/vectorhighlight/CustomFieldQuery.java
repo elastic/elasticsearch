@@ -46,8 +46,7 @@ public class CustomFieldQuery extends FieldQuery {
 
     @Override
     protected void flatten(Query sourceQuery, IndexReader reader, Collection<Query> flatQueries, float boost) throws IOException {
-        if (sourceQuery instanceof BoostQuery) {
-            BoostQuery bq = (BoostQuery) sourceQuery;
+        if (sourceQuery instanceof BoostQuery bq) {
             sourceQuery = bq.getQuery();
             boost *= bq.getBoost();
             flatten(sourceQuery, reader, flatQueries, boost);
@@ -59,26 +58,20 @@ public class CustomFieldQuery extends FieldQuery {
             flatten(((FunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries, boost);
         } else if (sourceQuery instanceof MultiPhrasePrefixQuery) {
             flatten(sourceQuery.rewrite(reader), reader, flatQueries, boost);
-        } else if (sourceQuery instanceof MultiPhraseQuery) {
-            MultiPhraseQuery q = ((MultiPhraseQuery) sourceQuery);
+        } else if (sourceQuery instanceof MultiPhraseQuery q) {
             convertMultiPhraseQuery(0, new int[q.getTermArrays().length], q, q.getTermArrays(), q.getPositions(), reader, flatQueries);
-        } else if (sourceQuery instanceof BlendedTermQuery) {
-            final BlendedTermQuery blendedTermQuery = (BlendedTermQuery) sourceQuery;
+        } else if (sourceQuery instanceof BlendedTermQuery blendedTermQuery) {
             flatten(blendedTermQuery.rewrite(reader), reader, flatQueries, boost);
-        } else if (sourceQuery instanceof org.apache.lucene.queries.function.FunctionScoreQuery) {
-            org.apache.lucene.queries.function.FunctionScoreQuery funcScoreQuery =
-                (org.apache.lucene.queries.function.FunctionScoreQuery) sourceQuery;
+        } else if (sourceQuery instanceof org.apache.lucene.queries.function.FunctionScoreQuery funcScoreQuery) {
             // flatten query with query boost
             flatten(funcScoreQuery.getWrappedQuery(), reader, flatQueries, boost);
-        } else if (sourceQuery instanceof SynonymQuery) {
+        } else if (sourceQuery instanceof SynonymQuery synQuery) {
             // SynonymQuery should be handled by the parent class directly.
             // This statement should be removed when https://issues.apache.org/jira/browse/LUCENE-7484 is merged.
-            SynonymQuery synQuery = (SynonymQuery) sourceQuery;
             for (Term term : synQuery.getTerms()) {
                 flatten(new TermQuery(term), reader, flatQueries, boost);
             }
-        } else if (sourceQuery instanceof CombinedFieldQuery) {
-            CombinedFieldQuery combinedFieldQuery = (CombinedFieldQuery) sourceQuery;
+        } else if (sourceQuery instanceof CombinedFieldQuery combinedFieldQuery) {
             for (Term term : combinedFieldQuery.getTerms()) {
                 flatten(new TermQuery(term), reader, flatQueries, boost);
             }

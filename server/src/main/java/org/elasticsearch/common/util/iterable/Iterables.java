@@ -72,8 +72,7 @@ public class Iterables {
         if (position < 0) {
             throw new IllegalArgumentException("position >= 0");
         }
-        if (iterable instanceof List) {
-            List<T> list = (List<T>) iterable;
+        if (iterable instanceof List<T> list) {
             if (position >= list.size()) {
                 throw new IndexOutOfBoundsException(Integer.toString(position));
             }

@@ -37,17 +37,15 @@ public class GetServiceAccountCredentialsRequestTests extends ESTestCase {
     }
 
     private GetServiceAccountCredentialsRequest mutateInstance(GetServiceAccountCredentialsRequest request) {
-        switch (randomIntBetween(0, 1)) {
-            case 0:
-                return new GetServiceAccountCredentialsRequest(
-                    randomValueOtherThan(request.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    request.getServiceName()
-                );
-            default:
-                return new GetServiceAccountCredentialsRequest(
-                    request.getNamespace(),
-                    randomValueOtherThan(request.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8))
-                );
-        }
+        return switch (randomIntBetween(0, 1)) {
+            case 0 -> new GetServiceAccountCredentialsRequest(
+                randomValueOtherThan(request.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
+                request.getServiceName()
+            );
+            default -> new GetServiceAccountCredentialsRequest(
+                request.getNamespace(),
+                randomValueOtherThan(request.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8))
+            );
+        };
     }
 }

@@ -189,8 +189,7 @@ public class QueryPhase {
                 assert executor instanceof EWMATrackingEsThreadPoolExecutor
                     || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
                     : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
-                if (executor instanceof EWMATrackingEsThreadPoolExecutor) {
-                    EWMATrackingEsThreadPoolExecutor rExecutor = (EWMATrackingEsThreadPoolExecutor) executor;
+                if (executor instanceof EWMATrackingEsThreadPoolExecutor rExecutor) {
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }

@@ -6,60 +6,15 @@
  */
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.proto.core.Nullable;
 
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.sql.proto.CoreProtocol.COLUMNS_NAME;
-import static org.elasticsearch.xpack.sql.proto.CoreProtocol.CURSOR_NAME;
-import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ID_NAME;
-import static org.elasticsearch.xpack.sql.proto.CoreProtocol.IS_PARTIAL_NAME;
-import static org.elasticsearch.xpack.sql.proto.CoreProtocol.IS_RUNNING_NAME;
-import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ROWS_NAME;
 
 /**
  * Response to perform an sql query for JDBC/CLI client
  */
 public class SqlQueryResponse {
-
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<SqlQueryResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "sql",
-        true,
-        objects -> new SqlQueryResponse(
-            objects[0] == null ? "" : (String) objects[0],
-            (List<ColumnInfo>) objects[1],
-            (List<List<Object>>) objects[2],
-            (String) objects[3],
-            objects[4] != null && (boolean) objects[4],
-            objects[5] != null && (boolean) objects[5]
-        )
-    );
-
-    public static final ParseField CURSOR = new ParseField(CURSOR_NAME);
-    public static final ParseField COLUMNS = new ParseField(COLUMNS_NAME);
-    public static final ParseField ROWS = new ParseField(ROWS_NAME);
-    public static final ParseField ID = new ParseField(ID_NAME);
-    public static final ParseField IS_PARTIAL = new ParseField(IS_PARTIAL_NAME);
-    public static final ParseField IS_RUNNING = new ParseField(IS_RUNNING_NAME);
-
-    static {
-        PARSER.declareString(optionalConstructorArg(), CURSOR);
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ColumnInfo.fromXContent(p), COLUMNS);
-        PARSER.declareField(constructorArg(), (p, c) -> parseRows(p), ROWS, ValueType.OBJECT_ARRAY);
-        PARSER.declareString(optionalConstructorArg(), ID);
-        PARSER.declareBoolean(optionalConstructorArg(), IS_PARTIAL);
-        PARSER.declareBoolean(optionalConstructorArg(), IS_RUNNING);
-    }
 
     // TODO: Simplify cursor handling
     private final String cursor;
@@ -121,36 +76,6 @@ public class SqlQueryResponse {
 
     public boolean isRunning() {
         return isRunning;
-    }
-
-    public static SqlQueryResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
-    }
-
-    public static List<List<Object>> parseRows(XContentParser parser) throws IOException {
-        List<List<Object>> list = new ArrayList<>();
-        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                list.add(parseRow(parser));
-            } else {
-                throw new IllegalStateException("expected start array but got [" + parser.currentToken() + "]");
-            }
-        }
-        return list;
-    }
-
-    public static List<Object> parseRow(XContentParser parser) throws IOException {
-        List<Object> list = new ArrayList<>();
-        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            if (parser.currentToken().isValue()) {
-                list.add(ProtoUtils.parseFieldsValue(parser));
-            } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                list.add(null);
-            } else {
-                throw new IllegalStateException("expected value but got [" + parser.currentToken() + "]");
-            }
-        }
-        return list;
     }
 
     @Override

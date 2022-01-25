@@ -130,27 +130,15 @@ public class JiraIssue implements ToXContentObject {
 
         StringBuilder message = new StringBuilder();
         switch (status) {
-            case HttpStatus.SC_BAD_REQUEST:
-                message.append("Bad Request");
-                break;
-            case HttpStatus.SC_UNAUTHORIZED:
-                message.append("Unauthorized (authentication credentials are invalid)");
-                break;
-            case HttpStatus.SC_FORBIDDEN:
-                message.append("Forbidden (account doesn't have permission to create this issue)");
-                break;
-            case HttpStatus.SC_NOT_FOUND:
-                message.append("Not Found (account uses invalid JIRA REST APIs)");
-                break;
-            case HttpStatus.SC_REQUEST_TIMEOUT:
-                message.append("Request Timeout (request took too long to process)");
-                break;
-            case HttpStatus.SC_INTERNAL_SERVER_ERROR:
-                message.append("JIRA Server Error (internal error occurred while processing request)");
-                break;
-            default:
-                message.append("Unknown Error");
-                break;
+            case HttpStatus.SC_BAD_REQUEST -> message.append("Bad Request");
+            case HttpStatus.SC_UNAUTHORIZED -> message.append("Unauthorized (authentication credentials are invalid)");
+            case HttpStatus.SC_FORBIDDEN -> message.append("Forbidden (account doesn't have permission to create this issue)");
+            case HttpStatus.SC_NOT_FOUND -> message.append("Not Found (account uses invalid JIRA REST APIs)");
+            case HttpStatus.SC_REQUEST_TIMEOUT -> message.append("Request Timeout (request took too long to process)");
+            case HttpStatus.SC_INTERNAL_SERVER_ERROR -> message.append(
+                "JIRA Server Error (internal error occurred while processing request)"
+            );
+            default -> message.append("Unknown Error");
         }
 
         if (response.hasContent()) {

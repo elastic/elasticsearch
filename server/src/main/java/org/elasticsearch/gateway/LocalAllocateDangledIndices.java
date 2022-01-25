@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -103,7 +104,8 @@ public class LocalAllocateDangledIndices {
             for (int i = 0; i < request.indices.length; i++) {
                 indexNames[i] = request.indices[i].getIndex().getName();
             }
-            clusterService.submitStateUpdateTask("allocation dangled indices " + Arrays.toString(indexNames), new ClusterStateUpdateTask() {
+            final String source = "allocation dangled indices " + Arrays.toString(indexNames);
+            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     if (currentState.blocks().disableStatePersistence()) {
@@ -216,7 +218,7 @@ public class LocalAllocateDangledIndices {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                     try {
                         channel.sendResponse(e);
@@ -227,14 +229,14 @@ public class LocalAllocateDangledIndices {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     try {
                         channel.sendResponse(new AllocateDangledResponse());
                     } catch (IOException e) {
                         logger.warn("failed send response for allocating dangled", e);
                     }
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         }
     }
 

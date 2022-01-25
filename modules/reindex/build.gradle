@@ -32,13 +32,14 @@ testClusters.configureEach {
   module ':modules:lang-painless'
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
 }
 
 dependencies {
   api project(":client:rest")
   api project(":libs:elasticsearch-ssl-config")
-  // for http - testing reindex from remote
-  testImplementation project(':modules:transport-netty4')
   // for parent/child testing
   testImplementation project(':modules:parent-join')
 }
@@ -173,4 +174,3 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
 
     task.addAllowedWarningRegex("\\[types removal\\].*")
 }
-

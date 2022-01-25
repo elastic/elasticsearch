@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -139,19 +140,12 @@ public class EquivalenceIT extends ESIntegTestCase {
         final int numRanges = randomIntBetween(1, 20);
         final double[][] ranges = new double[numRanges][];
         for (int i = 0; i < ranges.length; ++i) {
-            switch (randomInt(2)) {
-                case 0:
-                    ranges[i] = new double[] { Double.NEGATIVE_INFINITY, randomInt(100) };
-                    break;
-                case 1:
-                    ranges[i] = new double[] { randomInt(100), Double.POSITIVE_INFINITY };
-                    break;
-                case 2:
-                    ranges[i] = new double[] { randomInt(100), randomInt(100) };
-                    break;
-                default:
-                    throw new AssertionError();
-            }
+            ranges[i] = switch (randomInt(2)) {
+                case 0 -> new double[] { Double.NEGATIVE_INFINITY, randomInt(100) };
+                case 1 -> new double[] { randomInt(100), Double.POSITIVE_INFINITY };
+                case 2 -> new double[] { randomInt(100), randomInt(100) };
+                default -> throw new AssertionError();
+            };
         }
 
         RangeAggregationBuilder query = range("range").field("values");
@@ -182,7 +176,7 @@ public class EquivalenceIT extends ESIntegTestCase {
         Range range = resp.getAggregations().get("range");
         List<? extends Bucket> buckets = range.getBuckets();
 
-        HashMap<String, Bucket> bucketMap = new HashMap<>(buckets.size());
+        Map<String, Bucket> bucketMap = Maps.newMapWithExpectedSize(buckets.size());
         for (Bucket bucket : buckets) {
             bucketMap.put(bucket.getKeyAsString(), bucket);
         }

@@ -1,4 +1,4 @@
-[[get-desired-nodes-api]]
+[[get-desired-nodes]]
 === Get desired nodes API
 ++++
 <titleabbrev>Get desired nodes</titleabbrev>
@@ -8,7 +8,7 @@ NOTE: {cloud-only}
 
 Get desired nodes.
 
-[[get-desired-nodes-api-request]]
+[[get-desired-nodes-request]]
 ==== {api-request-title}
 
 //////////////////////////
@@ -51,18 +51,18 @@ GET /_cluster/desired_nodes
 --------------------------------------------------
 // TEST
 
-[[get-desired-nodes-api-prereqs]]
+[[get-desired-nodes-prereqs]]
 ==== {api-prereq-title}
 
 * If the <<operator-privileges,{operator-feature}>> is enabled, only operator
 users can use this API.
 
-[[get-desired-nodes-api-desc]]
+[[get-desired-nodes-desc]]
 ==== {api-description-title}
 
 This API gets the current desired nodes.
 
-[[get-desired-nodes-api-examples]]
+[[get-desired-nodes-examples]]
 ==== {api-examples-title}
 
 This example gets the current desired nodes.

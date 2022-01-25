@@ -1,4 +1,4 @@
-[[update-desired-nodes-api]]
+[[update-desired-nodes]]
 === Create or update desired nodes API
 ++++
 <titleabbrev>Create or update desired nodes</titleabbrev>
@@ -45,18 +45,18 @@ DELETE /_cluster/desired_nodes
 
 //////////////////////////
 
-[[update-desired-nodes-api-prereqs]]
+[[update-desired-nodes-prereqs]]
 ==== {api-prereq-title}
 
 * If the <<operator-privileges,{operator-feature}>> is enabled, only operator
 users can use this API.
 
-[[update-desired-nodes-api-query-params]]
+[[update-desired-nodes-query-params]]
 ==== {api-query-parms-title}
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-[[update-desired-nodes-api-desc]]
+[[update-desired-nodes-desc]]
 ==== {api-description-title}
 
 This API creates or update the desired nodes. External orchestrators can use
@@ -64,7 +64,7 @@ this API to let Elasticsearch know about the cluster topology, including future
 changes such as adding or removing nodes. Using this information, the system is
 able to take better decisions.
 
-[[update-desired-nodes-api-examples]]
+[[update-desired-nodes-examples]]
 ==== {api-examples-title}
 
 In this example, desired nodes

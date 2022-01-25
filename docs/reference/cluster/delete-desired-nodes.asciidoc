@@ -1,4 +1,4 @@
-[[delete-desired-nodes-api]]
+[[delete-desired-nodes]]
 === Delete desired nodes API
 ++++
 <titleabbrev>Delete desired nodes</titleabbrev>
@@ -8,7 +8,7 @@ NOTE: {cloud-only}
 
 Delete desired nodes.
 
-[[delete-desired-nodes-policy-request]]
+[[delete-desired-nodes-request]]
 ==== {api-request-title}
 
 //////////////////////////
@@ -42,7 +42,7 @@ DELETE /_cluster/desired_nodes
 --------------------------------------------------
 // TEST
 
-[[delete-desired-nodes-policy-prereqs]]
+[[delete-desired-nodes-prereqs]]
 ==== {api-prereq-title}
 
 * If the <<operator-privileges,{operator-feature}>> is enabled, only operator

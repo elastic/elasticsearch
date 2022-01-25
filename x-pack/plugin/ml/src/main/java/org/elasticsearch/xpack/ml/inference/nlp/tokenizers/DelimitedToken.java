@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
-import org.elasticsearch.xpack.ml.inference.nlp.MultiCharSequence;
-
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -21,7 +19,7 @@ public class DelimitedToken {
         int startOffSet = tokens.get(0).startOffset;
         int endOffset = tokens.get(tokens.size() - 1).endOffset;
         return new DelimitedToken(
-            new MultiCharSequence(tokens.stream().map(DelimitedToken::charSequence).collect(Collectors.toList())),
+            tokens.stream().map(DelimitedToken::charSequence).map(CharSequence::toString).collect(Collectors.joining()),
             startOffSet,
             endOffset
         );

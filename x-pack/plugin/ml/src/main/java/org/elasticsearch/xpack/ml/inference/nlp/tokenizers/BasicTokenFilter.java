@@ -22,6 +22,7 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.PrimitiveIterator;
@@ -32,10 +33,10 @@ import java.util.function.IntPredicate;
  */
 public final class BasicTokenFilter extends TokenFilter {
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
-    protected final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
+    private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
 
     private final CharSeqTokenTrieNode neverSplit;
-    protected final LinkedList<DelimitedToken> tokens;
+    private final LinkedList<DelimitedToken> tokens;
     private final boolean isStripAccents;
     private final CharArraySet neverSplitSet;
     private final Normalizer2 normalizer;
@@ -54,12 +55,11 @@ public final class BasicTokenFilter extends TokenFilter {
         Analyzer analyzer = new Analyzer() {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {
-                WhitespaceTokenizer tokenizer = new WhitespaceTokenizer(512);
-                TokenStream stream = tokenizer;
-                stream = new BasicTokenFilter(
-                    stream,
+                WhitespaceTokenizer tokenizer = new WhitespaceTokenizer();
+                TokenStream stream = new BasicTokenFilter(
+                    tokenizer,
                     CharSeqTokenTrieNode.EMPTY,
-                    new CharArraySet(0, false),
+                    CharArraySet.EMPTY_SET,
                     isStripAccents,
                     isTokenizeCjkChars
                 );
@@ -71,20 +71,20 @@ public final class BasicTokenFilter extends TokenFilter {
                 return new ControlCharFilter(reader);
             }
         };
-        CharArraySet neverSplitSet = new CharArraySet(neverSplit, isLowerCase);
+        CharArraySet neverSplitSet = CharArraySet.copy(new HashSet<>(neverSplit));
         CharSeqTokenTrieNode neverSplitTree;
         try (analyzer) {
             neverSplitTree = CharSeqTokenTrieNode.build(neverSplit, c -> {
                 try (TokenStream ts = analyzer.tokenStream("never_split", c)) {
-                    ts.reset();
                     CharTermAttribute term = ts.addAttribute(CharTermAttribute.class);
+                    ts.reset();
                     List<String> tokens = new ArrayList<>();
                     while (ts.incrementToken()) {
                         tokens.add(term.toString());
                     }
                     return tokens;
                 }
-            }, false);
+            });
         }
         return new BasicTokenFilter(input, neverSplitTree, neverSplitSet, isStripAccents, isTokenizeCjkChars);
     }
@@ -169,6 +169,10 @@ public final class BasicTokenFilter extends TokenFilter {
                     )
                 );
             }
+            // There is nothing to merge, nothing to store, simply return
+            if (splits.size() == 1) {
+                return true;
+            }
             List<DelimitedToken> matchingTokens = new ArrayList<>();
             CharSeqTokenTrieNode current = neverSplit;
             for (DelimitedToken token : splits) {
@@ -179,7 +183,13 @@ public final class BasicTokenFilter extends TokenFilter {
                         matchingTokens = new ArrayList<>();
                         current = neverSplit;
                     }
-                    tokens.add(token);
+                    childNode = current.getChild(token.charSequence());
+                    if (childNode == null) {
+                        tokens.add(token);
+                    } else {
+                        matchingTokens.add(token);
+                        current = childNode;
+                    }
                 } else if (childNode.isLeaf()) {
                     matchingTokens.add(token);
                     DelimitedToken mergedToken = DelimitedToken.mergeTokens(matchingTokens);
@@ -198,10 +208,10 @@ public final class BasicTokenFilter extends TokenFilter {
             if (matchingTokens.isEmpty() == false) {
                 tokens.addAll(matchingTokens);
             }
+            this.current = captureState();
             DelimitedToken token = tokens.removeFirst();
             termAtt.setEmpty().append(token.charSequence());
             offsetAtt.setOffset(token.startOffset(), token.endOffset());
-            this.current = captureState();
             return true;
         }
         return false;

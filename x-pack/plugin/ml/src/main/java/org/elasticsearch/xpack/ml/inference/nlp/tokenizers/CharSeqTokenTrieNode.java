@@ -18,20 +18,26 @@ import java.util.Objects;
 
 public class CharSeqTokenTrieNode {
 
-    public static final CharSeqTokenTrieNode EMPTY = new CharSeqTokenTrieNode(new CharArrayMap<>(0, false), false);
-
-    private static final String EMPTY_STRING = "";
+    public static final CharSeqTokenTrieNode EMPTY = new CharSeqTokenTrieNode(new CharArrayMap<>(0, false));
 
     private final CharArrayMap<CharSeqTokenTrieNode> children;
-    private final boolean ignoreCase;
 
-    private CharSeqTokenTrieNode(CharArrayMap<CharSeqTokenTrieNode> children, boolean ignoreCase) {
+    private CharSeqTokenTrieNode(CharArrayMap<CharSeqTokenTrieNode> children) {
         this.children = Objects.requireNonNull(children);
-        this.ignoreCase = ignoreCase;
     }
 
     boolean isLeaf() {
         return children.isEmpty();
+    }
+
+    public void clear() {
+        if (isLeaf()) {
+            return;
+        }
+        for (CharSeqTokenTrieNode c : children.values()) {
+            c.clear();
+        }
+        children.clear();
     }
 
     @Nullable
@@ -53,19 +59,16 @@ public class CharSeqTokenTrieNode {
         }
         // add rest of tokens as new nodes
         while (currentTokenIndex < tokens.size()) {
-            CharSeqTokenTrieNode childNode = new CharSeqTokenTrieNode(new CharArrayMap<>(1, ignoreCase), ignoreCase);
+            CharSeqTokenTrieNode childNode = new CharSeqTokenTrieNode(new CharArrayMap<>(1, false));
             currentNode.children.put(tokens.get(currentTokenIndex), childNode);
             currentNode = childNode;
             currentTokenIndex++;
         }
     }
 
-    public static CharSeqTokenTrieNode build(
-        Collection<String> tokens,
-        CheckedFunction<String, List<String>, IOException> tokenizeFunction,
-        boolean ignoreCase
-    ) throws IOException {
-        CharSeqTokenTrieNode root = new CharSeqTokenTrieNode(new CharArrayMap<>(1, ignoreCase), ignoreCase);
+    public static CharSeqTokenTrieNode build(Collection<String> tokens, CheckedFunction<String, List<String>, IOException> tokenizeFunction)
+        throws IOException {
+        CharSeqTokenTrieNode root = new CharSeqTokenTrieNode(new CharArrayMap<>(1, false));
         for (String token : tokens) {
             List<String> subTokens = tokenizeFunction.apply(token);
             root.insert(subTokens);

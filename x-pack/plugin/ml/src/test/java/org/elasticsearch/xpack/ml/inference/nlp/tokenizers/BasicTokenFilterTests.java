@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
-import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 
@@ -29,36 +29,52 @@ public class BasicTokenFilterTests extends BaseTokenStreamTestCase {
 
     public void testNeverSplit_GivenNoLowerCase() throws IOException {
         Analyzer analyzer = basicAnalyzerFromSettings(false, false, false, List.of("[UNK]"));
-        assertAnalyzesTo(analyzer, "1 (return) [ Patois ", new String[] { "1", "(", "return", ")", "[", "Patois" });
-        assertAnalyzesTo(analyzer, " \tHeLLo!how  \n Are yoU? [UNK]", new String[] { "HeLLo", "!", "how", "Are", "yoU", "?", "[UNK]" });
-        assertAnalyzesTo(analyzer, "Hello [UNK].", new String[] { "Hello", "[UNK]", "." });
-        assertAnalyzesTo(analyzer, "Hello [UNK]?", new String[] { "Hello", "[UNK]", "?" });
-        assertAnalyzesTo(analyzer, "Hello [UNK]!!", new String[] { "Hello", "[UNK]", "!", "!" });
-        assertAnalyzesTo(analyzer, "Hello-[UNK]", new String[] { "Hello", "-", "[UNK]" });
-        assertAnalyzesTo(analyzer, "Hello~[UNK][UNK]", new String[] { "Hello", "~", "[UNK]", "[UNK]" });
-        assertAnalyzesTo(analyzer, "Hello-[unk]", new String[] { "Hello", "-", "[", "unk", "]" });
+        assertAnalyzesToNoCharFilter(analyzer, "1 (return) [ Patois ", new String[] { "1", "(", "return", ")", "[", "Patois" });
+        assertAnalyzesToNoCharFilter(analyzer, "Hello [UNK].", new String[] { "Hello", "[UNK]", "." });
+        assertAnalyzesToNoCharFilter(analyzer, "Hello-[UNK]", new String[] { "Hello", "-", "[UNK]" });
+        assertAnalyzesToNoCharFilter(
+            analyzer,
+            " \tHeLLo!how  \n Are yoU? [UNK]",
+            new String[] { "HeLLo", "!", "how", "Are", "yoU", "?", "[UNK]" }
+        );
+        assertAnalyzesToNoCharFilter(analyzer, "Hello [UNK]?", new String[] { "Hello", "[UNK]", "?" });
+        assertAnalyzesToNoCharFilter(analyzer, "Hello [UNK]!!", new String[] { "Hello", "[UNK]", "!", "!" });
+        assertAnalyzesToNoCharFilter(analyzer, "Hello~[UNK][UNK]", new String[] { "Hello", "~", "[UNK]", "[UNK]" });
+        assertAnalyzesToNoCharFilter(analyzer, "Hello-[unk]", new String[] { "Hello", "-", "[", "unk", "]" });
     }
 
     public void testNeverSplit_GivenLowerCase() throws IOException {
         Analyzer analyzer = basicAnalyzerFromSettings(true, false, false, List.of("[UNK]"));
-        assertAnalyzesTo(analyzer, " \tHeLLo!how  \n Are yoU? [UNK]", new String[] { "HeLLo", "!", "how", "Are", "yoU", "?", "[UNK]" });
-        assertAnalyzesTo(analyzer, "Hello [UNK].", new String[] { "Hello", "[UNK]", "." });
-        assertAnalyzesTo(analyzer, "Hello [UNK]?", new String[] { "Hello", "[UNK]", "?" });
-        assertAnalyzesTo(analyzer, "Hello [UNK]!!", new String[] { "Hello", "[UNK]", "!", "!" });
-        assertAnalyzesTo(analyzer, "Hello-[UNK]", new String[] { "Hello", "-", "[UNK]" });
-        assertAnalyzesTo(analyzer, "Hello~[UNK][UNK]", new String[] { "Hello", "~", "[UNK]", "[UNK]" });
-        assertAnalyzesTo(analyzer, "Hello-[unk]", new String[] { "Hello", "-", "[", "unk", "]" });
+        assertAnalyzesToNoCharFilter(
+            analyzer,
+            " \tHeLLo!how  \n Are yoU? [UNK]",
+            new String[] { "HeLLo", "!", "how", "Are", "yoU", "?", "[UNK]" }
+        );
+        assertAnalyzesToNoCharFilter(analyzer, "Hello [UNK].", new String[] { "Hello", "[UNK]", "." });
+        assertAnalyzesToNoCharFilter(analyzer, "Hello [UNK]?", new String[] { "Hello", "[UNK]", "?" });
+        assertAnalyzesToNoCharFilter(analyzer, "Hello [UNK]!!", new String[] { "Hello", "[UNK]", "!", "!" });
+        assertAnalyzesToNoCharFilter(analyzer, "Hello-[UNK]", new String[] { "Hello", "-", "[UNK]" });
+        assertAnalyzesToNoCharFilter(analyzer, "Hello~[UNK][UNK]", new String[] { "Hello", "~", "[UNK]", "[UNK]" });
+        assertAnalyzesToNoCharFilter(analyzer, "Hello-[unk]", new String[] { "Hello", "-", "[", "unk", "]" });
     }
 
     public void testSplitCJK() throws Exception {
         Analyzer analyzer = basicAnalyzerFromSettings(true, true, false, List.of("[UNK]"));
-        assertAnalyzesTo(analyzer, "hello ah\u535A\u63A8zz", new String[] { "hello", "ah", "\u535A", "\u63A8", "zz" });
-        assertAnalyzesTo(analyzer, "hello world", new String[] { "hello", "world" });
+        assertAnalyzesToNoCharFilter(analyzer, "hello ah\u535A\u63A8zz", new String[] { "hello", "ah", "\u535A", "\u63A8", "zz" });
+        assertAnalyzesToNoCharFilter(analyzer, "hello world", new String[] { "hello", "world" });
     }
 
     public void testStripAccents() throws Exception {
         Analyzer analyzer = basicAnalyzerFromSettings(true, true, true, List.of("[UNK]"));
-        assertAnalyzesTo(analyzer, "HäLLo how are you", new String[] { "HaLLo", "how", "are", "you" });
+        assertAnalyzesToNoCharFilter(analyzer, "HäLLo how are you", new String[] { "HaLLo", "how", "are", "you" });
+    }
+
+    private static void assertAnalyzesToNoCharFilter(Analyzer a, String input, String[] output) throws IOException {
+        assertTokenStreamContents(a.tokenStream("dummy", input), output, null, null, null, null, null, input.length());
+        checkResetException(a, input);
+        // We don't allow the random char filter because our offsets aren't corrected appropriately due to "never_split"
+        // If we could figure out a way to pass "never_split" through whichever passed char_filter there was, then it would work
+        checkAnalysisConsistency(random(), a, false, input);
     }
 
     public void testIsPunctuation() {
@@ -80,7 +96,7 @@ public class BasicTokenFilterTests extends BaseTokenStreamTestCase {
         return new Analyzer() {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {
-                Tokenizer t = new MockTokenizer(MockTokenizer.WHITESPACE, false);
+                Tokenizer t = new WhitespaceTokenizer();
                 try {
                     return new TokenStreamComponents(
                         t,

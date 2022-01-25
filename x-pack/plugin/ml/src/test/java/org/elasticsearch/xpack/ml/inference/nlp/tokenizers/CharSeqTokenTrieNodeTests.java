@@ -21,12 +21,12 @@ import static org.hamcrest.Matchers.nullValue;
 public class CharSeqTokenTrieNodeTests extends ESTestCase {
 
     public void testEmpty() throws IOException {
-        CharSeqTokenTrieNode root = CharSeqTokenTrieNode.build(Collections.emptyList(), s -> Arrays.asList(s.split(":")), randomBoolean());
+        CharSeqTokenTrieNode root = CharSeqTokenTrieNode.build(Collections.emptyList(), s -> Arrays.asList(s.split(":")));
         assertThat(root.isLeaf(), is(true));
     }
 
     public void testTokensWithoutDelimiter() throws IOException {
-        CharSeqTokenTrieNode root = CharSeqTokenTrieNode.build(List.of("a", "b", "c"), s -> Arrays.asList(s.split(":")), randomBoolean());
+        CharSeqTokenTrieNode root = CharSeqTokenTrieNode.build(List.of("a", "b", "c"), s -> Arrays.asList(s.split(":")));
         assertThat(root.isLeaf(), is(false));
 
         assertThat(root.getChild("a").isLeaf(), is(true));
@@ -38,8 +38,7 @@ public class CharSeqTokenTrieNodeTests extends ESTestCase {
     public void testTokensWithDelimiter() throws IOException {
         CharSeqTokenTrieNode root = CharSeqTokenTrieNode.build(
             List.of("aa:bb:cc", "aa:bb:dd", "bb:aa:cc", "bb:bb:cc"),
-            s -> Arrays.asList(s.split(":")),
-            randomBoolean()
+            s -> Arrays.asList(s.split(":"))
         );
         assertThat(root.isLeaf(), is(false));
 

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
@@ -143,7 +143,8 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         // SortedMap is expected to be sorted by key (field name)
         SortedMap<String, BytesReference> dimensionFields = context.doc().getDimensionBytes();
         BytesReference timeSeriesId = buildTsidField(dimensionFields);
-        context.doc().add(new SortedSetDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
+        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
+//        context.doc().add(new SortedSetDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
     }
 
     public static BytesReference buildTsidField(SortedMap<String, BytesReference> dimensionFields) throws IOException {

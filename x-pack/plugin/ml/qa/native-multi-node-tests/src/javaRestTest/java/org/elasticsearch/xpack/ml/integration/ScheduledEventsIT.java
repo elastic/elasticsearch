@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -372,7 +373,10 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     /**
-     * An open job that later gets added to a calendar, should take the scheduled events into account
+     * Add a global calendar then create a job that will pick
+     * up the calendar.
+     * Add a new scheduled event to the calendar, the open
+     * job should pick up the new event
      */
     public void testNewJobWithGlobalCalendar() throws Exception {
         String calendarId = "test-global-calendar";
@@ -381,27 +385,55 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         putCalendar(calendarId, Collections.singletonList(Metadata.ALL), "testNewJobWithGlobalCalendar calendar");
 
         long startTime = 1514764800000L;
-        final int bucketCount = 3;
+        final int bucketCount = 6;
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
 
         // Put events in the calendar
-        List<ScheduledEvent> events = new ArrayList<>();
+        List<ScheduledEvent> preOpenEvents = new ArrayList<>();
         long eventStartTime = startTime;
         long eventEndTime = eventStartTime + (long) (1.5 * bucketSpan.millis());
-        events.add(
-            new ScheduledEvent.Builder().description("Some Event")
+        preOpenEvents.add(
+            new ScheduledEvent.Builder().description("Pre open Event")
                 .startTime((Instant.ofEpochMilli(eventStartTime)))
                 .endTime((Instant.ofEpochMilli(eventEndTime)))
                 .calendarId(calendarId)
                 .build()
         );
 
-        postScheduledEvents(calendarId, events);
-
-        Job.Builder job = createJob("scheduled-events-add-to-new-job--with-global-calendar", bucketSpan);
+        postScheduledEvents(calendarId, preOpenEvents);
 
         // Open the job
+        Job.Builder job = createJob("scheduled-events-add-to-new-job--with-global-calendar", bucketSpan);
         openJob(job.getId());
+
+        // Add another event after the job is opened
+        List<ScheduledEvent> postOpenJobEvents = new ArrayList<>();
+        eventStartTime = eventEndTime + (3 * bucketSpan.millis());
+        eventEndTime = eventStartTime + bucketSpan.millis();
+        postOpenJobEvents.add(
+            new ScheduledEvent.Builder().description("Event added after job is opened")
+                .startTime((Instant.ofEpochMilli(eventStartTime)))
+                .endTime((Instant.ofEpochMilli(eventEndTime)))
+                .calendarId(calendarId)
+                .build()
+        );
+        postScheduledEvents(calendarId, postOpenJobEvents);
+
+        // Wait until the notification that the job was updated is indexed
+        assertBusy(() -> {
+            SearchResponse searchResponse = client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
+                .setSize(1)
+                .addSort("timestamp", SortOrder.DESC)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery("job_id", job.getId()))
+                        .filter(QueryBuilders.termQuery("level", "info"))
+                )
+                .get();
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            assertThat(hits.length, equalTo(1));
+            assertThat(hits[0].getSourceAsMap().get("message"), equalTo("Updated calendars in running process"));
+        });
 
         // write some buckets of data
         postData(
@@ -416,12 +448,14 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         GetBucketsAction.Request getBucketsRequest = new GetBucketsAction.Request(job.getId());
         List<Bucket> buckets = getBuckets(getBucketsRequest);
 
-        // 1st and 2nd buckets have the event but the last one does not
-        assertEquals(1, buckets.get(0).getScheduledEvents().size());
-        assertEquals("Some Event", buckets.get(0).getScheduledEvents().get(0));
-        assertEquals(1, buckets.get(1).getScheduledEvents().size());
-        assertEquals("Some Event", buckets.get(1).getScheduledEvents().get(0));
+        // 1st and 2nd buckets have the first event
+        // 5th and 6th buckets have the second event
+        assertThat(buckets.get(0).getScheduledEvents(), contains("Pre open Event"));
+        assertThat(buckets.get(1).getScheduledEvents(), contains("Pre open Event"));
         assertEquals(0, buckets.get(2).getScheduledEvents().size());
+        assertEquals(0, buckets.get(3).getScheduledEvents().size());
+        assertThat(buckets.get(4).getScheduledEvents(), contains("Event added after job is opened"));
+        assertThat(buckets.get(5).getScheduledEvents(), contains("Event added after job is opened"));
     }
 
     private Job.Builder createJob(String jobId, TimeValue bucketSpan) {

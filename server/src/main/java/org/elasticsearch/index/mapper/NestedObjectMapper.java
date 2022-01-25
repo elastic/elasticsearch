@@ -138,6 +138,16 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
+    public ObjectMapper.Builder newBuilder(Version indexVersionCreated) {
+        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(simpleName(), indexVersionCreated);
+        builder.enabled = enabled;
+        builder.dynamic = dynamic;
+        builder.includeInRoot = includeInRoot;
+        builder.includeInParent = includeInParent;
+        return builder;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(simpleName());
         builder.field("type", CONTENT_TYPE);

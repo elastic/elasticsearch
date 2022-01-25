@@ -802,8 +802,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         bw.newLine();
                         bw.write("# Connections are encrypted and mutually authenticated");
                         bw.newLine();
-                        if (inEnrollmentMode
-                            && false == shouldBindTransportToNonLocalhost(transportAddresses, NetworkUtils.getAllAddresses())) {
+                        if (shouldOnlyBindTransportToLocalhost(inEnrollmentMode, transportAddresses, NetworkUtils.getAllAddresses())) {
                             bw.write("#");
                         }
                         bw.write(TransportSettings.HOST.getKey() + ": " + hostSettingValue(NetworkUtils.getAllAddresses()));
@@ -865,15 +864,22 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
      * If the transport layer addresses we found out in enrollment are all localhost, we cannot be sure where we are still
      * on the same host, but we assume that as it is safer to do so and do not bind to non localhost for this node either.
      */
-    protected static boolean shouldBindTransportToNonLocalhost(List<String> transportStringAddresses, InetAddress[] localIP) {
-        List<String> remoteTransportAddresses = new ArrayList<>(transportStringAddresses.size());
+    protected static boolean shouldOnlyBindTransportToLocalhost(
+        boolean inEnrollmentMode,
+        List<String> transportStringAddresses,
+        InetAddress[] localIP
+    ) {
+        if (false == inEnrollmentMode) {
+            return true;
+        }
         List<String> localIPAddresses = Arrays.stream(localIP)
             .filter(inetAddress -> inetAddress.isLoopbackAddress() == false)
             .map(NetworkAddress::format)
             .collect(Collectors.toList());
         if (localIPAddresses.isEmpty()) {
-            return false;
+            return true;
         }
+        List<String> remoteTransportAddresses = new ArrayList<>(transportStringAddresses.size());
         for (String t : transportStringAddresses) {
             try {
                 final URI uri = new URI("http://" + t);
@@ -886,7 +892,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             }
         }
         return remoteTransportAddresses.stream()
-            .anyMatch(remoteTransportAddress -> localIPAddresses.contains(remoteTransportAddress) == false);
+            .noneMatch(remoteTransportAddress -> localIPAddresses.contains(remoteTransportAddress) == false);
     }
 
     protected String hostSettingValue(InetAddress[] allAddresses) {

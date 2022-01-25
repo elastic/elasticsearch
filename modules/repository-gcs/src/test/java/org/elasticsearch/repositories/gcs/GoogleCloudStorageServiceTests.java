@@ -12,6 +12,7 @@ import com.google.auth.Credentials;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -21,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
+import java.net.Proxy;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.Base64;
@@ -58,8 +60,17 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             )
             .put(GoogleCloudStorageClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint)
             .put(GoogleCloudStorageClientSettings.PROJECT_ID_SETTING.getConcreteSettingForNamespace(clientName).getKey(), projectIdName)
+            .put(GoogleCloudStorageClientSettings.PROXY_TYPE_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "HTTP")
+            .put(GoogleCloudStorageClientSettings.PROXY_HOST_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "192.168.52.15")
+            .put(GoogleCloudStorageClientSettings.PROXY_PORT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), 8080)
             .build();
-        final GoogleCloudStorageService service = new GoogleCloudStorageService();
+        SetOnce<Proxy> proxy = new SetOnce<>();
+        final GoogleCloudStorageService service = new GoogleCloudStorageService() {
+            @Override
+            void notifyProxyIsSet(Proxy p) {
+                proxy.set(p);
+            }
+        };
         service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
         GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats("bucket");
         final IllegalArgumentException e = expectThrows(
@@ -84,6 +95,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             Matchers.is((int) readTimeValue.millis())
         );
         assertThat(storage.getOptions().getCredentials(), Matchers.nullValue(Credentials.class));
+        assertThat(proxy.get().toString(), equalTo("HTTP @ /192.168.52.15:8080"));
     }
 
     public void testReinitClientSettings() throws Exception {

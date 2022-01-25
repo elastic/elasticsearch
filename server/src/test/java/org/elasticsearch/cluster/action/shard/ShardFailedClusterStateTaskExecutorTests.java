@@ -147,7 +147,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         List<FailedShardUpdateTask> failingTasks = createExistingShards(currentState, reason);
         List<FailedShardUpdateTask> tasks = new ArrayList<>();
         for (FailedShardUpdateTask failingTask : failingTasks) {
-            FailedShardEntry entry = failingTask.getEntry();
+            FailedShardEntry entry = failingTask.entry();
             long primaryTerm = currentState.metadata().index(entry.getShardId().getIndex()).primaryTerm(entry.getShardId().id());
             tasks.add(
                 new FailedShardUpdateTask(
@@ -169,13 +169,13 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                     task,
                     ClusterStateTaskExecutor.TaskResult.failure(
                         new ShardStateAction.NoLongerPrimaryShardException(
-                            task.getEntry().getShardId(),
+                            task.entry().getShardId(),
                             "primary term ["
-                                + task.getEntry().primaryTerm
+                                + task.entry().primaryTerm
                                 + "] did not match current primary term ["
                                 + currentState.metadata()
-                                    .index(task.getEntry().getShardId().getIndex())
-                                    .primaryTerm(task.getEntry().getShardId().id())
+                                    .index(task.entry().getShardId().getIndex())
+                                    .primaryTerm(task.entry().getShardId().id())
                                 + "]"
                         )
                     )
@@ -198,7 +198,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                 new FailedShardEntry(shardRoutingTable.shardId(), randomFrom(oldInSync), primaryTerm, "dummy", null, false),
                 createTestListener()
             );
-            ClusterState appliedState = executor.execute(clusterState, List.of(failShardOnly)).resultingState;
+            ClusterState appliedState = executor.execute(clusterState, List.of(failShardOnly)).resultingState();
             Set<String> newInSync = appliedState.metadata().index(INDEX).inSyncAllocationIds(0);
             assertThat(newInSync, equalTo(oldInSync));
         }
@@ -208,7 +208,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                 new FailedShardEntry(shardRoutingTable.shardId(), failedAllocationId, primaryTerm, "dummy", null, true),
                 createTestListener()
             );
-            ClusterState appliedState = executor.execute(clusterState, List.of(failAndMarkAsStale)).resultingState;
+            ClusterState appliedState = executor.execute(clusterState, List.of(failAndMarkAsStale)).resultingState();
             Set<String> newInSync = appliedState.metadata().index(INDEX).inSyncAllocationIds(0);
             assertThat(Sets.difference(oldInSync, newInSync), contains(failedAllocationId));
         }
@@ -256,7 +256,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         List<FailedShardUpdateTask> existingShards = createExistingShards(currentState, reason);
         List<FailedShardUpdateTask> shardsWithMismatchedAllocationIds = new ArrayList<>();
         for (FailedShardUpdateTask existingShard : existingShards) {
-            FailedShardEntry entry = existingShard.getEntry();
+            FailedShardEntry entry = existingShard.entry();
             shardsWithMismatchedAllocationIds.add(
                 new FailedShardUpdateTask(
                     new FailedShardEntry(entry.getShardId(), UUIDs.randomBase64UUID(), 0L, entry.message, entry.failure, randomBoolean()),
@@ -315,14 +315,14 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         boolean clusterStateChanged
     ) {
         // there should be as many task results as tasks
-        assertEquals(taskResultList.size(), result.executionResults.size());
+        assertEquals(taskResultList.size(), result.executionResults().size());
 
         for (Tuple<FailedShardUpdateTask, ClusterStateTaskExecutor.TaskResult> entry : taskResultList) {
             // every task should have a corresponding task result
-            assertTrue(result.executionResults.containsKey(entry.v1()));
+            assertTrue(result.executionResults().containsKey(entry.v1()));
 
             // the task results are as expected
-            assertEquals(entry.v1().toString(), entry.v2().isSuccess(), result.executionResults.get(entry.v1()).isSuccess());
+            assertEquals(entry.v1().toString(), entry.v2().isSuccess(), result.executionResults().get(entry.v1()).isSuccess());
         }
 
         List<ShardRouting> shards = clusterState.getRoutingTable().allShards();
@@ -333,23 +333,23 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                     if (shard.assignedToNode()) {
                         assertFalse(
                             "entry key " + entry.v1() + ", shard routing " + shard,
-                            entry.v1().getEntry().getShardId().equals(shard.shardId())
-                                && entry.v1().getEntry().getAllocationId().equals(shard.allocationId().getId())
+                            entry.v1().entry().getShardId().equals(shard.shardId())
+                                && entry.v1().entry().getAllocationId().equals(shard.allocationId().getId())
                         );
                     }
                 }
             } else {
                 // check we saw the expected failure
-                ClusterStateTaskExecutor.TaskResult actualResult = result.executionResults.get(entry.v1());
+                ClusterStateTaskExecutor.TaskResult actualResult = result.executionResults().get(entry.v1());
                 assertThat(actualResult.getFailure(), instanceOf(entry.v2().getFailure().getClass()));
                 assertThat(actualResult.getFailure().getMessage(), equalTo(entry.v2().getFailure().getMessage()));
             }
         }
 
         if (clusterStateChanged) {
-            assertNotSame(clusterState, result.resultingState);
+            assertNotSame(clusterState, result.resultingState());
         } else {
-            assertSame(clusterState, result.resultingState);
+            assertSame(clusterState, result.resultingState());
         }
     }
 

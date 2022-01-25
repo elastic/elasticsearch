@@ -331,7 +331,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82785")
     public void testApiKeySuperuser() throws IOException {
         if (isRunningAgainstOldCluster()) {
             final Request createUserRequest = new Request("PUT", "/_security/user/api_key_super_creator");
@@ -354,10 +353,29 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         )
                     )
             );
-            createApiKeyRequest.setJsonEntity("""
-                {
-                   "name": "super_legacy_key"
-                }""");
+            if (getOldClusterVersion().onOrAfter(Version.V_7_3_0)) {
+                createApiKeyRequest.setJsonEntity("""
+                    {
+                       "name": "super_legacy_key"
+                    }""");
+            } else {
+                createApiKeyRequest.setJsonEntity("""
+                    {
+                       "name": "super_legacy_key",
+                       "role_descriptors": {
+                         "super": {
+                           "cluster": [ "all" ],
+                           "indices": [
+                             {
+                               "names": [ "*" ],
+                               "privileges": [ "all" ],
+                               "allow_restricted_indices": true
+                             }
+                           ]
+                         }
+                       }
+                    }""");
+            }
             final Map<String, Object> createApiKeyResponse = entityAsMap(client().performRequest(createApiKeyRequest));
             final byte[] keyBytes = (createApiKeyResponse.get("id") + ":" + createApiKeyResponse.get("api_key")).getBytes(
                 StandardCharsets.UTF_8
@@ -374,12 +392,16 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     {
                       "doc_type": "foo"
                     }""");
-                indexRequest.setOptions(
-                    expectWarnings(
-                        "this request accesses system indices: [.security-7], but in a future major "
-                            + "version, direct access to system indices will be prevented by default"
-                    ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
-                );
+                if (getOldClusterVersion().onOrAfter(Version.V_7_10_0)) {
+                    indexRequest.setOptions(
+                        expectWarnings(
+                            "this request accesses system indices: [.security-7], but in a future major "
+                                + "version, direct access to system indices will be prevented by default"
+                        ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
+                    );
+                } else {
+                    indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader));
+                }
                 assertOK(client().performRequest(indexRequest));
             }
         } else {
@@ -390,12 +412,17 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             // read is ok
             final Request searchRequest = new Request("GET", ".security/_search");
-            searchRequest.setOptions(
-                expectWarnings(
-                    "this request accesses system indices: [.security-7], but in a future major "
-                        + "version, direct access to system indices will be prevented by default"
-                ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
-            );
+            // TODO: change the warning expectation to be always once #82837 is fixed
+            // Configure the warning to be optional due to #82837, it is ok since this test is for something else
+            searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+                if (warnings.isEmpty()) {
+                    return false;
+                } else if (warnings.size() == 1) {
+                    return false == warnings.get(0).startsWith("this request accesses system indices: [.security-7]");
+                } else {
+                    return true;
+                }
+            }).addHeader("Authorization", apiKeyAuthHeader));
             assertOK(client().performRequest(searchRequest));
 
             // write must not be allowed
@@ -404,12 +431,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 {
                   "doc_type": "foo"
                 }""");
-            indexRequest.setOptions(
-                expectWarnings(
-                    "this request accesses system indices: [.security-7], but in a future major "
-                        + "version, direct access to system indices will be prevented by default"
-                ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
-            );
+            indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader));
             final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(indexRequest));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(e.getMessage(), containsString("is unauthorized"));

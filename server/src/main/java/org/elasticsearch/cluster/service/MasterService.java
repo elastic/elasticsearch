@@ -396,12 +396,12 @@ public class MasterService extends AbstractLifecycleComponent {
             previousClusterState,
             newClusterState,
             getNonFailedTasks(taskInputs, clusterTasksResult),
-            clusterTasksResult.executionResults
+            clusterTasksResult.executionResults()
         );
     }
 
     private ClusterState patchVersions(ClusterState previousClusterState, ClusterTasksResult<?> executionResult) {
-        ClusterState newClusterState = executionResult.resultingState;
+        ClusterState newClusterState = executionResult.resultingState();
 
         if (previousClusterState != newClusterState) {
             // only the master controls the version numbers
@@ -815,9 +815,9 @@ public class MasterService extends AbstractLifecycleComponent {
         try {
             List<Object> inputs = taskInputs.updateTasks.stream().map(tUpdateTask -> tUpdateTask.task).collect(Collectors.toList());
             clusterTasksResult = taskInputs.executor.execute(previousClusterState, inputs);
-            if (previousClusterState != clusterTasksResult.resultingState
+            if (previousClusterState != clusterTasksResult.resultingState()
                 && previousClusterState.nodes().isLocalNodeElectedMaster()
-                && (clusterTasksResult.resultingState.nodes().isLocalNodeElectedMaster() == false)) {
+                && (clusterTasksResult.resultingState().nodes().isLocalNodeElectedMaster() == false)) {
                 throw new AssertionError("update task submitted to MasterService cannot remove master");
             }
         } catch (Exception e) {
@@ -838,20 +838,21 @@ public class MasterService extends AbstractLifecycleComponent {
                 .build(previousClusterState);
         }
 
-        assert clusterTasksResult.executionResults != null;
-        assert clusterTasksResult.executionResults.size() == taskInputs.updateTasks.size()
+        assert clusterTasksResult.executionResults() != null;
+        assert clusterTasksResult.executionResults().size() == taskInputs.updateTasks.size()
             : String.format(
                 Locale.ROOT,
                 "expected [%d] task result%s but was [%d]",
                 taskInputs.updateTasks.size(),
                 taskInputs.updateTasks.size() == 1 ? "" : "s",
-                clusterTasksResult.executionResults.size()
+                clusterTasksResult.executionResults().size()
             );
         if (Assertions.ENABLED) {
             ClusterTasksResult<Object> finalClusterTasksResult = clusterTasksResult;
             taskInputs.updateTasks.forEach(
                 updateTask -> {
-                    assert finalClusterTasksResult.executionResults.containsKey(updateTask.task) : "missing task result for " + updateTask;
+                    assert finalClusterTasksResult.executionResults().containsKey(updateTask.task)
+                        : "missing task result for " + updateTask;
                 }
             );
         }
@@ -861,8 +862,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private List<Batcher.UpdateTask> getNonFailedTasks(TaskInputs taskInputs, ClusterTasksResult<Object> clusterTasksResult) {
         return taskInputs.updateTasks.stream().filter(updateTask -> {
-            assert clusterTasksResult.executionResults.containsKey(updateTask.task) : "missing " + updateTask;
-            final ClusterStateTaskExecutor.TaskResult taskResult = clusterTasksResult.executionResults.get(updateTask.task);
+            assert clusterTasksResult.executionResults().containsKey(updateTask.task) : "missing " + updateTask;
+            final ClusterStateTaskExecutor.TaskResult taskResult = clusterTasksResult.executionResults().get(updateTask.task);
             return taskResult.isSuccess();
         }).collect(Collectors.toList());
     }

@@ -558,8 +558,9 @@ show more details about the requesting client:
                         or `local_node` (the local node issued the request).
 `opaque_id`       ::    The value of the `X-Opaque-Id` HTTP header (if present) of
                         the request associated with this event. This header can
-                        be used freely by the client to mark API calls, as it has
-                        no semantics in Elasticsearch.
+                        be used freely by the client to mark API calls, but value
+                        should be from a finite set.
+                        See more: <<x-opaque-id, `X-Opaque-Id` HTTP header - API conventions>>
 `trace_id`        ::    The identifier extracted from the `traceparent` HTTP header
                         (if present) of the request associated with this event.
                         It allows to surface audit logs into the Trace Logs feature

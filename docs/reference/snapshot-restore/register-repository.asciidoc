@@ -103,7 +103,7 @@ clusters].
 [[self-managed-repo-types]]
 ==== Self-managed repository types
 
-If you run the {es} on your own hardware, you can use the following built-in
+If you run {es} on your own hardware, you can use the following built-in
 snapshot repository types:
 
 * <<repository-s3,AWS S3>>

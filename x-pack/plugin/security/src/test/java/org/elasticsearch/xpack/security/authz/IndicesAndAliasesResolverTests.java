@@ -122,7 +122,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private CompositeRolesStore rolesStore;
     private Metadata metadata;
     private IndicesAndAliasesResolver defaultIndicesResolver;
-    private IndexNameExpressionResolver indexNameExpressionResolver;
     private Map<String, RoleDescriptor> roleMap;
     private String todaySuffix;
     private String tomorrowSuffix;
@@ -137,7 +136,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             .put("cluster.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399))
             .build();
 
-        indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+        IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
         DateFormatter dateFormatter = DateFormatter.forPattern("uuuu.MM.dd");
         Instant now = Instant.now(Clock.systemUTC());
@@ -168,7 +167,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             .put(indexBuilder("bar").settings(settings))
             .put(indexBuilder("bar-closed").state(State.CLOSE).settings(settings))
             .put(indexBuilder("bar2").settings(settings))
-            .put(indexBuilder(indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>")).settings(settings))
+            .put(indexBuilder(IndexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>")).settings(settings))
             .put(indexBuilder("-index10").settings(settings))
             .put(indexBuilder("-index11").settings(settings))
             .put(indexBuilder("-index20").settings(settings))
@@ -1618,7 +1617,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testResolveDateMathExpression() {
         // make the user authorized
         final String pattern = randomBoolean() ? "<datetime-{now/M}>" : "<datetime-{now/M}*>";
-        String dateTimeIndex = indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>");
+        String dateTimeIndex = IndexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>");
         String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed", dateTimeIndex };
         roleMap.put(
             "role",
@@ -1677,7 +1676,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             "foofoo",
             "missing",
             "foofoo-closed",
-            indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>") };
+            IndexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>") };
         roleMap.put(
             "role",
             new RoleDescriptor(

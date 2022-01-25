@@ -902,7 +902,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * @return a new instance with updated index ids or this instance if unchanged
          */
         public Entry withUpdatedIndexIds(Map<IndexId, IndexId> updates) {
-            assert isClone() == false : "only snapshots can be reassigned to updated IndexId values";
+            if (isClone()) {
+                assert indices.values().stream().noneMatch(updates::containsKey)
+                    : "clone index ids can not be updated but saw tried to update " + updates + " on " + this;
+                return this;
+            }
             Map<String, IndexId> updatedIndices = null;
             for (IndexId existingIndexId : indices.values()) {
                 final IndexId updatedIndexId = updates.get(existingIndexId);

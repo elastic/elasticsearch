@@ -134,10 +134,10 @@ public class SearchCancellationIT extends ESIntegTestCase {
         CancelTasksResponse cancelTasksResponse = client().admin()
             .cluster()
             .prepareCancelTasks()
-            .setTargetTaskId(searchTask.getTaskId())
+            .setTargetTaskId(searchTask.taskId())
             .get();
         assertThat(cancelTasksResponse.getTasks(), hasSize(1));
-        assertThat(cancelTasksResponse.getTasks().get(0).getTaskId(), equalTo(searchTask.getTaskId()));
+        assertThat(cancelTasksResponse.getTasks().get(0).taskId(), equalTo(searchTask.taskId()));
     }
 
     private SearchResponse ensureSearchWasCancelled(ActionFuture<SearchResponse> searchResponse) {

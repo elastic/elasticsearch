@@ -52,8 +52,7 @@ public abstract class LocalMasterServiceTask implements ClusterStateTaskListener
                     LocalMasterServiceTask.this.execute(currentState);
                     return ClusterTasksResult.<LocalMasterServiceTask>builder().successes(tasks).build(currentState);
                 }
-            },
-            this
+            }
         );
     }
 }

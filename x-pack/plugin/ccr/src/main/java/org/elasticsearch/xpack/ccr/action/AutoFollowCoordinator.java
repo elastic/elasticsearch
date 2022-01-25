@@ -30,6 +30,7 @@ import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.TimeValue;
@@ -266,7 +267,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             .filter(remoteCluster -> autoFollowersCopy.containsKey(remoteCluster) == false)
             .collect(Collectors.toSet());
 
-        Map<String, AutoFollower> newAutoFollowers = new HashMap<>(newRemoteClusters.size());
+        Map<String, AutoFollower> newAutoFollowers = Maps.newMapWithExpectedSize(newRemoteClusters.size());
         for (String remoteCluster : newRemoteClusters) {
             AutoFollower autoFollower = new AutoFollower(
                 remoteCluster,

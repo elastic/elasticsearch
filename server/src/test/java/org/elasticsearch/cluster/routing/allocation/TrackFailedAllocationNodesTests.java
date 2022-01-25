@@ -63,7 +63,7 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
 
         // reroute with retryFailed=true should discard the failedNodes
         assertThat(clusterState.routingTable().index("idx").shard(0).shards().get(0).state(), equalTo(ShardRoutingState.UNASSIGNED));
-        clusterState = allocationService.reroute(clusterState, new AllocationCommands(), false, true).getClusterState();
+        clusterState = allocationService.reroute(clusterState, new AllocationCommands(), false, true).clusterState();
         assertThat(clusterState.routingTable().index("idx").shard(0).shards().get(0).unassignedInfo().getFailedNodeIds(), empty());
 
         // do not track the failed nodes while shard is started

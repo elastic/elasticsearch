@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.AbstractBulkIndexByScrollRequest;
@@ -31,7 +32,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
@@ -52,7 +52,7 @@ public class RoundTripTests extends ESTestCase {
             String username = randomBoolean() ? randomAlphaOfLength(5) : null;
             String password = username != null && randomBoolean() ? randomAlphaOfLength(5) : null;
             int headersCount = randomBoolean() ? 0 : between(1, 10);
-            Map<String, String> headers = new HashMap<>(headersCount);
+            Map<String, String> headers = Maps.newMapWithExpectedSize(headersCount);
             while (headers.size() < headersCount) {
                 headers.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }

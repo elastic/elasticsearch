@@ -491,7 +491,7 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     private static ClusterState applyUpdates(ClusterState state, SnapshotsService.ShardSnapshotUpdate... updates) throws Exception {
-        return SnapshotsService.SHARD_STATE_EXECUTOR.execute(state, Arrays.asList(updates)).resultingState;
+        return SnapshotsService.SHARD_STATE_EXECUTOR.execute(state, Arrays.asList(updates)).resultingState();
     }
 
     private static SnapshotsInProgress.Entry snapshotEntry(

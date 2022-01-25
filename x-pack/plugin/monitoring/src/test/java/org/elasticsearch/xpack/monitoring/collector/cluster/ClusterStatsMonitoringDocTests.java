@@ -351,9 +351,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockJvmInfo.getBundledJdk()).thenReturn(true);
         when(mockJvmInfo.getUsingBundledJdk()).thenReturn(true);
 
-        final Build mockBuild = mock(Build.class);
-        when(mockBuild.flavor()).thenReturn(Build.Flavor.DEFAULT);
-        when(mockBuild.type()).thenReturn(Build.Type.DOCKER);
+        final Build mockBuild = new Build(Build.Flavor.DEFAULT, Build.Type.DOCKER, "", "", false, "");
         when(mockNodeInfo.getBuild()).thenReturn(mockBuild);
 
         final NodeStats mockNodeStats = mock(NodeStats.class);

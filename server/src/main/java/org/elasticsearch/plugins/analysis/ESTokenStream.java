@@ -52,14 +52,13 @@ public class ESTokenStream implements Closeable {
     }
 
     private AnalyzeToken currentState() {
-        return new AnalyzeToken(
-            term.toString(),
-            posIncr.getPositionIncrement(),
-            offset.startOffset(),
-            offset.endOffset(),
-            posLen.getPositionLength(),
-            type.type()
-        );
+        return state.term(term.buffer())
+            .termLen(term.length())
+            .startOffset(offset.startOffset())
+            .endOffset(offset.endOffset())
+            .position(posIncr.getPositionIncrement())
+            .positionLength(posLen.getPositionLength())
+            .type(type.type());
     }
 
     public AnalyzeToken reset() throws IOException {

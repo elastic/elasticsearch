@@ -49,7 +49,7 @@ public class DelegatingTokenStream extends TokenStream {
         offsetAtt.setOffset(currentToken.startOffset(), currentToken.endOffset());
         typeAtt.setType(currentToken.type());
         posLenAtt.setPositionLength(currentToken.positionLength());
-        termAtt.setEmpty().append(currentToken.term());
+        termAtt.copyBuffer(currentToken.term(), 0, currentToken.termLen());
     }
 
     @Override

@@ -53,7 +53,8 @@ public class StableLuceneFilterIterator implements PortableAnalyzeIterator {
     }
 
     private AnalyzeToken currentState() {
-        return state.term(term.toString())
+        return state.term(term.buffer())
+            .termLen(term.length())
             .startOffset(offset.startOffset())
             .endOffset(offset.endOffset())
             .position(posIncr.getPositionIncrement())

@@ -39,6 +39,8 @@ public class StableLuceneFilterIteratorMH implements PortableAnalyzeIterator {
     private final MethodHandle mhAttrEndOffset;
     private final MethodHandle mhAttrGetPositionLength;
     private final MethodHandle mhAttrType;
+    private final MethodHandle mhAttrTermBuffer;
+    private final MethodHandle mhAttrTermBufferLen;
 
     public StableLuceneFilterIteratorMH(Object stream) {
         ensureClassCompatibility(stream.getClass(), "org.apache.lucene.analysis.TokenStream");
@@ -84,6 +86,8 @@ public class StableLuceneFilterIteratorMH implements PortableAnalyzeIterator {
 
             mhAttrGetPositionLength = lookup.findVirtual(posLen.getClass(), "getPositionLength", MethodType.methodType(int.class));
 
+            mhAttrTermBuffer = lookup.findVirtual(term.getClass(), "buffer", MethodType.methodType(char[].class));
+            mhAttrTermBufferLen = lookup.findVirtual(term.getClass(), "length", MethodType.methodType(int.class));
         } catch (Throwable x) {
             throw new IllegalArgumentException("Incompatible Lucene library provided", x);
         }
@@ -113,7 +117,8 @@ public class StableLuceneFilterIteratorMH implements PortableAnalyzeIterator {
 
     private AnalyzeToken currentState() throws Throwable {
         return new AnalyzeToken(
-            term.toString(),
+            (char[]) mhAttrTermBuffer.invoke(term),
+            (int) mhAttrTermBufferLen.invoke(term),
             (int) mhAttrGetPositionIncrement.invoke(posIncr),
             (int) mhAttrStartOffset.invoke(offset),
             (int) mhAttrEndOffset.invoke(offset),

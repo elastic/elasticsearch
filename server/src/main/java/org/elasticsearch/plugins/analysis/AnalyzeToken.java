@@ -11,7 +11,8 @@ package org.elasticsearch.plugins.analysis;
 import java.util.Objects;
 
 public class AnalyzeToken {
-    private String term;
+    private char[] term;
+    private int termLen;
     private int startOffset;
     private int endOffset;
     private int position;
@@ -31,21 +32,23 @@ public class AnalyzeToken {
             && endOffset == that.endOffset
             && position == that.position
             && positionLength == that.positionLength
+            && termLen == that.termLen
             && Objects.equals(term, that.term)
             && Objects.equals(type, that.type);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(term, startOffset, endOffset, position, positionLength, type);
+        return Objects.hash(term, termLen, startOffset, endOffset, position, positionLength, type);
     }
 
     public AnalyzeToken() {
 
     }
 
-    public AnalyzeToken(String term, int position, int startOffset, int endOffset, int positionLength, String type) {
+    public AnalyzeToken(char[] term, int termLen, int position, int startOffset, int endOffset, int positionLength, String type) {
         this.term = term;
+        this.termLen = termLen;
         this.position = position;
         this.startOffset = startOffset;
         this.endOffset = endOffset;
@@ -53,8 +56,12 @@ public class AnalyzeToken {
         this.type = type;
     }
 
-    public String term() {
+    public char[] term() {
         return this.term;
+    }
+
+    public int termLen() {
+        return this.termLen;
     }
 
     public int startOffset() {
@@ -77,7 +84,7 @@ public class AnalyzeToken {
         return this.type;
     }
 
-    public AnalyzeToken term(String term) {
+    public AnalyzeToken term(char[] term) {
         this.term = term;
         return this;
     }
@@ -104,6 +111,11 @@ public class AnalyzeToken {
 
     public AnalyzeToken positionLength(int positionLength) {
         this.positionLength = positionLength;
+        return this;
+    }
+
+    public AnalyzeToken termLen(int termLen) {
+        this.termLen = termLen;
         return this;
     }
 }

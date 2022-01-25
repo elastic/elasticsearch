@@ -656,10 +656,7 @@ public abstract class PackagingTestCase extends Assert {
             assertThat(es.config(autoConfigDirName), FileMatcher.file(Directory, "root", "elasticsearch", p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
                 .forEach(
-                    file -> assertThat(
-                        es.config(autoConfigDirName).resolve(file),
-                        FileMatcher.file(File, "root", "elasticsearch", p660)
-                    )
+                    file -> assertThat(es.config(autoConfigDirName).resolve(file), FileMatcher.file(File, "root", "elasticsearch", p660))
                 );
             assertThat(
                 sh.run(es.executables().keystoreTool + " list").stdout(),

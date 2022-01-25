@@ -195,9 +195,8 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
     public void testConcurrentRefreshesAndCancellation() throws InterruptedException {
         final ThreadPool threadPool = new TestThreadPool("test");
         try {
-            final CancellableSingleObjectCache<String, String, Integer> testCache = new CancellableSingleObjectCache<>(
-                threadPool.getThreadContext()
-            ) {
+            final ThreadContext threadContext = threadPool.getThreadContext();
+            final CancellableSingleObjectCache<String, String, Integer> testCache = new CancellableSingleObjectCache<>(threadContext) {
                 @Override
                 protected void refresh(
                     String s,
@@ -223,7 +222,6 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
             final CountDownLatch startLatch = new CountDownLatch(1);
             final CountDownLatch finishLatch = new CountDownLatch(count);
             final BlockingQueue<Runnable> queue = ConcurrentCollections.newBlockingQueue();
-            final ThreadContext threadContext = threadPool.getThreadContext();
             final String contextHeader = "test-context-header";
 
             for (int i = 0; i < count; i++) {

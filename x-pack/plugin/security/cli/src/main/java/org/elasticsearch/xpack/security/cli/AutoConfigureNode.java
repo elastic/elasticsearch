@@ -802,7 +802,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         bw.newLine();
                         bw.write("# Connections are encrypted and mutually authenticated");
                         bw.newLine();
-                        if (shouldOnlyBindTransportToLocalhost(inEnrollmentMode, transportAddresses, NetworkUtils.getAllAddresses())) {
+                        if (false == inEnrollmentMode
+                            || false == anyRemoteHostNodeAddress(transportAddresses, NetworkUtils.getAllAddresses())) {
                             bw.write("#");
                         }
                         bw.write(TransportSettings.HOST.getKey() + ": " + hostSettingValue(NetworkUtils.getAllAddresses()));
@@ -853,46 +854,30 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
     }
 
     /**
-     * Determines if a node that is enrolling to an existing cluster should bind transport layer to a non-localhost
-     * address. If the other nodes of the cluster are on different hosts than this node, then the default configuration of
+     * Determines if a node that is enrolling to an existing cluster is on a different host than the other nodes of the
+     * cluster. If this is the case, then the default configuration of
      * binding transport layer to localhost will prevent this node to join the cluster even after "successful" enrollment.
      * We check the non-localhost transport addresses that we receive during enrollment and if any of these are not in the
      * list of non-localhost IP addresses that we gather from all interfaces of the current host, we assume that at least
      * some other node in the cluster runs on another host.
-     * If we don't find any non localhost addresses on all interfaces of the current host, we don't attempt to bind to non localhost
-     * addresses as this would result on an error on startup.
      * If the transport layer addresses we found out in enrollment are all localhost, we cannot be sure where we are still
      * on the same host, but we assume that as it is safer to do so and do not bind to non localhost for this node either.
      */
-    protected static boolean shouldOnlyBindTransportToLocalhost(
-        boolean inEnrollmentMode,
-        List<String> transportStringAddresses,
-        InetAddress[] localIP
-    ) {
-        if (false == inEnrollmentMode) {
-            return true;
-        }
-        List<String> localIPAddresses = Arrays.stream(localIP)
-            .filter(inetAddress -> inetAddress.isLoopbackAddress() == false)
-            .map(NetworkAddress::format)
-            .collect(Collectors.toList());
-        if (localIPAddresses.isEmpty()) {
-            return true;
-        }
-        List<String> remoteTransportAddresses = new ArrayList<>(transportStringAddresses.size());
-        for (String t : transportStringAddresses) {
+    protected static boolean anyRemoteHostNodeAddress(List<String> allNodesTransportPublishAddresses, InetAddress[] allHostAddresses) {
+        final List<InetAddress> allAddressesList = Arrays.asList(allHostAddresses);
+        for (String nodeStringAddress : allNodesTransportPublishAddresses) {
             try {
-                final URI uri = new URI("http://" + t);
-                final InetAddress address = InetAddress.getByName(uri.getHost());
-                if (address.isLoopbackAddress() == false) {
-                    remoteTransportAddresses.add(NetworkAddress.format(address));
+                final URI uri = new URI("http://" + nodeStringAddress);
+                final InetAddress nodeAddress = InetAddress.getByName(uri.getHost());
+                if (false == nodeAddress.isLoopbackAddress() && false == allAddressesList.contains(nodeAddress)) {
+                    // this node's address is on a remote host
+                    return true;
                 }
-            } catch (UnknownHostException | URISyntaxException e) {
+            } catch (URISyntaxException | UnknownHostException e) {
                 // we could fail here but if any of the transport addresses are usable, we can join the cluster
             }
         }
-        return remoteTransportAddresses.stream()
-            .noneMatch(remoteTransportAddress -> localIPAddresses.contains(remoteTransportAddress) == false);
+        return false;
     }
 
     protected String hostSettingValue(InetAddress[] allAddresses) {

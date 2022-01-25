@@ -37,14 +37,14 @@ import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIE
  * This filter works by using a lruKeyCache - a set of keys which prevents a second message with the same key to be logged.
  * The lruKeyCache has a size limited to 128, which when breached will remove the oldest entries.
  * <p>
- * It is possible to disable use of `x-opaque-id` as a key with {@link RateLimitingFilter#setUseXOpaqueIdEnabled(boolean) }
+ * It is possible to disable use of `x-opaque-id` as a key with {@link RateLimitingFilter#setUseXOpaqueId(boolean) }
  *
  * @see <a href="https://logging.apache.org/log4j/2.x/manual/filters.htmlf">Log4j2 Filters</a>
  */
 @Plugin(name = "RateLimitingFilter", category = Node.CATEGORY, elementType = Filter.ELEMENT_TYPE)
 public class RateLimitingFilter extends AbstractFilter {
     // a flag to disable/enable use of xOpaqueId controlled by changing cluster setting
-    private volatile boolean useXOpaqueIdEnabled = true;
+    private volatile boolean useXOpaqueId = true;
 
     private final Set<String> lruKeyCache = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<>() {
         @Override
@@ -83,7 +83,7 @@ public class RateLimitingFilter extends AbstractFilter {
         if (Strings.isNullOrEmpty(productOrigin) == false) {
             return productOrigin + key;
         }
-        if (useXOpaqueIdEnabled) {
+        if (useXOpaqueId) {
             String xOpaqueId = esLogMessage.get(X_OPAQUE_ID_FIELD_NAME);
             return xOpaqueId + key;
         }
@@ -108,7 +108,7 @@ public class RateLimitingFilter extends AbstractFilter {
         return new RateLimitingFilter(match, mismatch);
     }
 
-    public void setUseXOpaqueIdEnabled(boolean useXOpaqueIdEnabled) {
-        this.useXOpaqueIdEnabled = useXOpaqueIdEnabled;
+    public void setUseXOpaqueId(boolean useXOpaqueId) {
+        this.useXOpaqueId = useXOpaqueId;
     }
 }

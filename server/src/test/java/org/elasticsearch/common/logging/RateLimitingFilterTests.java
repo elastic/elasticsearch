@@ -150,7 +150,7 @@ public class RateLimitingFilterTests extends ESTestCase {
 
     public void testMessagesXOpaqueIsIgnoredWhenDisabled() {
         RateLimitingFilter filter = new RateLimitingFilter();
-        filter.setUseXOpaqueIdEnabled(false);
+        filter.setUseXOpaqueId(false);
         filter.start();
 
         // Should NOT be rate-limited because it's not in the cache
@@ -172,7 +172,7 @@ public class RateLimitingFilterTests extends ESTestCase {
 
     public void testXOpaqueIdNotBeingUsedFromElasticOriginatingRequests() {
         RateLimitingFilter filter = new RateLimitingFilter();
-        filter.setUseXOpaqueIdEnabled(true);
+        filter.setUseXOpaqueId(true);
         filter.start();
 
         // Should NOT be rate-limited because it's not in the cache

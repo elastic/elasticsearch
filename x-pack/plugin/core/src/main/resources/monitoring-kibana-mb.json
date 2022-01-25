@@ -449,6 +449,14 @@
         },
         "kibana_rules": {
           "properties": {
+            "kibana": {
+              "properties": {
+                "uuid": {
+                  "type": "alias",
+                  "path": "service.id"
+                }
+              }
+            },
             "overdue": {
               "properties": {
                 "count": {
@@ -485,6 +493,14 @@
         },
         "kibana_actions": {
           "properties": {
+            "kibana": {
+              "properties": {
+                "uuid": {
+                  "type": "alias",
+                  "path": "service.id"
+                }
+              }
+            },
             "overdue": {
               "properties": {
                 "count": {

@@ -659,7 +659,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         );
         IndexLifecycleRunnerTests.assertClusterStateOnNextStep(clusterState, index, errorStepKey, failedStepKey, nextClusterState, now);
         LifecycleExecutionState executionState = nextClusterState.metadata().index(indexName).getLifecycleExecutionState();
-        assertThat("manual move to failed step should not count as a retry", executionState.getFailedStepRetryCount(), is(nullValue()));
+        assertThat("manual move to failed step should not count as a retry", executionState.failedStepRetryCount(), is(nullValue()));
     }
 
     public void testMoveClusterStateToFailedStepWithUnknownStep() {
@@ -809,7 +809,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         );
         IndexLifecycleRunnerTests.assertClusterStateOnNextStep(clusterState, index, errorStepKey, failedStepKey, nextClusterState, now);
         LifecycleExecutionState executionState = nextClusterState.metadata().index(indexName).getLifecycleExecutionState();
-        assertThat(executionState.getFailedStepRetryCount(), is(1));
+        assertThat(executionState.failedStepRetryCount(), is(1));
     }
 
     public void testMoveToFailedStepDoesntRefreshCachedPhaseWhenUnsafe() {
@@ -873,10 +873,10 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         LifecycleExecutionState nextLifecycleExecutionState = newState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat(
             "we musn't refresh the cache definition if the failed step is not part of the real policy anymore",
-            nextLifecycleExecutionState.getPhaseDefinition(),
+            nextLifecycleExecutionState.phaseDefinition(),
             is(initialPhaseDefinition)
         );
-        assertThat(nextLifecycleExecutionState.getStep(), is(failedStep));
+        assertThat(nextLifecycleExecutionState.step(), is(failedStep));
     }
 
     public void testRefreshPhaseJson() throws IOException {
@@ -929,7 +929,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertThat(beforeState, equalTo(afterState));
 
         // Check that the phase definition has been refreshed
-        assertThat(afterExState.getPhaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
+        assertThat(afterExState.phaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
             {
               "policy": "my-policy",
               "phase_definition": {
@@ -1090,11 +1090,11 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
                 );
 
                 Step.StepKey hotPhaseCompleteStepKey = PhaseCompleteStep.finalStep("hot").getKey();
-                assertThat(newState.getAction(), is(hotPhaseCompleteStepKey.getAction()));
-                assertThat(newState.getStep(), is(hotPhaseCompleteStepKey.getName()));
+                assertThat(newState.action(), is(hotPhaseCompleteStepKey.getAction()));
+                assertThat(newState.step(), is(hotPhaseCompleteStepKey.getName()));
                 assertThat(
                     "the cached phase should not contain rollover anymore",
-                    newState.getPhaseDefinition(),
+                    newState.phaseDefinition(),
                     not(containsString(RolloverAction.NAME))
                 );
             }
@@ -1129,12 +1129,12 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
                 Step.StepKey hotPhaseCompleteStepKey = PhaseCompleteStep.finalStep("hot").getKey();
                 // the state was still moved into the next action, even if the updated policy still contained the action the index was
                 // currently executing
-                assertThat(newState.getAction(), is(hotPhaseCompleteStepKey.getAction()));
-                assertThat(newState.getStep(), is(hotPhaseCompleteStepKey.getName()));
-                assertThat(newState.getPhaseDefinition(), containsString(RolloverAction.NAME));
+                assertThat(newState.action(), is(hotPhaseCompleteStepKey.getAction()));
+                assertThat(newState.step(), is(hotPhaseCompleteStepKey.getName()));
+                assertThat(newState.phaseDefinition(), containsString(RolloverAction.NAME));
                 assertThat(
                     "the cached phase should not contain set_priority anymore",
-                    newState.getPhaseDefinition(),
+                    newState.phaseDefinition(),
                     not(containsString(SetPriorityAction.NAME))
                 );
             }
@@ -1220,30 +1220,30 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         LifecycleExecutionState newLifecycleState = newClusterState.metadata().index(index).getLifecycleExecutionState();
         LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
-        assertEquals(nextStep.getPhase(), newLifecycleState.getPhase());
-        assertEquals(nextStep.getAction(), newLifecycleState.getAction());
-        assertEquals(nextStep.getName(), newLifecycleState.getStep());
+        assertEquals(nextStep.getPhase(), newLifecycleState.phase());
+        assertEquals(nextStep.getAction(), newLifecycleState.action());
+        assertEquals(nextStep.getName(), newLifecycleState.step());
         if (currentStep.getPhase().equals(nextStep.getPhase())) {
             assertEquals(
                 "expected phase times to be the same but they were different",
-                oldLifecycleState.getPhaseTime(),
-                newLifecycleState.getPhaseTime()
+                oldLifecycleState.phaseTime(),
+                newLifecycleState.phaseTime()
             );
         } else {
-            assertEquals(now, newLifecycleState.getPhaseTime().longValue());
+            assertEquals(now, newLifecycleState.phaseTime().longValue());
         }
         if (currentStep.getAction().equals(nextStep.getAction())) {
             assertEquals(
                 "expected action times to be the same but they were different",
-                oldLifecycleState.getActionTime(),
-                newLifecycleState.getActionTime()
+                oldLifecycleState.actionTime(),
+                newLifecycleState.actionTime()
             );
         } else {
-            assertEquals(now, newLifecycleState.getActionTime().longValue());
+            assertEquals(now, newLifecycleState.actionTime().longValue());
         }
-        assertEquals(now, newLifecycleState.getStepTime().longValue());
-        assertEquals(null, newLifecycleState.getFailedStep());
-        assertEquals(null, newLifecycleState.getStepInfo());
+        assertEquals(now, newLifecycleState.stepTime().longValue());
+        assertEquals(null, newLifecycleState.failedStep());
+        assertEquals(null, newLifecycleState.stepInfo());
     }
 
     private IndexMetadata buildIndexMetadata(String policy, LifecycleExecutionState.Builder lifecycleState) {
@@ -1271,14 +1271,14 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         LifecycleExecutionState newLifecycleState = newClusterState.metadata().index(index).getLifecycleExecutionState();
         LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
-        assertEquals(currentStep.getPhase(), newLifecycleState.getPhase());
-        assertEquals(currentStep.getAction(), newLifecycleState.getAction());
-        assertEquals(ErrorStep.NAME, newLifecycleState.getStep());
-        assertEquals(currentStep.getName(), newLifecycleState.getFailedStep());
-        assertThat(newLifecycleState.getStepInfo(), containsString(expectedCauseValue));
-        assertEquals(oldLifecycleState.getPhaseTime(), newLifecycleState.getPhaseTime());
-        assertEquals(oldLifecycleState.getActionTime(), newLifecycleState.getActionTime());
-        assertEquals(now, newLifecycleState.getStepTime().longValue());
+        assertEquals(currentStep.getPhase(), newLifecycleState.phase());
+        assertEquals(currentStep.getAction(), newLifecycleState.action());
+        assertEquals(ErrorStep.NAME, newLifecycleState.step());
+        assertEquals(currentStep.getName(), newLifecycleState.failedStep());
+        assertThat(newLifecycleState.stepInfo(), containsString(expectedCauseValue));
+        assertEquals(oldLifecycleState.phaseTime(), newLifecycleState.phaseTime());
+        assertEquals(oldLifecycleState.actionTime(), newLifecycleState.actionTime());
+        assertEquals(now, newLifecycleState.stepTime().longValue());
     }
 
     private void assertClusterStateStepInfo(
@@ -1299,12 +1299,12 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         LifecycleExecutionState newLifecycleState = newClusterState.metadata().index(index).getLifecycleExecutionState();
         LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
-        assertEquals(currentStep.getPhase(), newLifecycleState.getPhase());
-        assertEquals(currentStep.getAction(), newLifecycleState.getAction());
-        assertEquals(currentStep.getName(), newLifecycleState.getStep());
-        assertEquals(expectedstepInfoValue, newLifecycleState.getStepInfo());
-        assertEquals(oldLifecycleState.getPhaseTime(), newLifecycleState.getPhaseTime());
-        assertEquals(oldLifecycleState.getActionTime(), newLifecycleState.getActionTime());
-        assertEquals(newLifecycleState.getStepTime(), newLifecycleState.getStepTime());
+        assertEquals(currentStep.getPhase(), newLifecycleState.phase());
+        assertEquals(currentStep.getAction(), newLifecycleState.action());
+        assertEquals(currentStep.getName(), newLifecycleState.step());
+        assertEquals(expectedstepInfoValue, newLifecycleState.stepInfo());
+        assertEquals(oldLifecycleState.phaseTime(), newLifecycleState.phaseTime());
+        assertEquals(oldLifecycleState.actionTime(), newLifecycleState.actionTime());
+        assertEquals(newLifecycleState.stepTime(), newLifecycleState.stepTime());
     }
 }

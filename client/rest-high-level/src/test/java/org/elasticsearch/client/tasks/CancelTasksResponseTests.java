@@ -96,19 +96,19 @@ public class CancelTasksResponseTests extends AbstractResponseTestCase<
             .collect(Collectors.toMap(org.elasticsearch.client.tasks.TaskInfo::getTaskId, Function.identity()));
         for (TaskInfo ti : sTasks) {
             org.elasticsearch.client.tasks.TaskInfo taskInfo = cTasksMap.get(
-                new org.elasticsearch.client.tasks.TaskId(ti.getTaskId().getNodeId(), ti.getTaskId().getId())
+                new org.elasticsearch.client.tasks.TaskId(ti.taskId().getNodeId(), ti.taskId().getId())
             );
-            assertEquals(ti.getAction(), taskInfo.getAction());
-            assertEquals(ti.getDescription(), taskInfo.getDescription());
-            assertEquals(new HashMap<>(ti.getHeaders()), new HashMap<>(taskInfo.getHeaders()));
-            assertEquals(ti.getType(), taskInfo.getType());
-            assertEquals(ti.getStartTime(), taskInfo.getStartTime());
-            assertEquals(ti.getRunningTimeNanos(), taskInfo.getRunningTimeNanos());
-            assertEquals(ti.isCancellable(), taskInfo.isCancellable());
-            assertEquals(ti.isCancelled(), taskInfo.isCancelled());
-            assertEquals(ti.getParentTaskId().getNodeId(), taskInfo.getParentTaskId().getNodeId());
-            assertEquals(ti.getParentTaskId().getId(), taskInfo.getParentTaskId().getId());
-            FakeTaskStatus status = (FakeTaskStatus) ti.getStatus();
+            assertEquals(ti.action(), taskInfo.getAction());
+            assertEquals(ti.description(), taskInfo.getDescription());
+            assertEquals(new HashMap<>(ti.headers()), new HashMap<>(taskInfo.getHeaders()));
+            assertEquals(ti.type(), taskInfo.getType());
+            assertEquals(ti.startTime(), taskInfo.getStartTime());
+            assertEquals(ti.runningTimeNanos(), taskInfo.getRunningTimeNanos());
+            assertEquals(ti.cancellable(), taskInfo.isCancellable());
+            assertEquals(ti.cancelled(), taskInfo.isCancelled());
+            assertEquals(ti.parentTaskId().getNodeId(), taskInfo.getParentTaskId().getNodeId());
+            assertEquals(ti.parentTaskId().getId(), taskInfo.getParentTaskId().getId());
+            FakeTaskStatus status = (FakeTaskStatus) ti.status();
             assertEquals(status.code, taskInfo.getStatus().get("code"));
             assertEquals(status.status, taskInfo.getStatus().get("status"));
 

@@ -266,20 +266,7 @@ public class FollowersChecker {
         }
     }
 
-    static class FastResponseState {
-        final long term;
-        final Mode mode;
-
-        FastResponseState(final long term, final Mode mode) {
-            this.term = term;
-            this.mode = mode;
-        }
-
-        @Override
-        public String toString() {
-            return "FastResponseState{" + "term=" + term + ", mode=" + mode + '}';
-        }
-    }
+    record FastResponseState(long term, Mode mode) {}
 
     /**
      * A checker for an individual follower.

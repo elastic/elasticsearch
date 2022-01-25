@@ -371,7 +371,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     @Override
     public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {
         for (FailedShard failedShard : failedShards) {
-            asyncFetchStore.remove(failedShard.getRoutingEntry().shardId());
+            asyncFetchStore.remove(failedShard.routingEntry().shardId());
         }
     }
 

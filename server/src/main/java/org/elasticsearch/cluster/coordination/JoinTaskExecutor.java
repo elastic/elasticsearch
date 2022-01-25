@@ -42,23 +42,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     private final Logger logger;
     private final RerouteService rerouteService;
 
-    public static class Task {
-
-        private final DiscoveryNode node;
-        private final String reason;
-
-        public Task(DiscoveryNode node, String reason) {
-            this.node = node;
-            this.reason = reason;
-        }
-
-        public DiscoveryNode node() {
-            return node;
-        }
-
-        public String reason() {
-            return reason;
-        }
+    public record Task(DiscoveryNode node, String reason) {
 
         @Override
         public String toString() {

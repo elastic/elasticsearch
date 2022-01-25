@@ -279,7 +279,7 @@ public class PolicyStepsRegistry {
         }
 
         // parse phase steps from the phase definition in the index settings
-        final String phaseJson = Optional.ofNullable(indexMetadata.getLifecycleExecutionState().getPhaseDefinition())
+        final String phaseJson = Optional.ofNullable(indexMetadata.getLifecycleExecutionState().phaseDefinition())
             .orElse(InitializePolicyContextStep.INITIALIZATION_PHASE);
 
         final List<Step> phaseSteps;

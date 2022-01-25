@@ -78,16 +78,7 @@ public class MetadataRolloverService {
         this.systemIndices = systemIndices;
     }
 
-    public static class RolloverResult {
-        public final String rolloverIndexName;
-        public final String sourceIndexName;
-        public final ClusterState clusterState;
-
-        private RolloverResult(String rolloverIndexName, String sourceIndexName, ClusterState clusterState) {
-            this.rolloverIndexName = rolloverIndexName;
-            this.sourceIndexName = sourceIndexName;
-            this.clusterState = clusterState;
-        }
+    public record RolloverResult(String rolloverIndexName, String sourceIndexName, ClusterState clusterState) {
 
         @Override
         public String toString() {
@@ -162,18 +153,7 @@ public class MetadataRolloverService {
         };
     }
 
-    public static class NameResolution {
-        final String sourceName;
-        @Nullable
-        final String unresolvedName;
-        final String rolloverName;
-
-        NameResolution(String sourceName, String unresolvedName, String rolloverName) {
-            this.sourceName = sourceName;
-            this.unresolvedName = unresolvedName;
-            this.rolloverName = rolloverName;
-        }
-    }
+    public record NameResolution(String sourceName, @Nullable String unresolvedName, String rolloverName) {}
 
     private NameResolution resolveAliasRolloverNames(Metadata metadata, IndexAbstraction alias, String newIndexName) {
         final IndexMetadata writeIndex = metadata.index(alias.getWriteIndex());

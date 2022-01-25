@@ -80,7 +80,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
      */
     public TaskResult(StreamInput in) throws IOException {
         completed = in.readBoolean();
-        task = new TaskInfo(in);
+        task = TaskInfo.from(in);
         error = in.readOptionalBytesReference();
         response = in.readOptionalBytesReference();
     }

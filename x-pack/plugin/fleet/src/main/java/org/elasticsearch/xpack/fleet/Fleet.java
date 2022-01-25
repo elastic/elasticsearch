@@ -290,10 +290,10 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                         .collect(Collectors.toList())
                         .toArray(Strings.EMPTY_ARRAY)
                 );
-                EnumSet<Option> options = request.indicesOptions().getOptions();
+                EnumSet<Option> options = request.indicesOptions().options();
                 options.add(Option.IGNORE_UNAVAILABLE);
                 options.add(Option.ALLOW_NO_INDICES);
-                request.indicesOptions(new IndicesOptions(options, request.indicesOptions().getExpandWildcards()));
+                request.indicesOptions(new IndicesOptions(options, request.indicesOptions().expandWildcards()));
 
                 client.execute(
                     DeleteDataStreamAction.INSTANCE,

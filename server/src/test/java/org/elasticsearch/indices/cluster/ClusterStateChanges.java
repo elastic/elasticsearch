@@ -386,11 +386,11 @@ public class ClusterStateChanges {
         List<FailedShardEntry> entries = failedShards.stream()
             .map(
                 failedShard -> new FailedShardEntry(
-                    failedShard.getRoutingEntry().shardId(),
-                    failedShard.getRoutingEntry().allocationId().getId(),
+                    failedShard.routingEntry().shardId(),
+                    failedShard.routingEntry().allocationId().getId(),
                     0L,
-                    failedShard.getMessage(),
-                    failedShard.getFailure(),
+                    failedShard.message(),
+                    failedShard.failure(),
                     failedShard.markAsStale()
                 )
             )
@@ -428,12 +428,12 @@ public class ClusterStateChanges {
     private <T> ClusterState runTasks(ClusterStateTaskExecutor<T> executor, ClusterState clusterState, List<T> entries) {
         try {
             ClusterTasksResult<T> result = executor.execute(clusterState, entries);
-            for (ClusterStateTaskExecutor.TaskResult taskResult : result.executionResults.values()) {
+            for (ClusterStateTaskExecutor.TaskResult taskResult : result.executionResults().values()) {
                 if (taskResult.isSuccess() == false) {
                     throw taskResult.getFailure();
                 }
             }
-            return result.resultingState;
+            return result.resultingState();
         } catch (Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);
         }

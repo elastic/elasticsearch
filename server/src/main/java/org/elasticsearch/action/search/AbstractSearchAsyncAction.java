@@ -795,7 +795,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             getNumShards(),
             filter,
             indexBoost,
-            timeProvider.getAbsoluteStartMillis(),
+            timeProvider.absoluteStartMillis(),
             shardIt.getClusterAlias(),
             shardIt.getSearchContextId(),
             shardIt.getSearchContextKeepAlive()

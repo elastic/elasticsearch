@@ -51,7 +51,7 @@ public final class TransportActionProxy {
             DiscoveryNode targetNode = request.targetNode;
             TransportRequest wrappedRequest = request.wrapped;
             assert assertConsistentTaskType(task, wrappedRequest);
-            TaskId taskId = task.taskInfo(service.localNode.getId(), false).getTaskId();
+            TaskId taskId = task.taskInfo(service.localNode.getId(), false).taskId();
             wrappedRequest.setParentTask(taskId);
             service.sendRequest(
                 targetNode,

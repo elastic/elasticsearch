@@ -139,18 +139,9 @@ public class Reconfigurator {
         }
     }
 
-    static class VotingConfigNode implements Comparable<VotingConfigNode> {
-        final String id;
-        final boolean live;
-        final boolean currentMaster;
-        final boolean inCurrentConfig;
-
-        VotingConfigNode(String id, boolean live, boolean currentMaster, boolean inCurrentConfig) {
-            this.id = id;
-            this.live = live;
-            this.currentMaster = currentMaster;
-            this.inCurrentConfig = inCurrentConfig;
-        }
+    record VotingConfigNode(String id, boolean live, boolean currentMaster, boolean inCurrentConfig)
+        implements
+            Comparable<VotingConfigNode> {
 
         @Override
         public int compareTo(VotingConfigNode other) {
@@ -171,21 +162,6 @@ public class Reconfigurator {
             }
             // tiebreak by node id to have stable ordering
             return id.compareTo(other.id);
-        }
-
-        @Override
-        public String toString() {
-            return "VotingConfigNode{"
-                + "id='"
-                + id
-                + '\''
-                + ", live="
-                + live
-                + ", currentMaster="
-                + currentMaster
-                + ", inCurrentConfig="
-                + inCurrentConfig
-                + '}';
         }
     }
 }

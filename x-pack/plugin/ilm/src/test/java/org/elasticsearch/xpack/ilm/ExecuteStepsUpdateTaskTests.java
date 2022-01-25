@@ -186,9 +186,9 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(firstStep.getExecuteCount(), equalTo(1L));
         assertThat(secondStep.getExecuteCount(), equalTo(1L));
         assertThat(task.getNextStepKey(), nullValue());
-        assertThat(lifecycleState.getPhaseTime(), nullValue());
-        assertThat(lifecycleState.getActionTime(), nullValue());
-        assertThat(lifecycleState.getStepInfo(), nullValue());
+        assertThat(lifecycleState.phaseTime(), nullValue());
+        assertThat(lifecycleState.actionTime(), nullValue());
+        assertThat(lifecycleState.stepInfo(), nullValue());
     }
 
     public void testExecuteUntilFirstNonClusterStateStep() throws Exception {
@@ -202,9 +202,9 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(currentStepKey, equalTo(thirdStepKey));
         assertThat(firstStep.getExecuteCount(), equalTo(0L));
         assertThat(secondStep.getExecuteCount(), equalTo(1L));
-        assertThat(lifecycleState.getPhaseTime(), nullValue());
-        assertThat(lifecycleState.getActionTime(), nullValue());
-        assertThat(lifecycleState.getStepInfo(), nullValue());
+        assertThat(lifecycleState.phaseTime(), nullValue());
+        assertThat(lifecycleState.actionTime(), nullValue());
+        assertThat(lifecycleState.stepInfo(), nullValue());
     }
 
     public void testExecuteInvalidStartStep() throws Exception {
@@ -253,9 +253,9 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(currentStepKey, equalTo(secondStepKey));
         assertThat(firstStep.getExecuteCount(), equalTo(0L));
         assertThat(secondStep.getExecuteCount(), equalTo(1L));
-        assertThat(lifecycleState.getPhaseTime(), nullValue());
-        assertThat(lifecycleState.getActionTime(), nullValue());
-        assertThat(lifecycleState.getStepInfo(), nullValue());
+        assertThat(lifecycleState.phaseTime(), nullValue());
+        assertThat(lifecycleState.actionTime(), nullValue());
+        assertThat(lifecycleState.stepInfo(), nullValue());
     }
 
     public void testExecuteIncompleteWaitStepWithInfo() throws Exception {
@@ -272,9 +272,9 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(currentStepKey, equalTo(secondStepKey));
         assertThat(firstStep.getExecuteCount(), equalTo(0L));
         assertThat(secondStep.getExecuteCount(), equalTo(1L));
-        assertThat(lifecycleState.getPhaseTime(), nullValue());
-        assertThat(lifecycleState.getActionTime(), nullValue());
-        assertThat(lifecycleState.getStepInfo(), equalTo(stepInfo.toString()));
+        assertThat(lifecycleState.phaseTime(), nullValue());
+        assertThat(lifecycleState.actionTime(), nullValue());
+        assertThat(lifecycleState.stepInfo(), equalTo(stepInfo.toString()));
     }
 
     public void testOnFailure() throws IOException {
@@ -300,9 +300,9 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(firstStep.getExecuteCount(), equalTo(1L));
         assertThat(secondStep.getExecuteCount(), equalTo(0L));
         assertNull(task.getNextStepKey());
-        assertThat(lifecycleState.getPhaseTime(), nullValue());
-        assertThat(lifecycleState.getActionTime(), nullValue());
-        assertThat(lifecycleState.getStepInfo(), containsString("""
+        assertThat(lifecycleState.phaseTime(), nullValue());
+        assertThat(lifecycleState.actionTime(), nullValue());
+        assertThat(lifecycleState.stepInfo(), containsString("""
             {"type":"runtime_exception","reason":"error","stack_trace":\""""));
     }
 
@@ -319,9 +319,9 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(currentStepKey, equalTo(new StepKey(firstStepKey.getPhase(), firstStepKey.getAction(), ErrorStep.NAME)));
         assertThat(firstStep.getExecuteCount(), equalTo(1L));
         assertThat(secondStep.getExecuteCount(), equalTo(1L));
-        assertThat(lifecycleState.getPhaseTime(), nullValue());
-        assertThat(lifecycleState.getActionTime(), nullValue());
-        assertThat(lifecycleState.getStepInfo(), containsString("""
+        assertThat(lifecycleState.phaseTime(), nullValue());
+        assertThat(lifecycleState.actionTime(), nullValue());
+        assertThat(lifecycleState.stepInfo(), containsString("""
             {"type":"runtime_exception","reason":"error","stack_trace":\""""));
     }
 

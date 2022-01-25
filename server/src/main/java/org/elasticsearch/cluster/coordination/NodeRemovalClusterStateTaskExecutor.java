@@ -27,23 +27,7 @@ public class NodeRemovalClusterStateTaskExecutor
     private final AllocationService allocationService;
     private final Logger logger;
 
-    public static class Task {
-
-        private final DiscoveryNode node;
-        private final String reason;
-
-        public Task(final DiscoveryNode node, final String reason) {
-            this.node = node;
-            this.reason = reason;
-        }
-
-        public DiscoveryNode node() {
-            return node;
-        }
-
-        public String reason() {
-            return reason;
-        }
+    public record Task(DiscoveryNode node, String reason) {
 
         @Override
         public String toString() {

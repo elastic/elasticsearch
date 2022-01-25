@@ -36,7 +36,7 @@ ILM+SLM::
 
 Infra/Core::
 * Allow scaling executors to reject tasks after shutdown {es-pull}81856[#81856] (issues: {es-issue}77017[#77017], {es-issue}77178[#77178])
-* Prevent 6.8 indices upgrade to 8.0 {es-pull}82689[#82689] (issue: {es-issue}81326[#81326])
+* Prevent direct upgrade of indices from 6.8 to 8.0 {es-pull}82689[#82689] (issue: {es-issue}81326[#81326])
 
 Infra/Logging::
 * Adjust ILM policy for deprecation logs {es-pull}82833[#82833]

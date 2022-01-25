@@ -46,8 +46,10 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 Settings.Builder builder = Settings.builder();
                 DataStream dataStream = metadata.dataStreams().get(dataStreamName);
                 Instant start;
+                Instant end;
                 if (dataStream == null) {
                     start = Instant.ofEpochMilli(resolvedAt).minusMillis(lookAheadTime.getMillis());
+                    end = Instant.ofEpochMilli(resolvedAt).plusMillis(lookAheadTime.getMillis());
                 } else {
                     IndexMetadata currentLatestBackingIndex = metadata.index(dataStream.getWriteIndex());
                     if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
@@ -61,9 +63,15 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         );
                     }
                     start = IndexSettings.TIME_SERIES_END_TIME.get(currentLatestBackingIndex.getSettings());
+                    Instant resolvedAtInstant = Instant.ofEpochMilli(resolvedAt);
+                    if (start.isAfter(resolvedAtInstant)) {
+                        end = start.plusMillis(lookAheadTime.getMillis());
+                    } else {
+                        end = resolvedAtInstant.plusMillis(lookAheadTime.getMillis());
+                    }
                 }
+                assert start.isBefore(end);
                 builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
-                Instant end = Instant.ofEpochMilli(resolvedAt).plusMillis(lookAheadTime.getMillis());
                 builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
                 return builder.build();
             }

@@ -41,7 +41,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
             return;
         }
 
-        createReviewsIndex(REVIEWS_INDEX_NAME, 1000, 327, "date", false, 5, "affiliate_id");
+        createReviewsIndex();
         indicesCreated = true;
     }
 
@@ -245,11 +245,14 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
      * The problem was fixed by https://github.com/elastic/elasticsearch/pull/82852 and this test serves as a regression test for this PR.
      */
     public void testRestrictiveBucketSelector() throws Exception {
-        verifyDestIndexHitsCount("special_pivot_bucket_selector-10", 10, 14);
-        verifyDestIndexHitsCount("special_pivot_bucket_selector-10000", 10000, 14);
+        String indexName = "special_pivot_bucket_selector_reviews";
+        createReviewsIndex(indexName, 1000, 327, "date", false, 5, "affiliate_id");
+
+        verifyDestIndexHitsCount(indexName, "special_pivot_bucket_selector-10", 10, 14);
+        verifyDestIndexHitsCount(indexName, "special_pivot_bucket_selector-10000", 10000, 14);
     }
 
-    private void verifyDestIndexHitsCount(String transformId, int maxPageSearchSize, long expectedDestIndexCount) throws Exception {
+    private void verifyDestIndexHitsCount(String sourceIndex, String transformId, int maxPageSearchSize, long expectedDestIndexCount) throws Exception {
         String transformIndex = transformId;
         String config = """
             {
@@ -287,7 +290,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
               "settings": {
                 "max_page_search_size": %s
               }
-            }""".formatted(REVIEWS_INDEX_NAME, transformIndex, maxPageSearchSize);
+            }""".formatted(sourceIndex, transformIndex, maxPageSearchSize);
         Request createTransformRequest = new Request("PUT", getTransformEndpoint() + transformId);
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));

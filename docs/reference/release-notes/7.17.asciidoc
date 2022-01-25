@@ -55,7 +55,7 @@ Machine Learning::
 * Move datafeed stats action off of master node {es-pull}82271[#82271]
 
 Watcher::
-* Preventing watcher from starting up if its templates are missing {es-pull}82395[#82395]
+* Prevent watcher from starting if its templates are missing {es-pull}82395[#82395]
 
 
 

@@ -302,16 +302,7 @@ final class IndexDiskUsageAnalyzer {
         return null;
     }
 
-    private static class BlockTermState {
-        final long docStartFP;
-        final long posStartFP;
-        final long payloadFP;
-
-        BlockTermState(long docStartFP, long posStartFP, long payloadFP) {
-            this.docStartFP = docStartFP;
-            this.posStartFP = posStartFP;
-            this.payloadFP = payloadFP;
-        }
+    private record BlockTermState(long docStartFP, long posStartFP, long payloadFP) {
 
         long distance(BlockTermState other) {
             return this.docStartFP - other.docStartFP + this.posStartFP - other.posStartFP + this.payloadFP - other.payloadFP;

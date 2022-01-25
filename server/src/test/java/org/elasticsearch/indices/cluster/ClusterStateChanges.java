@@ -394,11 +394,11 @@ public class ClusterStateChanges {
             .map(
                 failedShard -> new FailedShardUpdateTask(
                     new ShardStateAction.FailedShardEntry(
-                        failedShard.getRoutingEntry().shardId(),
-                        failedShard.getRoutingEntry().allocationId().getId(),
+                        failedShard.routingEntry().shardId(),
+                        failedShard.routingEntry().allocationId().getId(),
                         0L,
-                        failedShard.getMessage(),
-                        failedShard.getFailure(),
+                        failedShard.message(),
+                        failedShard.failure(),
                         failedShard.markAsStale()
                     ),
                     createTestListener()
@@ -441,12 +441,12 @@ public class ClusterStateChanges {
     private <T> ClusterState runTasks(ClusterStateTaskExecutor<T> executor, ClusterState clusterState, List<T> entries) {
         try {
             ClusterTasksResult<T> result = executor.execute(clusterState, entries);
-            for (TaskResult taskResult : result.executionResults.values()) {
+            for (TaskResult taskResult : result.executionResults().values()) {
                 if (taskResult.isSuccess() == false) {
                     throw taskResult.getFailure();
                 }
             }
-            return result.resultingState;
+            return result.resultingState();
         } catch (Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);
         }
@@ -474,12 +474,12 @@ public class ClusterStateChanges {
             ClusterStateTaskExecutor<ClusterStateUpdateTask> executor = (ClusterStateTaskExecutor<ClusterStateUpdateTask>) invocationOnMock
                 .getArguments()[2];
             ClusterTasksResult<ClusterStateUpdateTask> result = executor.execute(state, List.of(task));
-            for (TaskResult taskResult : result.executionResults.values()) {
+            for (TaskResult taskResult : result.executionResults().values()) {
                 if (taskResult.isSuccess() == false) {
                     throw taskResult.getFailure();
                 }
             }
-            resultingState[0] = result.resultingState;
+            resultingState[0] = result.resultingState();
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
         runnable.run();

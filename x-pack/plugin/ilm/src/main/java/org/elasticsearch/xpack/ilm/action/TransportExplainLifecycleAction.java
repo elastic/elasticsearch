@@ -115,8 +115,8 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         Settings idxSettings = indexMetadata.getSettings();
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
-        String currentPhase = lifecycleState.getPhase();
-        String stepInfo = lifecycleState.getStepInfo();
+        String currentPhase = lifecycleState.phase();
+        String stepInfo = lifecycleState.stepInfo();
         BytesArray stepInfoBytes = null;
         if (stepInfo != null) {
             stepInfoBytes = new BytesArray(stepInfo);
@@ -125,7 +125,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         Long indexCreationDate = indexMetadata.getCreationDate();
 
         // parse existing phase steps from the phase definition in the index settings
-        String phaseDef = lifecycleState.getPhaseDefinition();
+        String phaseDef = lifecycleState.phaseDefinition();
         PhaseExecutionInfo phaseExecutionInfo = null;
         if (Strings.isNullOrEmpty(phaseDef) == false) {
             try (
@@ -143,25 +143,25 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         if (Strings.hasLength(policyName)) {
             // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy
             if (onlyErrors == false
-                || (ErrorStep.NAME.equals(lifecycleState.getStep()) || indexLifecycleService.policyExists(policyName) == false)) {
+                || (ErrorStep.NAME.equals(lifecycleState.step()) || indexLifecycleService.policyExists(policyName) == false)) {
                 Long originationDate = idxSettings.getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L);
                 indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(
                     indexName,
                     indexCreationDate,
                     policyName,
-                    originationDate != -1L ? originationDate : lifecycleState.getLifecycleDate(),
-                    lifecycleState.getPhase(),
-                    lifecycleState.getAction(),
-                    lifecycleState.getStep(),
-                    lifecycleState.getFailedStep(),
+                    originationDate != -1L ? originationDate : lifecycleState.lifecycleDate(),
+                    lifecycleState.phase(),
+                    lifecycleState.action(),
+                    lifecycleState.step(),
+                    lifecycleState.failedStep(),
                     lifecycleState.isAutoRetryableError(),
-                    lifecycleState.getFailedStepRetryCount(),
-                    lifecycleState.getPhaseTime(),
-                    lifecycleState.getActionTime(),
-                    lifecycleState.getStepTime(),
-                    lifecycleState.getSnapshotRepository(),
-                    lifecycleState.getSnapshotName(),
-                    lifecycleState.getShrinkIndexName(),
+                    lifecycleState.failedStepRetryCount(),
+                    lifecycleState.phaseTime(),
+                    lifecycleState.actionTime(),
+                    lifecycleState.stepTime(),
+                    lifecycleState.snapshotRepository(),
+                    lifecycleState.snapshotName(),
+                    lifecycleState.shrinkIndexName(),
                     stepInfoBytes,
                     phaseExecutionInfo
                 );

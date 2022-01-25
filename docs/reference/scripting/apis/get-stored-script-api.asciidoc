@@ -14,10 +14,7 @@ PUT _scripts/my-stored-script
 {
   "script": {
     "lang": "painless",
-    "source": """
-      TimestampHour date =  doc['@timestamp'].value; 
-      return date.getHour()
-    """
+    "source": "Math.log(_score * 2) + params['my_modifier']"
   }
 }
 ----
@@ -28,6 +25,14 @@ PUT _scripts/my-stored-script
 GET _scripts/my-stored-script
 ----
 // TEST[continued]
+
+////
+[source,console]
+----
+DELETE _scripts/my-stored-script
+----
+// TEST[continued]
+////
 
 [[get-stored-script-api-request]]
 ==== {api-request-title}

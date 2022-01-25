@@ -66,7 +66,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         TimeValue.timeValueMinutes(5),
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueMinutes(10),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     @Override

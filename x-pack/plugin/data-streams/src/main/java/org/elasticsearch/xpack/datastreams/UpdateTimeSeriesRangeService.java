@@ -38,16 +38,17 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
 
     private static final Logger LOGGER = LogManager.getLogger(UpdateTimeSeriesRangeService.class);
 
-    private final TimeValue pollInterval;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
 
+    private volatile TimeValue pollInterval;
     private volatile Scheduler.Cancellable job;
 
     UpdateTimeSeriesRangeService(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
         this.pollInterval = DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL.get(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL, this::setPollInterval);
     }
 
     void perform() {
@@ -70,6 +71,19 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
             }
 
         }, ClusterStateTaskExecutor.unbatched());
+    }
+
+    void setPollInterval(TimeValue newValue) {
+        LOGGER.info(
+            "updating ["
+                + DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL.getKey()
+                + "] setting from ["
+                + pollInterval
+                + "] to ["
+                + newValue
+                + "]"
+        );
+        this.pollInterval = newValue;
     }
 
     ClusterState updateTimeSeriesTemporalRange(ClusterState current, Instant now) {

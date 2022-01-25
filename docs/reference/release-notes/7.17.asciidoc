@@ -43,7 +43,7 @@ Infra/Logging::
 * Do no use x-opaque-id for deduplicating elastic originating requests {es-pull}82855[#82855] (issue: {es-issue}82810[#82810])
 
 Infra/Settings::
-* Implement Setting Deduplication via String Interning {es-pull}80493[#80493] (issues: {es-issue}77466[#77466], {es-issue}78892[#78892])
+* Implement setting deduplication via string interning {es-pull}80493[#80493] (issues: {es-issue}77466[#77466], {es-issue}78892[#78892])
 
 Java Low Level REST Client::
 * LLRC: expose http client and allow overriding meta header {es-pull}81955[#81955]

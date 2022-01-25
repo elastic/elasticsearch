@@ -62,7 +62,6 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
         return super.configRoles() + "\n" + "anonymous:\n" + "  indices:\n" + "    - names: '*'\n" + "      privileges: [ READ ]\n";
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82971")
     public void testAnonymousViaHttp() throws Exception {
         try {
             getRestClient().performRequest(new Request("GET", "/_nodes"));

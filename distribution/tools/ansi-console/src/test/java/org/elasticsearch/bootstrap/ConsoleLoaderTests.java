@@ -11,7 +11,6 @@ package org.elasticsearch.bootstrap;
 import org.elasticsearch.io.ansi.AnsiConsoleLoader;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.PrintStream;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -20,7 +19,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ConsoleLoaderTests extends ESTestCase {
 
     public void testBuildSupplier() {
-        final Supplier<PrintStream> supplier = ConsoleLoader.buildConsoleLoader(AnsiConsoleLoader.class.getClassLoader());
+        final Supplier<ConsoleLoader.Console> supplier = ConsoleLoader.buildConsoleLoader(AnsiConsoleLoader.class.getClassLoader());
         assertThat(supplier, notNullValue());
         assertThat(supplier, instanceOf(AnsiConsoleLoader.class));
     }

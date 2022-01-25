@@ -207,7 +207,7 @@ public class AllocationService {
         );
 
         for (FailedShard failedShardEntry : failedShards) {
-            ShardRouting shardToFail = failedShardEntry.getRoutingEntry();
+            ShardRouting shardToFail = failedShardEntry.routingEntry();
             IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardToFail.shardId().getIndex());
             allocation.addIgnoreShardForNode(shardToFail.shardId(), shardToFail.currentNodeId());
             // failing a primary also fails initializing replica shards, re-resolve ShardRouting
@@ -230,11 +230,11 @@ public class AllocationService {
                 } else {
                     failedNodeIds = Collections.emptySet();
                 }
-                String message = "failed shard on node [" + shardToFail.currentNodeId() + "]: " + failedShardEntry.getMessage();
+                String message = "failed shard on node [" + shardToFail.currentNodeId() + "]: " + failedShardEntry.message();
                 UnassignedInfo unassignedInfo = new UnassignedInfo(
                     UnassignedInfo.Reason.ALLOCATION_FAILED,
                     message,
-                    failedShardEntry.getFailure(),
+                    failedShardEntry.failure(),
                     failedAllocations + 1,
                     currentNanoTime,
                     System.currentTimeMillis(),
@@ -246,7 +246,7 @@ public class AllocationService {
                 if (failedShardEntry.markAsStale()) {
                     allocation.removeAllocationId(failedShard);
                 }
-                logger.warn(new ParameterizedMessage("failing shard [{}]", failedShardEntry), failedShardEntry.getFailure());
+                logger.warn(new ParameterizedMessage("failing shard [{}]", failedShardEntry), failedShardEntry.failure());
                 routingNodes.failShard(logger, failedShard, unassignedInfo, indexMetadata, allocation.changes());
             } else {
                 logger.trace("{} shard routing failed in an earlier iteration (routing: {})", shardToFail.shardId(), shardToFail);
@@ -259,7 +259,7 @@ public class AllocationService {
         reroute(allocation);
         String failedShardsAsString = firstListElementsToCommaDelimitedString(
             failedShards,
-            s -> s.getRoutingEntry().shardId().toString(),
+            s -> s.routingEntry().shardId().toString(),
             logger.isDebugEnabled()
         );
         return buildResultAndLogHealthChange(clusterState, allocation, "shards failed [" + failedShardsAsString + "]");
@@ -738,34 +738,8 @@ public class AllocationService {
      * this class is used to describe results of applying a set of
      * {@link org.elasticsearch.cluster.routing.allocation.command.AllocationCommand}
      */
-    public static class CommandsResult {
-
-        private final RoutingExplanations explanations;
-
-        private final ClusterState clusterState;
-
-        /**
-         * Creates a new {@link CommandsResult}
-         * @param explanations Explanation for the reroute actions
-         * @param clusterState Resulting cluster state
-         */
-        private CommandsResult(RoutingExplanations explanations, ClusterState clusterState) {
-            this.clusterState = clusterState;
-            this.explanations = explanations;
-        }
-
-        /**
-         * Get the explanation of this result
-         */
-        public RoutingExplanations explanations() {
-            return explanations;
-        }
-
-        /**
-         * the resulting cluster state, after the commands were applied
-         */
-        public ClusterState getClusterState() {
-            return clusterState;
-        }
-    }
+    public record CommandsResult(
+        RoutingExplanations explanations, // Explanation for the reroute actions
+        ClusterState clusterState         // Resulting cluster state
+    ) {}
 }

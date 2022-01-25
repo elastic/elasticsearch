@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -211,27 +210,13 @@ public abstract class StringFieldType extends TermBasedFieldType {
                     + "' is set to false."
             );
         }
-        if (allowDocValueBasedQueries()) {
-            failIfNotIndexedNorDocValuesFallback(context);
-        } else {
-            failIfNotIndexed();
-        }
-        if (isIndexed()) {
-            return new TermRangeQuery(
-                name(),
-                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                includeLower,
-                includeUpper
-            );
-        } else {
-            return SortedSetDocValuesField.newSlowRangeQuery(
-                name(),
-                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                includeLower,
-                includeUpper
-            );
-        }
+        failIfNotIndexed();
+        return new TermRangeQuery(
+            name(),
+            lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+            upperTerm == null ? null : indexedValueForSearch(upperTerm),
+            includeLower,
+            includeUpper
+        );
     }
 }

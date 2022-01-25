@@ -146,8 +146,8 @@ final class Security {
             }
 
             // consult this policy for each of the plugin's jars:
-            for (URL jar : pluginPolicy.jars) {
-                if (map.put(jar.getFile(), pluginPolicy.policy) != null) {
+            for (URL jar : pluginPolicy.jars()) {
+                if (map.put(jar.getFile(), pluginPolicy.policy()) != null) {
                     // just be paranoid ok?
                     throw new IllegalStateException("per-plugin permissions already granted for jar file: " + jar);
                 }

@@ -708,11 +708,106 @@ public class Augmentation {
     /**
      * Convert a {@link TemporalAccessor} into millis since epoch like {@link Instant#toEpochMilli()}.
      */
-    public static long toEpochMilli(TemporalAccessor v) {
-        return v.getLong(ChronoField.INSTANT_SECONDS) * 1_000 + v.get(ChronoField.NANO_OF_SECOND) / 1_000_000;
+    public static long toEpochMilli(TemporalAccessor receiver) {
+        return receiver.getLong(ChronoField.INSTANT_SECONDS) * 1_000 + receiver.get(ChronoField.NANO_OF_SECOND) / 1_000_000;
+    }
+
+    public static long getMillis(TemporalAccessor receiver) {
+        return toEpochMilli(receiver);
     }
 
     public static DayOfWeek getDayOfWeekEnum(ZonedDateTime receiver) {
         return receiver.getDayOfWeek();
+    }
+
+    public static int getCenturyOfEra(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "joda method [getCenturyOfEra] is no longer available; "
+                + "use [<ZonedDateTime instance>.get(ChronoField.YEAR_OF_ERA) / 100] instead"
+        );
+    }
+
+    public static int getEra(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "joda method [getEra] is no longer available; " + "use [<ZonedDateTime instance>.get(ChronoField.ERA)] instead"
+        );
+    }
+
+    public static int getHourOfDay(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "joda method [getHourOfDay] is no longer available; " + "use [<ZonedDateTime instance>.getHour()] instead"
+        );
+    }
+
+    public static int getMillisOfDay(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "joda method [getMillisOfDay] is no longer available; " + "use [<ZonedDateTime instance>.get(ChronoField.MILLI_OF_DAY)] instead"
+        );
+    }
+
+    public static int getMillisOfSecond(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "joda method [getMillisOfSecond] is no longer available; "
+                + "use [<ZonedDateTime instance>.get(ChronoField.MILLI_OF_SECOND)] instead"
+        );
+    }
+
+    public static int getMinuteOfDay(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "joda method [getMinuteOfDay] is no longer available; "
+                + "use [<ZonedDateTime instance>.get(ChronoField.MINUTE_OF_DAY)] instead"
+        );
+    }
+
+    public static int getMinuteOfHour(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "joda method [getMinuteOfHour] is no longer available; " + "use [<ZonedDateTime instance>.getMinute()] instead"
+        );
+    }
+
+    public static int getMonthOfYear(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "joda method [getMonthOfYear] is no longer available; " + "use [<ZonedDateTime instance>.getMonthValue()] instead"
+        );
+    }
+
+    public static int getSecondOfDay(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "joda method [getSecondOfDay] is no longer available; "
+                + "use [<ZonedDateTime instance>.get(ChronoField.SECOND_OF_DAY)] instead"
+        );
+    }
+
+    public static int getSecondOfMinute(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "joda method [getSecondOfMinute] is no longer available; " + "use [<ZonedDateTime instance>.getSecond()] instead"
+        );
+    }
+
+    public static int getWeekOfWeekyear(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "joda method [getWeekOfWeekyear] is no longer available; "
+                + "use [<ZonedDateTime instance>.get(DateFormatters.WEEK_FIELDS.weekOfWeekBasedYear())] instead"
+        );
+    }
+
+    public static int getWeekyear(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "joda method [getWeekyear] is no longer available; "
+                + "use [<ZonedDateTime instance>.get(DateFormatters.WEEK_FIELDS.weekBasedYear())] instead"
+        );
+    }
+
+    public static int getYearOfCentury(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "joda method [getYearOfCentury] is no longer available; "
+                + "use [<ZonedDateTime instance>.get(ChronoField.YEAR_OF_ERA) % 100] instead"
+        );
+    }
+
+    public static int getYearOfEra(ZonedDateTime receiver) {
+        throw new UnsupportedOperationException(
+            "joda method [getYearOfEra] is no longer available; " + "use [<ZonedDateTime instance>.get(ChronoField.YEAR_OF_ERA)] instead"
+        );
     }
 }

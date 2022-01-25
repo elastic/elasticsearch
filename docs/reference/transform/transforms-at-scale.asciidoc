@@ -160,7 +160,7 @@ we do not recommend using a runtime field as the time field that synchronizes a
 
 [discrete]
 [[index-sorting-group-by-ordering]]
-== 8. Use index sorting
+== 8. Use index sorting (search, process)
 
 Index sorting enables you to store documents on disk in a specific order which
 can improve query efficiency. The ideal sorting logic depends on your use case,

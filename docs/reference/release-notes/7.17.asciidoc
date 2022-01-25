@@ -26,15 +26,20 @@ Audit::
 * Emit `trace.id` into audit logs {es-pull}82849[#82849] (issue: {es-issue}74210[#74210])
 
 Authorization::
-* Make authz perf log msg configurable and disabled by default {es-pull}82648[#82648] (issue: {es-issue}75439[#75439])
 * Allow read template with cluster monitor privilege {es-pull}82046[#82046] (issue: {es-issue}78832[#78832])
+* Make authz perf log msg configurable and disabled by default {es-pull}82648[#82648] (issue: {es-issue}75439[#75439])
 * [Security Solution] Add kibana system permissions for Endpoint action indices {es-pull}81953[#81953]
 
 ILM+SLM::
 * Migrate legacy/v2/component templates away from custom attributes routing {es-pull}82472[#82472] (issue: {es-issue}82170[#82170])
 * Migrate to data tiers API dry run on any ILM status {es-pull}82226[#82226] (issue: {es-issue}82169[#82169])
 
+Infra/Core::
+* Allow scaling executors to reject tasks after shutdown {es-pull}81856[#81856] (issues: {es-issue}77017[#77017], {es-issue}77178[#77178])
+* Prevent 6.8 indices upgrade to 8.0 {es-pull}82689[#82689] (issue: {es-issue}81326[#81326])
+
 Infra/Logging::
+* Adjust ILM policy for deprecation logs {es-pull}82833[#82833]
 * Do no use x-opaque-id for deduplicating elastic originating requests {es-pull}82855[#82855] (issue: {es-issue}82810[#82810])
 
 Infra/Settings::
@@ -43,7 +48,7 @@ Infra/Settings::
 Java Low Level REST Client::
 * LLRC: expose http client and allow overriding meta header {es-pull}81955[#81955]
 
-Licence::
+License::
 * Add DEBUG log when DLS/FLS usage is detected {es-pull}82182[#82182] (issue: {es-issue}79152[#79152])
 
 Machine Learning::
@@ -74,6 +79,7 @@ Data streams::
 
 Geo::
 * Handle degenerated rectangles in vector tiles {es-pull}82404[#82404] (issue: {es-issue}81891[#81891])
+* `GeoPolygonDecomposer` might fail due to numerical errors when calculating intersection with the dateline {es-pull}82953[#82953] (issue: {es-issue}82840[#82840])
 
 ILM+SLM::
 * Data tiers: migrate the coldest node attribute {es-pull}81940[#81940] (issue: {es-issue}81633[#81633])
@@ -101,11 +107,18 @@ Machine Learning::
 * Improve cleanup for model snapshot upgrades {es-pull}81831[#81831] (issue: {es-issue}81578[#81578])
 * Make delete intervening results more selective {es-pull}82437[#82437]
 * Skip time to next interval with data for datafeeds with aggs {es-pull}82488[#82488] (issue: {es-issue}82406[#82406])
+* Update running process when global calendar changes {es-pull}83044[#83044]
+
+Monitoring::
+* Always attempt upgrade monitoring templates {es-pull}82713[#82713] (issue: {es-issue}82453[#82453])
 
 Other::
 * Checking both node and cluster settings in `NodeDeprecationChecks` {es-pull}82487[#82487] (issue: {es-issue}82484[#82484])
 * Getting `deprecation.skip_deprecated_settings` to work with dynamic settings {es-pull}81836[#81836]
 * Ignoring dynamic settings specified by `deprecation.skip_deprecated_settings` in node deprecation checks {es-pull}82883[#82883] (issue: {es-issue}82889[#82889])
+
+Search::
+* Fix bug where field is not returned if it has the same prefix as a nested field {es-pull}82922[#82922] (issue: {es-issue}82905[#82905])
 
 Snapshot/Restore::
 * Always fail snapshot deletion listeners on master fail over {es-pull}82361[#82361] (issue: {es-issue}81596[#81596])
@@ -120,6 +133,4 @@ Snapshot/Restore::
 
 Search::
 * Upgrade to Lucene 8.11.1 {es-pull}81900[#81900]
-
-
 

@@ -12,8 +12,11 @@ import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRespo
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.DummyQueryParserPlugin;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -23,7 +26,9 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -38,7 +43,12 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singleton(MustachePlugin.class);
+        return List.of(MustachePlugin.class, DummyQueryParserPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true").build();
     }
 
     @Before
@@ -344,6 +354,34 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             .setScriptParams(arrayTemplateParams)
             .get();
         assertHitCount(searchResponse.getResponse(), 5);
+    }
+
+    /**
+     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+     */
+    public void testCCSCheckCompatibility() throws Exception {
+        String templateString = """
+            {
+              "source": "{ \\"query\\":{\\"fail_before_current_version\\":{}} }"
+            }""";
+        SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
+        request.setRequest(new SearchRequest());
+        ExecutionException ex = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(SearchTemplateAction.INSTANCE, request).get()
+        );
+        assertEquals(
+            "parts of writeable [SearchRequest{searchType=QUERY_THEN_FETCH, indices=[], "
+                + "indicesOptions=IndicesOptions[ignore_unavailable=false, allow_no_indices=true, expand_wildcards_open=true, "
+                + "expand_wildcards_closed=false, expand_wildcards_hidden=false, allow_aliases_to_multiple_indices=true, "
+                + "forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true], routing='null', preference='null', "
+                + "requestCache=null, scroll=null, maxConcurrentShardRequests=0, batchedReduceSize=512, preFilterShardSize=null, "
+                + "allowPartialSearchResults=null, localClusterAlias=null, getOrCreateAbsoluteStartMillis=-1, ccsMinimizeRoundtrips=true, "
+                + "source={\"query\":{\"dummy\":{}},\"explain\":false}}] are not compatible with version 8.0.0 and the "
+                + "'search.check_ccs_compatibility' setting is enabled.",
+            ex.getCause().getMessage()
+        );
+        assertEquals("This query isn't serializable to nodes before 8.1.0", ex.getCause().getCause().getMessage());
     }
 
 }

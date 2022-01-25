@@ -11,15 +11,20 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.mustache.MultiSearchTemplateResponse.Item;
+import org.elasticsearch.search.DummyQueryParserPlugin;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -34,7 +39,15 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(MustachePlugin.class);
+        return List.of(MustachePlugin.class, DummyQueryParserPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
+            .build();
     }
 
     public void testBasic() throws Exception {
@@ -163,5 +176,37 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         SearchTemplateResponse searchTemplateResponse5 = response5.getResponse();
         assertThat(searchTemplateResponse5.hasResponse(), is(false));
         assertThat(searchTemplateResponse5.getSource().utf8ToString(), equalTo("{\"query\":{\"terms\":{\"group\":[1,2,3,]}}}"));
+    }
+
+    /**
+    * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+    */
+    public void testCCSCheckCompatibility() throws Exception {
+        String templateString = """
+            {
+            "source": "{ \\"query\\":{\\"fail_before_current_version\\":{}} }"
+            }""";
+        SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(
+            createParser(JsonXContent.jsonXContent, templateString)
+        );
+        searchTemplateRequest.setRequest(new SearchRequest());
+        MultiSearchTemplateRequest request = new MultiSearchTemplateRequest();
+        request.add(searchTemplateRequest);
+        MultiSearchTemplateResponse multiSearchTemplateResponse = client().execute(MultiSearchTemplateAction.INSTANCE, request).get();
+        Item response = multiSearchTemplateResponse.getResponses()[0];
+        assertTrue(response.isFailure());
+        Exception ex = response.getFailure();
+        assertEquals(
+            "parts of writeable [SearchRequest{searchType=QUERY_THEN_FETCH, indices=[], "
+                + "indicesOptions=IndicesOptions[ignore_unavailable=false, allow_no_indices=true, expand_wildcards_open=true, "
+                + "expand_wildcards_closed=false, expand_wildcards_hidden=false, allow_aliases_to_multiple_indices=true, "
+                + "forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true], routing='null', preference='null', "
+                + "requestCache=null, scroll=null, maxConcurrentShardRequests=0, batchedReduceSize=512, preFilterShardSize=null, "
+                + "allowPartialSearchResults=null, localClusterAlias=null, getOrCreateAbsoluteStartMillis=-1, ccsMinimizeRoundtrips=true, "
+                + "source={\"query\":{\"dummy\":{}},\"explain\":false}}] are not compatible with version 8.0.0 and the "
+                + "'search.check_ccs_compatibility' setting is enabled.",
+            ex.getMessage()
+        );
+        assertEquals("This query isn't serializable to nodes before 8.1.0", ex.getCause().getMessage());
     }
 }

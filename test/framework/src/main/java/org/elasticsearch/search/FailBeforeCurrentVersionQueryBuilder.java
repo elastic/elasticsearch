@@ -11,51 +11,44 @@ package org.elasticsearch.search;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * Query simulating serialization error on versions earlier than CURRENT
  */
-public class FailBeforeVersionQueryBuilder extends DummyQueryBuilder {
+public class FailBeforeCurrentVersionQueryBuilder extends DummyQueryBuilder {
 
     public static final String NAME = "fail_before_current_version";
-    private static Version previousMinor;
 
-    static {
-        List<Version> allVersions = VersionUtils.allVersions();
-        for (int i = allVersions.size() - 1; i >= 0; i--) {
-            Version v = allVersions.get(i);
-            if (v.minor < Version.CURRENT.minor || v.major < Version.CURRENT.major) {
-                previousMinor = v;
-                break;
-            }
-        }
-    }
-
-    public FailBeforeVersionQueryBuilder(StreamInput in) throws IOException {
+    public FailBeforeCurrentVersionQueryBuilder(StreamInput in) throws IOException {
         super(in);
     }
 
-    public FailBeforeVersionQueryBuilder() {}
+    public FailBeforeCurrentVersionQueryBuilder() {}
 
     @Override
     protected void doWriteTo(StreamOutput out) {
-        if (out.getVersion().onOrBefore(previousMinor)) {
-            throw new IllegalArgumentException("This query isn't serializable to nodes on or before " + previousMinor);
+        if (out.getVersion().before(Version.CURRENT)) {
+            throw new IllegalArgumentException("This query isn't serializable to nodes before " + Version.CURRENT);
         }
     }
 
     public static DummyQueryBuilder fromXContent(XContentParser parser) throws IOException {
         DummyQueryBuilder.fromXContent(parser);
-        return new FailBeforeVersionQueryBuilder();
+        return new FailBeforeCurrentVersionQueryBuilder();
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        return this;
     }
 }

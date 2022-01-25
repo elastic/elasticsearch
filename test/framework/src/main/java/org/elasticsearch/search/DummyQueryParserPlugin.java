@@ -20,13 +20,18 @@ import org.elasticsearch.plugins.SearchPlugin;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
-
 public class DummyQueryParserPlugin extends Plugin implements SearchPlugin {
 
     @Override
     public List<QuerySpec<?>> getQueries() {
-        return singletonList(new QuerySpec<>(DummyQueryBuilder.NAME, DummyQueryBuilder::new, DummyQueryBuilder::fromXContent));
+        return List.of(
+            new QuerySpec<>(DummyQueryBuilder.NAME, DummyQueryBuilder::new, DummyQueryBuilder::fromXContent),
+            new QuerySpec<>(
+                FailBeforeCurrentVersionQueryBuilder.NAME,
+                FailBeforeCurrentVersionQueryBuilder::new,
+                FailBeforeCurrentVersionQueryBuilder::fromXContent
+            )
+        );
     }
 
     public static class DummyQuery extends Query {

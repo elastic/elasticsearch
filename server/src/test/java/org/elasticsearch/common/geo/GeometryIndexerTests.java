@@ -517,7 +517,7 @@ public class GeometryIndexerTests extends ESTestCase {
             )
         );
         MultiPolygon indexedCCW = new MultiPolygon(
-            List.of(
+            Arrays.asList(
                 new Polygon(
                     new LinearRing(
                         new double[] { 180.0, 180.0, 62.41055750853541, 180.0 },

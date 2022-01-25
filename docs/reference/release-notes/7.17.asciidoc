@@ -115,16 +115,15 @@ Monitoring::
 Search::
 * Fix bug where field is not returned if it has the same prefix as a nested field {es-pull}82922[#82922] (issue: {es-issue}82905[#82905])
 
-Snapshot/Restore::
-* Always fail snapshot deletion listeners on master failover {es-pull}82361[#82361] (issue: {es-issue}81596[#81596])
-* Fix potential repository corruption during master failover {es-pull}82912[#82912] (issue: {es-issue}82911[#82911])
-* Remove Requirement for Key Setting on Azure Client Settings {es-pull}82030[#82030]
-
 Settings::
 * Check both node and cluster settings in `NodeDeprecationChecks` {es-pull}82487[#82487] (issue: {es-issue}82484[#82484])
 * Change `deprecation.skip_deprecated_settings` to work with dynamic settings {es-pull}81836[#81836]
 * Ignore dynamic settings specified by `deprecation.skip_deprecated_settings` in node deprecation checks {es-pull}82883[#82883] (issue: {es-issue}82889[#82889])
 
+Snapshot/Restore::
+* Always fail snapshot deletion listeners on master failover {es-pull}82361[#82361] (issue: {es-issue}81596[#81596])
+* Fix potential repository corruption during master failover {es-pull}82912[#82912] (issue: {es-issue}82911[#82911])
+* Remove requirement for key setting on Azure client settings {es-pull}82030[#82030]
 
 
 [[upgrade-7.17.0]]

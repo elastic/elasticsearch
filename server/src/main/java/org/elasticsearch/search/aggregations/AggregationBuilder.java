@@ -189,4 +189,16 @@ public abstract class AggregationBuilder
     public String toString() {
         return Strings.toString(this);
     }
+
+    /**
+     * Return true if any of the child aggregations is a time-series aggregation that requires an in-order execution
+     */
+    public boolean isInSortOrderExecutionRequired() {
+        for (AggregationBuilder builder : factoriesBuilder.getAggregatorFactories()) {
+            if (builder.isInSortOrderExecutionRequired()) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

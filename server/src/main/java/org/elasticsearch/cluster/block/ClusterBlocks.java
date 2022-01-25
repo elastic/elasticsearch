@@ -294,24 +294,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return AbstractDiffable.readDiffFrom(ClusterBlocks::readFrom, in);
     }
 
-    static class ImmutableLevelHolder {
-
-        private final Set<ClusterBlock> global;
-        private final ImmutableOpenMap<String, Set<ClusterBlock>> indices;
-
-        ImmutableLevelHolder(Set<ClusterBlock> global, ImmutableOpenMap<String, Set<ClusterBlock>> indices) {
-            this.global = global;
-            this.indices = indices;
-        }
-
-        public Set<ClusterBlock> global() {
-            return global;
-        }
-
-        public ImmutableOpenMap<String, Set<ClusterBlock>> indices() {
-            return indices;
-        }
-    }
+    record ImmutableLevelHolder(Set<ClusterBlock> global, ImmutableOpenMap<String, Set<ClusterBlock>> indices) {}
 
     public static Builder builder() {
         return new Builder();

@@ -59,7 +59,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
 
     public ListTasksResponse(StreamInput in) throws IOException {
         super(in);
-        tasks = Collections.unmodifiableList(in.readList(TaskInfo::new));
+        tasks = Collections.unmodifiableList(in.readList(TaskInfo::from));
     }
 
     @Override
@@ -102,7 +102,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
      */
     public Map<String, List<TaskInfo>> getPerNodeTasks() {
         if (perNodeTasks == null) {
-            perNodeTasks = tasks.stream().collect(Collectors.groupingBy(t -> t.getTaskId().getNodeId()));
+            perNodeTasks = tasks.stream().collect(Collectors.groupingBy(t -> t.taskId().getNodeId()));
         }
         return perNodeTasks;
     }
@@ -122,12 +122,12 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
         List<TaskGroup.Builder> topLevelTasks = new ArrayList<>();
         // First populate all tasks
         for (TaskInfo taskInfo : this.tasks) {
-            taskGroups.put(taskInfo.getTaskId(), TaskGroup.builder(taskInfo));
+            taskGroups.put(taskInfo.taskId(), TaskGroup.builder(taskInfo));
         }
 
         // Now go through all task group builders and add children to their parents
         for (TaskGroup.Builder taskGroup : taskGroups.values()) {
-            TaskId parentTaskId = taskGroup.getTaskInfo().getParentTaskId();
+            TaskId parentTaskId = taskGroup.getTaskInfo().parentTaskId();
             if (parentTaskId.isSet()) {
                 TaskGroup.Builder parentTask = taskGroups.get(parentTaskId);
                 if (parentTask != null) {
@@ -185,7 +185,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
             }
             builder.startObject(TASKS);
             for (TaskInfo task : entry.getValue()) {
-                builder.startObject(task.getTaskId().toString());
+                builder.startObject(task.taskId().toString());
                 task.toXContent(builder, params);
                 builder.endObject();
             }
@@ -203,7 +203,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
         toXContentCommon(builder, params);
         builder.startObject(TASKS);
         for (TaskGroup group : getTaskGroups()) {
-            builder.field(group.getTaskInfo().getTaskId().toString());
+            builder.field(group.taskInfo().taskId().toString());
             group.toXContent(builder, params);
         }
         builder.endObject();

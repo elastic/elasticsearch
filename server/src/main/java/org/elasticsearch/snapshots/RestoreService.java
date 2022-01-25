@@ -1298,7 +1298,7 @@ public class RestoreService implements ClusterStateApplier {
                 );
                 if (snapshotIndexMetadata.getCreationVersion().before(
                     currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion())) {
-                    // adapt mappings so that they can be read
+                    // adapt index metadata so that it can be understood by current version
                     snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata);
                 }
                 try {

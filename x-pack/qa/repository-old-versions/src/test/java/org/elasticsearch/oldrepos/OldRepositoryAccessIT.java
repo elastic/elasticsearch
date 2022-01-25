@@ -317,18 +317,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         Map<String, Object> valMapping = (Map<String, Object>) propertiesMapping.get("val");
         assertThat(valMapping, hasKey("type"));
         assertEquals("long", valMapping.get("type"));
-
-//        assertThat(root, hasKey("runtime"));
-//        assertThat(root.get("runtime"), instanceOf(Map.class));
-//        @SuppressWarnings("unchecked")
-//        Map<String, Object> runtimeMapping = (Map<String, Object>) root.get("runtime");
-//        assertThat(runtimeMapping, hasKey("val"));
-//        assertThat(runtimeMapping.get("val"), instanceOf(Map.class));
-//        @SuppressWarnings("unchecked")
-//        Map<String, Object> valRuntimeMapping = (Map<String, Object>) runtimeMapping.get("val");
-//        assertThat(valRuntimeMapping, hasKey("type"));
-//        assertEquals("long", valRuntimeMapping.get("type"));
-
+        
         // run a search against the index
         assertDocs("restored_test", numDocs, expectedIds, client, sourceOnlyRepository);
 

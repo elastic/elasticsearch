@@ -39,7 +39,6 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.LegacyMappingConverter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -61,7 +60,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1981,28 +1979,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         private static void handleLegacyMapping(Builder builder, Map<String, Object> mapping) {
-            //Map<String, Object> adaptedMapping = new
-
-            // we don't need to obey any routing here stuff is read-only anyway and get is disabled
-            // final String mapping = "{ \"_doc\" : { \"enabled\": false, \"_meta\": " + mmd.source().string() + " } }";
-
-//            LegacyMappingConverter legacyMappingConverter = new LegacyMappingConverter();
-//            @SuppressWarnings("unchecked")
-//            Map<String, Object> newMapping = (Map<String, Object>) legacyMappingConverter.extractNewMapping(mapping, true);
-//            mapping = newMapping;
-
             if (mapping.size() == 1) {
                 String mappingType = mapping.keySet().iterator().next();
-//                @SuppressWarnings("unchecked")
-//                Map<String, Object> typelessMapping = (Map<String, Object>) mapping.get(mappingType);
-//                Map<String, ?> runtimeFieldMapping = legacyMappingConverter.extractRuntimeFieldMapping(typelessMapping);
-//                if (runtimeFieldMapping.isEmpty() == false) {
-//                    // TODO: only add those runtime fields that don't already exist
-//                    LinkedHashMap<String, Object> newTypelessMapping = new LinkedHashMap<>();
-//                    newTypelessMapping.put("runtime", runtimeFieldMapping);
-//                    newTypelessMapping.putAll(typelessMapping);
-//                    mapping.put(mappingType, newTypelessMapping);
-//                }
                 builder.putMapping(new MappingMetadata(mappingType, mapping));
             } else if (mapping.size() > 1) {
                 // TODO: handle this better

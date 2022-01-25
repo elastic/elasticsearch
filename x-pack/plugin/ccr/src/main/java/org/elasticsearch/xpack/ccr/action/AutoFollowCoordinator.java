@@ -367,9 +367,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
         Map<String, AutoFollower> updatedFollowers = new HashMap<>(currentAutoFollowers);
         updatedFollowers.putAll(newAutoFollowers);
-        for (String removedCluster : removedRemoteClusters) {
-            updatedFollowers.remove(removedCluster);
-        }
+        removedRemoteClusters.forEach(updatedFollowers.keySet()::remove);
         this.autoFollowers = Collections.unmodifiableMap(updatedFollowers);
     }
 

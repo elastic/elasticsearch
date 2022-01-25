@@ -30,12 +30,26 @@ setup:
   - do:
       snapshot.create:
         repository: test_repo_restore_1
-        snapshot: test_snapshot
+        snapshot: test_snapshot_1
+        wait_for_completion: true
+
+  - match: { snapshot.snapshot: test_snapshot_1 }
+  - match: { snapshot.state : SUCCESS }
+  # snapshot can contain system indices and have shards.successful >=1
+  - gt: { snapshot.shards.successful: 0 }
+  - match: { snapshot.shards.failed : 0 }
+  - is_true: snapshot.version
+  - gt: { snapshot.version_id: 0}
+
+  - do:
+      snapshot.create:
+        repository: test_repo_restore_1
+        snapshot: test_snapshot_2
         wait_for_completion: true
         body:
           indices: "test_index"
 
-  - match: { snapshot.snapshot: test_snapshot }
+  - match: { snapshot.snapshot: test_snapshot_2 }
   - match: { snapshot.state : SUCCESS }
   - match: { snapshot.shards.successful: 1 }
   - match: { snapshot.shards.failed : 0 }
@@ -51,7 +65,7 @@ setup:
   - do:
       snapshot.restore:
         repository: test_repo_restore_1
-        snapshot: test_snapshot
+        snapshot: test_snapshot_2
         wait_for_completion: true
 
   - do:

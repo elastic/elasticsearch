@@ -102,8 +102,8 @@ is not applicable for this function.
 --------------------------------------------------
 {
   "function" : "high_non_null_sum",
-  "fieldName" : "amount_approved",
-  "byFieldName" : "employee"
+  "field_name" : "amount_approved",
+  "by_field_name" : "employee"
 }
 --------------------------------------------------
 // NOTCONSOLE

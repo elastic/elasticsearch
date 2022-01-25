@@ -84,7 +84,7 @@ Geo::
 ILM+SLM::
 * Migrate the coldest node attribute for data tier routing {es-pull}81940[#81940] (issue: {es-issue}81633[#81633])
 * Retry ILM step to safely refresh the cached phase {es-pull}82613[#82613] (issue: {es-issue}81921[#81921])
-* ILM: fix allocate action to allow only `total_shards_per_node` {es-pull}81944[#81944] (issue: {es-issue}81943[#81943])
+* Fix ILM allocate action to allow only `total_shards_per_node` {es-pull}81944[#81944] (issue: {es-issue}81943[#81943])
 
 Indices APIs::
 * Make the rollover API respect the request's `master_timeout` {es-pull}82326[#82326] (issue: {es-issue}81762[#81762])
@@ -112,11 +112,6 @@ Machine Learning::
 Monitoring::
 * Always attempt upgrade monitoring templates {es-pull}82713[#82713] (issue: {es-issue}82453[#82453])
 
-Other::
-* Check both node and cluster settings in `NodeDeprecationChecks` {es-pull}82487[#82487] (issue: {es-issue}82484[#82484])
-* Change `deprecation.skip_deprecated_settings` to work with dynamic settings {es-pull}81836[#81836]
-* Ignore dynamic settings specified by `deprecation.skip_deprecated_settings` in node deprecation checks {es-pull}82883[#82883] (issue: {es-issue}82889[#82889])
-
 Search::
 * Fix bug where field is not returned if it has the same prefix as a nested field {es-pull}82922[#82922] (issue: {es-issue}82905[#82905])
 
@@ -124,6 +119,11 @@ Snapshot/Restore::
 * Always fail snapshot deletion listeners on master failover {es-pull}82361[#82361] (issue: {es-issue}81596[#81596])
 * Fix potential repository corruption during master failover {es-pull}82912[#82912] (issue: {es-issue}82911[#82911])
 * Remove Requirement for Key Setting on Azure Client Settings {es-pull}82030[#82030]
+
+Settings::
+* Check both node and cluster settings in `NodeDeprecationChecks` {es-pull}82487[#82487] (issue: {es-issue}82484[#82484])
+* Change `deprecation.skip_deprecated_settings` to work with dynamic settings {es-pull}81836[#81836]
+* Ignore dynamic settings specified by `deprecation.skip_deprecated_settings` in node deprecation checks {es-pull}82883[#82883] (issue: {es-issue}82889[#82889])
 
 
 

@@ -774,6 +774,32 @@ public class RestControllerTests extends ESTestCase {
         assertTrue(channel.getSendResponseCalled());
     }
 
+    public void testCustomMediaTypeValidation() {
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+
+        final String mediaType = "application/x-protobuf";
+        FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
+        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+
+        // register handler that handles custom media type validation
+        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
+            @Override
+            public boolean mediaTypesValid(RestRequest request) {
+                return request.getXContentType() == null
+                    && request.getParsedContentType().mediaTypeWithoutParameters().equals("application/x-protobuf");
+            }
+
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
+        });
+
+        assertFalse(channel.getSendResponseCalled());
+        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.getSendResponseCalled());
+    }
+
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
 
         TestHttpServerTransport() {}

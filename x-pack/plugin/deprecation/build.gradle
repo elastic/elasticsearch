@@ -12,5 +12,10 @@ addQaCheckDependencies()
 
 dependencies {
   compileOnly project(":x-pack:plugin:core")
+  compileOnly(project(":server")) {
+    capabilities {
+      requireCapability("org.elasticsearch:server-logging")
+    }
+  }
 }
 

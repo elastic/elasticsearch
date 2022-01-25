@@ -15,6 +15,12 @@ archivesBaseName = 'x-pack-security'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  compileOnly(project(":server")) {
+    capabilities {
+      requireCapability("org.elasticsearch:server-logging")
+    }
+  }
+
   api project(path: ':modules:transport-netty4')
   api project(path: ':plugins:transport-nio')
 

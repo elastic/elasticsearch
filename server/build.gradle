@@ -12,6 +12,20 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
+java {
+    registerFeature('logging') {
+        usingSourceSet(sourceSets.main)
+    }
+}
+
+configurations.all {
+    println it.name
+}
+configurations {
+    internalClusterTestImplementation {
+        extendsFrom loggingApi
+    }
+}
 publishing {
   publications {
     elastic {
@@ -58,7 +72,7 @@ dependencies {
 
   // logging
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-  api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+  loggingApi "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   api "net.java.dev.jna:jna:${versions.jna}"
 
@@ -244,4 +258,13 @@ tasks.named('splitPackagesAudit').configure {
     // These are tricky because Lucene itself splits the index package,
     // but this should be fixed in Lucene 9
   ignoreClasses 'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper'
+}
+
+tasks.register('print') {
+    inputs.files configurations.getByName("internalTestCompileClasspath")
+    doLast {
+        configurations.getByName("internalTestCompileClasspath").files.each {
+            println it
+        }
+    }
 }

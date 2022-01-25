@@ -84,6 +84,12 @@ dependencies {
 
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
+  api(project(":server")) {
+    capabilities {
+      requireCapability("org.elasticsearch:server-logging")
+    }
+  }
+
   testImplementation project(':test:fixtures:azure-fixture')
 }
 

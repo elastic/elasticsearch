@@ -121,7 +121,7 @@ Search::
 * Fix bug where field is not returned if it has the same prefix as a nested field {es-pull}82922[#82922] (issue: {es-issue}82905[#82905])
 
 Snapshot/Restore::
-* Always fail snapshot deletion listeners on master fail over {es-pull}82361[#82361] (issue: {es-issue}81596[#81596])
+* Always fail snapshot deletion listeners on master failover {es-pull}82361[#82361] (issue: {es-issue}81596[#81596])
 * Fix potential repository corruption during master failover {es-pull}82912[#82912] (issue: {es-issue}82911[#82911])
 * Remove Requirement for Key Setting on Azure Client Settings {es-pull}82030[#82030]
 

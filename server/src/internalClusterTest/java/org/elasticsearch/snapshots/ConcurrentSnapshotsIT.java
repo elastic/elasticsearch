@@ -1082,9 +1082,10 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             masterName
         );
 
+        // wait for the delete to show up in the CS so that the below snapshot is queued after it for sure
+        awaitNDeletionsInProgress(1);
         final ActionFuture<CreateSnapshotResponse> snapshotFuture = startFullSnapshotFromDataNode(repoName, "new-full-snapshot");
         waitForBlock(masterName, repoName);
-        awaitNDeletionsInProgress(1);
         awaitNumberOfSnapshotsInProgress(1);
         networkDisruption.startDisrupting();
         ensureStableCluster(3, dataNode);

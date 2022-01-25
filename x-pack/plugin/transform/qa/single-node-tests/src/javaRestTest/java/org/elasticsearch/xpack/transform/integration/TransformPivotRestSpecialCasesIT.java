@@ -252,7 +252,8 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         verifyDestIndexHitsCount(indexName, "special_pivot_bucket_selector-10000", 10000, 14);
     }
 
-    private void verifyDestIndexHitsCount(String sourceIndex, String transformId, int maxPageSearchSize, long expectedDestIndexCount) throws Exception {
+    private void verifyDestIndexHitsCount(String sourceIndex, String transformId, int maxPageSearchSize, long expectedDestIndexCount)
+        throws Exception {
         String transformIndex = transformId;
         String config = """
             {

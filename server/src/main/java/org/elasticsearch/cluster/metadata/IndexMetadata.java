@@ -1935,7 +1935,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     if ("mappings".equals(currentFieldName)) {
-                        // don't try to parse these for now
+                        MapBuilder<String, Object> mappingSourceBuilder = MapBuilder.<String, Object>newMapBuilder();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             Map<String, Object> mapping;
                             if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
@@ -1944,8 +1944,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             } else {
                                 mapping = parser.mapOrdered();
                             }
-                            handleLegacyMapping(builder, mapping);
+                            mappingSourceBuilder.putAll(mapping);
                         }
+                        handleLegacyMapping(builder, mappingSourceBuilder.map());
                     } else {
                         parser.skipChildren();
                     }
@@ -1983,8 +1984,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 String mappingType = mapping.keySet().iterator().next();
                 builder.putMapping(new MappingMetadata(mappingType, mapping));
             } else if (mapping.size() > 1) {
-                // TODO: handle this better
-                throw new RuntimeException("can't handle multiple types");
+                builder.putMapping(new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mapping));
             }
         }
     }

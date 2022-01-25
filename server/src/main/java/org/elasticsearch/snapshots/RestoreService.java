@@ -1296,8 +1296,8 @@ public class RestoreService implements ClusterStateApplier {
                     request.indexSettings(),
                     request.ignoreIndexSettings()
                 );
-                if (snapshotIndexMetadata.getCreationVersion().before(
-                    currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion())) {
+                if (snapshotIndexMetadata.getCreationVersion()
+                    .before(currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion())) {
                     // adapt index metadata so that it can be understood by current version
                     snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata);
                 }
@@ -1591,42 +1591,28 @@ public class RestoreService implements ClusterStateApplier {
 
     private IndexMetadata convertLegacyIndex(IndexMetadata snapshotIndexMetadata) {
         MappingMetadata mappingMetadata = snapshotIndexMetadata.mapping();
-        Map<String, Object> loadedMappingSource = mappingMetadata.sourceAsMap();
+        Map<String, Object> loadedMappingSource = mappingMetadata.rawSourceAsMap();
 
-        // store old mapping under _meta/legacy-mapping
+        // store old mapping under _meta/legacy-mappings
         Map<String, Object> legacyMapping = new LinkedHashMap<>();
         boolean sourceOnlySnapshot = snapshotIndexMetadata.getSettings().getAsBoolean("index.source_only", false);
         if (sourceOnlySnapshot) {
-            // actual mapping is under "_meta", and keyed by _type
-            Object sourceOnlyMeta = loadedMappingSource.get("_meta");
+            // actual mapping is under "_meta" (but strip type first)
+            Object sourceOnlyMeta = mappingMetadata.sourceAsMap().get("_meta");
             if (sourceOnlyMeta instanceof Map<?, ?> sourceOnlyMetaMap) {
-                if (sourceOnlyMetaMap.size() == 1) {
-                    if (sourceOnlyMetaMap.values().iterator().next() instanceof Map<?, ?> sourceOnlyLegacyMapping) {
-                        legacyMapping.put("legacy-mapping", sourceOnlyLegacyMapping);
-                    }
-                }
+                legacyMapping.put("legacy-mappings", sourceOnlyMetaMap);
             }
         } else {
-            legacyMapping.put("legacy-mapping", loadedMappingSource);
+            legacyMapping.put("legacy-mappings", loadedMappingSource);
         }
 
         Map<String, Object> newMappingSource = new LinkedHashMap<>();
         newMappingSource.put("_meta", legacyMapping);
 
-        // copy over _meta fields of original index into proper place?
-        // preserve legacy runtime fields
-        Object legacyRuntimeFields = loadedMappingSource.get("runtime");
-        if (legacyRuntimeFields instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> legRuntimeFields = (Map<String, Object>) legacyRuntimeFields;
-            newMappingSource.put("runtime", legRuntimeFields);
-        }
         Map<String, Object> newMapping = new LinkedHashMap<>();
         newMapping.put(mappingMetadata.type(), newMappingSource);
         // TODO: _routing? Perhaps we don't need to obey any routing here as stuff is read-only anyway and get API will be disabled
-        return IndexMetadata.builder(snapshotIndexMetadata)
-            .putMapping(new MappingMetadata(mappingMetadata.type(), newMapping))
-            .build();
+        return IndexMetadata.builder(snapshotIndexMetadata).putMapping(new MappingMetadata(mappingMetadata.type(), newMapping)).build();
     }
 
     private static IndexMetadata.Builder restoreToCreateNewIndex(IndexMetadata snapshotIndexMetadata, String renamedIndexName) {

@@ -883,6 +883,7 @@ PUT _ingest/pipeline/my-pipeline
 [source,console]
 ----
 DELETE _scripts/my-prod-tag-script
+DELETE _ingest/pipeline/my-pipeline
 ----
 // TEST[continued]
 ////

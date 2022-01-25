@@ -23,13 +23,19 @@ Transform::
 === Enhancements
 
 Authorization::
-* Allow read template with cluster monitor privilege {es-pull}82046[#82046] (issue: {es-issue}78832[#78832])
 * Make authz perf log msg configurable and disabled by default {es-pull}82648[#82648] (issue: {es-issue}75439[#75439])
+* Allow read template with cluster monitor privilege {es-pull}82046[#82046] (issue: {es-issue}78832[#78832])
 * [Security Solution] Add kibana system permissions for Endpoint action indices {es-pull}81953[#81953]
+
+Build::
+* Make `ValidateJsonNoKeywordsTask` gradle configuration cache ready [OPEN] {es-pull}82864[#82864]
 
 ILM+SLM::
 * Migrate legacy/v2/component templates away from custom attributes routing {es-pull}82472[#82472] (issue: {es-issue}82170[#82170])
 * Migrate to data tiers API dry run on any ILM status {es-pull}82226[#82226] (issue: {es-issue}82169[#82169])
+
+Infra/Logging::
+* Do no use x-opaque-id for deduplicating elastic originating requests {es-pull}82855[#82855] (issue: {es-issue}82810[#82810])
 
 Infra/Settings::
 * Implement Setting Deduplication via String Interning {es-pull}80493[#80493] (issues: {es-issue}77466[#77466], {es-issue}78892[#78892])
@@ -99,10 +105,13 @@ Machine Learning::
 Other::
 * Checking both node and cluster settings in `NodeDeprecationChecks` {es-pull}82487[#82487] (issue: {es-issue}82484[#82484])
 * Getting `deprecation.skip_deprecated_settings` to work with dynamic settings {es-pull}81836[#81836]
+* Ignoring dynamic settings specified by `deprecation.skip_deprecated_settings` in node deprecation checks {es-pull}82883[#82883] (issue: {es-issue}82889[#82889])
 
 Snapshot/Restore::
 * Always fail snapshot deletion listeners on master fail over {es-pull}82361[#82361] (issue: {es-issue}81596[#81596])
+* Fix Potential Repository Corruption during Master Failover {es-pull}82912[#82912] (issue: {es-issue}82911[#82911])
 * Remove Requirement for Key Setting on Azure Client Settings {es-pull}82030[#82030]
+* Support GKE Workload Identity for Searchable Snapshots [OPEN] {es-pull}82974[#82974] (issue: {es-issue}82702[#82702])
 
 
 

@@ -84,7 +84,6 @@ public class PackageUpgradeTests extends PackagingTestCase {
         stopElasticsearch();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79950")
     public void test20InstallUpgradedVersion() throws Exception {
         if (bwcDistribution.path.equals(distribution.path)) {
             // the old and new distributions are the same, so we are testing force upgrading
@@ -99,7 +98,6 @@ public class PackageUpgradeTests extends PackagingTestCase {
         ServerUtils.disableSecurityFeatures(installation);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76283")
     public void test21CheckUpgradedVersion() throws Exception {
         assertWhileRunning(() -> { assertDocsExist(); });
     }

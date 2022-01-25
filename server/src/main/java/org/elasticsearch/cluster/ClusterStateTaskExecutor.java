@@ -104,7 +104,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
             }
 
             public ClusterTasksResult<T> build(ClusterState resultingState) {
-                return new ClusterTasksResult<T>(resultingState, executionResults);
+                return new ClusterTasksResult<>(resultingState, executionResults);
             }
         }
     }

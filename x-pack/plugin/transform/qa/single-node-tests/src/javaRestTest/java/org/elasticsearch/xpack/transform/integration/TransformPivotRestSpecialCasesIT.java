@@ -22,6 +22,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
     private static boolean indicesCreated = false;
@@ -40,7 +41,7 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
             return;
         }
 
-        createReviewsIndex();
+        createReviewsIndex(REVIEWS_INDEX_NAME, 1000, 327, "date", false, 5, "affiliate_id");
         indicesCreated = true;
     }
 
@@ -234,5 +235,67 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         assertNull(percentilesEmpty.get("50"));
         assertTrue(percentilesEmpty.containsKey("99"));
         assertNull(percentilesEmpty.get("99"));
+    }
+
+    /**
+     * This test verifies that regardless of the max_page_search_size setting value used, the transform works correctly in the face of
+     * restrictive bucket selector.
+     * In the past there was a problem when there were no buckets (because bucket selector filtered them out) in a composite aggregation
+     * page and for small enough max_page_search_size the transform stopped prematurely.
+     * The problem was fixed by https://github.com/elastic/elasticsearch/pull/82852 and this test serves as a regression test for this PR.
+     */
+    public void testRestrictiveBucketSelector() throws Exception {
+        verifyDestIndexHitsCount("special_pivot_bucket_selector-10", 10, 14);
+        verifyDestIndexHitsCount("special_pivot_bucket_selector-10000", 10000, 14);
+    }
+
+    private void verifyDestIndexHitsCount(String transformId, int maxPageSearchSize, long expectedDestIndexCount) throws Exception {
+        String transformIndex = transformId;
+        String config = """
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "frequency": "1m",
+              "pivot": {
+                "group_by": {
+                  "user_id": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "stars_sum": {
+                    "sum": {
+                      "field": "stars"
+                    }
+                  },
+                  "bs": {
+                    "bucket_selector": {
+                      "buckets_path": {
+                        "stars_sum": "stars_sum.value"
+                      },
+                      "script": "params.stars_sum > 20"
+                    }
+                  }
+                }
+              },
+              "settings": {
+                "max_page_search_size": %s
+              }
+            }""".formatted(REVIEWS_INDEX_NAME, transformIndex, maxPageSearchSize);
+        Request createTransformRequest = new Request("PUT", getTransformEndpoint() + transformId);
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        startAndWaitForTransform(transformId, transformIndex);
+        assertTrue(indexExists(transformIndex));
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search");
+        long count = (Integer) XContentMapValues.extractValue("hits.total.value", searchResult);
+        assertThat(count, is(equalTo(expectedDestIndexCount)));
     }
 }

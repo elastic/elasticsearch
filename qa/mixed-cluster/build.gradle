@@ -31,6 +31,9 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
       numberOfNodes = 4
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'xpack.security.enabled', 'false'
+      // extra logger settings to help debug https://github.com/elastic/elasticsearch/issues/80335
+      setting 'logger.org.elasticsearch.transport.TransportService.tracer', 'TRACE'
+      setting 'transport.tracer.include', '"indices:data/read/field_caps*"'
     }
 
     tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {

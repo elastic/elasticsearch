@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -246,13 +247,23 @@ public final class IndexLifecycleTransition {
 
             LifecyclePolicyMetadata policyMetadata = ilmMeta.getPolicyMetadatas()
                 .get(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()));
-            LifecycleExecutionState nextStepState = IndexLifecycleTransition.updateExecutionStateToStep(
+
+            Map<String, Phase> policyPhases = policyMetadata.getPolicy().getPhases();
+
+            // we only refresh the cached phase if the failed step's action is still present in the underlying policy
+            // as otherwise ILM would block due to not recognizing the next step as part of the policy.
+            // if the policy was updated to not contain the action or even phase, we honour the cached phase as it is and do not refresh it
+            boolean forcePhaseDefinitionRefresh = policyPhases.get(nextStepKey.getPhase()) != null
+                && policyPhases.get(nextStepKey.getPhase()).getActions().get(nextStepKey.getAction()) != null;
+
+            final LifecycleExecutionState nextStepState = IndexLifecycleTransition.updateExecutionStateToStep(
                 policyMetadata,
                 lifecycleState,
                 nextStepKey,
                 nowSupplier,
-                true
+                forcePhaseDefinitionRefresh
             );
+
             LifecycleExecutionState.Builder retryStepState = LifecycleExecutionState.builder(nextStepState);
             retryStepState.setIsAutoRetryableError(lifecycleState.isAutoRetryableError());
             Integer currentRetryCount = lifecycleState.getFailedStepRetryCount();

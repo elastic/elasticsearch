@@ -135,6 +135,7 @@ public class UnicastZenPing implements ZenPing {
             concurrentConnects,
             60,
             TimeUnit.SECONDS,
+            false,
             threadFactory,
             threadPool.getThreadContext()
         );

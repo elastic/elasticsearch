@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -107,10 +108,20 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
                 XPackLicenseState,
                 DeprecationIssue>> nodeSettingsChecks
     ) {
-        Settings filteredSettings = settings.filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false);
+        Settings filteredNodeSettings = settings.filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false);
+
+        Metadata metadata = clusterService.state().metadata();
+        Settings transientSettings = metadata.transientSettings()
+            .filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false);
+        Settings persistentSettings = metadata.persistentSettings()
+            .filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false);
+        ClusterState filteredClusterState = ClusterState.builder(clusterService.state())
+            .metadata(Metadata.builder(metadata).transientSettings(transientSettings).persistentSettings(persistentSettings).build())
+            .build();
+
         List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(
             nodeSettingsChecks,
-            (c) -> c.apply(filteredSettings, pluginsService.info(), clusterService.state(), licenseState)
+            (c) -> c.apply(filteredNodeSettings, pluginsService.info(), filteredClusterState, licenseState)
         );
 
         return new NodesDeprecationCheckAction.NodeResponse(transportService.getLocalNode(), issues);

@@ -210,12 +210,13 @@ class NodeDeprecationChecks {
         if (XPackSettings.SECURITY_ENABLED.exists(settings) == false
             && (licenseState.getOperationMode().equals(License.OperationMode.BASIC)
                 || licenseState.getOperationMode().equals(License.OperationMode.TRIAL))) {
-            String details = "Security will no longer be disabled by default for Trial licenses in 8.0. The [xpack.security.enabled] "
-                + "setting will always default to \"true\". See https://ela.st/es-deprecation-7-security-minimal-setup to secure your "
-                + "cluster. To explicitly disable security, set [xpack.security.enabled] to \"false\" (not recommended).";
+            String details = "In Elasticsearch 8.0 the [xpack.security.enabled] setting will always default to true. "
+                + "In your environment, the value is not set and you need to set it before upgrading, along with other required "
+                + "security settings. See https://ela.st/es-deprecation-7-implicitly-disabled-security to secure your cluster. "
+                + "To explicitly disable security, set [xpack.security.enabled] to \"false\" (not recommended).";
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
-                "Security is enabled by default for all licenses",
+                "Security features are enabled by default for all licenses in versions 8.0 and later",
                 "https://ela.st/es-deprecation-7-implicitly-disabled-security",
                 details,
                 false,

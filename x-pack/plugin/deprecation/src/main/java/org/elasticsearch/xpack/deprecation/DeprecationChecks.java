@@ -249,7 +249,6 @@ public class DeprecationChecks {
     static List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = Collections.unmodifiableList(
         Arrays.asList(
             (clusterState, indexMetadata) -> IndexDeprecationChecks.oldIndicesCheck(indexMetadata),
-            (clusterState, indexMetadata) -> IndexDeprecationChecks.tooManyFieldsCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.chainedMultiFieldsCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.chainedMultiFieldsDynamicTemplateCheck(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.boostMappingCheck(indexMetadata),

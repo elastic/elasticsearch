@@ -576,9 +576,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             long after = testThreadPool.absoluteTimeInMillis();
 
             newIndexName = newIndexName == null ? indexPrefix + "2" : newIndexName;
-            assertEquals(sourceIndexName, rolloverResult.sourceIndexName);
-            assertEquals(newIndexName, rolloverResult.rolloverIndexName);
-            Metadata rolloverMetadata = rolloverResult.clusterState.metadata();
+            assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
+            assertEquals(newIndexName, rolloverResult.rolloverIndexName());
+            Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
             assertEquals(2, rolloverMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
             assertThat(rolloverIndexMetadata.getNumberOfShards(), equalTo(numberOfShards));
@@ -643,9 +643,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
             String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
-            assertEquals(sourceIndexName, rolloverResult.sourceIndexName);
-            assertEquals(newIndexName, rolloverResult.rolloverIndexName);
-            Metadata rolloverMetadata = rolloverResult.clusterState.metadata();
+            assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
+            assertEquals(newIndexName, rolloverResult.rolloverIndexName());
+            Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
             assertEquals(dataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
 
@@ -727,9 +727,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         );
 
         newIndexName = newIndexName == null ? defaultRolloverIndexName : newIndexName;
-        assertEquals(sourceIndexName, rolloverResult.sourceIndexName);
-        assertEquals(newIndexName, rolloverResult.rolloverIndexName);
-        assertSame(rolloverResult.clusterState, clusterState);
+        assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
+        assertEquals(newIndexName, rolloverResult.rolloverIndexName());
+        assertSame(rolloverResult.clusterState(), clusterState);
 
         verify(createIndexService).validateIndexName(any(), same(clusterState));
         verifyNoMoreInteractions(createIndexService);

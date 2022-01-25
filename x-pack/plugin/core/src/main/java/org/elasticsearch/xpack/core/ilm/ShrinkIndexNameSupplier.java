@@ -21,7 +21,7 @@ public final class ShrinkIndexNameSupplier {
      * {@link #SHRUNKEN_INDEX_PREFIX} to the source index name.
      */
     static String getShrinkIndexName(String sourceIndexName, LifecycleExecutionState lifecycleState) {
-        String shrunkenIndexName = lifecycleState.getShrinkIndexName();
+        String shrunkenIndexName = lifecycleState.shrinkIndexName();
         if (shrunkenIndexName == null) {
             // this is for BWC reasons for polices that are in the middle of executing the shrink action when the update to generated
             // names happens

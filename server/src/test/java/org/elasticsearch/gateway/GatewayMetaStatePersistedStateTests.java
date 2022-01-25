@@ -118,11 +118,11 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             ClusterState state = gateway.getLastAcceptedState();
             assertThat(state.getClusterName(), equalTo(clusterName));
             assertTrue(Metadata.isGlobalStateEquals(state.metadata(), Metadata.EMPTY_METADATA));
-            assertThat(state.getVersion(), equalTo(Manifest.empty().getClusterStateVersion()));
+            assertThat(state.getVersion(), equalTo(Manifest.empty().clusterStateVersion()));
             assertThat(state.getNodes().getLocalNode(), equalTo(localNode));
 
             long currentTerm = gateway.getCurrentTerm();
-            assertThat(currentTerm, equalTo(Manifest.empty().getCurrentTerm()));
+            assertThat(currentTerm, equalTo(Manifest.empty().currentTerm()));
         } finally {
             IOUtils.close(gateway);
         }

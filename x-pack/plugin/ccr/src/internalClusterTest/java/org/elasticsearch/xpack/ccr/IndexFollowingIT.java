@@ -1662,13 +1662,13 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 TaskInfo taskInfo = null;
                 String expectedId = "id=" + shardFollowTask.getId();
                 for (TaskInfo info : taskInfos) {
-                    if (expectedId.equals(info.getDescription())) {
+                    if (expectedId.equals(info.description())) {
                         taskInfo = info;
                         break;
                     }
                 }
                 assertThat(taskInfo, notNullValue());
-                ShardFollowNodeTaskStatus status = (ShardFollowNodeTaskStatus) taskInfo.getStatus();
+                ShardFollowNodeTaskStatus status = (ShardFollowNodeTaskStatus) taskInfo.status();
                 assertThat(status, notNullValue());
                 assertThat(
                     "incorrect global checkpoint " + shardFollowTaskParams,

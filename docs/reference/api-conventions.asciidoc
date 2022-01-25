@@ -20,6 +20,51 @@ specified using the `source_content_type` query string parameter.
 sent with a request. Responses are also UTF-8 encoded.
 
 [discrete]
+[[x-opaque-id]]
+=== `X-Opaque-Id` HTTP header
+
+You can pass an `X-Opaque-Id` HTTP header to track the origin of a request in
+{es} logs and tasks. If provided, {es} surfaces the `X-Opaque-Id` value in the:
+
+* Response of any request that includes the header
+* <<_identifying_running_tasks,Task management API>> response
+* <<_identifying_search_slow_log_origin,Slow logs>>
+* <<deprecation-logging,Deprecation logs>>
+
+For the deprecation logs, {es} also uses the `X-Opaque-Id` value to throttle
+and deduplicate deprecation warnings. See <<_deprecation_logs_throttling>>.
+
+The `X-Opaque-Id` header accepts any arbitrary value. However, we recommend you
+limit these values to a finite set, such as an ID per client. Don't generate a
+unique `X-Opaque-Id` header for every request. Too many unique `X-Opaque-Id`
+values can prevent {es} from deduplicating warnings in the deprecation logs.
+
+[discrete]
+[[traceparent]]
+=== `traceparent` HTTP header
+
+{es} also supports a `traceparent` HTTP header using the
+https://www.w3.org/TR/trace-context/#traceparent-header[official W3C trace
+context spec]. You can use the `traceparent` header to trace requests across
+Elastic products and other services. Because it's only used for traces, you can
+safely generate a unique `traceparent` header for each request.
+
+If provided, {es} surfaces the header's `trace-id` value as `trace.id` in the:
+
+* <<logging,JSON {es} server logs>>
+* <<_identifying_search_slow_log_origin,Slow logs>>
+* <<deprecation-logging,Deprecation logs>>
+
+For example, the following `traceparent` value would produce the following
+`trade.id` value in the above logs.
+
+[source,txt]
+----
+`traceparent`: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
+`trace.id`: 0af7651916cd43dd8448eb211c80319c
+----
+
+[discrete]
 [[get-requests]]
 === GET and POST requests
 

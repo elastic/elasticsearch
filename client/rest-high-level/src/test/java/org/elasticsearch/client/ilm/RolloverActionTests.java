@@ -41,16 +41,13 @@ public class RolloverActionTests extends AbstractXContentTestCase<RolloverAction
         Long maxDocs = (maxSize == null && maxPrimaryShardSize == null && maxAge == null || randomBoolean())
             ? randomNonNegativeLong()
             : null;
-        Long maxPrimaryShardDocs = (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null || randomBoolean())
-            ? randomNonNegativeLong()
-            : null;
-        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxPrimaryShardDocs);
+        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
     }
 
     public void testNoConditions() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new RolloverAction(null, null, null, null, null)
+            () -> new RolloverAction(null, null, null, null)
         );
         assertEquals("At least one rollover condition must be set.", exception.getMessage());
     }

@@ -275,7 +275,7 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
             if ("hot".equals(phase)) {
                 actions.put(
                     RolloverAction.NAME,
-                    new RolloverAction(null, new ByteSizeValue(randomNonNegativeLong()), null, randomNonNegativeLong(), randomNonNegativeLong())
+                    new RolloverAction(null, new ByteSizeValue(randomNonNegativeLong()), null, randomNonNegativeLong())
                 );
             }
             if (searchableSnapshotSeen || actionNames.contains(SearchableSnapshotAction.NAME)) {

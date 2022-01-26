@@ -71,6 +71,12 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
         );
     }
 
+    public DesiredNode {
+        if (processors < 0) {
+            throw new IllegalArgumentException("processors must be positive, but got " + processors);
+        }
+    }
+
     public DesiredNode(StreamInput in) throws IOException {
         this(Settings.readSettingsFromStream(in), in.readInt(), new ByteSizeValue(in), new ByteSizeValue(in), Version.readVersion(in));
     }

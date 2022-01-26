@@ -58,7 +58,7 @@ public class PluginIteratorStream extends Tokenizer implements ReaderProvider {
 
     @Override
     public final boolean incrementToken() throws IOException {
-        //clearAttributes();
+        // clearAttributes();
         AnalyzeToken currentToken = iterator.next();
         if (currentToken == null) {
             return false;

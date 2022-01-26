@@ -241,7 +241,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
-            null,
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,

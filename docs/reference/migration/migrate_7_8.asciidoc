@@ -215,20 +215,21 @@ Discontinue use of the `kibana_user` role.
 [[breaking_78_cluster_coordination_changes]]
 === Cluster coordination changes
 
-.The old form of the <<voting-config-exclusions>> API is deprecated.
+.The voting configuration exclusions API's `POST _cluster/voting_config_exclusions/<node_name>` request path is deprecated.
 [%collapsible]
 ====
 *Details* +
-In earlier versions you would add a voting config exclusion by specifying the
-node names in the path: `POST /_cluster/voting_config_exclusions/{node_name}`.
-In 7.8.0 the preferred form of the API now specifies the node names or ids as a
-query parameter: `POST /_cluster/voting_config_exclusions?node_ids=...` or
-`POST /_cluster/voting_config_exclusions?node_names=...`. The older API is now
-deprecated.
+The voting configuration exclusions API's 
+`POST _cluster/voting_config_exclusions/<node_name>` request path is now
+deprecated. To add a voting configuration exclusion, specify node names or node
+IDs using a query parameter instead:
+
+- `POST _cluster/voting_config_exclusions?node_names=<node_names>`
+- `POST _cluster/voting_config_exclusions?node_ids=<node_ids>`
 
 *Impact* +
-Discontinue use of the older API, and specify the excluded nodes in the query
-parameters instead.
+To avoid deprecation warnings, discontinue use of the 
+`POST _cluster/voting_config_exclusions/<node_name>` request path.
 ====
 
 //end::notable-breaking-changes[]

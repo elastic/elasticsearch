@@ -340,7 +340,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 throw new IllegalArgumentException("[copy_to] may not be used to copy from a multi-field: [" + this.name() + "]");
             }
 
-            final String sourceScope = mappers.getNestedParent(this.name());
+            final String sourceScope = mappers.nestedLookup().getNestedParent(this.name());
             for (String copyTo : this.copyTo().copyToFields()) {
                 if (mappers.isMultiField(copyTo)) {
                     throw new IllegalArgumentException("[copy_to] may not be used to copy to a multi-field: [" + copyTo + "]");
@@ -349,7 +349,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                     throw new IllegalArgumentException("Cannot copy to field [" + copyTo + "] since it is mapped as an object");
                 }
 
-                final String targetScope = mappers.getNestedParent(copyTo);
+                final String targetScope = mappers.nestedLookup().getNestedParent(copyTo);
                 checkNestedScopeCompatibility(sourceScope, targetScope);
             }
         }

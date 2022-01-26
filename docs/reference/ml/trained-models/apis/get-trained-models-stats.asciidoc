@@ -194,6 +194,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-id]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 ========
 
+`number_of_pending_requests`:::
+(integer)
+The number of inference requests queued to be processed.
+
 `routing_state`:::
 (object)
 The current routing state and reason for the current routing state for this allocation.

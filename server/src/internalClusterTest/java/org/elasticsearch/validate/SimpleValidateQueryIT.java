@@ -148,7 +148,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
     }
 
     public void testExplainValidateQueryTwoNodes() throws IOException {
-        createIndex("test");
+        createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).build());
         ensureGreen();
         client().admin()
             .indices()
@@ -182,6 +182,9 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             .execute()
             .actionGet();
 
+        for (int i = 0; i < 10; i++) {
+            client().prepareIndex("test").setSource("foo", "text", "bar", i, "baz", "blort").execute().actionGet();
+        }
         refresh();
 
         for (Client client : internalCluster().getClients()) {

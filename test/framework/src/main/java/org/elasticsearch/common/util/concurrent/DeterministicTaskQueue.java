@@ -176,8 +176,8 @@ public class DeterministicTaskQueue {
     }
 
     private void scheduleDeferredTask(DeferredTask deferredTask) {
-        nextDeferredTaskExecutionTimeMillis = Math.min(nextDeferredTaskExecutionTimeMillis, deferredTask.getExecutionTimeMillis());
-        latestDeferredExecutionTime = Math.max(latestDeferredExecutionTime, deferredTask.getExecutionTimeMillis());
+        nextDeferredTaskExecutionTimeMillis = Math.min(nextDeferredTaskExecutionTimeMillis, deferredTask.executionTimeMillis());
+        latestDeferredExecutionTime = Math.max(latestDeferredExecutionTime, deferredTask.executionTimeMillis());
         deferredTasks.add(deferredTask);
     }
 
@@ -195,13 +195,13 @@ public class DeterministicTaskQueue {
         nextDeferredTaskExecutionTimeMillis = Long.MAX_VALUE;
         List<DeferredTask> remainingDeferredTasks = new ArrayList<>();
         for (final DeferredTask deferredTask : deferredTasks) {
-            assert currentTimeMillis <= deferredTask.getExecutionTimeMillis();
-            if (deferredTask.getExecutionTimeMillis() == currentTimeMillis) {
+            assert currentTimeMillis <= deferredTask.executionTimeMillis();
+            if (deferredTask.executionTimeMillis() == currentTimeMillis) {
                 logger.trace("advanceTime: no longer deferred: {}", deferredTask);
-                runnableTasks.add(deferredTask.getTask());
+                runnableTasks.add(deferredTask.task());
             } else {
                 remainingDeferredTasks.add(deferredTask);
-                nextDeferredTaskExecutionTimeMillis = Math.min(nextDeferredTaskExecutionTimeMillis, deferredTask.getExecutionTimeMillis());
+                nextDeferredTaskExecutionTimeMillis = Math.min(nextDeferredTaskExecutionTimeMillis, deferredTask.executionTimeMillis());
             }
         }
         deferredTasks = remainingDeferredTasks;
@@ -497,27 +497,9 @@ public class DeterministicTaskQueue {
         return latestDeferredExecutionTime;
     }
 
-    private static class DeferredTask {
-        private final long executionTimeMillis;
-        private final Runnable task;
-
-        DeferredTask(long executionTimeMillis, Runnable task) {
-            this.executionTimeMillis = executionTimeMillis;
-            this.task = task;
+    private record DeferredTask(long executionTimeMillis, Runnable task) {
+        private DeferredTask {
             assert executionTimeMillis < Long.MAX_VALUE : "Long.MAX_VALUE is special, cannot be an execution time";
-        }
-
-        long getExecutionTimeMillis() {
-            return executionTimeMillis;
-        }
-
-        Runnable getTask() {
-            return task;
-        }
-
-        @Override
-        public String toString() {
-            return "DeferredTask{" + "executionTimeMillis=" + executionTimeMillis + ", task=" + task + '}';
         }
     }
 

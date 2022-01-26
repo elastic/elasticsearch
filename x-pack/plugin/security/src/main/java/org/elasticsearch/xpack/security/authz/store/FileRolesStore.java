@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
@@ -120,7 +121,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
 
     public Map<String, Object> usageStats() {
         final Map<String, RoleDescriptor> localPermissions = permissions;
-        Map<String, Object> usageStats = new HashMap<>(3);
+        Map<String, Object> usageStats = Maps.newMapWithExpectedSize(3);
         usageStats.put("size", localPermissions.size());
 
         boolean dls = false;

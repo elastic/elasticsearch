@@ -39,6 +39,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -545,7 +546,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         writeState(writer, newTerm, newState, clusterState);
                     } else {
-                        writer.commit(newTerm, newState.version());
+                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion());
                     }
                 }).getMessage(), containsString("simulated"));
                 assertFalse(writer.isOpen());
@@ -596,7 +597,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         writeState(writer, newTerm, newState, clusterState);
                     } else {
-                        writer.commit(newTerm, newState.version());
+                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion());
                     }
                 }).getMessage(), containsString("simulated"));
                 assertFalse(writer.isOpen());
@@ -1120,7 +1121,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 && corruptDocIsLastPage;
             if (isOnlyPageForIndex == false // don't remove the only doc for an index, this just loses the index and doesn't corrupt
                 && rarely()) {
-                documents.remove(between(0, documents.size() - 1));
+                documents.remove(corruptIndex);
             } else {
                 if (randomBoolean()) {
                     corruptDocument.removeFields(PAGE_FIELD_NAME);
@@ -1459,6 +1460,48 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             for (Path dataPath : persistedClusterStateService.getDataPaths()) {
                 assertFalse(findSegmentInDirectory(dataPath));
             }
+        }
+    }
+
+    public void testOldestIndexVersionIsCorrectlySerialized() throws IOException {
+        final Path[] dataPaths1 = createDataPaths();
+        final Path[] dataPaths2 = createDataPaths();
+        final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
+
+        Version oldVersion = Version.fromId(Version.CURRENT.minimumIndexCompatibilityVersion().id - 1);
+
+        final Version[] indexVersions = new Version[] { oldVersion, Version.CURRENT, Version.fromId(Version.CURRENT.id + 1) };
+        int lastIndexNum = randomIntBetween(9, 50);
+        Metadata.Builder b = Metadata.builder();
+        for (Version indexVersion : indexVersions) {
+            String indexUUID = UUIDs.randomBase64UUID(random());
+            IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
+                .settings(settings(indexVersion).put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            b.put(im, false);
+            lastIndexNum = randomIntBetween(lastIndexNum + 1, lastIndexNum + 50);
+        }
+
+        Metadata metadata = b.build();
+
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
+                writeState(
+                    writer,
+                    0L,
+                    ClusterState.builder(clusterState).metadata(metadata).version(randomLongBetween(1L, Long.MAX_VALUE)).build(),
+                    clusterState
+                );
+            }
+
+            PersistedClusterStateService.OnDiskState fromDisk = newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState();
+            NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodeEnvironment.nodeDataPaths());
+
+            assertEquals(oldVersion, nodeMetadata.oldestIndexVersion());
+            assertEquals(oldVersion, fromDisk.metadata.oldestIndexVersion());
         }
     }
 

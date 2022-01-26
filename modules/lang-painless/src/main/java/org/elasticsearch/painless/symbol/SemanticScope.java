@@ -38,20 +38,11 @@ public abstract class SemanticScope {
      * variables. Each {@link SemanticScope} tracks its own set of defined
      * variables available for use.
      */
-    public static class Variable {
+    public record Variable(Class<?> type, String name, boolean isFinal) {
 
-        protected final Class<?> type;
-        protected final String name;
-        protected final boolean isFinal;
-
-        public Variable(Class<?> type, String name, boolean isFinal) {
-            this.type = Objects.requireNonNull(type);
-            this.name = Objects.requireNonNull(name);
-            this.isFinal = isFinal;
-        }
-
-        public Class<?> getType() {
-            return type;
+        public Variable {
+            Objects.requireNonNull(type);
+            Objects.requireNonNull(name);
         }
 
         /**
@@ -60,14 +51,6 @@ public abstract class SemanticScope {
          */
         public String getCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(type);
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public boolean isFinal() {
-            return isFinal;
         }
     }
 
@@ -169,7 +152,7 @@ public abstract class SemanticScope {
 
             if (variable == null) {
                 variable = parent.getVariable(location, name);
-                variable = new Variable(variable.getType(), variable.getName(), true);
+                variable = new Variable(variable.type(), variable.name(), true);
                 captures.add(variable);
             } else {
                 usedVariables.add(name);

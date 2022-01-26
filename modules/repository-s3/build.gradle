@@ -29,6 +29,7 @@ versions << [
 dependencies {
   api "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
   api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+  api "com.amazonaws:aws-java-sdk-sts:${versions.aws}"
   api "com.amazonaws:jmespath-java:${versions.aws}"
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -105,6 +106,9 @@ String s3EC2BasePath = System.getenv("amazon_s3_base_path_ec2")
 String s3ECSBucket = System.getenv("amazon_s3_bucket_ecs")
 String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
 
+String s3STSBucket = System.getenv("amazon_s3_bucket_sts")
+String s3STSBasePath = System.getenv("amazon_s3_base_path_sts")
+
 boolean s3DisableChunkedEncoding = (new Random(Long.parseUnsignedLong(BuildParams.testSeed.tokenize(':').get(0), 16))).nextBoolean()
 
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
@@ -143,6 +147,13 @@ if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath) {
   throw new IllegalArgumentException("not all options specified to run EC2/ECS tests are present")
 }
 
+if (!s3STSBucket && !s3STSBasePath) {
+  s3STSBucket = 'sts_bucket'
+  s3STSBasePath = 'sts_base_path'
+} else if (!s3STSBucket || !s3STSBasePath) {
+  throw new IllegalArgumentException("not all options specified to run STS tests are present")
+}
+
 tasks.named("processYamlRestTestResources").configure {
   Map<String, Object> expansions = [
     'permanent_bucket'        : s3PermanentBucket,
@@ -153,6 +164,8 @@ tasks.named("processYamlRestTestResources").configure {
     'ec2_base_path'           : s3EC2BasePath,
     'ecs_bucket'              : s3ECSBucket,
     'ecs_base_path'           : s3ECSBasePath,
+    'sts_bucket'              : s3STSBucket,
+    'sts_base_path'           : s3STSBasePath,
     'disable_chunked_encoding': s3DisableChunkedEncoding
   ]
   inputs.properties(expansions)
@@ -167,12 +180,14 @@ tasks.named("internalClusterTest").configure {
 tasks.named("yamlRestTest").configure {
     systemProperty 'tests.rest.blacklist', (
       useFixture ?
-        ['repository_s3/50_repository_ecs_credentials/*']
+        ['repository_s3/50_repository_ecs_credentials/*',
+         'repository_s3/60_repository_sts_credentials/*']
         :
         [
           'repository_s3/30_repository_temporary_credentials/*',
           'repository_s3/40_repository_ec2_credentials/*',
-          'repository_s3/50_repository_ecs_credentials/*'
+          'repository_s3/50_repository_ecs_credentials/*',
+          'repository_s3/60_repository_sts_credentials/*'
         ]
     ).join(",")
 }
@@ -226,7 +241,8 @@ if (useFixture) {
     systemProperty 'tests.rest.blacklist', [
       'repository_s3/30_repository_temporary_credentials/*',
       'repository_s3/40_repository_ec2_credentials/*',
-      'repository_s3/50_repository_ecs_credentials/*'
+      'repository_s3/50_repository_ecs_credentials/*',
+      'repository_s3/60_repository_sts_credentials/*'
     ].join(",")
   }
   tasks.named("check").configure { dependsOn("yamlRestTestMinio") }
@@ -253,7 +269,8 @@ if (useFixture) {
       'repository_s3/10_basic/*',
       'repository_s3/20_repository_permanent_credentials/*',
       'repository_s3/30_repository_temporary_credentials/*',
-      'repository_s3/40_repository_ec2_credentials/*'
+      'repository_s3/40_repository_ec2_credentials/*',
+      'repository_s3/60_repository_sts_credentials/*'
     ].join(",")
   }
   tasks.named("check").configure { dependsOn("yamlRestTestECS") }
@@ -262,6 +279,46 @@ if (useFixture) {
     setting 's3.client.integration_test_ecs.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ecs', '80')}" }, IGNORE_VALUE
     module tasks.bundlePlugin.archiveFile
     environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ecs', '80')}/ecs_credentials_endpoint" }, IGNORE_VALUE
+  }
+}
+
+// STS (Secure Token Service)
+if (useFixture) {
+  testFixtures.useFixture(':test:fixtures:s3-fixture', 's3-fixture-with-sts')
+  tasks.register("yamlRestTestSTS", RestIntegTestTask.class) {
+    description = "Runs tests with the STS (Secure Token Service)"
+    dependsOn('bundlePlugin')
+
+    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+    SourceSet yamlRestTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME)
+    setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
+    setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+    systemProperty 'tests.rest.blacklist', [
+      'repository_s3/10_basic/*',
+      'repository_s3/20_repository_permanent_credentials/*',
+      'repository_s3/30_repository_temporary_credentials/*',
+      'repository_s3/40_repository_ec2_credentials/*',
+      'repository_s3/50_repository_ecs_credentials/*'
+    ].join(",")
+  }
+  tasks.named("check").configure { dependsOn("yamlRestTestSTS") }
+
+  testClusters.matching { it.name == "yamlRestTestSTS" }.configureEach {
+    module tasks.bundlePlugin.archiveFile
+
+    setting 's3.client.integration_test_sts.endpoint', { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-sts', '80')}" }, IGNORE_VALUE
+    systemProperty 'com.amazonaws.sdk.stsMetadataServiceEndpointOverride',
+      { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-sts', '80')}/assume-role-with-web-identity" }, IGNORE_VALUE
+
+    File awsWebIdentityTokenExternalLocation = file('src/test/resources/aws-web-identity-token-file')
+    // The web identity token can be read only from the plugin config directory because of security restrictions
+    // Ideally we would create a symlink, but extraConfigFile doesn't support it
+    extraConfigFile 'repository-s3/aws-web-identity-token-file', awsWebIdentityTokenExternalLocation
+    environment 'AWS_WEB_IDENTITY_TOKEN_FILE', "$awsWebIdentityTokenExternalLocation"
+
+    // The AWS STS SDK requires the role and session names to be set. We can verify that they are sent to S3S in the S3HttpFixtureWithSTS fixture
+    environment 'AWS_ROLE_ARN', 'arn:aws:iam::123456789012:role/FederatedWebIdentityRole'
+    environment 'AWS_ROLE_SESSION_NAME', 'sts-fixture-test'
   }
 }
 

@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
@@ -57,7 +58,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -503,6 +503,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final LifecycleExecutionState lifecycleExecutionState;
 
+    private final AutoExpandReplicas autoExpandReplicas;
+
     private IndexMetadata(
         final Index index,
         final long version,
@@ -536,7 +538,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final boolean ignoreDiskWatermarks,
         @Nullable final List<String> tierPreference,
         final int shardsPerNodeLimit,
-        final LifecycleExecutionState lifecycleExecutionState
+        final LifecycleExecutionState lifecycleExecutionState,
+        final AutoExpandReplicas autoExpandReplicas
     ) {
         this.index = index;
         this.version = version;
@@ -578,6 +581,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.tierPreference = tierPreference;
         this.shardsPerNodeLimit = shardsPerNodeLimit;
         this.lifecycleExecutionState = lifecycleExecutionState;
+        this.autoExpandReplicas = autoExpandReplicas;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -618,7 +622,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.ignoreDiskWatermarks,
             this.tierPreference,
             this.shardsPerNodeLimit,
-            this.lifecycleExecutionState
+            this.lifecycleExecutionState,
+            this.autoExpandReplicas
         );
     }
 
@@ -744,6 +749,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public LifecycleExecutionState getLifecycleExecutionState() {
         return lifecycleExecutionState;
+    }
+
+    public AutoExpandReplicas getAutoExpandReplicas() {
+        return autoExpandReplicas;
     }
 
     /**
@@ -1612,7 +1621,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings),
                 tierPreference,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings),
-                lifecycleExecutionState
+                lifecycleExecutionState,
+                AutoExpandReplicas.SETTING.get(settings)
             );
         }
 
@@ -1997,7 +2007,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private static final ToXContent.Params FORMAT_PARAMS;
     static {
-        Map<String, String> params = new HashMap<>(2);
+        Map<String, String> params = Maps.newMapWithExpectedSize(2);
         params.put("binary", "true");
         params.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
         FORMAT_PARAMS = new MapParams(params);

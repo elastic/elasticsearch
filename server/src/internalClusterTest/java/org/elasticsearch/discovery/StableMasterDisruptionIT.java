@@ -8,7 +8,6 @@
 
 package org.elasticsearch.discovery;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -242,8 +241,8 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("failure [{}]", source), e);
+                public void onFailure(Exception e) {
+                    logger.warn("failure [sneaky-update]", e);
                 }
             }, ClusterStateTaskExecutor.unbatched());
 

@@ -54,7 +54,7 @@ public class BusyMasterServiceDisruption extends SingleNodeDisruption {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 logger.error("unexpected error during disruption", e);
             }
         }, ClusterStateTaskExecutor.unbatched());

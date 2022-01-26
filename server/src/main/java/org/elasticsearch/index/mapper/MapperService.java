@@ -134,7 +134,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public MapperService(
         IndexSettings indexSettings,
         IndexAnalyzers indexAnalyzers,
-        NamedXContentRegistry xContentRegistry,
+        XContentParserConfiguration parserConfiguration,
         SimilarityService similarityService,
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
@@ -158,7 +158,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             idFieldMapper
         );
         this.documentParser = new DocumentParser(
-            xContentRegistry,
+            parserConfiguration,
             dateFormatter -> new MappingParserContext.DynamicTemplateParserContext(parserContextFunction.apply(dateFormatter)),
             indexSettings,
             indexAnalyzers

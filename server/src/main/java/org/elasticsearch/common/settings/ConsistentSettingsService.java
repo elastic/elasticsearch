@@ -251,7 +251,7 @@ public final class ConsistentSettingsService {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     logger.error("unable to publish secure settings hashes", e);
                 }
 

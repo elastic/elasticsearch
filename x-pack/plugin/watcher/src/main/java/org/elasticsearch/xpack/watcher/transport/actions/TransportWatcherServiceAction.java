@@ -98,7 +98,7 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 logger.error(
                     new ParameterizedMessage("could not update watcher stopped status to [{}], source [{}]", manuallyStopped, source),
                     e

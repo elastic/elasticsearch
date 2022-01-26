@@ -85,7 +85,7 @@ public class MockServer {
 
     private void start() throws Exception {
         final String command = "docker run -t --detach --rm -p " + CONTAINER_PORT + ":" + CONTAINER_PORT + " mockserver/mockserver:latest";
-        this.containerId = this.shell.run(command).stdout.trim();
+        this.containerId = this.shell.run(command).stdout().trim();
 
         // It's a Java app, so give it a chance to wake up. I'd add a healthcheck to the above command,
         // but the image doesn't have any CLI utils at all.

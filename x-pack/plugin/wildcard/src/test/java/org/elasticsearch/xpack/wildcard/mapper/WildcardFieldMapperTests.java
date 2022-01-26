@@ -1087,7 +1087,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             null,
             null,
             null,
-            xContentRegistry(),
+            parserConfig(),
             null,
             null,
             null,

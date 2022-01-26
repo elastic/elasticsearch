@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -72,7 +71,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -121,7 +120,6 @@ public class MetadataCreateIndexService {
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final AllocationService allocationService;
-    private final AliasValidator aliasValidator;
     private final Environment env;
     private final IndexScopedSettings indexScopedSettings;
     private final ActiveShardsObserver activeShardsObserver;
@@ -136,7 +134,6 @@ public class MetadataCreateIndexService {
         final ClusterService clusterService,
         final IndicesService indicesService,
         final AllocationService allocationService,
-        final AliasValidator aliasValidator,
         final ShardLimitValidator shardLimitValidator,
         final Environment env,
         final IndexScopedSettings indexScopedSettings,
@@ -150,7 +147,6 @@ public class MetadataCreateIndexService {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.allocationService = allocationService;
-        this.aliasValidator = aliasValidator;
         this.env = env;
         this.indexScopedSettings = indexScopedSettings;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
@@ -230,13 +226,7 @@ public class MetadataCreateIndexService {
         if (index.charAt(0) == '_' || index.charAt(0) == '-' || index.charAt(0) == '+') {
             throw exceptionCtor.apply(index, "must not start with '_', '-', or '+'");
         }
-        int byteCount = 0;
-        try {
-            byteCount = index.getBytes("UTF-8").length;
-        } catch (UnsupportedEncodingException e) {
-            // UTF-8 should always be supported, but rethrow this if it is not for some reason
-            throw new ElasticsearchException("Unable to determine length of index name", e);
-        }
+        int byteCount = index.getBytes(StandardCharsets.UTF_8).length;
         if (byteCount > MAX_INDEX_NAME_BYTES) {
             throw exceptionCtor.apply(index, "index name is too long, (" + byteCount + " > " + MAX_INDEX_NAME_BYTES + ")");
         }
@@ -304,13 +294,13 @@ public class MetadataCreateIndexService {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     if (e instanceof ResourceAlreadyExistsException) {
                         logger.trace(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
                     } else {
                         logger.debug(() -> new ParameterizedMessage("[{}] failed to create", request.index()), e);
                     }
-                    super.onFailure(source, e);
+                    super.onFailure(e);
                 }
             },
             ClusterStateTaskExecutor.unbatched()
@@ -558,7 +548,6 @@ public class MetadataCreateIndexService {
                 request.aliases(),
                 MetadataIndexTemplateService.resolveAliases(templates),
                 currentState.metadata(),
-                aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 xContentRegistry,
@@ -626,7 +615,6 @@ public class MetadataCreateIndexService {
                 isDataStream ? Set.of() : request.aliases(),
                 isDataStream ? List.of() : MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName),
                 currentState.metadata(),
-                aliasValidator,
                 xContentRegistry,
                 // the context is used ony for validation so it's fine to pass fake values for the shard id and the current timestamp
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
@@ -684,7 +672,6 @@ public class MetadataCreateIndexService {
                 currentState.metadata(),
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                aliasValidator,
                 xContentRegistry,
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
                 indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
@@ -777,7 +764,6 @@ public class MetadataCreateIndexService {
                 request.aliases(),
                 Collections.emptyList(),
                 currentState.metadata(),
-                aliasValidator,
                 xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
@@ -1030,7 +1016,6 @@ public class MetadataCreateIndexService {
         Set<Alias> aliases,
         List<Map<String, AliasMetadata>> templateAliases,
         Metadata metadata,
-        AliasValidator aliasValidator,
         NamedXContentRegistry xContentRegistry,
         SearchExecutionContext searchExecutionContext,
         Function<String, String> indexNameExpressionResolver,
@@ -1043,9 +1028,9 @@ public class MetadataCreateIndexService {
         for (Alias alias : aliases) {
             final String resolvedExpression = indexNameExpressionResolver.apply(alias.name());
             alias = alias.name(resolvedExpression);
-            aliasValidator.validateAlias(alias, index, metadata);
+            AliasValidator.validateAlias(alias, index, metadata);
             if (Strings.hasLength(alias.filter())) {
-                aliasValidator.validateAliasFilter(alias.name(), alias.filter(), searchExecutionContext, xContentRegistry);
+                AliasValidator.validateAliasFilter(alias.name(), alias.filter(), searchExecutionContext, xContentRegistry);
             }
 
             AliasMetadata aliasMetadata = AliasMetadata.builder(alias.name())
@@ -1094,9 +1079,9 @@ public class MetadataCreateIndexService {
                         .build();
                 }
 
-                aliasValidator.validateAliasMetadata(aliasMetadata, index, metadata);
+                AliasValidator.validateAliasMetadata(aliasMetadata, index, metadata);
                 if (aliasMetadata.filter() != null) {
-                    aliasValidator.validateAliasFilter(
+                    AliasValidator.validateAliasFilter(
                         aliasMetadata.alias(),
                         aliasMetadata.filter().uncompressed(),
                         searchExecutionContext,

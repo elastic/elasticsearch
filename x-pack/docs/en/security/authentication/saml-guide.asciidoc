@@ -29,7 +29,9 @@ The Elastic Stack supports the SAML 2.0 _Web Browser SSO_ and the SAML
 2.0 _Single Logout_ profiles and can integrate with any Identity Provider (IdP)
 that supports at least the SAML 2.0 _Web Browser SSO Profile_.
 It has been tested with a number of popular IdP implementations, such as
-https://www.elastic.co/blog/how-to-configure-elasticsearch-saml-authentication-with-adfs[Microsoft Active Directory Federation Services (ADFS)].
+https://www.elastic.co/blog/how-to-configure-elasticsearch-saml-authentication-with-adfs[Microsoft Active Directory Federation Services (ADFS)],
+https://www.elastic.co/blog/saml-based-single-sign-on-with-elasticsearch-and-azure-active-directory[Azure Active Directory (AAD)],
+and https://www.elastic.co/blog/setting-up-saml-for-elastic-enterprise-search-okta-edition[Okta].
 
 This guide assumes that you have an existing IdP and wish to add {kib} as a
 Service Provider.

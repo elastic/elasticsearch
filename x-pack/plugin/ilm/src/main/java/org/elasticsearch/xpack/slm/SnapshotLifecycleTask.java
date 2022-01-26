@@ -280,12 +280,12 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
+        public void onFailure(Exception e) {
             logger.error(
-                "failed to record snapshot policy execution status for snapshot [{}] in policy [{}], (source: [{}]): {}",
+                "failed to record snapshot policy execution status [{}] for snapshot [{}] in policy [{}]: {}",
+                exception.isPresent() ? "failure" : "success",
                 snapshotName,
                 policyName,
-                source,
                 e
             );
         }

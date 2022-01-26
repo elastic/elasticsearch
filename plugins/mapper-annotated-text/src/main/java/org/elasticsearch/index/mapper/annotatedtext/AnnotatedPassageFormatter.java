@@ -137,10 +137,10 @@ public class AnnotatedPassageFormatter extends PassageFormatter {
 
             // Now add original text's annotations - ignoring any that might conflict with the search hits markup.
             for (AnnotationToken token : annotations) {
-                int start = token.offset;
-                int end = token.endOffset;
+                int start = token.offset();
+                int end = token.endOffset();
                 if (start >= passage.getStartOffset() && end <= passage.getEndOffset()) {
-                    String escapedValue = URLEncoder.encode(token.value, StandardCharsets.UTF_8.name());
+                    String escapedValue = URLEncoder.encode(token.value(), StandardCharsets.UTF_8.name());
                     Markup markup = new Markup(start, end, escapedValue);
                     markupPassage.addUnlessOverlapping(markup);
                 }
@@ -207,12 +207,12 @@ public class AnnotatedPassageFormatter extends PassageFormatter {
                 AnnotationToken token = fieldValueAnnotations.getAnnotation(i);
                 if (token.intersects(start - fieldValueOffset, end - fieldValueOffset)) {
                     intersectingAnnotations.add(
-                        new AnnotationToken(token.offset + fieldValueOffset, token.endOffset + fieldValueOffset, token.value)
+                        new AnnotationToken(token.offset() + fieldValueOffset, token.endOffset() + fieldValueOffset, token.value())
                     );
                 }
             }
             // add 1 for the fieldvalue separator character
-            fieldValueOffset += fieldValueAnnotations.textMinusMarkup.length() + 1;
+            fieldValueOffset += fieldValueAnnotations.textMinusMarkup().length() + 1;
         }
         return intersectingAnnotations.toArray(new AnnotationToken[intersectingAnnotations.size()]);
     }

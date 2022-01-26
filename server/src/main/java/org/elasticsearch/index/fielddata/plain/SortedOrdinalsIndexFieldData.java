@@ -83,6 +83,8 @@ public class SortedOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldData
 
     @Override
     public LeafOrdinalsFieldData load(LeafReaderContext context) {
+        // Doc value fields are loaded using Lucene's DocValues#getSortedSet
+        // that can happily load SortedDocValues as well.
         return new SortedSetBytesLeafFieldData(context.reader(), getFieldName(), toScriptField);
     }
 

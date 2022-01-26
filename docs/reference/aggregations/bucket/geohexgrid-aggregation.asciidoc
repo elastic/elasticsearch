@@ -12,11 +12,6 @@ contains cells that have matching data. Each cell corresponds to a
 https://h3geo.org/docs/core-library/h3Indexing#h3-cell-indexp[H3 cell index] and is
 labeled using the https://h3geo.org/docs/core-library/h3Indexing#h3index-representation[H3Index representation].
 
-* High precision keys have a larger range for x and y, and represent tiles that
-cover only a small area.
-* Low precision keys have a smaller range for x and y, and represent tiles that
-each cover a large area.
-
 See https://h3geo.org/docs/core-library/restable[the table of cell areas for H3
 resolutions] on how precision (zoom) correlates to size on the ground.
 Precision for this aggregation can be between 0 and 15, inclusive.

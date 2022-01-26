@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -1234,7 +1235,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     nodeHealthService
                 );
                 masterService.setClusterStatePublisher(coordinator);
-                final GatewayService gatewayService = new GatewayService(settings, allocationService, clusterService, threadPool);
+                final GatewayService gatewayService = new GatewayService(
+                    settings,
+                    new BatchedRerouteService(clusterService, allocationService::reroute),
+                    clusterService,
+                    threadPool
+                );
 
                 logger.trace("starting up [{}]", localNode);
                 transportService.start();

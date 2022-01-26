@@ -48,13 +48,6 @@
             tabindex="-1">
       Windows .zip
     </button>
-    <button role="tab"
-            aria-selected="false"
-            aria-controls="win-msi-tab-logs"
-            id="win--msilogs"
-            tabindex="-1">
-      Windows .msi
-    </button>
   </div>
   <div tabindex="0"
        role="tabpanel"
@@ -129,17 +122,6 @@ include::logging.asciidoc[tag=linux]
 ++++
 
 include::logging.asciidoc[tag=win-zip]
-
-++++
-  </div>
-  <div tabindex="0"
-       role="tabpanel"
-       id="win-msi-tab-logs"
-       aria-labelledby="win-msi-logs"
-       hidden="">
-++++
-
-include::logging.asciidoc[tag=win-msi]
 
 ++++
   </div>

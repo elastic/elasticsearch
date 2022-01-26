@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.datastreams.rest.RestGetDataStreamsAction;
 import org.elasticsearch.xpack.datastreams.rest.RestMigrateToDataStreamAction;
 import org.elasticsearch.xpack.datastreams.rest.RestPromoteDataStreamAction;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -85,5 +87,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         var migrateAction = new RestMigrateToDataStreamAction();
         var promoteAction = new RestPromoteDataStreamAction();
         return List.of(createDsAction, deleteDsAction, getDsAction, dsStatsAction, migrateAction, promoteAction);
+    }
+
+    @Override
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+        return List.of(new DataStreamIndexSettingsProvider());
     }
 }

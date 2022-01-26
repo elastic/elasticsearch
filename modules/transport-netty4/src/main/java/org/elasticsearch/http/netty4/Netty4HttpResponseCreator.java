@@ -27,7 +27,11 @@ import java.util.List;
  * Split up large responses to prevent batch compression {@link JdkZlibEncoder} down the pipeline.
  */
 @ChannelHandler.Sharable
-class Netty4HttpResponseCreator extends MessageToMessageEncoder<Netty4HttpResponse> {
+final class Netty4HttpResponseCreator extends MessageToMessageEncoder<Netty4HttpResponse> {
+
+    static final Netty4HttpResponseCreator INSTANCE = new Netty4HttpResponseCreator();
+
+    private Netty4HttpResponseCreator() {}
 
     private static final String DO_NOT_SPLIT = "es.unsafe.do_not_split_http_responses";
 

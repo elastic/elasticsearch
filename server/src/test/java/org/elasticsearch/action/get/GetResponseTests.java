@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
@@ -79,7 +80,7 @@ public class GetResponseTests extends ESTestCase {
         assertEquals(expectedGetResponse.getSourceAsString(), parsedGetResponse.getSourceAsString());
     }
 
-    public void testToXContent() {
+    public void testToXContent() throws IOException {
         {
             GetResponse getResponse = new GetResponse(
                 new GetResult(
@@ -89,26 +90,39 @@ public class GetResponseTests extends ESTestCase {
                     1,
                     1,
                     true,
-                    new BytesArray("{ \"field1\" : " + "\"value1\", \"field2\":\"value2\"}"),
+                    new BytesArray("""
+                        { "field1" : "value1", "field2":"value2"}"""),
                     Collections.singletonMap("field1", new DocumentField("field1", Collections.singletonList("value1"))),
                     null
                 )
             );
             String output = Strings.toString(getResponse);
-            assertEquals(
-                "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1,"
-                    + "\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}",
-                output
-            );
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "_index": "index",
+                  "_id": "id",
+                  "_version": 1,
+                  "_seq_no": 0,
+                  "_primary_term": 1,
+                  "found": true,
+                  "_source": {
+                    "field1": "value1",
+                    "field2": "value2"
+                  },
+                  "fields": {
+                    "field1": [ "value1" ]
+                  }
+                }"""), XContentHelper.stripWhitespace(output));
         }
         {
             GetResponse getResponse = new GetResponse(new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null));
             String output = Strings.toString(getResponse);
-            assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"found\":false}", output);
+            assertEquals("""
+                {"_index":"index","_id":"id","found":false}""", output);
         }
     }
 
-    public void testToString() {
+    public void testToString() throws IOException {
         GetResponse getResponse = new GetResponse(
             new GetResult(
                 "index",
@@ -117,16 +131,28 @@ public class GetResponseTests extends ESTestCase {
                 1,
                 1,
                 true,
-                new BytesArray("{ \"field1\" : " + "\"value1\", \"field2\":\"value2\"}"),
+                new BytesArray("""
+                    { "field1" : "value1", "field2":"value2"}"""),
                 Collections.singletonMap("field1", new DocumentField("field1", Collections.singletonList("value1"))),
                 null
             )
         );
-        assertEquals(
-            "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1,"
-                + "\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}",
-            getResponse.toString()
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "_index": "index",
+              "_id": "id",
+              "_version": 1,
+              "_seq_no": 0,
+              "_primary_term": 1,
+              "found": true,
+              "_source": {
+                "field1": "value1",
+                "field2": "value2"
+              },
+              "fields": {
+                "field1": [ "value1" ]
+              }
+            }"""), XContentHelper.stripWhitespace(getResponse.toString()));
     }
 
     public void testEqualsAndHashcode() {

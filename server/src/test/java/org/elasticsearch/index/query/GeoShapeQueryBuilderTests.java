@@ -129,19 +129,20 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"geo_shape\" : {\n"
-            + "    \"location\" : {\n"
-            + "      \"shape\" : {\n"
-            + "        \"type\" : \"Envelope\",\n"
-            + "        \"coordinates\" : [ [ 13.0, 53.0 ], [ 14.0, 52.0 ] ]\n"
-            + "      },\n"
-            + "      \"relation\" : \"intersects\"\n"
-            + "    },\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"boost\" : 42.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "geo_shape" : {
+                "location" : {
+                  "shape" : {
+                    "type" : "Envelope",
+                    "coordinates" : [ [ 13.0, 53.0 ], [ 14.0, 52.0 ] ]
+                  },
+                  "relation" : "intersects"
+                },
+                "ignore_unmapped" : false,
+                "boost" : 42.0
+              }
+            }""";
         GeoShapeQueryBuilder parsed = (GeoShapeQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 42.0, parsed.boost(), 0.0001);

@@ -136,14 +136,13 @@ public class RestGetTokenActionTests extends ESTestCase {
     }
 
     public void testParser() throws Exception {
-        final String request = "{"
-            + "\"grant_type\": \"password\","
-            + "\"username\": \"user1\","
-            + "\"password\": \""
-            + SecuritySettingsSourceField.TEST_PASSWORD
-            + "\","
-            + "\"scope\": \"FULL\""
-            + "}";
+        final String request = """
+            {
+              "grant_type": "password",
+              "username": "user1",
+              "password": "%s",
+              "scope": "FULL"
+            }""".formatted(SecuritySettingsSourceField.TEST_PASSWORD);
         try (
             XContentParser parser = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, request)
@@ -158,13 +157,12 @@ public class RestGetTokenActionTests extends ESTestCase {
 
     public void testParserRefreshRequest() throws Exception {
         final String token = randomAlphaOfLengthBetween(4, 32);
-        final String request = "{"
-            + "\"grant_type\": \"refresh_token\","
-            + "\"refresh_token\": \""
-            + token
-            + "\","
-            + "\"scope\": \"FULL\""
-            + "}";
+        final String request = """
+            {
+              "grant_type": "refresh_token",
+              "refresh_token": "%s",
+              "scope": "FULL"
+            }""".formatted(token);
         try (
             XContentParser parser = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, request)

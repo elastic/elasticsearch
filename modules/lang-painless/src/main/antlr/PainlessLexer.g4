@@ -22,6 +22,7 @@ LBRACE:    '[';
 RBRACE:    ']';
 LP:        '(';
 RP:        ')';
+DOLLAR:    '$';
 // We switch modes after a dot to ensure there are not conflicts
 // between shortcuts and decimal values.  Without the mode switch
 // shortcuts such as id.0.0 will fail because 0.0 will be interpreted

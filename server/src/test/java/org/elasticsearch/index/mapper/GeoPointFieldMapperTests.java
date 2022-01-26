@@ -197,8 +197,8 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("index", false)));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
-        boolean searchable = ((GeoPointFieldMapper) fieldMapper).fieldType().isSearchable();
-        assertThat(searchable, equalTo(false));
+        assertThat(((GeoPointFieldMapper) fieldMapper).fieldType().isIndexed(), equalTo(false));
+        assertThat(((GeoPointFieldMapper) fieldMapper).fieldType().isSearchable(), equalTo(false));
     }
 
     public void testMultiField() throws Exception {
@@ -345,6 +345,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     protected void assertSearchable(MappedFieldType fieldType) {
         // always searchable even if it uses TextSearchInfo.NONE
+        assertTrue(fieldType.isIndexed());
         assertTrue(fieldType.isSearchable());
     }
 

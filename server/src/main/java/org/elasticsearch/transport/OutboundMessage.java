@@ -60,8 +60,7 @@ abstract class OutboundMessage extends NetworkMessage {
             if (variableHeaderLength == -1) {
                 writeVariableHeader(stream);
             }
-            if (message instanceof BytesTransportRequest) {
-                BytesTransportRequest bRequest = (BytesTransportRequest) message;
+            if (message instanceof BytesTransportRequest bRequest) {
                 bRequest.writeThin(stream);
                 zeroCopyBuffer = bRequest.bytes;
             } else if (message instanceof RemoteTransportException) {

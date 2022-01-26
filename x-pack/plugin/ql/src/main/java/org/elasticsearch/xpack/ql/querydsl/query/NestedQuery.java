@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.querydsl.query;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -16,7 +17,6 @@ import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.AbstractMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -60,30 +60,30 @@ public class NestedQuery extends Query {
     }
 
     @Override
-    public boolean containsNestedField(String path, String field) {
-        boolean iContainThisField = this.path.equals(path) && fields.containsKey(field);
-        boolean myChildContainsThisField = child.containsNestedField(path, field);
+    public boolean containsNestedField(String otherPath, String field) {
+        boolean iContainThisField = this.path.equals(otherPath) && fields.containsKey(field);
+        boolean myChildContainsThisField = child.containsNestedField(otherPath, field);
         return iContainThisField || myChildContainsThisField;
     }
 
     @Override
-    public Query addNestedField(String path, String field, String format, boolean hasDocValues) {
-        if (false == this.path.equals(path)) {
+    public Query addNestedField(String otherPath, String field, String format, boolean hasDocValues) {
+        if (false == this.path.equals(otherPath)) {
             // I'm not at the right path so let my child query have a crack at it
-            Query rewrittenChild = child.addNestedField(path, field, format, hasDocValues);
+            Query rewrittenChild = child.addNestedField(otherPath, field, format, hasDocValues);
             if (rewrittenChild == child) {
                 return this;
             }
-            return new NestedQuery(source(), path, fields, rewrittenChild);
+            return new NestedQuery(source(), otherPath, fields, rewrittenChild);
         }
         if (fields.containsKey(field)) {
             // I already have the field, no rewriting needed
             return this;
         }
-        Map<String, Map.Entry<Boolean, String>> newFields = new HashMap<>(fields.size() + 1);
+        Map<String, Map.Entry<Boolean, String>> newFields = Maps.newMapWithExpectedSize(fields.size() + 1);
         newFields.putAll(fields);
         newFields.put(field, new AbstractMap.SimpleImmutableEntry<>(hasDocValues, format));
-        return new NestedQuery(source(), path, unmodifiableMap(newFields), child);
+        return new NestedQuery(source(), otherPath, unmodifiableMap(newFields), child);
     }
 
     @Override

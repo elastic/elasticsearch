@@ -86,7 +86,11 @@ public class XContentHelper {
         BytesReference bytes,
         XContentType xContentType
     ) throws IOException {
-        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecation), bytes);
+        return createParser(
+            XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecation),
+            bytes,
+            xContentType
+        );
     }
 
     /**

@@ -168,10 +168,12 @@ to remove or add repositories or to restore snapshots. It also does not enable
 to change index settings or to read or update data stream or index data.
 
 [[built-in-roles-superuser]] `superuser`::
-Grants full access to the cluster, including all indices and data. A user with
-the `superuser` role can also manage users and roles and
-<<run-as-privilege, impersonate>> any other user in the system. Due to the
-permissive nature of this role, take extra care when assigning it to a user.
+Grants full access to cluster management and data indices. This role also grants
+direct read-only access to restricted indices like `.security`. A user with the
+`superuser` role can <<run-as-privilege, impersonate>> any other user in the system. 
++
+NOTE: This role can manage security and create roles with unlimited privileges.
+Take extra care when assigning it to a user.
 
 [[built-in-roles-transform-admin]] `transform_admin`::
 Grants `manage_transform` cluster privileges, which enable you to manage

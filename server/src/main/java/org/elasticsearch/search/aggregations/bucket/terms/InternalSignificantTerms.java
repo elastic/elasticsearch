@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -195,7 +196,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     public abstract List<B> getBuckets();
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         long globalSubsetSize = 0;
         long globalSupersetSize = 0;
         // Compute the overall result set size and the corpus size using the
@@ -256,7 +257,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     }
 
     @Override
-    protected B reduceBucket(List<B> buckets, ReduceContext context) {
+    protected B reduceBucket(List<B> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
         long subsetDf = 0;
         long supersetDf = 0;

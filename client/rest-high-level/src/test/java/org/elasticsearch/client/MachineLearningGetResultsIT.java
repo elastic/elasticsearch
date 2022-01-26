@@ -96,27 +96,25 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
         IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
         double bucketScore = randomDoubleBetween(0.0, 100.0, true);
         bucketStats.report(bucketScore);
-        indexRequest.source(
-            "{\"job_id\":\""
-                + JOB_ID
-                + "\", \"result_type\":\"bucket\", \"timestamp\": "
-                + timestamp
-                + ","
-                + "\"bucket_span\": 3600,\"is_interim\": "
-                + isInterim
-                + ", \"anomaly_score\": "
-                + bucketScore
-                + ", \"bucket_influencers\":[{\"job_id\": \""
-                + JOB_ID
-                + "\", \"result_type\":\"bucket_influencer\", "
-                + "\"influencer_field_name\": \"bucket_time\", \"timestamp\": "
-                + timestamp
-                + ", \"bucket_span\": 3600, "
-                + "\"is_interim\": "
-                + isInterim
-                + "}]}",
-            XContentType.JSON
-        );
+        indexRequest.source("""
+            {
+              "job_id": "%s",
+              "result_type": "bucket",
+              "timestamp": %s,
+              "bucket_span": 3600,
+              "is_interim": %s,
+              "anomaly_score": %s,
+              "bucket_influencers": [
+                {
+                  "job_id": "%s",
+                  "result_type": "bucket_influencer",
+                  "influencer_field_name": "bucket_time",
+                  "timestamp": %s,
+                  "bucket_span": 3600,
+                  "is_interim": %s
+                }
+              ]
+            }""".formatted(JOB_ID, timestamp, isInterim, bucketScore, JOB_ID, timestamp, isInterim), XContentType.JSON);
         bulkRequest.add(indexRequest);
     }
 
@@ -135,40 +133,32 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
         double recordScore = randomDoubleBetween(0.0, 100.0, true);
         recordStats.report(recordScore);
         double p = randomDoubleBetween(0.0, 0.05, false);
-        indexRequest.source(
-            "{\"job_id\":\""
-                + JOB_ID
-                + "\", \"result_type\":\"record\", \"timestamp\": "
-                + timestamp
-                + ","
-                + "\"bucket_span\": 3600,\"is_interim\": "
-                + isInterim
-                + ", \"record_score\": "
-                + recordScore
-                + ", \"probability\": "
-                + p
-                + "}",
-            XContentType.JSON
-        );
+        indexRequest.source("""
+            {
+              "job_id": "%s",
+              "result_type": "record",
+              "timestamp": %s,
+              "bucket_span": 3600,
+              "is_interim": %s,
+              "record_score": %s,
+              "probability": %s
+            }""".formatted(JOB_ID, timestamp, isInterim, recordScore, p), XContentType.JSON);
         bulkRequest.add(indexRequest);
     }
 
     private void addCategoryIndexRequest(long categoryId, String categoryName, BulkRequest bulkRequest) {
         IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
-        indexRequest.source(
-            "{\"job_id\":\""
-                + JOB_ID
-                + "\", \"category_id\": "
-                + categoryId
-                + ", \"terms\": \""
-                + categoryName
-                + "\",  \"regex\": \".*?"
-                + categoryName
-                + ".*\", \"max_matching_length\": 3, \"examples\": [\""
-                + categoryName
-                + "\"]}",
-            XContentType.JSON
-        );
+        indexRequest.source("""
+            {
+              "job_id": "%s",
+              "category_id": %s,
+              "terms": "%s",
+              "regex": ".*?%s.*",
+              "max_matching_length": 3,
+              "examples": [
+                "%s"
+              ]
+            }""".formatted(JOB_ID, categoryId, categoryName, categoryName, categoryName), XContentType.JSON);
         bulkRequest.add(indexRequest);
     }
 
@@ -1114,20 +1104,17 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (Bucket bucket : firstBuckets) {
+            String anomalyScore = String.valueOf(bucket.getAnomalyScore() + 10.0);
             IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
-            indexRequest.source(
-                "{\"job_id\":\""
-                    + anotherJobId
-                    + "\", \"result_type\":\"bucket\", \"timestamp\": "
-                    + bucket.getTimestamp().getTime()
-                    + ","
-                    + "\"bucket_span\": 3600,\"is_interim\": "
-                    + bucket.isInterim()
-                    + ", \"anomaly_score\": "
-                    + String.valueOf(bucket.getAnomalyScore() + 10.0)
-                    + "}",
-                XContentType.JSON
-            );
+            indexRequest.source("""
+                {
+                  "job_id": "%s",
+                  "result_type": "bucket",
+                  "timestamp": %s,
+                  "bucket_span": 3600,
+                  "is_interim": %s,
+                  "anomaly_score": %s
+                }""".formatted(anotherJobId, bucket.getTimestamp().getTime(), bucket.isInterim(), anomalyScore), XContentType.JSON);
             bulkRequest.add(indexRequest);
         }
         highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
@@ -1317,22 +1304,18 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             double score = isLast ? 90.0 : 42.0;
 
             IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
-            indexRequest.source(
-                "{\"job_id\":\""
-                    + JOB_ID
-                    + "\", \"result_type\":\"influencer\", \"timestamp\": "
-                    + timestamp
-                    + ","
-                    + "\"bucket_span\": 3600,\"is_interim\": "
-                    + isInterim
-                    + ", \"influencer_score\": "
-                    + score
-                    + ", "
-                    + "\"influencer_field_name\":\"my_influencer\", \"influencer_field_value\": \"inf_1\", \"probability\":"
-                    + randomDouble()
-                    + "}",
-                XContentType.JSON
-            );
+            indexRequest.source("""
+                {
+                  "job_id": "%s",
+                  "result_type": "influencer",
+                  "timestamp": %s,
+                  "bucket_span": 3600,
+                  "is_interim": %s,
+                  "influencer_score": %s,
+                  "influencer_field_name": "my_influencer",
+                  "influencer_field_value": "inf_1",
+                  "probability": %s
+                }""".formatted(JOB_ID, timestamp, isInterim, score, randomDouble()), XContentType.JSON);
             bulkRequest.add(indexRequest);
             timestamp += 3600000L;
         }

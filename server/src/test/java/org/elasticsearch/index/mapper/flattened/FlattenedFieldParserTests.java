@@ -36,7 +36,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
     }
 
     public void testTextValues() throws Exception {
-        String input = "{ \"key1\": \"value1\", \"key2\": \"value2\" }";
+        String input = """
+            { "key1": "value1", "key2": "value2" }""";
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
@@ -92,7 +93,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
     }
 
     public void testBasicArrays() throws Exception {
-        String input = "{ \"key\": [true, false] }";
+        String input = """
+            { "key": [true, false] }""";
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
@@ -116,7 +118,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
     }
 
     public void testArrayOfArrays() throws Exception {
-        String input = "{ \"key\": [[true, \"value\"], 3] }";
+        String input = """
+            { "key": [[true, "value"], 3] }""";
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
@@ -148,7 +151,11 @@ public class FlattenedFieldParserTests extends ESTestCase {
     }
 
     public void testArraysOfObjects() throws Exception {
-        String input = "{ \"key1\": [{ \"key2\": true }, false], \"key4\": \"other\" }";
+        String input = """
+            {
+              "key1": [ { "key2": true }, false ],
+              "key4": "other"
+            }""";
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
@@ -180,7 +187,15 @@ public class FlattenedFieldParserTests extends ESTestCase {
     }
 
     public void testNestedObjects() throws Exception {
-        String input = "{ \"parent1\": { \"key\" : \"value\" }," + "\"parent2\": { \"key\" : \"value\" }}";
+        String input = """
+            {
+              "parent1": {
+                "key": "value"
+              },
+              "parent2": {
+                "key": "value"
+              }
+            }""";
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
@@ -209,9 +224,14 @@ public class FlattenedFieldParserTests extends ESTestCase {
      *   * The same field name can be specified as a dotted path and using object notation.
      */
     public void testDottedPaths() throws Exception {
-        String input = "{ \"object1.object2\": \"value1\","
-            + "\"object1.object2.object3\": \"value2\","
-            + "\"object1\": { \"object2\": \"value3\" }}";
+        String input = """
+            {
+              "object1.object2": "value1",
+              "object1.object2.object3": "value2",
+              "object1": {
+                "object2": "value3"
+              }
+            }""";
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
@@ -243,7 +263,13 @@ public class FlattenedFieldParserTests extends ESTestCase {
     }
 
     public void testDepthLimit() throws Exception {
-        String input = "{ \"parent1\": { \"key\" : \"value\" }," + "\"parent2\": [{ \"key\" : { \"key\" : \"value\" }}]}";
+        String input = """
+            {
+              "parent1": {
+                "key": "value"
+              },
+              "parent2": [ { "key": { "key": "value" } } ]
+            }""";
         XContentParser xContentParser = createXContentParser(input);
         FlattenedFieldParser configuredParser = new FlattenedFieldParser(
             "field",
@@ -259,7 +285,13 @@ public class FlattenedFieldParserTests extends ESTestCase {
     }
 
     public void testDepthLimitBoundary() throws Exception {
-        String input = "{ \"parent1\": { \"key\" : \"value\" }," + "\"parent2\": [{ \"key\" : { \"key\" : \"value\" }}]}";
+        String input = """
+            {
+              "parent1": {
+                "key": "value"
+              },
+              "parent2": [ { "key": { "key": "value" } } ]
+            }""";
         XContentParser xContentParser = createXContentParser(input);
         FlattenedFieldParser configuredParser = new FlattenedFieldParser(
             "field",

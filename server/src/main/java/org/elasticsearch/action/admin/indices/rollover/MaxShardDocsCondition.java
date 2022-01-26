@@ -30,7 +30,7 @@ public class MaxShardDocsCondition extends Condition<Long> {
 
     @Override
     public Result evaluate(Stats stats) {
-        return new Result(this, this.value <= stats.maxShardDocs);
+        return new Result(this, this.value <= stats.maxShardDocs());
     }
 
     @Override

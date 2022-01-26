@@ -31,15 +31,24 @@ public class IndexTemplateMetadataTests extends ESTestCase {
 
     public void testIndexTemplateMetadataXContentRoundTrip() throws Exception {
 
-        String template = "{\"index_patterns\" : [ \".test-*\" ],\"order\" : 1000,"
-            + "\"settings\" : {\"number_of_shards\" : 1,\"number_of_replicas\" : 0},"
-            + "\"mappings\" : {\"doc\" :"
-            + "{\"properties\":{\""
-            + randomAlphaOfLength(10)
-            + "\":{\"type\":\"text\"},\""
-            + randomAlphaOfLength(10)
-            + "\":{\"type\":\"keyword\"}}"
-            + "}}}";
+        String template = """
+            {
+              "index_patterns": [ ".test-*" ],
+              "order": 1000,
+              "settings": {
+                "number_of_shards": 1,
+                "number_of_replicas": 0
+              },
+              "mappings": {
+                "doc": {
+                  "properties": {
+                    "%s": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }""".formatted(randomAlphaOfLength(10), randomAlphaOfLength(10));
 
         BytesReference templateBytes = new BytesArray(template);
         final IndexTemplateMetadata indexTemplateMetadata;
@@ -103,15 +112,24 @@ public class IndexTemplateMetadataTests extends ESTestCase {
         });
         assertThat(nullPatternError.getMessage(), equalTo("Index patterns must not be null or empty; got null"));
 
-        final String templateWithEmptyPattern = "{\"index_patterns\" : [],\"order\" : 1000,"
-            + "\"settings\" : {\"number_of_shards\" : 10,\"number_of_replicas\" : 1},"
-            + "\"mappings\" : {\"doc\" :"
-            + "{\"properties\":{\""
-            + randomAlphaOfLength(10)
-            + "\":{\"type\":\"text\"},\""
-            + randomAlphaOfLength(10)
-            + "\":{\"type\":\"keyword\"}}"
-            + "}}}";
+        final String templateWithEmptyPattern = """
+            {
+              "index_patterns": [],
+              "order": 1000,
+              "settings": {
+                "number_of_shards": 10,
+                "number_of_replicas": 1
+              },
+              "mappings": {
+                "doc": {
+                  "properties": {
+                    "%s": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }""".formatted(randomAlphaOfLength(10), randomAlphaOfLength(10));
         try (
             XContentParser parser = XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
@@ -127,15 +145,26 @@ public class IndexTemplateMetadataTests extends ESTestCase {
             assertThat(ex.getMessage(), equalTo("Index patterns must not be null or empty; got []"));
         }
 
-        final String templateWithoutPattern = "{\"order\" : 1000,"
-            + "\"settings\" : {\"number_of_shards\" : 10,\"number_of_replicas\" : 1},"
-            + "\"mappings\" : {\"doc\" :"
-            + "{\"properties\":{\""
-            + randomAlphaOfLength(10)
-            + "\":{\"type\":\"text\"},\""
-            + randomAlphaOfLength(10)
-            + "\":{\"type\":\"keyword\"}}"
-            + "}}}";
+        final String templateWithoutPattern = """
+            {
+              "order": 1000,
+              "settings": {
+                "number_of_shards": 10,
+                "number_of_replicas": 1
+              },
+              "mappings": {
+                "doc": {
+                  "properties": {
+                    "%s": {
+                      "type": "text"
+                    },
+                    "%s": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }""".formatted(randomAlphaOfLength(10), randomAlphaOfLength(10));
         try (
             XContentParser parser = XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
@@ -153,7 +182,8 @@ public class IndexTemplateMetadataTests extends ESTestCase {
     }
 
     public void testParseTemplateWithAliases() throws Exception {
-        String templateInJSON = "{\"aliases\": {\"log\":{}}, \"index_patterns\": [\"pattern-1\"]}";
+        String templateInJSON = """
+            {"aliases": {"log":{}}, "index_patterns": ["pattern-1"]}""";
         try (
             XContentParser parser = XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
@@ -194,7 +224,8 @@ public class IndexTemplateMetadataTests extends ESTestCase {
             templateBuilder.version(between(0, 100));
         }
         if (randomBoolean()) {
-            templateBuilder.putMapping("doc", "{\"doc\":{\"properties\":{\"type\":\"text\"}}}");
+            templateBuilder.putMapping("doc", """
+                {"doc":{"properties":{"type":"text"}}}""");
         }
         IndexTemplateMetadata template = templateBuilder.build();
         XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.JSON.xContent()));

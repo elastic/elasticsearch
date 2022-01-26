@@ -29,3 +29,21 @@
   - match: { status: 400 }
   - match: { error.type: action_request_validation_exception }
   - match: { error.reason: "Validation Failed: 1: cannot set only_expunge_deletes and max_num_segments at the same time, those two parameters are mutually exclusive;" }
+
+---
+"Force merge with wait_for_completion parameter":
+  - skip:
+      version: " - 8.0.99"
+      reason: wait_for_completion is introduced since 8.1
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.forcemerge:
+        max_num_segments: 1
+        wait_for_completion: false
+  - match: { task: '/^\S+:\d+$/' }
+
+

@@ -68,13 +68,14 @@ public class LegacyGeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
         );
         ensureGreen();
 
-        String update = "{\n"
-            + "  \"properties\": {\n"
-            + "    \"shape\": {\n"
-            + "      \"type\": \"geo_shape\""
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String update = """
+            {
+              "properties": {
+                "shape": {
+                  "type": "geo_shape"
+                }
+              }
+            }""";
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

@@ -264,8 +264,8 @@ public class ForecastRequestStats implements ToXContentObject, Writeable {
         this.messages = messages;
     }
 
-    public void setTimeStamp(Instant timestamp) {
-        this.timestamp = Instant.ofEpochMilli(timestamp.toEpochMilli());
+    public void setTimeStamp(Instant timeStamp) {
+        this.timestamp = Instant.ofEpochMilli(timeStamp.toEpochMilli());
     }
 
     public Instant getTimestamp() {

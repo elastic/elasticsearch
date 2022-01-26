@@ -111,7 +111,13 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n" + "  \"exists\" : {\n" + "    \"field\" : \"user\",\n" + "    \"boost\" : 42.0\n" + "  }\n" + "}";
+        String json = """
+            {
+              "exists" : {
+                "field" : "user",
+                "boost" : 42.0
+              }
+            }""";
 
         ExistsQueryBuilder parsed = (ExistsQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

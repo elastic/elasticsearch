@@ -32,7 +32,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
+public class AutoscalingMetadata implements Metadata.Custom {
 
     public static final String NAME = "autoscaling";
 
@@ -74,12 +74,12 @@ public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
 
     public AutoscalingMetadata(final StreamInput in) throws IOException {
         final int size = in.readVInt();
-        final SortedMap<String, AutoscalingPolicyMetadata> policies = new TreeMap<>();
+        final SortedMap<String, AutoscalingPolicyMetadata> policiesMap = new TreeMap<>();
         for (int i = 0; i < size; i++) {
             final AutoscalingPolicyMetadata policyMetadata = new AutoscalingPolicyMetadata(in);
-            policies.put(policyMetadata.policy().name(), policyMetadata);
+            policiesMap.put(policyMetadata.policy().name(), policyMetadata);
         }
-        this.policies = policies;
+        this.policies = policiesMap;
     }
 
     @Override
@@ -93,6 +93,13 @@ public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
     @Override
     public EnumSet<Metadata.XContentContext> context() {
         return Metadata.ALL_CONTEXTS;
+    }
+
+    @Override
+    public boolean isRestorable() {
+        // currently, this is written to the snapshots, in future we might restore it
+        // if request.skipOperatorOnly for Autoscaling policies is enabled
+        return false;
     }
 
     @Override
@@ -165,6 +172,9 @@ public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
             return AbstractDiffable.readDiffFrom(AutoscalingPolicyMetadata::new, in);
         }
 
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_8_0;
+        }
     }
-
 }

@@ -72,7 +72,13 @@ public class HighlightFieldTests extends ESTestCase {
         builder.startObject();
         field.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\n" + "  \"foo\" : [\n" + "    \"bar\",\n" + "    \"baz\"\n" + "  ]\n" + "}", Strings.toString(builder));
+        assertEquals("""
+            {
+              "foo" : [
+                "bar",
+                "baz"
+              ]
+            }""", Strings.toString(builder));
 
         field = new HighlightField("foo", null);
         builder = JsonXContent.contentBuilder();
@@ -80,7 +86,10 @@ public class HighlightFieldTests extends ESTestCase {
         builder.startObject();
         field.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\n" + "  \"foo\" : null\n" + "}", Strings.toString(builder));
+        assertEquals("""
+            {
+              "foo" : null
+            }""", Strings.toString(builder));
     }
 
     /**

@@ -127,17 +127,18 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
             assertEquals(
                 String.format(
                     Locale.ROOT,
-                    "\n"
-                        + "Line number:                        %s (in %s)\n"
-                        + "zone:                               %s\n"
-                        + "timestamp (as epoch):               %s\n"
-                        + "timestamp (java, UTC):              %s\n"
-                        + "timestamp (postgres, to_timestamp): %s\n"
-                        + "timestamp (java with zone):         %s\n"
-                        + "format string:                      %s\n"
-                        + "expected (postgres to_char result): %s\n"
-                        + "actual (ES to_char result):         %s\n"
-                        + "    FAILED (sub)pattern: %s,",
+                    """
+
+                        Line number:                        %s (in %s)
+                        zone:                               %s
+                        timestamp (as epoch):               %s
+                        timestamp (java, UTC):              %s
+                        timestamp (postgres, to_timestamp): %s
+                        timestamp (java with zone):         %s
+                        format string:                      %s
+                        expected (postgres to_char result): %s
+                        actual (ES to_char result):         %s
+                            FAILED (sub)pattern: %s,""",
                     lineNumber,
                     testFile,
                     zone,

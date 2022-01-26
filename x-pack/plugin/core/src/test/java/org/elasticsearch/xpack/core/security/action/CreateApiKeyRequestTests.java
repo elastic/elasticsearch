@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -82,7 +83,39 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         final ActionRequestValidationException ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), equalTo(1));
-        assertThat(ve.validationErrors().get(0), containsString("metadata keys may not start with [_]"));
+        assertThat(ve.validationErrors().get(0), containsString("API key metadata keys may not start with [_]"));
+    }
+
+    public void testRoleDescriptorValidation() {
+        final CreateApiKeyRequest request1 = new CreateApiKeyRequest(
+            randomAlphaOfLength(5),
+            List.of(
+                new RoleDescriptor(
+                    randomAlphaOfLength(5),
+                    new String[] { "manage_index_template" },
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("rad").build() },
+                    new RoleDescriptor.ApplicationResourcePrivileges[] {
+                        RoleDescriptor.ApplicationResourcePrivileges.builder()
+                            .application(randomFrom("app*tab", "app 1"))
+                            .privileges(randomFrom(" ", "\n"))
+                            .resources("resource")
+                            .build() },
+                    null,
+                    null,
+                    Map.of("_key", "value"),
+                    null
+                )
+            ),
+            null
+        );
+        final ActionRequestValidationException ve1 = request1.validate();
+        assertNotNull(ve1);
+        assertThat(ve1.validationErrors().get(0), containsString("unknown cluster privilege"));
+        assertThat(ve1.validationErrors().get(1), containsString("unknown index privilege"));
+        assertThat(ve1.validationErrors().get(2), containsStringIgnoringCase("application name"));
+        assertThat(ve1.validationErrors().get(3), containsStringIgnoringCase("Application privilege names"));
+        assertThat(ve1.validationErrors().get(4), containsStringIgnoringCase("role descriptor metadata keys may not start with "));
     }
 
     public void testSerialization() throws IOException {

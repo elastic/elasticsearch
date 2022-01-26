@@ -37,41 +37,42 @@ public class SpanContainingQueryBuilderTests extends AbstractQueryTestCase<SpanC
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"span_containing\" : {\n"
-            + "    \"big\" : {\n"
-            + "      \"span_near\" : {\n"
-            + "        \"clauses\" : [ {\n"
-            + "          \"span_term\" : {\n"
-            + "            \"field1\" : {\n"
-            + "              \"value\" : \"bar\",\n"
-            + "              \"boost\" : 1.0\n"
-            + "            }\n"
-            + "          }\n"
-            + "        }, {\n"
-            + "          \"span_term\" : {\n"
-            + "            \"field1\" : {\n"
-            + "              \"value\" : \"baz\",\n"
-            + "              \"boost\" : 1.0\n"
-            + "            }\n"
-            + "          }\n"
-            + "        } ],\n"
-            + "        \"slop\" : 5,\n"
-            + "        \"in_order\" : true,\n"
-            + "        \"boost\" : 1.0\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"little\" : {\n"
-            + "      \"span_term\" : {\n"
-            + "        \"field1\" : {\n"
-            + "          \"value\" : \"foo\",\n"
-            + "          \"boost\" : 1.0\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"boost\" : 2.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "span_containing" : {
+                "big" : {
+                  "span_near" : {
+                    "clauses" : [ {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "bar",
+                          "boost" : 1.0
+                        }
+                      }
+                    }, {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "baz",
+                          "boost" : 1.0
+                        }
+                      }
+                    } ],
+                    "slop" : 5,
+                    "in_order" : true,
+                    "boost" : 1.0
+                  }
+                },
+                "little" : {
+                  "span_term" : {
+                    "field1" : {
+                      "value" : "foo",
+                      "boost" : 1.0
+                    }
+                  }
+                },
+                "boost" : 2.0
+              }
+            }""";
 
         SpanContainingQueryBuilder parsed = (SpanContainingQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
@@ -82,41 +83,42 @@ public class SpanContainingQueryBuilderTests extends AbstractQueryTestCase<SpanC
     }
 
     public void testFromJsoWithNonDefaultBoostInBigQuery() {
-        String json = "{\n"
-            + "  \"span_containing\" : {\n"
-            + "    \"big\" : {\n"
-            + "      \"span_near\" : {\n"
-            + "        \"clauses\" : [ {\n"
-            + "          \"span_term\" : {\n"
-            + "            \"field1\" : {\n"
-            + "              \"value\" : \"bar\",\n"
-            + "              \"boost\" : 1.0\n"
-            + "            }\n"
-            + "          }\n"
-            + "        }, {\n"
-            + "          \"span_term\" : {\n"
-            + "            \"field1\" : {\n"
-            + "              \"value\" : \"baz\",\n"
-            + "              \"boost\" : 1.0\n"
-            + "            }\n"
-            + "          }\n"
-            + "        } ],\n"
-            + "        \"slop\" : 5,\n"
-            + "        \"in_order\" : true,\n"
-            + "        \"boost\" : 2.0\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"little\" : {\n"
-            + "      \"span_term\" : {\n"
-            + "        \"field1\" : {\n"
-            + "          \"value\" : \"foo\",\n"
-            + "          \"boost\" : 1.0\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "span_containing" : {
+                "big" : {
+                  "span_near" : {
+                    "clauses" : [ {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "bar",
+                          "boost" : 1.0
+                        }
+                      }
+                    }, {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "baz",
+                          "boost" : 1.0
+                        }
+                      }
+                    } ],
+                    "slop" : 5,
+                    "in_order" : true,
+                    "boost" : 2.0
+                  }
+                },
+                "little" : {
+                  "span_term" : {
+                    "field1" : {
+                      "value" : "foo",
+                      "boost" : 1.0
+                    }
+                  }
+                },
+                "boost" : 1.0
+              }
+            }""";
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(
@@ -126,41 +128,42 @@ public class SpanContainingQueryBuilderTests extends AbstractQueryTestCase<SpanC
     }
 
     public void testFromJsonWithNonDefaultBoostInLittleQuery() {
-        String json = "{\n"
-            + "  \"span_containing\" : {\n"
-            + "    \"little\" : {\n"
-            + "      \"span_near\" : {\n"
-            + "        \"clauses\" : [ {\n"
-            + "          \"span_term\" : {\n"
-            + "            \"field1\" : {\n"
-            + "              \"value\" : \"bar\",\n"
-            + "              \"boost\" : 1.0\n"
-            + "            }\n"
-            + "          }\n"
-            + "        }, {\n"
-            + "          \"span_term\" : {\n"
-            + "            \"field1\" : {\n"
-            + "              \"value\" : \"baz\",\n"
-            + "              \"boost\" : 1.0\n"
-            + "            }\n"
-            + "          }\n"
-            + "        } ],\n"
-            + "        \"slop\" : 5,\n"
-            + "        \"in_order\" : true,\n"
-            + "        \"boost\" : 2.0\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"big\" : {\n"
-            + "      \"span_term\" : {\n"
-            + "        \"field1\" : {\n"
-            + "          \"value\" : \"foo\",\n"
-            + "          \"boost\" : 1.0\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "span_containing" : {
+                "little" : {
+                  "span_near" : {
+                    "clauses" : [ {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "bar",
+                          "boost" : 1.0
+                        }
+                      }
+                    }, {
+                      "span_term" : {
+                        "field1" : {
+                          "value" : "baz",
+                          "boost" : 1.0
+                        }
+                      }
+                    } ],
+                    "slop" : 5,
+                    "in_order" : true,
+                    "boost" : 2.0
+                  }
+                },
+                "big" : {
+                  "span_term" : {
+                    "field1" : {
+                      "value" : "foo",
+                      "boost" : 1.0
+                    }
+                  }
+                },
+                "boost" : 1.0
+              }
+            }""";
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(

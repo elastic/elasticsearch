@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
-import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -154,10 +153,14 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             );
             Geometry geometry = geometryGenerator.apply(false);
             try {
-                geometries.add(GeometryNormalizer.apply(Orientation.CCW, geometry));
-            } catch (InvalidShapeException e) {
-                // do not include geometry
+                geometry = GeometryNormalizer.apply(Orientation.CCW, geometry);
+                // make sure we can index the geometry
+                GeoTestUtils.binaryGeoShapeDocValuesField("field", geometry);
+            } catch (IllegalArgumentException e) {
+                // do not include geometry.
+                assumeNoException("The geometry[" + geometry.toString() + "] is not supported", e);
             }
+            geometries.add(geometry);
             // find dimensional-shape-type of geometry
             CentroidCalculator centroidCalculator = new CentroidCalculator();
             centroidCalculator.add(geometry);

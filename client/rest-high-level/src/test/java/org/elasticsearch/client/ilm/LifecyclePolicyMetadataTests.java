@@ -80,7 +80,8 @@ public class LifecyclePolicyMetadataTests extends AbstractXContentTestCase<Lifec
                     new ParseField(SearchableSnapshotAction.NAME),
                     SearchableSnapshotAction::parse
                 ),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse)
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(MigrateAction.NAME), MigrateAction::parse)
             )
         );
         return new NamedXContentRegistry(entries);

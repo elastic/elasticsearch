@@ -215,6 +215,7 @@ public class ChangelogEntry {
         private String details;
         private String impact;
         private boolean notable;
+        private boolean essSettingChange;
 
         public String getArea() {
             return area;
@@ -260,6 +261,14 @@ public class ChangelogEntry {
             return generatedAnchor(this.title);
         }
 
+        public boolean isEssSettingChange() {
+            return essSettingChange;
+        }
+
+        public void setEssSettingChange(boolean essSettingChange) {
+            this.essSettingChange = essSettingChange;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -273,23 +282,25 @@ public class ChangelogEntry {
                 && Objects.equals(area, breaking.area)
                 && Objects.equals(title, breaking.title)
                 && Objects.equals(details, breaking.details)
-                && Objects.equals(impact, breaking.impact);
+                && Objects.equals(impact, breaking.impact)
+                && Objects.equals(essSettingChange, breaking.essSettingChange);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(area, title, details, impact, notable);
+            return Objects.hash(area, title, details, impact, notable, essSettingChange);
         }
 
         @Override
         public String toString() {
             return String.format(
-                "Breaking{area='%s', title='%s', details='%s', impact='%s', isNotable=%s}",
+                "Breaking{area='%s', title='%s', details='%s', impact='%s', notable=%s, essSettingChange=%s}",
                 area,
                 title,
                 details,
                 impact,
-                notable
+                notable,
+                essSettingChange
             );
         }
     }
@@ -351,7 +362,7 @@ public class ChangelogEntry {
     }
 
     private static String generatedAnchor(String input) {
-        final List<String> excludes = List.of("the", "is", "a");
+        final List<String> excludes = List.of("the", "is", "a", "and");
 
         final String[] words = input.toLowerCase(Locale.ROOT)
             .replaceAll("[^\\w]+", "_")

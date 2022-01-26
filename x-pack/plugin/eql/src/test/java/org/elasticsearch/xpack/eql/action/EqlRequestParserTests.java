@@ -55,21 +55,21 @@ public class EqlRequestParserTests extends ESTestCase {
             "query doesn't support values of type: VALUE_NUMBER",
             EqlSearchRequest::fromXContent
         );
-        assertParsingErrorMessage(
-            "{\"query\" : \"whatever\", \"size\":\"abc\"}",
-            "failed to parse field [size]",
-            EqlSearchRequest::fromXContent
-        );
+        assertParsingErrorMessage("""
+            {"query" : "whatever", "size":"abc"}""", "failed to parse field [size]", EqlSearchRequest::fromXContent);
 
-        EqlSearchRequest request = generateRequest(
-            "endgame-*",
-            "{\"filter\" : {\"match\" : {\"foo\":\"bar\"}}, "
-                + "\"timestamp_field\" : \"tsf\", "
-                + "\"event_category_field\" : \"etf\","
-                + "\"size\" : \"101\","
-                + "\"query\" : \"file where user != 'SYSTEM' by file_path\"}",
-            EqlSearchRequest::fromXContent
-        );
+        EqlSearchRequest request = generateRequest("endgame-*", """
+            {
+              "filter": {
+                "match": {
+                  "foo": "bar"
+                }
+              },
+              "timestamp_field": "tsf",
+              "event_category_field": "etf",
+              "size": "101",
+              "query": "file where user != 'SYSTEM' by file_path"
+            }""", EqlSearchRequest::fromXContent);
         assertArrayEquals(new String[] { "endgame-*" }, request.indices());
         assertNotNull(request.query());
         assertTrue(request.filter() instanceof MatchQueryBuilder);

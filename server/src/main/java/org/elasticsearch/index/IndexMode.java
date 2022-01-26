@@ -9,23 +9,23 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.MappingParserContext;
-import org.elasticsearch.index.mapper.RootObjectMapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 
-import java.util.HashMap;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
@@ -59,7 +59,22 @@ public enum IndexMode {
         public void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting) {}
 
         @Override
-        public void completeMappings(MappingParserContext context, Map<String, Object> mapping, RootObjectMapper.Builder builder) {}
+        public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException {
+            if (isDataStream) {
+                MetadataCreateDataStreamService.validateTimestampFieldMapping(mappingLookup);
+            }
+        }
+
+        @Override
+        public CompressedXContent getDefaultMapping() {
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
+            // non time-series indices must not have a TimeSeriesIdFieldMapper
+            return null;
+        }
     },
     TIME_SERIES {
         @Override
@@ -73,7 +88,8 @@ public enum IndexMode {
                 }
             }
             settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
-            // TODO make start and stop time required
+            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
+            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
         }
 
         private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
@@ -100,6 +116,16 @@ public enum IndexMode {
             }
         }
 
+        @Override
+        public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException {
+            MetadataCreateDataStreamService.validateTimestampFieldMapping(mappingLookup);
+        }
+
+        @Override
+        public CompressedXContent getDefaultMapping() {
+            return DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+        }
+
         private String routingRequiredBad() {
             return "routing is forbidden on CRUD operations that target indices in " + tsdbMode();
         }
@@ -109,45 +135,31 @@ public enum IndexMode {
         }
 
         @Override
-        public void completeMappings(MappingParserContext context, Map<String, Object> mapping, RootObjectMapper.Builder builder) {
-            if (false == mapping.containsKey(DataStreamTimestampFieldMapper.NAME)) {
-                mapping.put(DataStreamTimestampFieldMapper.NAME, new HashMap<>(Map.of("enabled", true)));
-            } else {
-                validateTimeStampField(mapping.get(DataStreamTimestampFieldMapper.NAME));
-            }
-
-            Optional<Mapper.Builder> timestamp = builder.getBuilder(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-            if (timestamp.isEmpty()) {
-                builder.add(
-                    new DateFieldMapper.Builder(
-                        DataStreamTimestampFieldMapper.DEFAULT_PATH,
-                        DateFieldMapper.Resolution.MILLISECONDS,
-                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-                        context.scriptCompiler(),
-                        DateFieldMapper.IGNORE_MALFORMED_SETTING.get(context.getSettings()),
-                        context.getIndexSettings().getIndexVersionCreated()
-                    )
-                );
-            }
-        }
-
-        private void validateTimeStampField(Object timestampFieldValue) {
-            if (false == (timestampFieldValue instanceof Map)) {
-                throw new IllegalArgumentException(
-                    "time series index [" + DataStreamTimestampFieldMapper.NAME + "] meta field format error"
-                );
-            }
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> timeStampFieldValueMap = (Map<String, Object>) timestampFieldValue;
-            if (false == Maps.deepEquals(timeStampFieldValueMap, Map.of("enabled", true))
-                && false == Maps.deepEquals(timeStampFieldValueMap, Map.of("enabled", "true"))) {
-                throw new IllegalArgumentException(
-                    "time series index [" + DataStreamTimestampFieldMapper.NAME + "] meta field must be enabled"
-                );
-            }
+        public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
+            return TimeSeriesIdFieldMapper.INSTANCE;
         }
     };
+
+    public static final CompressedXContent DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+
+    static {
+        try {
+            DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = new CompressedXContent(
+                ((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                    .startObject(DataStreamTimestampFieldMapper.NAME)
+                    .field("enabled", true)
+                    .endObject()
+                    .startObject("properties")
+                    .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                    .field("type", DateFieldMapper.CONTENT_TYPE)
+                    .endObject()
+                    .endObject()
+                    .endObject())
+            );
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
 
     private static final List<Setting<?>> TIME_SERIES_UNSUPPORTED = List.of(
         IndexSortConfig.INDEX_SORT_FIELD_SETTING,
@@ -181,7 +193,20 @@ public enum IndexMode {
     public abstract void validateAlias(@Nullable String indexRouting, @Nullable String searchRouting);
 
     /**
-     * Validate and/or modify the mappings after after they've been parsed.
+     * validate timestamp mapping for this index.
      */
-    public abstract void completeMappings(MappingParserContext context, Map<String, Object> mapping, RootObjectMapper.Builder builder);
+    public abstract void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException;
+
+    /**
+     * Get default mapping for this index or {@code null} if there is none.
+     */
+    @Nullable
+    public abstract CompressedXContent getDefaultMapping();
+
+    /**
+     * Return an instance of the {@link TimeSeriesIdFieldMapper} that generates
+     * the _tsid field. The field mapper will be added to the list of the metadata
+     * field mappers for the index.
+     */
+    public abstract MetadataFieldMapper buildTimeSeriesIdFieldMapper();
 }

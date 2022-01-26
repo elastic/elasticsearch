@@ -60,20 +60,11 @@ public class PhaseExecutionInfoTests extends AbstractSerializingTestCase<PhaseEx
         long version = instance.getVersion();
         long modifiedDate = instance.getModifiedDate();
         switch (between(0, 3)) {
-            case 0:
-                policyName = policyName + randomAlphaOfLengthBetween(1, 5);
-                break;
-            case 1:
-                phase = randomValueOtherThan(phase, () -> PhaseTests.randomTestPhase(randomAlphaOfLength(6)));
-                break;
-            case 2:
-                version++;
-                break;
-            case 3:
-                modifiedDate++;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> policyName = policyName + randomAlphaOfLengthBetween(1, 5);
+            case 1 -> phase = randomValueOtherThan(phase, () -> PhaseTests.randomTestPhase(randomAlphaOfLength(6)));
+            case 2 -> version++;
+            case 3 -> modifiedDate++;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new PhaseExecutionInfo(policyName, phase, version, modifiedDate);
     }

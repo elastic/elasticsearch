@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.action;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -82,21 +83,42 @@ public class GetApiKeyResponseTests extends ESTestCase {
         GetApiKeyResponse response = new GetApiKeyResponse(Arrays.asList(apiKeyInfo1, apiKeyInfo2, apiKeyInfo3));
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(
-            Strings.toString(builder),
-            equalTo(
-                "{"
-                    + "\"api_keys\":["
-                    + "{\"id\":\"id-1\",\"name\":\"name1\",\"creation\":100000,\"expiration\":10000000,\"invalidated\":false,"
-                    + "\"username\":\"user-a\",\"realm\":\"realm-x\",\"metadata\":{}},"
-                    + "{\"id\":\"id-2\",\"name\":\"name2\",\"creation\":100000,\"expiration\":10000000,\"invalidated\":true,"
-                    + "\"username\":\"user-b\",\"realm\":\"realm-y\",\"metadata\":{}},"
-                    + "{\"id\":\"id-3\",\"name\":null,\"creation\":100000,\"invalidated\":true,"
-                    + "\"username\":\"user-c\",\"realm\":\"realm-z\",\"metadata\":{\"foo\":\"bar\"}}"
-                    + "]"
-                    + "}"
-            )
-        );
+        assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace("""
+            {
+              "api_keys": [
+                {
+                  "id": "id-1",
+                  "name": "name1",
+                  "creation": 100000,
+                  "expiration": 10000000,
+                  "invalidated": false,
+                  "username": "user-a",
+                  "realm": "realm-x",
+                  "metadata": {}
+                },
+                {
+                  "id": "id-2",
+                  "name": "name2",
+                  "creation": 100000,
+                  "expiration": 10000000,
+                  "invalidated": true,
+                  "username": "user-b",
+                  "realm": "realm-y",
+                  "metadata": {}
+                },
+                {
+                  "id": "id-3",
+                  "name": null,
+                  "creation": 100000,
+                  "invalidated": true,
+                  "username": "user-c",
+                  "realm": "realm-z",
+                  "metadata": {
+                    "foo": "bar"
+                  }
+                }
+              ]
+            }""")));
     }
 
     private ApiKey createApiKeyInfo(

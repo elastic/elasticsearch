@@ -19,7 +19,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsTests;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -97,7 +97,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         final ArgumentCaptor<Condition.Stats> argument = ArgumentCaptor.forClass(Condition.Stats.class);
         verify(condition).evaluate(argument.capture());
 
-        assertEquals(docsInPrimaryShards, argument.getValue().numDocs);
+        assertEquals(docsInPrimaryShards, argument.getValue().numDocs());
     }
 
     public void testEvaluateConditions() {
@@ -254,7 +254,6 @@ public class TransportRolloverActionTests extends ESTestCase {
         final ThreadPool mockThreadPool = mock(ThreadPool.class);
         final MetadataCreateIndexService mockCreateIndexService = mock(MetadataCreateIndexService.class);
         final IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).thenReturn("logs-index-000003");
         final ActionFilters mockActionFilters = mock(ActionFilters.class);
         final MetadataIndexAliasesService mdIndexAliasesService = mock(MetadataIndexAliasesService.class);
 
@@ -298,7 +297,6 @@ public class TransportRolloverActionTests extends ESTestCase {
             mockThreadPool,
             mockCreateIndexService,
             mdIndexAliasesService,
-            mockIndexNameExpressionResolver,
             EmptySystemIndices.INSTANCE
         );
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
@@ -449,7 +447,8 @@ public class TransportRolloverActionTests extends ESTestCase {
             shardStats.size(),
             shardStats.size(),
             0,
-            emptyList()
+            emptyList(),
+            ClusterState.EMPTY_STATE
         );
     }
 }

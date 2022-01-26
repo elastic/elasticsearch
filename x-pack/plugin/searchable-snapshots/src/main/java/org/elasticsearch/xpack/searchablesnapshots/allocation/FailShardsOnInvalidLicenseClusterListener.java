@@ -62,8 +62,8 @@ public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateLi
 
     @Override
     public synchronized void licenseStateChanged() {
-        final boolean allowed = SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(xPackLicenseState);
-        if (allowed && this.allowed == false) {
+        final boolean isAllowed = SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(xPackLicenseState);
+        if (isAllowed && this.allowed == false) {
             rerouteService.reroute("reroute after license activation", Priority.NORMAL, new ActionListener<ClusterState>() {
                 @Override
                 public void onResponse(ClusterState clusterState) {
@@ -76,7 +76,7 @@ public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateLi
                 }
             });
         }
-        this.allowed = allowed;
+        this.allowed = isAllowed;
         failActiveShardsIfNecessary();
     }
 

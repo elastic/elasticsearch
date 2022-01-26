@@ -151,13 +151,13 @@ public class ChainTransform implements Transform {
             add(transforms);
         }
 
-        public Builder add(Transform... transforms) {
-            Collections.addAll(this.transforms, transforms);
+        public Builder add(Transform... transformsToAdd) {
+            Collections.addAll(this.transforms, transformsToAdd);
             return this;
         }
 
-        public Builder add(Transform.Builder<?>... transforms) {
-            for (Transform.Builder<?> transform : transforms) {
+        public Builder add(Transform.Builder<?>... transformsToAdd) {
+            for (Transform.Builder<?> transform : transformsToAdd) {
                 this.transforms.add(transform.build());
             }
             return this;

@@ -25,50 +25,51 @@ import static java.util.Collections.emptyMap;
 public class HasPrivilegesResponseTests extends ESTestCase {
 
     public void testParseValidResponse() throws IOException {
-        String json = "{"
-            + " \"username\": \"namor\","
-            + " \"has_all_requested\": false,"
-            + " \"cluster\" : {"
-            + "   \"manage\" : false,"
-            + "   \"monitor\" : true"
-            + " },"
-            + " \"index\" : {"
-            + "   \"index-01\": {"
-            + "     \"read\" : true,"
-            + "     \"write\" : false"
-            + "   },"
-            + "   \"index-02\": {"
-            + "     \"read\" : true,"
-            + "     \"write\" : true"
-            + "   },"
-            + "   \"index-03\": {"
-            + "     \"read\" : false,"
-            + "     \"write\" : false"
-            + "   }"
-            + " },"
-            + " \"application\" : {"
-            + "   \"app01\" : {"
-            + "     \"/object/1\" : {"
-            + "       \"read\" : true,"
-            + "       \"write\" : false"
-            + "     },"
-            + "     \"/object/2\" : {"
-            + "       \"read\" : true,"
-            + "       \"write\" : true"
-            + "     }"
-            + "   },"
-            + "   \"app02\" : {"
-            + "     \"/object/1\" : {"
-            + "       \"read\" : false,"
-            + "       \"write\" : false"
-            + "     },"
-            + "     \"/object/3\" : {"
-            + "       \"read\" : false,"
-            + "       \"write\" : true"
-            + "     }"
-            + "   }"
-            + " }"
-            + "}";
+        String json = """
+            {
+              "username": "namor",
+              "has_all_requested": false,
+              "cluster": {
+                "manage": false,
+                "monitor": true
+              },
+              "index": {
+                "index-01": {
+                  "read": true,
+                  "write": false
+                },
+                "index-02": {
+                  "read": true,
+                  "write": true
+                },
+                "index-03": {
+                  "read": false,
+                  "write": false
+                }
+              },
+              "application": {
+                "app01": {
+                  "/object/1": {
+                    "read": true,
+                    "write": false
+                  },
+                  "/object/2": {
+                    "read": true,
+                    "write": true
+                  }
+                },
+                "app02": {
+                  "/object/1": {
+                    "read": false,
+                    "write": false
+                  },
+                  "/object/3": {
+                    "read": false,
+                    "write": true
+                  }
+                }
+              }
+            }""";
         final XContentParser parser = createParser(XContentType.JSON.xContent(), json);
         HasPrivilegesResponse response = HasPrivilegesResponse.fromXContent(parser);
 

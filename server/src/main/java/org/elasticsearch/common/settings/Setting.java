@@ -488,9 +488,8 @@ public class Setting<T> implements ToXContentObject {
                     map = new HashMap<>();
                     while (it.hasNext()) {
                         final Setting<?> setting = it.next();
-                        if (setting instanceof AffixSetting) {
+                        if (setting instanceof AffixSetting<?> as) {
                             // Collect all possible concrete settings
-                            AffixSetting<?> as = ((AffixSetting<?>) setting);
                             for (String ns : as.getNamespaces(settings)) {
                                 Setting<?> s = as.getConcreteSettingForNamespace(ns);
                                 map.put(s, s.get(settings, false));
@@ -832,7 +831,7 @@ public class Setting<T> implements ToXContentObject {
          * @return the raw list of dependencies for this setting
          */
         public Set<AffixSettingDependency> getDependencies() {
-            return Collections.unmodifiableSet(dependencies);
+            return dependencies;
         }
 
         @Override
@@ -1635,6 +1634,23 @@ public class Setting<T> implements ToXContentObject {
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, String defaultPercentage, Property... properties) {
         return new Setting<>(key, (s) -> defaultPercentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
+    }
+
+    public static Setting<List<String>> stringListSetting(String key, Property... properties) {
+        return stringListSetting(key, List.of(), properties);
+    }
+
+    public static Setting<List<String>> stringListSetting(String key, List<String> defValue, Property... properties) {
+        return new ListSetting<>(key, null, s -> defValue, Setting::parseableStringToList, v -> {}, properties) {
+            @Override
+            public List<String> get(Settings settings) {
+                return settings.getAsList(getKey(), defValue);
+            }
+        };
+    }
+
+    public static Setting<List<String>> stringListSetting(String key, Validator<List<String>> validator, Property... properties) {
+        return listSetting(key, List.of(), Function.identity(), validator, properties);
     }
 
     public static <T> Setting<List<T>> listSetting(

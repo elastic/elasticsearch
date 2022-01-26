@@ -97,18 +97,23 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
         }
 
         private ActionRequestValidationException checkConfigIdIsValid(
-            DataFrameAnalyticsConfig config,
+            DataFrameAnalyticsConfig analyticsConfig,
             ActionRequestValidationException error
         ) {
-            if (MlStrings.isValidId(config.getId()) == false) {
+            if (MlStrings.isValidId(analyticsConfig.getId()) == false) {
                 error = ValidateActions.addValidationError(
-                    Messages.getMessage(Messages.INVALID_ID, DataFrameAnalyticsConfig.ID, config.getId()),
+                    Messages.getMessage(Messages.INVALID_ID, DataFrameAnalyticsConfig.ID, analyticsConfig.getId()),
                     error
                 );
             }
-            if (MlStrings.hasValidLengthForId(config.getId()) == false) {
+            if (MlStrings.hasValidLengthForId(analyticsConfig.getId()) == false) {
                 error = ValidateActions.addValidationError(
-                    Messages.getMessage(Messages.ID_TOO_LONG, DataFrameAnalyticsConfig.ID, config.getId(), MlStrings.ID_LENGTH_LIMIT),
+                    Messages.getMessage(
+                        Messages.ID_TOO_LONG,
+                        DataFrameAnalyticsConfig.ID,
+                        analyticsConfig.getId(),
+                        MlStrings.ID_LENGTH_LIMIT
+                    ),
                     error
                 );
             }
@@ -116,14 +121,14 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
         }
 
         private ActionRequestValidationException checkNoIncludedAnalyzedFieldsAreExcludedBySourceFiltering(
-            DataFrameAnalyticsConfig config,
+            DataFrameAnalyticsConfig analyticsConfig,
             ActionRequestValidationException error
         ) {
-            if (config.getAnalyzedFields() == null) {
+            if (analyticsConfig.getAnalyzedFields() == null) {
                 return error;
             }
-            for (String analyzedInclude : config.getAnalyzedFields().includes()) {
-                if (config.getSource().isFieldExcluded(analyzedInclude)) {
+            for (String analyzedInclude : analyticsConfig.getAnalyzedFields().includes()) {
+                if (analyticsConfig.getSource().isFieldExcluded(analyzedInclude)) {
                     return ValidateActions.addValidationError(
                         "field ["
                             + analyzedInclude

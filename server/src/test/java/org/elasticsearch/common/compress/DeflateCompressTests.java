@@ -274,20 +274,11 @@ public class DeflateCompressTests extends ESTestCase {
             long prevLong = r.nextLong();
             while (bos.size() < 400000) {
                 switch (r.nextInt(4)) {
-                    case 0:
-                        addInt(r, prevInt, bos);
-                        break;
-                    case 1:
-                        addLong(r, prevLong, bos);
-                        break;
-                    case 2:
-                        addString(lineFileDocs, bos);
-                        break;
-                    case 3:
-                        addBytes(r, bos);
-                        break;
-                    default:
-                        throw new IllegalStateException("Random is broken");
+                    case 0 -> addInt(r, prevInt, bos);
+                    case 1 -> addLong(r, prevLong, bos);
+                    case 2 -> addString(lineFileDocs, bos);
+                    case 3 -> addBytes(r, bos);
+                    default -> throw new IllegalStateException("Random is broken");
                 }
             }
             doTest(bos.toByteArray());

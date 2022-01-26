@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -70,29 +71,29 @@ public class InvalidateApiKeyResponseTests extends ESTestCase {
         );
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(
-            Strings.toString(builder),
-            equalTo(
-                "{"
-                    + "\"invalidated_api_keys\":[\"api-key-id-1\"],"
-                    + "\"previously_invalidated_api_keys\":[\"api-key-id-2\",\"api-key-id-3\"],"
-                    + "\"error_count\":2,"
-                    + "\"error_details\":["
-                    + "{\"type\":\"exception\","
-                    + "\"reason\":\"error1\","
-                    + "\"caused_by\":{"
-                    + "\"type\":\"illegal_argument_exception\","
-                    + "\"reason\":\"msg - 1\"}"
-                    + "},"
-                    + "{\"type\":\"exception\","
-                    + "\"reason\":\"error2\","
-                    + "\"caused_by\":"
-                    + "{\"type\":\"illegal_argument_exception\","
-                    + "\"reason\":\"msg - 2\"}"
-                    + "}"
-                    + "]"
-                    + "}"
-            )
-        );
+        assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace("""
+            {
+              "invalidated_api_keys": [ "api-key-id-1" ],
+              "previously_invalidated_api_keys": [ "api-key-id-2", "api-key-id-3" ],
+              "error_count": 2,
+              "error_details": [
+                {
+                  "type": "exception",
+                  "reason": "error1",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "msg - 1"
+                  }
+                },
+                {
+                  "type": "exception",
+                  "reason": "error2",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "msg - 2"
+                  }
+                }
+              ]
+            }""")));
     }
 }

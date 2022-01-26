@@ -158,8 +158,8 @@ public class RegressionStats implements AnalysisStats {
         return Objects.hash(jobId, timestamp, iteration, hyperparameters, timingStats, validationLoss);
     }
 
-    public String documentId(String jobId) {
-        return documentIdPrefix(jobId) + timestamp.toEpochMilli();
+    public String documentId(String _jobId) {
+        return documentIdPrefix(_jobId) + timestamp.toEpochMilli();
     }
 
     public static String documentIdPrefix(String jobId) {

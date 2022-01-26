@@ -8,7 +8,7 @@
 package org.elasticsearch.test.test;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -480,16 +480,12 @@ public class InternalTestClusterTests extends ESTestCase {
         try {
             cluster.beforeTest(random());
             switch (randomInt(2)) {
-                case 0:
+                case 0 -> {
                     cluster.stopRandomDataNode();
                     cluster.startNode();
-                    break;
-                case 1:
-                    cluster.rollingRestart(InternalTestCluster.EMPTY_CALLBACK);
-                    break;
-                case 2:
-                    cluster.fullRestart();
-                    break;
+                }
+                case 1 -> cluster.rollingRestart(InternalTestCluster.EMPTY_CALLBACK);
+                case 2 -> cluster.fullRestart();
             }
         } finally {
             cluster.close();

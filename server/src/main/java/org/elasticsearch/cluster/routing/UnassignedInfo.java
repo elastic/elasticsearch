@@ -183,34 +183,24 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
         public static AllocationStatus readFrom(StreamInput in) throws IOException {
             byte id = in.readByte();
-            switch (id) {
-                case 0:
-                    return DECIDERS_NO;
-                case 1:
-                    return NO_VALID_SHARD_COPY;
-                case 2:
-                    return DECIDERS_THROTTLED;
-                case 3:
-                    return FETCHING_SHARD_DATA;
-                case 4:
-                    return DELAYED_ALLOCATION;
-                case 5:
-                    return NO_ATTEMPT;
-                default:
-                    throw new IllegalArgumentException("Unknown AllocationStatus value [" + id + "]");
-            }
+            return switch (id) {
+                case 0 -> DECIDERS_NO;
+                case 1 -> NO_VALID_SHARD_COPY;
+                case 2 -> DECIDERS_THROTTLED;
+                case 3 -> FETCHING_SHARD_DATA;
+                case 4 -> DELAYED_ALLOCATION;
+                case 5 -> NO_ATTEMPT;
+                default -> throw new IllegalArgumentException("Unknown AllocationStatus value [" + id + "]");
+            };
         }
 
         public static AllocationStatus fromDecision(Decision.Type decision) {
             Objects.requireNonNull(decision);
-            switch (decision) {
-                case NO:
-                    return DECIDERS_NO;
-                case THROTTLE:
-                    return DECIDERS_THROTTLED;
-                default:
-                    throw new IllegalArgumentException("no allocation attempt from decision[" + decision + "]");
-            }
+            return switch (decision) {
+                case NO -> DECIDERS_NO;
+                case THROTTLE -> DECIDERS_THROTTLED;
+                default -> throw new IllegalArgumentException("no allocation attempt from decision[" + decision + "]");
+            };
         }
 
         public String value() {

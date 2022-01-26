@@ -28,32 +28,6 @@
               "description":"The name of the index"
             }
           }
-        },
-        {
-          "path":"/{index}/{type}/{id}/_create",
-          "methods":[
-            "PUT",
-            "POST"
-          ],
-          "parts":{
-            "id":{
-              "type":"string",
-              "description":"Document ID"
-            },
-            "index":{
-              "type":"string",
-              "description":"The name of the index"
-            },
-            "type":{
-              "type":"string",
-              "description":"The type of the document",
-              "deprecated":true
-            }
-          },
-          "deprecated":{
-            "version":"7.0.0",
-            "description":"Specifying types in urls has been deprecated"
-          }
         }
       ]
     },

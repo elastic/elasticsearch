@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -45,6 +46,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
@@ -63,7 +65,6 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -686,7 +687,7 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse r = TransportRollupSearchAction.processResponses(
             result,
             msearchResponse,
-            mock(InternalAggregation.ReduceContext.class)
+            InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction()
         );
         assertThat(r, equalTo(response));
     }
@@ -718,7 +719,7 @@ public class SearchActionTests extends ESTestCase {
         InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
-        Map<String, Object> metadata = new HashMap<>(1);
+        Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);
@@ -748,7 +749,7 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse r = TransportRollupSearchAction.processResponses(
             result,
             msearchResponse,
-            mock(InternalAggregation.ReduceContext.class)
+            InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction()
         );
 
         assertNotNull(r);
@@ -800,7 +801,11 @@ public class SearchActionTests extends ESTestCase {
 
         RuntimeException e = expectThrows(
             RuntimeException.class,
-            () -> TransportRollupSearchAction.processResponses(result, msearchResponse, mock(InternalAggregation.ReduceContext.class))
+            () -> TransportRollupSearchAction.processResponses(
+                result,
+                msearchResponse,
+                InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction()
+            )
         );
         assertThat(e.getMessage(), equalTo("MSearch response was empty, cannot unroll RollupSearch results"));
     }
@@ -850,7 +855,7 @@ public class SearchActionTests extends ESTestCase {
         InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
-        Map<String, Object> metadata = new HashMap<>(1);
+        Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);
@@ -884,7 +889,7 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse response = TransportRollupSearchAction.processResponses(
             separateIndices,
             msearchResponse,
-            mock(InternalAggregation.ReduceContext.class)
+            InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction()
         );
 
         assertNotNull(response);

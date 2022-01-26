@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.MlInitializationService;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 import java.io.IOException;
@@ -61,7 +60,6 @@ import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
@@ -217,14 +215,6 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             internalCluster().startNode();
         }
         ensureStableCluster(3);
-
-        // By now the ML initialization service should have realised that there are no
-        // legacy ML templates in the cluster and it doesn't need to keep checking
-        MlInitializationService mlInitializationService = internalCluster().getInstance(
-            MlInitializationService.class,
-            internalCluster().getMasterName()
-        );
-        assertBusy(() -> assertThat(mlInitializationService.checkForLegacyMlTemplates(), is(false)));
 
         String jobId = "dedicated-ml-node-job";
         Job.Builder job = createJob(jobId, ByteSizeValue.ofMb(2));
@@ -416,13 +406,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
 
         PostDataAction.Request postDataRequest = new PostDataAction.Request(jobId);
-        postDataRequest.setContent(
-            new BytesArray(
-                "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n"
-                    + "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}"
-            ),
-            XContentType.JSON
-        );
+        postDataRequest.setContent(new BytesArray("""
+            {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+            {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}"""), XContentType.JSON);
         PostDataAction.Response response = client().execute(PostDataAction.INSTANCE, postDataRequest).actionGet();
         assertEquals(2, response.getDataCounts().getProcessedRecordCount());
 

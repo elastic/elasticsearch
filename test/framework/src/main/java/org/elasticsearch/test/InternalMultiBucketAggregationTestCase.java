@@ -10,6 +10,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -202,10 +203,10 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     }
 
     /**
-     * Build a reuce
+     * Expect that reducing this aggregation will pass the bucket limit.
      */
     protected static void expectReduceUsesTooManyBuckets(InternalAggregation agg, int bucketLimit) {
-        InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
+        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
             BigArrays.NON_RECYCLING_INSTANCE,
             null,
             new IntConsumer() {

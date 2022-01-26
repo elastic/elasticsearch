@@ -268,7 +268,7 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
             return this;
         }
 
-        public Builder addNewFailedRoutingEntry(String nodeId, String reason) {
+        public Builder addNewFailedRoutingEntry(String nodeId, String failureReason) {
             if (nodeRoutingTable.containsKey(nodeId)) {
                 throw new ResourceAlreadyExistsException(
                     "routing entry for node [{}] for model [{}] already exists",
@@ -277,7 +277,7 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
                 );
             }
             isChanged = true;
-            nodeRoutingTable.put(nodeId, new RoutingStateAndReason(RoutingState.FAILED, reason));
+            nodeRoutingTable.put(nodeId, new RoutingStateAndReason(RoutingState.FAILED, failureReason));
             return this;
         }
 
@@ -314,12 +314,12 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
             return this;
         }
 
-        public Builder stopAllocation(String reason) {
+        public Builder stopAllocation(String stopReason) {
             if (allocationState.equals(AllocationState.STOPPING)) {
                 return this;
             }
             isChanged = true;
-            this.reason = reason;
+            this.reason = stopReason;
             allocationState = AllocationState.STOPPING;
             return this;
         }

@@ -17,7 +17,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureSta
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.Option;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -290,10 +290,10 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                         .collect(Collectors.toList())
                         .toArray(Strings.EMPTY_ARRAY)
                 );
-                EnumSet<Option> options = request.indicesOptions().getOptions();
+                EnumSet<Option> options = request.indicesOptions().options();
                 options.add(Option.IGNORE_UNAVAILABLE);
                 options.add(Option.ALLOW_NO_INDICES);
-                request.indicesOptions(new IndicesOptions(options, request.indicesOptions().getExpandWildcards()));
+                request.indicesOptions(new IndicesOptions(options, request.indicesOptions().expandWildcards()));
 
                 client.execute(
                     DeleteDataStreamAction.INSTANCE,

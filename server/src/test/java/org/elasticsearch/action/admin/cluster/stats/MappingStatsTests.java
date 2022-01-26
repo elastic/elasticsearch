@@ -39,149 +39,149 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         Script script2 = new Script("doc['field']");
         Script script3 = new Script("params._source.field + params._source.field \n + params._source.field");
         Script script4 = new Script("params._source.field");
-        String mapping = "{"
-            + "  \"runtime\" : {"
-            + "    \"keyword1\": {"
-            + "      \"type\": \"keyword\","
-            + "      \"script\": "
-            + Strings.toString(script1)
-            + "    },"
-            + "    \"keyword2\": {"
-            + "      \"type\": \"keyword\""
-            + "    },"
-            + "    \"object.keyword3\": {"
-            + "      \"type\": \"keyword\","
-            + "      \"script\": "
-            + Strings.toString(script2)
-            + "    },"
-            + "    \"long\": {"
-            + "      \"type\": \"long\","
-            + "      \"script\": "
-            + Strings.toString(script3)
-            + "    },"
-            + "    \"long2\": {"
-            + "      \"type\": \"long\","
-            + "      \"script\": "
-            + Strings.toString(script4)
-            + "    }"
-            + "  },"
-            + "  \"properties\":{"
-            + "    \"object\":{"
-            + "      \"type\":\"object\","
-            + "      \"properties\":{"
-            + "         \"keyword3\":{"
-            + "           \"type\": \"keyword\""
-            + "         }"
-            + "      }"
-            + "    },"
-            + "    \"long3\": {"
-            + "      \"type\":\"long\","
-            + "      \"script\": "
-            + Strings.toString(script3)
-            + "    },"
-            + "    \"long4\": {"
-            + "      \"type\":\"long\","
-            + "      \"script\": "
-            + Strings.toString(script4)
-            + "    },"
-            + "    \"keyword3\": {"
-            + "      \"type\": \"keyword\","
-            + "      \"script\": "
-            + Strings.toString(script1)
-            + "    }"
-            + "  }"
-            + "}";
+        String mapping = """
+            {
+                "runtime": {
+                    "keyword1": {
+                        "type": "keyword",
+                        "script": %s
+                    },
+                    "keyword2": {
+                        "type": "keyword"
+                    },
+                    "object.keyword3": {
+                        "type": "keyword",
+                        "script": %s
+                    },
+                    "long": {
+                        "type": "long",
+                        "script": %s
+                    },
+                    "long2": {
+                        "type": "long",
+                        "script": %s
+                    }
+                },
+                "properties": {
+                    "object": {
+                        "type": "object",
+                        "properties": {
+                            "keyword3": {
+                                "type": "keyword"
+                            }
+                        }
+                    },
+                    "long3": {
+                        "type": "long",
+                        "script": %s
+                    },
+                    "long4": {
+                        "type": "long",
+                        "script": %s
+                    },
+                    "keyword3": {
+                        "type": "keyword",
+                        "script": %s
+                    }
+                }
+            }""".formatted(
+            Strings.toString(script1),
+            Strings.toString(script2),
+            Strings.toString(script3),
+            Strings.toString(script4),
+            Strings.toString(script3),
+            Strings.toString(script4),
+            Strings.toString(script1)
+        );
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).putMapping(mapping).build();
         IndexMetadata meta2 = IndexMetadata.builder("index2").settings(settings).putMapping(mapping).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).build();
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
-        assertEquals(
-            "{\n"
-                + "  \"mappings\" : {\n"
-                + "    \"field_types\" : [\n"
-                + "      {\n"
-                + "        \"name\" : \"keyword\",\n"
-                + "        \"count\" : 4,\n"
-                + "        \"index_count\" : 2,\n"
-                + "        \"script_count\" : 2,\n"
-                + "        \"lang\" : [\n"
-                + "          \"painless\"\n"
-                + "        ],\n"
-                + "        \"lines_max\" : 1,\n"
-                + "        \"lines_total\" : 2,\n"
-                + "        \"chars_max\" : 47,\n"
-                + "        \"chars_total\" : 94,\n"
-                + "        \"source_max\" : 1,\n"
-                + "        \"source_total\" : 2,\n"
-                + "        \"doc_max\" : 2,\n"
-                + "        \"doc_total\" : 4\n"
-                + "      },\n"
-                + "      {\n"
-                + "        \"name\" : \"long\",\n"
-                + "        \"count\" : 4,\n"
-                + "        \"index_count\" : 2,\n"
-                + "        \"script_count\" : 4,\n"
-                + "        \"lang\" : [\n"
-                + "          \"painless\"\n"
-                + "        ],\n"
-                + "        \"lines_max\" : 2,\n"
-                + "        \"lines_total\" : 6,\n"
-                + "        \"chars_max\" : 68,\n"
-                + "        \"chars_total\" : 176,\n"
-                + "        \"source_max\" : 3,\n"
-                + "        \"source_total\" : 8,\n"
-                + "        \"doc_max\" : 0,\n"
-                + "        \"doc_total\" : 0\n"
-                + "      },\n"
-                + "      {\n"
-                + "        \"name\" : \"object\",\n"
-                + "        \"count\" : 2,\n"
-                + "        \"index_count\" : 2,\n"
-                + "        \"script_count\" : 0\n"
-                + "      }\n"
-                + "    ],\n"
-                + "    \"runtime_field_types\" : [\n"
-                + "      {\n"
-                + "        \"name\" : \"keyword\",\n"
-                + "        \"count\" : 6,\n"
-                + "        \"index_count\" : 2,\n"
-                + "        \"scriptless_count\" : 2,\n"
-                + "        \"shadowed_count\" : 2,\n"
-                + "        \"lang\" : [\n"
-                + "          \"painless\"\n"
-                + "        ],\n"
-                + "        \"lines_max\" : 1,\n"
-                + "        \"lines_total\" : 4,\n"
-                + "        \"chars_max\" : 47,\n"
-                + "        \"chars_total\" : 118,\n"
-                + "        \"source_max\" : 1,\n"
-                + "        \"source_total\" : 2,\n"
-                + "        \"doc_max\" : 2,\n"
-                + "        \"doc_total\" : 6\n"
-                + "      },\n"
-                + "      {\n"
-                + "        \"name\" : \"long\",\n"
-                + "        \"count\" : 4,\n"
-                + "        \"index_count\" : 2,\n"
-                + "        \"scriptless_count\" : 0,\n"
-                + "        \"shadowed_count\" : 0,\n"
-                + "        \"lang\" : [\n"
-                + "          \"painless\"\n"
-                + "        ],\n"
-                + "        \"lines_max\" : 2,\n"
-                + "        \"lines_total\" : 6,\n"
-                + "        \"chars_max\" : 68,\n"
-                + "        \"chars_total\" : 176,\n"
-                + "        \"source_max\" : 3,\n"
-                + "        \"source_total\" : 8,\n"
-                + "        \"doc_max\" : 0,\n"
-                + "        \"doc_total\" : 0\n"
-                + "      }\n"
-                + "    ]\n"
-                + "  }\n"
-                + "}",
-            Strings.toString(mappingStats, true, true)
-        );
+        assertEquals("""
+            {
+              "mappings" : {
+                "field_types" : [
+                  {
+                    "name" : "keyword",
+                    "count" : 4,
+                    "index_count" : 2,
+                    "script_count" : 2,
+                    "lang" : [
+                      "painless"
+                    ],
+                    "lines_max" : 1,
+                    "lines_total" : 2,
+                    "chars_max" : 47,
+                    "chars_total" : 94,
+                    "source_max" : 1,
+                    "source_total" : 2,
+                    "doc_max" : 2,
+                    "doc_total" : 4
+                  },
+                  {
+                    "name" : "long",
+                    "count" : 4,
+                    "index_count" : 2,
+                    "script_count" : 4,
+                    "lang" : [
+                      "painless"
+                    ],
+                    "lines_max" : 2,
+                    "lines_total" : 6,
+                    "chars_max" : 68,
+                    "chars_total" : 176,
+                    "source_max" : 3,
+                    "source_total" : 8,
+                    "doc_max" : 0,
+                    "doc_total" : 0
+                  },
+                  {
+                    "name" : "object",
+                    "count" : 2,
+                    "index_count" : 2,
+                    "script_count" : 0
+                  }
+                ],
+                "runtime_field_types" : [
+                  {
+                    "name" : "keyword",
+                    "count" : 6,
+                    "index_count" : 2,
+                    "scriptless_count" : 2,
+                    "shadowed_count" : 2,
+                    "lang" : [
+                      "painless"
+                    ],
+                    "lines_max" : 1,
+                    "lines_total" : 4,
+                    "chars_max" : 47,
+                    "chars_total" : 118,
+                    "source_max" : 1,
+                    "source_total" : 2,
+                    "doc_max" : 2,
+                    "doc_total" : 6
+                  },
+                  {
+                    "name" : "long",
+                    "count" : 4,
+                    "index_count" : 2,
+                    "scriptless_count" : 0,
+                    "shadowed_count" : 0,
+                    "lang" : [
+                      "painless"
+                    ],
+                    "lines_max" : 2,
+                    "lines_total" : 6,
+                    "chars_max" : 68,
+                    "chars_total" : 176,
+                    "source_max" : 3,
+                    "source_total" : 8,
+                    "doc_max" : 0,
+                    "doc_total" : 0
+                  }
+                ]
+              }
+            }""", Strings.toString(mappingStats, true, true));
     }
 
     @Override
@@ -272,7 +272,8 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     }
 
     public void testAccountsRegularIndices() {
-        String mapping = "{\"properties\":{\"bar\":{\"type\":\"long\"}}}";
+        String mapping = """
+            {"properties":{"bar":{"type":"long"}}}""";
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
@@ -288,7 +289,8 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     }
 
     public void testIgnoreSystemIndices() {
-        String mapping = "{\"properties\":{\"bar\":{\"type\":\"long\"}}}";
+        String mapping = """
+            {"properties":{"bar":{"type":"long"}}}""";
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)

@@ -10,9 +10,10 @@ package org.elasticsearch.xpack.idp.privileges;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -142,17 +143,13 @@ public class UserPrivilegeResolverTests extends ESTestCase {
 
         final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
         Function<String, Set<String>> roleMapping = action -> {
-            switch (action) {
-                case viewerAction:
-                    return Set.of("viewer");
-                case adminAction:
-                    return Set.of("admin");
-                case operatorAction:
-                    return Set.of("operator");
-                case monitorAction:
-                    return Set.of("monitor");
-            }
-            return Set.of();
+            return switch (action) {
+                case viewerAction -> Set.of("viewer");
+                case adminAction -> Set.of("admin");
+                case operatorAction -> Set.of("operator");
+                case monitorAction -> Set.of("monitor");
+                default -> Set.of();
+            };
         };
         resolver.resolve(service(app, resource, roleMapping), future);
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
@@ -173,7 +170,7 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         Tuple<String, Tuple<String, Boolean>>... resourceActionAccess
     ) {
         final boolean isCompleteMatch = randomBoolean();
-        final Map<String, Map<String, Boolean>> resourcePrivilegeMap = new HashMap<>(resourceActionAccess.length);
+        final Map<String, Map<String, Boolean>> resourcePrivilegeMap = Maps.newMapWithExpectedSize(resourceActionAccess.length);
         for (Tuple<String, Tuple<String, Boolean>> t : resourceActionAccess) {
             final String resource = t.v1();
             final String action = t.v2().v1();

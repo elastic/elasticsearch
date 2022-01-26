@@ -68,9 +68,11 @@ public class InterimResultsIT extends MlNativeAutodetectIntegTestCase {
         assertThat(time, equalTo(1400040000L));
 
         // push some data up to a 1/4 bucket boundary, flush (with interim), check interim results
-        String data = "{\"time\":1400040000,\"value\":14}\n"
-            + "{\"time\":1400040500,\"value\":12}\n"
-            + "{\"time\":1400040510,\"value\":16}\n";
+        String data = """
+            {"time":1400040000,"value":14}
+            {"time":1400040500,"value":12}
+            {"time":1400040510,"value":16}
+            """;
         assertThat(postData(job.getId(), data).getProcessedRecordCount(), equalTo(3L));
         flushJob(job.getId(), true);
 

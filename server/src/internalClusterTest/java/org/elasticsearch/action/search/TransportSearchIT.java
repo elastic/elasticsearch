@@ -17,7 +17,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -420,10 +420,8 @@ public class TransportSearchIT extends ESIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
             .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(randomIntBetween(50, 500)));
-        assertAcked(
-            prepareCreate("test").setSettings(settings)
-                .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}")
-        );
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("""
+            {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}"""));
         ensureGreen("test");
         assertBusy(() -> {
             for (String node : internalCluster().nodesInclude("test")) {
@@ -672,7 +670,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public Aggregator subAggregator(String name) {
+        public Aggregator subAggregator(String aggregatorName) {
             return null;
         }
 

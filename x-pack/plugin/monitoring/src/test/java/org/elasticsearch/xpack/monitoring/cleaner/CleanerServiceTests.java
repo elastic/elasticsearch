@@ -115,11 +115,11 @@ public class CleanerServiceTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(nbExecutions);
 
         logger.debug("--> creates a cleaner service that cleans every second");
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        XPackLicenseState mockLicenseState = mock(XPackLicenseState.class);
         CleanerService service = new CleanerService(
             Settings.EMPTY,
             clusterSettings,
-            licenseState,
+            mockLicenseState,
             threadPool,
             new TestExecutionScheduler(1_000)
         );

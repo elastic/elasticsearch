@@ -100,14 +100,11 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         final LeafReader reader = context.reader();
         final String field = fieldName;
 
-        switch (numericType) {
-            case HALF_FLOAT:
-                return new SortedNumericHalfFloatFieldData(reader, field, toScriptField);
-            case FLOAT:
-                return new SortedNumericFloatFieldData(reader, field, toScriptField);
-            default:
-                return new SortedNumericDoubleFieldData(reader, field, toScriptField);
-        }
+        return switch (numericType) {
+            case HALF_FLOAT -> new SortedNumericHalfFloatFieldData(reader, field, toScriptField);
+            case FLOAT -> new SortedNumericFloatFieldData(reader, field, toScriptField);
+            default -> new SortedNumericDoubleFieldData(reader, field, toScriptField);
+        };
     }
 
     /**

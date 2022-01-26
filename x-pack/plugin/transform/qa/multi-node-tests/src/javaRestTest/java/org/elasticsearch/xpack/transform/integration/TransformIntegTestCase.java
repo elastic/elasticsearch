@@ -379,20 +379,10 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
                 if (user != null) {
                     sourceBuilder.append("\"user_id\":\"").append("user_").append(user).append("\",");
                 }
-                sourceBuilder.append("\"count\":")
-                    .append(i)
-                    .append(",\"business_id\":\"")
-                    .append("business_")
-                    .append(business)
-                    .append("\",\"stars\":")
-                    .append(stars)
-                    .append(",\"comment\":")
-                    .append("\"Great stuff, deserves " + stars + " stars\"")
-                    .append(",\"regular_object\":{\"foo\": 42}")
-                    .append(",\"nested_object\":{\"bar\": 43}")
-                    .append(",\"timestamp\":\"")
-                    .append(dateString)
-                    .append("\"}");
+                sourceBuilder.append("""
+                    "count":%s,"business_id":"business_%s","stars":%s,"comment":"Great stuff, deserves %s stars","regular_object":\
+                    {"foo": 42},"nested_object":{"bar": 43},"timestamp":"%s"}
+                    """.formatted(i, business, stars, stars, dateString));
                 bulk.add(new IndexRequest().source(sourceBuilder.toString(), XContentType.JSON));
 
                 if (i % 100 == 0) {

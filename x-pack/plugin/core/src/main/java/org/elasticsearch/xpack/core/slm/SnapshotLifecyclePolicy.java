@@ -135,8 +135,8 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
     }
 
     public long calculateNextExecution() {
-        final Cron schedule = new Cron(this.schedule);
-        return schedule.getNextValidTimeAfter(System.currentTimeMillis());
+        final Cron scheduleEvaluator = new Cron(this.schedule);
+        return scheduleEvaluator.getNextValidTimeAfter(System.currentTimeMillis());
     }
 
     /**
@@ -149,9 +149,9 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
      *         if either of the next two times after now is unsupported according to @{@link Cron#getNextValidTimeAfter(long)}
      */
     public TimeValue calculateNextInterval() {
-        final Cron schedule = new Cron(this.schedule);
-        long next1 = schedule.getNextValidTimeAfter(System.currentTimeMillis());
-        long next2 = schedule.getNextValidTimeAfter(next1);
+        final Cron scheduleEvaluator = new Cron(this.schedule);
+        long next1 = scheduleEvaluator.getNextValidTimeAfter(System.currentTimeMillis());
+        long next2 = scheduleEvaluator.getNextValidTimeAfter(next1);
         if (next1 > 0 && next2 > 0) {
             return TimeValue.timeValueMillis(next2 - next1);
         } else {

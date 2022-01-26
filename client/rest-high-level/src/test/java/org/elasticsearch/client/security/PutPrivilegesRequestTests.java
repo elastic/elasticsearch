@@ -62,41 +62,42 @@ public class PutPrivilegesRequestTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        final String expected = "{\n"
-            + "  \"app01\" : {\n"
-            + "    \"all\" : {\n"
-            + "      \"application\" : \"app01\",\n"
-            + "      \"name\" : \"all\",\n"
-            + "      \"actions\" : [\n"
-            + "        \"action:login\",\n"
-            + "        \"action:logout\"\n"
-            + "      ],\n"
-            + "      \"metadata\" : {\n"
-            + "        \"k1\" : \"v1\"\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"read\" : {\n"
-            + "      \"application\" : \"app01\",\n"
-            + "      \"name\" : \"read\",\n"
-            + "      \"actions\" : [\n"
-            + "        \"data:read\"\n"
-            + "      ]\n"
-            + "    }\n"
-            + "  },\n"
-            + "  \"app02\" : {\n"
-            + "    \"all\" : {\n"
-            + "      \"application\" : \"app02\",\n"
-            + "      \"name\" : \"all\",\n"
-            + "      \"actions\" : [\n"
-            + "        \"action:login\",\n"
-            + "        \"action:logout\"\n"
-            + "      ],\n"
-            + "      \"metadata\" : {\n"
-            + "        \"k2\" : \"v2\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        final String expected = """
+            {
+              "app01" : {
+                "all" : {
+                  "application" : "app01",
+                  "name" : "all",
+                  "actions" : [
+                    "action:login",
+                    "action:logout"
+                  ],
+                  "metadata" : {
+                    "k1" : "v1"
+                  }
+                },
+                "read" : {
+                  "application" : "app01",
+                  "name" : "read",
+                  "actions" : [
+                    "data:read"
+                  ]
+                }
+              },
+              "app02" : {
+                "all" : {
+                  "application" : "app02",
+                  "name" : "all",
+                  "actions" : [
+                    "action:login",
+                    "action:logout"
+                  ],
+                  "metadata" : {
+                    "k2" : "v2"
+                  }
+                }
+              }
+            }""";
         List<ApplicationPrivilege> privileges = new ArrayList<>();
         privileges.add(
             ApplicationPrivilege.builder()

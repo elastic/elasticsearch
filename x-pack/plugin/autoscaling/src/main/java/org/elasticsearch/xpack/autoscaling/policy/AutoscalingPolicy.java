@@ -90,11 +90,11 @@ public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> imple
         this.name = in.readString();
         this.roles = in.readSet(StreamInput::readString).stream().collect(Sets.toUnmodifiableSortedSet());
         int deciderCount = in.readInt();
-        SortedMap<String, Settings> deciders = new TreeMap<>();
+        SortedMap<String, Settings> decidersMap = new TreeMap<>();
         for (int i = 0; i < deciderCount; ++i) {
-            deciders.put(in.readString(), Settings.readSettingsFromStream(in));
+            decidersMap.put(in.readString(), Settings.readSettingsFromStream(in));
         }
-        this.deciders = Collections.unmodifiableSortedMap(deciders);
+        this.deciders = Collections.unmodifiableSortedMap(decidersMap);
     }
 
     @Override

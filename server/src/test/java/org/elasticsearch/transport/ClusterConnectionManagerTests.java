@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -45,6 +46,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -63,7 +65,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         Settings settings = Settings.builder().put("node.name", ClusterConnectionManagerTests.class.getSimpleName()).build();
         threadPool = new ThreadPool(settings);
         transport = mock(Transport.class);
-        connectionManager = new ClusterConnectionManager(settings, transport);
+        connectionManager = new ClusterConnectionManager(settings, transport, threadPool.getThreadContext());
         TimeValue oneSecond = new TimeValue(1000);
         TimeValue oneMinute = TimeValue.timeValueMinutes(1);
         connectionProfile = ConnectionProfile.buildSingleChannelProfile(
@@ -254,6 +256,9 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         int threadCount = between(1, 10);
         Releasable[] releasables = new Releasable[threadCount];
 
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final String contextHeader = "test-context-header";
+
         CyclicBarrier barrier = new CyclicBarrier(threadCount + 1);
         Semaphore pendingCloses = new Semaphore(threadCount);
         for (int i = 0; i < threadCount; i++) {
@@ -265,27 +270,33 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
                 CountDownLatch latch = new CountDownLatch(1);
-                connectionManager.connectToNode(node, connectionProfile, validator, ActionListener.wrap(c -> {
-                    assert connectionManager.nodeConnected(node);
+                try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                    final String contextValue = randomAlphaOfLength(10);
+                    threadContext.putHeader(contextHeader, contextValue);
+                    connectionManager.connectToNode(node, connectionProfile, validator, ActionListener.wrap(c -> {
+                        assert connectionManager.nodeConnected(node);
+                        assertThat(threadContext.getHeader(contextHeader), equalTo(contextValue));
 
-                    assertTrue(pendingCloses.tryAcquire());
-                    connectionManager.getConnection(node).addRemovedListener(ActionListener.wrap(pendingCloses::release));
+                        assertTrue(pendingCloses.tryAcquire());
+                        connectionManager.getConnection(node).addRemovedListener(ActionListener.wrap(pendingCloses::release));
 
-                    if (randomBoolean()) {
-                        releasables[threadIndex] = c;
-                        nodeConnectedCount.incrementAndGet();
-                    } else {
-                        Releasables.close(c);
-                        nodeClosedCount.incrementAndGet();
-                    }
+                        if (randomBoolean()) {
+                            releasables[threadIndex] = c;
+                            nodeConnectedCount.incrementAndGet();
+                        } else {
+                            Releasables.close(c);
+                            nodeClosedCount.incrementAndGet();
+                        }
 
-                    assert latch.getCount() == 1;
-                    latch.countDown();
-                }, e -> {
-                    nodeFailureCount.incrementAndGet();
-                    assert latch.getCount() == 1;
-                    latch.countDown();
-                }));
+                        assert latch.getCount() == 1;
+                        latch.countDown();
+                    }, e -> {
+                        assertThat(threadContext.getHeader(contextHeader), equalTo(contextValue));
+                        nodeFailureCount.incrementAndGet();
+                        assert latch.getCount() == 1;
+                        latch.countDown();
+                    }));
+                }
                 try {
                     latch.await();
                 } catch (InterruptedException e) {

@@ -207,6 +207,18 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         STACK_TEMPLATE_VARIABLES
     );
 
+    //////////////////////////////////////////////////////////
+    // Enterprise Search metricbeat template (for matching ".monitoring-ent-search-8-*" indices)
+    //////////////////////////////////////////////////////////
+    public static final String ENTERPRISE_SEARCH_STACK_INDEX_TEMPLATE_NAME = ".monitoring-ent-search-mb";
+    public static final IndexTemplateConfig ENTERPRISE_SEARCH_STACK_INDEX_TEMPLATE = new IndexTemplateConfig(
+        ENTERPRISE_SEARCH_STACK_INDEX_TEMPLATE_NAME,
+        "/monitoring-ent-search-mb.json",
+        STACK_MONITORING_REGISTRY_VERSION,
+        STACK_MONITORING_REGISTRY_VERSION_VARIABLE,
+        STACK_TEMPLATE_VARIABLES
+    );
+
     public static final String[] TEMPLATE_NAMES = new String[] {
         ALERTS_INDEX_TEMPLATE_NAME,
         BEATS_INDEX_TEMPLATE_NAME,
@@ -296,7 +308,8 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         BEATS_STACK_INDEX_TEMPLATE,
         ES_STACK_INDEX_TEMPLATE,
         KIBANA_STACK_INDEX_TEMPLATE,
-        LOGSTASH_STACK_INDEX_TEMPLATE
+        LOGSTASH_STACK_INDEX_TEMPLATE,
+        ENTERPRISE_SEARCH_STACK_INDEX_TEMPLATE
     );
 
     @Override

@@ -21,6 +21,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
@@ -330,9 +331,9 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     public void testBuildIgnoreUnmappedNestQuery() throws Exception {
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(searchExecutionContext.getObjectMapper("path")).thenReturn(null);
         IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
         when(searchExecutionContext.getIndexSettings()).thenReturn(settings);
+        when(searchExecutionContext.nestedLookup()).thenReturn(NestedLookup.EMPTY);
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.getSearchExecutionContext()).thenReturn(searchExecutionContext);
         InnerHitBuilder leafInnerHits = randomNestedInnerHits();

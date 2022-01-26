@@ -98,7 +98,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
     public void testSimpleDataStreamPivot() throws Exception {
         String indexName = "reviews_data_stream";
-        createReviewsIndex(indexName, 1000, "date", true, -1, null);
+        createReviewsIndex(indexName, 1000, 27, "date", true, -1, null);
         String transformId = "simple_data_stream_pivot";
         String transformIndex = "pivot_reviews_data_stream";
         setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
@@ -363,7 +363,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
     public void testContinuousPivot() throws Exception {
         String indexName = "continuous_reviews";
-        createReviewsIndex(indexName, 1000, "date", false, 5, "user_id");
+        createReviewsIndex(indexName, 1000, 27, "date", false, 5, "user_id");
         String transformId = "simple_continuous_pivot";
         String transformIndex = "pivot_reviews_continuous";
         setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
@@ -1283,7 +1283,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         String indexName = "reviews_geo_bounds";
 
         // gh#71874 regression test: create some sparse data
-        createReviewsIndex(indexName, 1000, "date", false, 5, "location");
+        createReviewsIndex(indexName, 1000, 27, "date", false, 5, "location");
 
         setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
 

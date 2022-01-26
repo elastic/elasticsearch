@@ -29,6 +29,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -276,7 +277,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
             }""").get();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
-        Set<FieldStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
+        List<FieldStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
         for (FieldStats stat : stats) {
             if (stat.getName().equals("integer")) {
                 assertThat(stat.getCount(), greaterThanOrEqualTo(1));

@@ -54,7 +54,10 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.InetAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
@@ -799,7 +802,11 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         bw.newLine();
                         bw.write("# Connections are encrypted and mutually authenticated");
                         bw.newLine();
-                        bw.write("#" + TransportSettings.HOST.getKey() + ": " + hostSettingValue(NetworkUtils.getAllAddresses()));
+                        if (false == inEnrollmentMode
+                            || false == anyRemoteHostNodeAddress(transportAddresses, NetworkUtils.getAllAddresses())) {
+                            bw.write("#");
+                        }
+                        bw.write(TransportSettings.HOST.getKey() + ": " + hostSettingValue(NetworkUtils.getAllAddresses()));
                         bw.newLine();
                     }
                     bw.newLine();
@@ -844,6 +851,33 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             return "[\"" + NODE_NAME_SETTING.get(environment.settings()) + "\"]";
         }
         return "[\"${HOSTNAME}\"]";
+    }
+
+    /**
+     * Determines if a node that is enrolling to an existing cluster is on a different host than the other nodes of the
+     * cluster. If this is the case, then the default configuration of
+     * binding transport layer to localhost will prevent this node to join the cluster even after "successful" enrollment.
+     * We check the non-localhost transport addresses that we receive during enrollment and if any of these are not in the
+     * list of non-localhost IP addresses that we gather from all interfaces of the current host, we assume that at least
+     * some other node in the cluster runs on another host.
+     * If the transport layer addresses we found out in enrollment are all localhost, we cannot be sure where we are still
+     * on the same host, but we assume that as it is safer to do so and do not bind to non localhost for this node either.
+     */
+    protected static boolean anyRemoteHostNodeAddress(List<String> allNodesTransportPublishAddresses, InetAddress[] allHostAddresses) {
+        final List<InetAddress> allAddressesList = Arrays.asList(allHostAddresses);
+        for (String nodeStringAddress : allNodesTransportPublishAddresses) {
+            try {
+                final URI uri = new URI("http://" + nodeStringAddress);
+                final InetAddress nodeAddress = InetAddress.getByName(uri.getHost());
+                if (false == nodeAddress.isLoopbackAddress() && false == allAddressesList.contains(nodeAddress)) {
+                    // this node's address is on a remote host
+                    return true;
+                }
+            } catch (URISyntaxException | UnknownHostException e) {
+                // we could fail here but if any of the transport addresses are usable, we can join the cluster
+            }
+        }
+        return false;
     }
 
     protected String hostSettingValue(InetAddress[] allAddresses) {

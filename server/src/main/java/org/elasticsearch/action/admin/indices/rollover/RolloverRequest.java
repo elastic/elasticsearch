@@ -46,7 +46,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private static final ParseField MAX_DOCS_CONDITION = new ParseField(MaxDocsCondition.NAME);
     private static final ParseField MAX_SIZE_CONDITION = new ParseField(MaxSizeCondition.NAME);
     private static final ParseField MAX_PRIMARY_SHARD_SIZE_CONDITION = new ParseField(MaxPrimaryShardSizeCondition.NAME);
-    private static final ParseField max_primary_shard_docs_CONDITION = new ParseField(MaxPrimaryShardDocsCondition.NAME);
+    private static final ParseField MAX_PRIMARY_SHARD_DOCS_CONDITION = new ParseField(MaxPrimaryShardDocsCondition.NAME);
 
     static {
         CONDITION_PARSER.declareString(
@@ -73,7 +73,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         );
         CONDITION_PARSER.declareLong(
             (conditions, value) -> conditions.put(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(value)),
-            max_primary_shard_docs_CONDITION
+            MAX_PRIMARY_SHARD_DOCS_CONDITION
         );
 
         PARSER.declareField(

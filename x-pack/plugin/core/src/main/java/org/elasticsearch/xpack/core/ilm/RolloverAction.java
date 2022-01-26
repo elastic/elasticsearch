@@ -37,7 +37,7 @@ public class RolloverAction implements LifecycleAction {
     public static final ParseField MAX_PRIMARY_SHARD_SIZE_FIELD = new ParseField("max_primary_shard_size");
     public static final ParseField MAX_DOCS_FIELD = new ParseField("max_docs");
     public static final ParseField MAX_AGE_FIELD = new ParseField("max_age");
-    private static final ParseField max_primary_shard_docs_FIELD = new ParseField("max_primary_shard_docs");
+    private static final ParseField MAX_PRIMARY_SHARD_DOCS_FIELD = new ParseField("max_primary_shard_docs");
     public static final String LIFECYCLE_ROLLOVER_ALIAS = "index.lifecycle.rollover_alias";
     public static final Setting<String> LIFECYCLE_ROLLOVER_ALIAS_SETTING = Setting.simpleString(
         LIFECYCLE_ROLLOVER_ALIAS,
@@ -72,7 +72,7 @@ public class RolloverAction implements LifecycleAction {
             ValueType.VALUE
         );
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_DOCS_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), max_primary_shard_docs_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_PRIMARY_SHARD_DOCS_FIELD);
     }
 
     private final ByteSizeValue maxSize;
@@ -176,7 +176,7 @@ public class RolloverAction implements LifecycleAction {
             builder.field(MAX_DOCS_FIELD.getPreferredName(), maxDocs);
         }
         if (maxPrimaryShardDocs != null) {
-            builder.field(max_primary_shard_docs_FIELD.getPreferredName(), maxPrimaryShardDocs);
+            builder.field(MAX_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(), maxPrimaryShardDocs);
         }
         builder.endObject();
         return builder;

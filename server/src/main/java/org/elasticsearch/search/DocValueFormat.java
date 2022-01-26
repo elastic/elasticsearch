@@ -706,7 +706,7 @@ public interface DocValueFormat extends NamedWriteable {
             }
 
             Map<?, ?> m = (Map<?, ?>) value;
-            SortedMap<String, BytesReference> dimensions = new TreeMap<>();
+            SortedMap<String, BytesReference> dimensionFields = new TreeMap<>();
             for (Map.Entry<?, ?> entry : m.entrySet()) {
                 String k = (String) entry.getKey();
                 Object v = entry.getValue();
@@ -733,11 +733,11 @@ public interface DocValueFormat extends NamedWriteable {
                 }
 
                 assert bytes != null : "Could not parse fields in _tsid field [" + value + "].";
-                dimensions.put(k, bytes);
+                dimensionFields.put(k, bytes);
             }
 
             try {
-                return TimeSeriesIdFieldMapper.buildTsidField(dimensions).toBytesRef();
+                return TimeSeriesIdFieldMapper.buildTsidField(dimensionFields).toBytesRef();
             } catch (IOException e) {
                 throw new IllegalArgumentException(e);
             }

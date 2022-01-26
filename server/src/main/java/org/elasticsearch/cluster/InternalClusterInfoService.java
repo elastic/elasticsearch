@@ -548,7 +548,12 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
     }
 
-    private static class IndicesStatsSummary {
+    private record IndicesStatsSummary(
+        ImmutableOpenMap<String, Long> shardSizes,
+        ImmutableOpenMap<ShardId, Long> shardDataSetSizes,
+        ImmutableOpenMap<ShardRouting, String> shardRoutingToDataPath,
+        ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
+    ) {
         static final IndicesStatsSummary EMPTY = new IndicesStatsSummary(
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of(),
@@ -556,22 +561,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             ImmutableOpenMap.of()
         );
 
-        final ImmutableOpenMap<String, Long> shardSizes;
-        final ImmutableOpenMap<ShardId, Long> shardDataSetSizes;
-        final ImmutableOpenMap<ShardRouting, String> shardRoutingToDataPath;
-        final ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace;
-
-        IndicesStatsSummary(
-            ImmutableOpenMap<String, Long> shardSizes,
-            ImmutableOpenMap<ShardId, Long> shardDataSetSizes,
-            ImmutableOpenMap<ShardRouting, String> shardRoutingToDataPath,
-            ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
-        ) {
-            this.shardSizes = shardSizes;
-            this.shardDataSetSizes = shardDataSetSizes;
-            this.shardRoutingToDataPath = shardRoutingToDataPath;
-            this.reservedSpace = reservedSpace;
-        }
     }
 
 }

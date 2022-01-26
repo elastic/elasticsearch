@@ -118,10 +118,10 @@ class IndexLifecycleRunner {
     private static Long calculateOriginationMillis(final IndexMetadata indexMetadata) {
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         Long originationDate = indexMetadata.getSettings().getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L);
-        if (lifecycleState.getLifecycleDate() == null && originationDate == -1L) {
+        if (lifecycleState.lifecycleDate() == null && originationDate == -1L) {
             return null;
         }
-        return originationDate == -1L ? lifecycleState.getLifecycleDate() : originationDate;
+        return originationDate == -1L ? lifecycleState.lifecycleDate() : originationDate;
     }
 
     /**
@@ -255,12 +255,12 @@ class IndexLifecycleRunner {
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         Step failedStep = stepRegistry.getStep(
             indexMetadata,
-            new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(), lifecycleState.getFailedStep())
+            new StepKey(lifecycleState.phase(), lifecycleState.action(), lifecycleState.failedStep())
         );
         if (failedStep == null) {
             logger.warn(
                 "failed step [{}] for index [{}] is not part of policy [{}] anymore, or it is invalid. skipping execution",
-                lifecycleState.getFailedStep(),
+                lifecycleState.failedStep(),
                 index,
                 policy
             );
@@ -268,13 +268,13 @@ class IndexLifecycleRunner {
         }
 
         if (lifecycleState.isAutoRetryableError() != null && lifecycleState.isAutoRetryableError()) {
-            int currentRetryAttempt = lifecycleState.getFailedStepRetryCount() == null ? 1 : 1 + lifecycleState.getFailedStepRetryCount();
+            int currentRetryAttempt = lifecycleState.failedStepRetryCount() == null ? 1 : 1 + lifecycleState.failedStepRetryCount();
             logger.info(
                 "policy [{}] for index [{}] on an error step due to a transient error, moving back to the failed "
                     + "step [{}] for execution. retry attempt [{}]",
                 policy,
                 index,
-                lifecycleState.getFailedStep(),
+                lifecycleState.failedStep(),
                 currentRetryAttempt
             );
             // we can afford to drop these requests if they timeout as on the next {@link
@@ -684,7 +684,7 @@ class IndexLifecycleRunner {
                 busyIndices.remove(dedupKey);
                 assert removed : "tried to unregister unknown task [" + task + "]";
             }));
-            clusterService.submitStateUpdateTask(source, task, ILM_TASK_CONFIG, ILM_TASK_EXECUTOR, task);
+            clusterService.submitStateUpdateTask(source, task, ILM_TASK_CONFIG, ILM_TASK_EXECUTOR);
         } else {
             logger.trace("skipped redundant execution of [{}]", source);
         }

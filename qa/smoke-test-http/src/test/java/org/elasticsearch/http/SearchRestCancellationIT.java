@@ -166,12 +166,12 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         SetOnce<TaskInfo> searchTask = new SetOnce<>();
         ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks().get();
         for (TaskInfo task : listTasksResponse.getTasks()) {
-            if (task.getAction().equals(transportAction)) {
+            if (task.action().equals(transportAction)) {
                 searchTask.set(task);
             }
         }
         assertNotNull(searchTask.get());
-        TaskId taskId = searchTask.get().getTaskId();
+        TaskId taskId = searchTask.get().taskId();
         String nodeName = nodeIdToName.apply(taskId.getNodeId());
         assertBusy(() -> {
             TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();

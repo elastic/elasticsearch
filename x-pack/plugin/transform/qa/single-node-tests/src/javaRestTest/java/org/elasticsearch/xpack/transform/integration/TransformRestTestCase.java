@@ -58,6 +58,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     protected void createReviewsIndex(
         String indexName,
         int numDocs,
+        int numUsers,
         String dateType,
         boolean isDataStream,
         int userWithMissingBuckets,
@@ -75,7 +76,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             bulk.append("""
                 {"create":{"_index":"%s"}}
                 """.formatted(indexName));
-            long user = Math.round(Math.pow(i * 31 % 1000, distributionTable[i % distributionTable.length]) % 27);
+            long user = Math.round(Math.pow(i * 31 % 1000, distributionTable[i % distributionTable.length]) % numUsers);
             int stars = distributionTable[(i * 33) % distributionTable.length];
             long business = Math.round(Math.pow(user * stars, distributionTable[i % distributionTable.length]) % 13);
             long affiliate = Math.round(Math.pow(user * stars, distributionTable[i % distributionTable.length]) % 11);
@@ -203,7 +204,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void createReviewsIndex(String indexName) throws IOException {
-        createReviewsIndex(indexName, 1000, "date", false, 5, "affiliate_id");
+        createReviewsIndex(indexName, 1000, 27, "date", false, 5, "affiliate_id");
     }
 
     protected void createPivotReviewsTransform(String transformId, String transformIndex, String query) throws IOException {
@@ -216,7 +217,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void createReviewsIndexNano() throws IOException {
-        createReviewsIndex(REVIEWS_DATE_NANO_INDEX_NAME, 1000, "date_nanos", false, -1, null);
+        createReviewsIndex(REVIEWS_DATE_NANO_INDEX_NAME, 1000, 27, "date_nanos", false, -1, null);
     }
 
     protected void createContinuousPivotReviewsTransform(String transformId, String transformIndex, String authHeader) throws IOException {

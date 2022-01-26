@@ -12,11 +12,9 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -91,19 +89,15 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
             throw new IllegalArgumentException("Reverse nested aggregation [" + name + "] can only be used inside a [nested] aggregation");
         }
 
-        ObjectMapper parentObjectMapper = null;
+        NestedObjectMapper nestedMapper = null;
         if (path != null) {
-            parentObjectMapper = context.getObjectMapper(path);
-            if (parentObjectMapper == null) {
+            nestedMapper = context.nestedLookup().getNestedMappers().get(path);
+            if (nestedMapper == null) {
                 return new ReverseNestedAggregatorFactory(name, true, null, context, parent, subFactoriesBuilder, metadata);
-            }
-            if (parentObjectMapper.isNested() == false) {
-                throw new AggregationExecutionException("[reverse_nested] nested path [" + path + "] is not nested");
             }
         }
 
         NestedScope nestedScope = context.nestedScope();
-        NestedObjectMapper nestedMapper = (NestedObjectMapper) parentObjectMapper;
         try {
             nestedScope.nextLevel(nestedMapper);
             return new ReverseNestedAggregatorFactory(name, false, nestedMapper, context, parent, subFactoriesBuilder, metadata);

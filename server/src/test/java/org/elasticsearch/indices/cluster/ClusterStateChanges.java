@@ -38,11 +38,13 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskResult;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdateTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.JoinTaskExecutor;
 import org.elasticsearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
@@ -86,6 +88,7 @@ import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -391,14 +394,14 @@ public class ClusterStateChanges {
             .map(
                 failedShard -> new FailedShardUpdateTask(
                     new ShardStateAction.FailedShardEntry(
-                        failedShard.getRoutingEntry().shardId(),
-                        failedShard.getRoutingEntry().allocationId().getId(),
+                        failedShard.routingEntry().shardId(),
+                        failedShard.routingEntry().allocationId().getId(),
                         0L,
-                        failedShard.getMessage(),
-                        failedShard.getFailure(),
+                        failedShard.message(),
+                        failedShard.failure(),
                         failedShard.markAsStale()
                     ),
-                    ActionListener.wrap(() -> { throw new AssertionError("task should not complete"); })
+                    createTestListener()
                 )
             )
             .collect(Collectors.toList());
@@ -420,12 +423,15 @@ public class ClusterStateChanges {
             startedShards.entrySet()
                 .stream()
                 .map(
-                    e -> new StartedShardEntry(
-                        e.getKey().shardId(),
-                        e.getKey().allocationId().getId(),
-                        e.getValue(),
-                        "shard started",
-                        ShardLongFieldRange.UNKNOWN
+                    e -> new StartedShardUpdateTask(
+                        new StartedShardEntry(
+                            e.getKey().shardId(),
+                            e.getKey().allocationId().getId(),
+                            e.getValue(),
+                            "shard started",
+                            ShardLongFieldRange.UNKNOWN
+                        ),
+                        createTestListener()
                     )
                 )
                 .collect(Collectors.toList())
@@ -435,12 +441,12 @@ public class ClusterStateChanges {
     private <T> ClusterState runTasks(ClusterStateTaskExecutor<T> executor, ClusterState clusterState, List<T> entries) {
         try {
             ClusterTasksResult<T> result = executor.execute(clusterState, entries);
-            for (ClusterStateTaskExecutor.TaskResult taskResult : result.executionResults.values()) {
+            for (TaskResult taskResult : result.executionResults().values()) {
                 if (taskResult.isSuccess() == false) {
                     throw taskResult.getFailure();
                 }
             }
-            return result.resultingState;
+            return result.resultingState();
         } catch (Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);
         }
@@ -460,15 +466,28 @@ public class ClusterStateChanges {
         });
     }
 
+    @SuppressWarnings("unchecked")
     private ClusterState executeClusterStateUpdateTask(ClusterState state, Runnable runnable) {
-        ClusterState[] result = new ClusterState[1];
+        ClusterState[] resultingState = new ClusterState[1];
         doAnswer(invocationOnMock -> {
             ClusterStateUpdateTask task = (ClusterStateUpdateTask) invocationOnMock.getArguments()[1];
-            result[0] = task.execute(state);
+            ClusterStateTaskExecutor<ClusterStateUpdateTask> executor = (ClusterStateTaskExecutor<ClusterStateUpdateTask>) invocationOnMock
+                .getArguments()[2];
+            ClusterTasksResult<ClusterStateUpdateTask> result = executor.execute(state, List.of(task));
+            for (TaskResult taskResult : result.executionResults().values()) {
+                if (taskResult.isSuccess() == false) {
+                    throw taskResult.getFailure();
+                }
+            }
+            resultingState[0] = result.resultingState();
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
         runnable.run();
-        assertThat(result[0], notNullValue());
-        return result[0];
+        assertThat(resultingState[0], notNullValue());
+        return resultingState[0];
+    }
+
+    private ActionListener<TransportResponse.Empty> createTestListener() {
+        return ActionListener.wrap(() -> { throw new AssertionError("task should not complete"); });
     }
 }

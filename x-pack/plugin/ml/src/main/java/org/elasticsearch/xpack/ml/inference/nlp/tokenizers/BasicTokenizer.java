@@ -128,7 +128,13 @@ public class BasicTokenizer {
                     matchingTokens = new ArrayList<>();
                     current = neverSplitTokenTrieRoot;
                 }
-                mergedTokens.add(token);
+                childNode = current.getChild(token.getToken());
+                if (childNode == null) {
+                    mergedTokens.add(token);
+                } else {
+                    matchingTokens.add(token);
+                    current = childNode;
+                }
             } else if (childNode.isLeaf()) {
                 matchingTokens.add(token);
                 DelimitedToken mergedToken = DelimitedToken.mergeTokens(matchingTokens);

@@ -60,7 +60,7 @@ public class ShrinkStep extends AsyncActionStep {
         ActionListener<Void> listener
     ) {
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
-        if (lifecycleState.getLifecycleDate() == null) {
+        if (lifecycleState.lifecycleDate() == null) {
             throw new IllegalStateException("source index [" + indexMetadata.getIndex().getName() + "] is missing lifecycle date");
         }
 

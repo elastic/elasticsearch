@@ -111,8 +111,8 @@ public class GatewayMetaState implements Closeable {
                     final Tuple<Manifest, Metadata> legacyState = metaStateService.loadFullState();
                     if (legacyState.v1().isEmpty() == false) {
                         metadata = legacyState.v2();
-                        lastAcceptedVersion = legacyState.v1().getClusterStateVersion();
-                        currentTerm = legacyState.v1().getCurrentTerm();
+                        lastAcceptedVersion = legacyState.v1().clusterStateVersion();
+                        currentTerm = legacyState.v1().currentTerm();
                     }
                 }
 

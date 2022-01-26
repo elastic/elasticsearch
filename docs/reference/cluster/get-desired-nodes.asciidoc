@@ -38,7 +38,7 @@ PUT /_internal/desired_nodes/my_history/1
 
 [source,console]
 --------------------------------------------------
-DELETE /_cluster/desired_nodes
+DELETE /_internal/desired_nodes
 --------------------------------------------------
 // TEST
 // TEARDOWN

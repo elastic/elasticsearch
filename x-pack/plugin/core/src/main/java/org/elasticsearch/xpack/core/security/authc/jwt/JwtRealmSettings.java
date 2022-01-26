@@ -35,63 +35,14 @@ public class JwtRealmSettings {
 
     public static final String TYPE = "jwt";
 
-    /**
-     * Minimum HMAC key length depends on SHA-2 digest length.
-     * {@snippet :
-     * final String algorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC);
-     * final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(algorithm);
-     * final int minHmacLengthBits = MACSigner.getMinRequiredSecretLength(jwsAlgorithm);
-     * final OctetSequenceKeyGenerator jwkGenerator = new OctetSequenceKeyGenerator(minHmacLengthBits);
-     * jwkGenerator.keyID(UUID.randomUUID().toString()); // optional
-     * jwkGenerator.algorithm(jwsAlgorithm); // optional
-     * jwkGenerator.keyUse(KeyUse.SIGNATURE); // optional
-     * final OctetSequenceKey hmacJwk = jwkGenerator.generate();
-     * final JWKSet jwkSet = new JWKSet(hmacJwk); // constructor takes a var array of JWKs
-     * final String serializedJwkSet = JSONObjectUtils.toJSONString(jwkSet.toJSONObject(false));
-     * }
-     */
+    // Signature algorithms
     public static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS_HMAC = List.of("HS256", "HS384", "HS512");
-
-    /**
-     * Minimum RSA length does NOT depend on SHA-2 digest length. The library just enforces a minimum 2048-bit length.
-     * {@snippet :
-     * final String algorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA);
-     * final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(algorithm);
-     * final Integer rsaLengthBits = randomFrom(2048, 3072, 4096, 6144);
-     * final RSAKeyGenerator jwkGenerator = new RSAKeyGenerator(rsaLengthBits, false); // allowWeakKeys=false
-     * jwkGenerator.keyID(UUID.randomUUID().toString()); // optional
-     * jwkGenerator.algorithm(jwsAlgorithm); // optional
-     * jwkGenerator.keyUse(KeyUse.SIGNATURE); // optional
-     * final RSAKey rsaJwk = jwkGenerator.generate();
-     * final JWKSet jwkSet = new JWKSet(jwk); // constructor takes a var array of JWKs
-     * final String serializedJwkSet = JSONObjectUtils.toJSONString(jwkSet.toJSONObject(true));
-     * }
-     */
     public static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS_RSA = List.of("RS256", "RS384", "RS512", "PS256", "PS384", "PS512");
-
-    /**
-     * EC curves depend exactly on SHA-2 digest length.
-     * Note: ES256K is disabled since Java 11.0.9/11.0.10/17, but still enabled in BC-FIPS.
-     * {@snippet :
-     * final String algorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_EC);
-     * final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(algorithm);
-     * final Curve ecCurve = randomFrom(Curve.forJWSAlgorithm(jwsAlgorithm));
-     * final ECKeyGenerator jwkGenerator = new ECKeyGenerator(ecCurve);
-     * jwkGenerator.keyID(UUID.randomUUID().toString()); // optional
-     * jwkGenerator.algorithm(jwsAlgorithm); // optional
-     * jwkGenerator.keyUse(KeyUse.SIGNATURE); // optional
-     * final ECKey ecJwk = jwkGenerator.generate();
-     * final JWKSet jwkSet = new JWKSet(jwk); // constructor takes a var array of JWKs
-     * final String serializedJwkSet = JSONObjectUtils.toJSONString(jwkSet.toJSONObject(true));
-     * }
-     */
     public static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS_EC = List.of("ES256", "ES384", "ES512");
-
     public static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS_PKC = Stream.of(
         SUPPORTED_SIGNATURE_ALGORITHMS_RSA,
         SUPPORTED_SIGNATURE_ALGORITHMS_EC
     ).flatMap(Collection::stream).toList();
-
     public static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS = Stream.of(
         SUPPORTED_SIGNATURE_ALGORITHMS_HMAC,
         SUPPORTED_SIGNATURE_ALGORITHMS_PKC

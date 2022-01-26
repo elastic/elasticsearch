@@ -43,8 +43,9 @@ public class VersionCheckingStreamOutputTests extends ESTestCase {
                 () -> out.writeNamedWriteable(new DummyNamedWriteable())
             );
             assertEquals(
-                "NamedWritable [org.elasticsearch.common.io.stream.VersionCheckingStreamOutputTests$DummyNamedWriteable] was released in "
-                    + "version 8.1.0 and was not supported in version "
+                "[org.elasticsearch.common.io.stream.VersionCheckingStreamOutputTests$DummyNamedWriteable] was released first in version "
+                    + Version.CURRENT
+                    + ", but tried to send it to node with version "
                     + streamVersion,
                 e.getMessage()
             );

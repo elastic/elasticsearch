@@ -69,11 +69,11 @@ public class VersionCheckingStreamOutput extends StreamOutput {
     private void checkVersionCompatibility(VersionedNamedWriteable namedWriteable) {
         if (namedWriteable.getMinimalSupportedVersion().after(getVersion())) {
             throw new IllegalArgumentException(
-                "NamedWritable ["
+                "["
                     + namedWriteable.getClass().getName()
-                    + "] was released in version "
+                    + "] was released first in version "
                     + namedWriteable.getMinimalSupportedVersion()
-                    + " and was not supported in version "
+                    + ", but tried to send it to node with version "
                     + getVersion()
             );
         }

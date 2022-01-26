@@ -10,7 +10,6 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -45,7 +44,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
 
     public void testCCSCompatibilityCheck() throws Exception {
         Settings settings = Settings.builder()
-            .put("node.name", TransportSearchAction.class.getSimpleName())
+            .put("node.name", TransportFieldCapabilitiesActionTests.class.getSimpleName())
             .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
             .build();
         ActionFilters actionFilters = mock(ActionFilters.class);

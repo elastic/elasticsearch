@@ -374,5 +374,4 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     public final String toString() {
         return Strings.toString(this, true, true);
     }
-
 }

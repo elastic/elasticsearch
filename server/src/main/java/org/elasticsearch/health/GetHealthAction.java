@@ -39,7 +39,9 @@ import java.util.List;
 public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
     public static final GetHealthAction INSTANCE = new GetHealthAction();
-    public static final String NAME = "cluster:monitor/health2"; // TODO: Need new name
+    // TODO: Need new name maybe
+    // cluster:health/get
+    public static final String NAME = "cluster:monitor/health2";
 
     private GetHealthAction() {
         super(NAME, GetHealthAction.Response::new);
@@ -70,14 +72,15 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             builder.field("timed_out", false);
             builder.field("status", "green");
             builder.field("cluster_name", clusterName.value());
-            builder.array("impacts", Collections.emptyList());
+            builder.array("impacts");
             builder.startObject("components");
             for (Component component : components) {
                 builder.startObject(component.getName());
                 builder.field("status", component.getStatus());
-                builder.startObject("indicators");
+                builder.startArray("indicators");
                 List<Indicator> indicators = component.getIndicators();
                 for (Indicator indicator : indicators) {
+                    builder.startObject();
                     builder.field("name", indicator.getName());
                     builder.field("status", indicator.getStatus());
                     builder.field("explain", indicator.getExplain());
@@ -85,7 +88,9 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
                     indicator.toXContent(builder, params);
                     builder.endObject();
                     // TODO: Add detail / documentation
+                    builder.endObject();
                 }
+                builder.endArray();
                 builder.endObject();
             }
             builder.endObject();
@@ -119,7 +124,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             final ClusterState clusterState = clusterService.state();
             final Controller component = new Controller(clusterService.localNode(), clusterState);
-            listener.onResponse(new Response(clusterService.getClusterName(), Arrays.asList(component)));
+            listener.onResponse(new Response(clusterService.getClusterName(), Arrays.asList(component, new Backups())));
         }
     }
 
@@ -143,18 +148,32 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
     }
 
-    private record NodeDoesNotHaveMaster(DiscoveryNode node) implements Indicator {
+    private record NodeDoesNotHaveMaster(DiscoveryNode node, DiscoveryNode masterNode) implements Indicator {
+
+        public static final String GREEN_EXPLAIN = "health coordinating instance has a master node";
+        public static final String RED_EXPLAIN = "health coordinating instance does not have a master node";
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("node-id", node.getId());
             builder.field("name-name", node.getName());
+            if (masterNode != null) {
+                builder.field("master-node-id", masterNode.getId());
+                builder.field("master-node-name", masterNode.getName());
+            } else {
+                builder.field("master-node-id", (String) null);
+                builder.field("master-node-name", (String) null);
+            }
             return builder;
         }
 
         @Override
         public String getExplain() {
-            return "health coordinating instance does not have master node";
+            if (masterNode == null) {
+                return RED_EXPLAIN;
+            } else {
+                return GREEN_EXPLAIN;
+            }
         }
 
         @Override
@@ -164,34 +183,27 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         @Override
         public ClusterHealthStatus getStatus() {
-            return ClusterHealthStatus.RED;
+            if (masterNode == null) {
+                return ClusterHealthStatus.RED;
+            } else {
+                return ClusterHealthStatus.GREEN;
+            }
         }
     }
 
     private static class Controller implements Component {
 
-        private final DiscoveryNode node;
         private final ClusterHealthStatus status;
         private final List<Indicator> indicators = new ArrayList<>(2);
 
         private Controller(final DiscoveryNode node, final ClusterState clusterState) {
-            this.node = node;
             final DiscoveryNodes nodes = clusterState.nodes();
             final DiscoveryNode masterNode = nodes.getMasterNode();
-            if (masterNode == null) {
-                status = ClusterHealthStatus.RED;
-                indicators.add(new NodeDoesNotHaveMaster(node));
-            } else {
-                status = ClusterHealthStatus.GREEN;
-            }
+            NodeDoesNotHaveMaster nodeDoesNotHaveMaster = new NodeDoesNotHaveMaster(node, masterNode);
+            indicators.add(nodeDoesNotHaveMaster);
+            // Only a single indicator currently so it determines the status
+            status = nodeDoesNotHaveMaster.getStatus();
 
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("node-id", node.getId());
-            builder.field("name-name", node.getName());
-            return builder;
         }
 
         @Override
@@ -207,6 +219,24 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         public List<Indicator> getIndicators() {
             return indicators;
+        }
+    }
+
+    private static class Backups implements Component {
+
+        @Override
+        public String getName() {
+            return "backups";
+        }
+
+        @Override
+        public ClusterHealthStatus getStatus() {
+            return ClusterHealthStatus.GREEN;
+        }
+
+        @Override
+        public List<Indicator> getIndicators() {
+            return Collections.emptyList();
         }
     }
 }

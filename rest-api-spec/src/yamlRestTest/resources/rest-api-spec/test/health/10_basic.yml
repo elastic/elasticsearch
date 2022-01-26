@@ -6,3 +6,9 @@
   - is_true:   cluster_name
   - is_false:  timed_out
   - match:     { status: "green" }
+  - match:     { impacts: [] }
+  - match:     { components.controller.status: "GREEN" }
+  - match:     { components.controller.indicators.0.status: "GREEN" }
+  - match:     { components.controller.indicators.0.name: "instance does not have master" }
+  - match:     { components.controller.indicators.0.explain: "health coordinating instance has a master node" }
+  - match:     { components.backups.status: "GREEN" }

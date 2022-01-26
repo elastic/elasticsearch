@@ -53,11 +53,7 @@ public final class LookupField implements Writeable {
     }
 
     public SearchRequest toSearchRequest() {
-        final SearchSourceBuilder source = new SearchSourceBuilder()
-            .query(query)
-            .trackScores(false)
-            .size(1)
-            .fetchSource(false);
+        final SearchSourceBuilder source = new SearchSourceBuilder().query(query).trackScores(false).size(1).fetchSource(false);
         fetchFields.forEach(source::fetchField);
         return new SearchRequest().indices(index).source(source);
     }
@@ -77,14 +73,6 @@ public final class LookupField implements Writeable {
 
     @Override
     public String toString() {
-        return "LookupField{"
-            + "index='"
-            + index
-            + '\''
-            + ", query="
-            + query
-            + ", fetchFields="
-            + fetchFields
-            + '}';
+        return "LookupField{" + "index='" + index + '\'' + ", query=" + query + ", fetchFields=" + fetchFields + '}';
     }
 }

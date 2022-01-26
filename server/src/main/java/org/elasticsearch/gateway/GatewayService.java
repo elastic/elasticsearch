@@ -33,7 +33,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 public class GatewayService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(GatewayService.class);
@@ -220,10 +219,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 return currentState;
             }
 
-            final ClusterState newState = Function.<ClusterState>identity()
-                .andThen(ClusterStateUpdaters::removeStateNotRecoveredBlock)
-                .andThen(ClusterStateUpdaters::updateRoutingTable)
-                .apply(currentState);
+            final ClusterState newState = ClusterStateUpdaters.initializeRoutingTable(currentState);
 
             return allocationService.reroute(newState, "state recovered");
         }

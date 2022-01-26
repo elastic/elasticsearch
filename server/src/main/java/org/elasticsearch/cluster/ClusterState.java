@@ -203,7 +203,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     private static boolean assertStateRecoveredBeforeRoutingTableCreated(ClusterBlocks blocks, RoutingTable routingTable) {
         if (blocks.hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             assert routingTable.version() == 0 : routingTable;
-            assert routingTable.iterator().hasNext() == false : routingTable;
+            assert routingTable.iterator().hasNext() == false : blocks + "\n" + routingTable;
         }
         return true;
     }

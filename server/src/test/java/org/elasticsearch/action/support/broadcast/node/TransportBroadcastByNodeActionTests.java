@@ -298,13 +298,13 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         ClusterBlocks.Builder block = ClusterBlocks.builder()
-            .addGlobalBlock(new ClusterBlock(1, "test-block", false, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
+            .addGlobalBlock(new ClusterBlock(999, "test-block", false, true, false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
         try {
             action.new AsyncAction(null, request, listener).start();
             fail("expected ClusterBlockException");
         } catch (ClusterBlockException expected) {
-            assertEquals("blocked by: [SERVICE_UNAVAILABLE/1/test-block];", expected.getMessage());
+            assertEquals("blocked by: [SERVICE_UNAVAILABLE/999/test-block];", expected.getMessage());
         }
     }
 

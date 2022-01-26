@@ -348,6 +348,7 @@ public class ClusterChangedEventTests extends ESTestCase {
     private static ClusterState createNonInitializedState(final int numNodes, final boolean isLocalMaster) {
         final ClusterState withoutBlock = createState(numNodes, isLocalMaster, Collections.emptyList());
         return ClusterState.builder(withoutBlock)
+            .routingTable(RoutingTable.EMPTY_ROUTING_TABLE)
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK).build())
             .build();
     }

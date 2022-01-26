@@ -213,7 +213,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     public void testBlocksInReroutePhase() {
         final ClusterBlock nonRetryableBlock = new ClusterBlock(
-            1,
+            99,
             "non retryable",
             false,
             true,

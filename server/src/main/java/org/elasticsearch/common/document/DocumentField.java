@@ -69,7 +69,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.values = Objects.requireNonNull(values, "values must not be null");
         this.ignoredValues = Objects.requireNonNull(ignoredValues, "ignoredValues must not be null");
-        this.lookupFields = Objects.requireNonNull(lookupFields, "lookupValues must not be null");
+        this.lookupFields = Objects.requireNonNull(lookupFields, "lookupFields must not be null");
     }
 
     /**
@@ -119,7 +119,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
         if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
             out.writeCollection(lookupFields);
         } else {
-            // We deliberately not to fail CCS search requests when the remote clusters are on the new version,
+            // We deliberately do not to fail CCS search requests when the remote clusters are on the new version,
             // and have lookup fields, but the local cluster is still on an old version.
         }
     }

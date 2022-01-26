@@ -95,7 +95,7 @@ public class DocumentMapper {
                 );
             }
         }
-        if (settings.getIndexSortConfig().hasIndexSort() && mappers().hasNested()) {
+        if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
         List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();

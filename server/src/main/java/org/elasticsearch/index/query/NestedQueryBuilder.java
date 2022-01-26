@@ -32,7 +32,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.search.SearchHit;
@@ -263,16 +262,13 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             );
         }
 
-        ObjectMapper nestedObjectMapper = context.getObjectMapper(path);
-        if (nestedObjectMapper == null) {
+        NestedObjectMapper mapper = context.nestedLookup().getNestedMappers().get(path);
+        if (mapper == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
                 throw new IllegalStateException("[" + NAME + "] failed to find nested object under path [" + path + "]");
             }
-        }
-        if (nestedObjectMapper.isNested() == false) {
-            throw new IllegalStateException("[" + NAME + "] nested object under path [" + path + "] is not of nested type");
         }
         final BitSetProducer parentFilter;
         Query innerQuery;
@@ -284,7 +280,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         }
 
         try {
-            context.nestedScope().nextLevel((NestedObjectMapper) nestedObjectMapper);
+            context.nestedScope().nextLevel(mapper);
             innerQuery = this.query.toQuery(context);
         } finally {
             context.nestedScope().previousLevel();
@@ -292,9 +288,9 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
 
         // ToParentBlockJoinQuery requires that the inner query only matches documents
         // in its child space
-        NestedHelper nestedHelper = new NestedHelper(context::getObjectMapper, context::isFieldMapped);
+        NestedHelper nestedHelper = new NestedHelper(context.nestedLookup(), context::isFieldMapped);
         if (nestedHelper.mightMatchNonNestedDocs(innerQuery, path)) {
-            innerQuery = Queries.filtered(innerQuery, ((NestedObjectMapper) nestedObjectMapper).nestedTypeFilter());
+            innerQuery = Queries.filtered(innerQuery, mapper.nestedTypeFilter());
         }
 
         return new ESToParentBlockJoinQuery(innerQuery, parentFilter, scoreMode, objectMapper == null ? null : objectMapper.fullPath());
@@ -342,22 +338,21 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         @Override
         protected void doBuild(SearchContext parentSearchContext, InnerHitsContext innerHitsContext) throws IOException {
             SearchExecutionContext searchExecutionContext = parentSearchContext.getSearchExecutionContext();
-            ObjectMapper objectMapper = searchExecutionContext.getObjectMapper(path);
-            if (objectMapper == null || objectMapper.isNested() == false) {
+            NestedObjectMapper nestedMapper = searchExecutionContext.nestedLookup().getNestedMappers().get(path);
+            if (nestedMapper == null) {
                 if (innerHitBuilder.isIgnoreUnmapped() == false) {
                     throw new IllegalStateException("[" + query.getName() + "] no mapping found for type [" + path + "]");
                 } else {
                     return;
                 }
             }
-            NestedObjectMapper nestedObjectMapper = (NestedObjectMapper) objectMapper;
-            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : nestedObjectMapper.fullPath();
-            NestedObjectMapper parentObjectMapper = searchExecutionContext.nestedScope().nextLevel(nestedObjectMapper);
+            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : nestedMapper.fullPath();
+            NestedObjectMapper parentObjectMapper = searchExecutionContext.nestedScope().nextLevel(nestedMapper);
             NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
                 name,
                 parentSearchContext,
                 parentObjectMapper,
-                nestedObjectMapper
+                nestedMapper
             );
             setupInnerHitsContext(searchExecutionContext, nestedInnerHits);
             searchExecutionContext.nestedScope().previousLevel();

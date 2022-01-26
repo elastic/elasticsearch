@@ -172,6 +172,9 @@ setup:
 
 ---
 "Should return only selected features":
+  - skip:
+      version: " - 8.0.99"
+      reason: "features option added in 8.1.0"
 
   - do:
       indices.get:

@@ -232,6 +232,7 @@ To avoid deprecation warnings, discontinue use of the
 `POST _cluster/voting_config_exclusions/<node_name>` request path.
 ====
 
+[discrete]
 [[breaking_78_transform_changes]]
 === Transforms changes
 

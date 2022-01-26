@@ -61,7 +61,6 @@ public class GeoHexGridTests extends GeoGridTestCase<InternalGeoHexGridBucket, I
 
     @Override
     protected int randomPrecision() {
-        // precision values below 8 can lead to parsing errors
         return randomIntBetween(0, H3.MAX_H3_RES);
     }
 }

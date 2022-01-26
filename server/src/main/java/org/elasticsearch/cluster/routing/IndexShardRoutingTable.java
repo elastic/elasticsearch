@@ -529,24 +529,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return allAllocationIds;
     }
 
-    static class AttributesKey {
-
-        final List<String> attributes;
-
-        AttributesKey(List<String> attributes) {
-            this.attributes = attributes;
-        }
-
-        @Override
-        public int hashCode() {
-            return attributes.hashCode();
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            return obj instanceof AttributesKey && attributes.equals(((AttributesKey) obj).attributes);
-        }
-    }
+    record AttributesKey(List<String> attributes) {}
 
     public ShardRouting primaryShard() {
         return primary;

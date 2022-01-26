@@ -63,7 +63,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
             current.hash(),
             current.date(),
             current.isSnapshot(),
-            current.getQualifiedVersion()
+            current.qualifiedVersion()
         );
         Version version = Version.CURRENT;
         MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), clusterUUID, build);
@@ -91,7 +91,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                     }
                     """.formatted(
                     clusterUUID,
-                    build.getQualifiedVersion(),
+                    build.qualifiedVersion(),
                     current.flavor().displayName(),
                     current.type().displayName(),
                     current.hash(),
@@ -124,7 +124,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                     build.hash(),
                     build.date(),
                     build.isSnapshot() == false,
-                    build.getQualifiedVersion()
+                    build.qualifiedVersion()
                 );
             case 3 -> version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));
             case 4 -> clusterName = new ClusterName(clusterName + randomAlphaOfLength(5));

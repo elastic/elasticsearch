@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -65,6 +66,9 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, subFactories, metadata);
+        if (context.isInSortOrderExecutionRequired()) {
+            throw new AggregationExecutionException("Top hits aggregations cannot be used together with time series aggregations");
+        }
         this.from = from;
         this.size = size;
         this.explain = explain;

@@ -74,9 +74,6 @@ Authorization::
 CRUD::
 * Fix potential listener leak in `TransportBulkAction` {es-pull}81894[#81894]
 
-Data streams::
-* Change `DataStream` class to have a single public constructor {es-pull}82464[#82464]
-
 Geo::
 * Handle degenerated rectangles in vector tiles {es-pull}82404[#82404] (issue: {es-issue}81891[#81891])
 * `GeoPolygonDecomposer` might fail due to numerical errors when calculating intersection with the dateline {es-pull}82953[#82953] (issue: {es-issue}82840[#82840])

@@ -32,12 +32,10 @@ public final class LookupField implements Writeable {
     private final String index;
     private final QueryBuilder query;
     private final List<FieldAndFormat> fetchFields;
-    private final int maxSize;
 
-    public LookupField(String index, QueryBuilder query, List<FieldAndFormat> fetchFields, int maxSize) {
+    public LookupField(String index, QueryBuilder query, List<FieldAndFormat> fetchFields) {
         this.index = index;
         this.query = query;
-        this.maxSize = maxSize;
         this.fetchFields = fetchFields;
     }
 
@@ -45,7 +43,6 @@ public final class LookupField implements Writeable {
         this.index = in.readString();
         this.query = in.readNamedWriteable(QueryBuilder.class);
         this.fetchFields = in.readList(FieldAndFormat::new);
-        this.maxSize = in.readVInt();
     }
 
     @Override
@@ -53,11 +50,14 @@ public final class LookupField implements Writeable {
         out.writeString(index);
         out.writeNamedWriteable(query);
         out.writeCollection(fetchFields);
-        out.writeVInt(maxSize);
     }
 
     public SearchRequest toSearchRequest() {
-        final SearchSourceBuilder source = new SearchSourceBuilder().query(query).size(maxSize).fetchSource(false);
+        final SearchSourceBuilder source = new SearchSourceBuilder()
+            .query(query)
+            .trackScores(false)
+            .size(1)
+            .fetchSource(false);
         fetchFields.forEach(source::fetchField);
         return new SearchRequest().indices(index).source(source);
     }
@@ -67,12 +67,12 @@ public final class LookupField implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final LookupField that = (LookupField) o;
-        return maxSize == that.maxSize && index.equals(that.index) && query.equals(that.query) && fetchFields.equals(that.fetchFields);
+        return index.equals(that.index) && query.equals(that.query) && fetchFields.equals(that.fetchFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, query, maxSize, fetchFields);
+        return Objects.hash(index, query, fetchFields);
     }
 
     @Override
@@ -83,8 +83,6 @@ public final class LookupField implements Writeable {
             + '\''
             + ", query="
             + query
-            + ", maxSize="
-            + maxSize
             + ", fetchFields="
             + fetchFields
             + '}';

@@ -845,8 +845,7 @@ POST logs/_search
         "query_type": "term", <3>
         "query_input_field": "host", <4>
         "query_target_field": "ip", <5>
-        "fetch_fields": ["country", "city"], <6>
-        "max_match_size": 1 <7>
+        "fetch_fields": ["country", "city"] <6>
     }
   },
   "fields": [
@@ -863,7 +862,6 @@ POST logs/_search
 <4> A field on the searching index whose values are used as the input values of the lookup query
 <5> A field on the lookup index which the lookup query searches against
 <6> A list of fields to retrieve from the lookup index. See the <<search-fields, `fields`>> parameter of a search request.
-<7> An optional parameter to control the maximum number of matching documents from the lookup query. This value must be between 1 and 100.
 
 The above search returns the country and city from the `ip_location` index
 for each ip address of the returned search hits.

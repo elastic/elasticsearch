@@ -39,8 +39,7 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
  *     "fetch_fields": [
  *         "field-1",
  *         "field-2"
- *     ],
- *     "max_match_size": 1
+ *     ]
  * }
  * </pre>
  */
@@ -95,17 +94,6 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
             }
         });
 
-        private final FieldMapper.Parameter<Integer> maxMatchSize = FieldMapper.Parameter.intParam(
-            "max_match_size",
-            false,
-            RuntimeField.initializerNotSupported(),
-            1
-        ).addValidator(v -> {
-            if (v < 1 || v > 100) {
-                throw new IllegalArgumentException("[max_match_size] must be between 1 and 100");
-            }
-        });
-
         private static FieldMapper.Parameter<List<FieldAndFormat>> newFetchFields() {
             final FieldMapper.Parameter<List<FieldAndFormat>> fetchFields = new FieldMapper.Parameter<>(
                 "fetch_fields",
@@ -157,7 +145,6 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
             parameters.add(queryType);
             parameters.add(queryInputField);
             parameters.add(queryTargetField);
-            parameters.add(maxMatchSize);
             parameters.add(fetchFields);
             return parameters;
         }
@@ -170,7 +157,6 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
                 index.get(),
                 queryInputField.get(),
                 queryTargetField.get(),
-                maxMatchSize.get(),
                 fetchFields.get()
             );
             return new LeafRuntimeField(name, ft, getParameters());
@@ -190,7 +176,6 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
     private final String index;
     private final String queryInputField;
     private final String queryTargetField;
-    private final int maxMatchSize;
     private final List<FieldAndFormat> fetchFields;
 
     private LookupRuntimeFieldType(
@@ -199,14 +184,12 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         String index,
         String queryInputField,
         String queryTargetField,
-        int maxMatchSize,
         List<FieldAndFormat> fetchFields
     ) {
         super(name, false, false, false, TextSearchInfo.NONE, meta);
         this.index = index;
         this.queryInputField = queryInputField;
         this.queryTargetField = queryTargetField;
-        this.maxMatchSize = maxMatchSize;
         this.fetchFields = fetchFields;
     }
 
@@ -245,7 +228,7 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
                 }
                 return inputValues.stream().map(input -> {
                     final TermQueryBuilder query = new TermQueryBuilder(queryTargetField, input.toString());
-                    return new LookupField(index, query, fetchFields, maxMatchSize);
+                    return new LookupField(index, query, fetchFields);
                 }).toList();
             }
 

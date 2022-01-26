@@ -212,6 +212,27 @@ Discontinue use of the `kibana_user` role.
 ====
 
 [discrete]
+[[breaking_78_cluster_coordination_changes]]
+=== Cluster coordination changes
+
+.The voting configuration exclusions API's `POST _cluster/voting_config_exclusions/<node_name>` request path is deprecated.
+[%collapsible]
+====
+*Details* +
+The voting configuration exclusions API's
+`POST _cluster/voting_config_exclusions/<node_name>` request path is now
+deprecated. To add a voting configuration exclusion, specify node names or node
+IDs using a query parameter instead:
+
+- `POST _cluster/voting_config_exclusions?node_names=<node_names>`
+- `POST _cluster/voting_config_exclusions?node_ids=<node_ids>`
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of the
+`POST _cluster/voting_config_exclusions/<node_name>` request path.
+====
+
+[discrete]
 [[breaking_78_transform_changes]]
 === Transforms changes
 

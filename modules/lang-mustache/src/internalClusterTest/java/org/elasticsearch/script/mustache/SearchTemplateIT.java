@@ -371,13 +371,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             () -> client().execute(SearchTemplateAction.INSTANCE, request).get()
         );
         assertEquals(
-            "parts of writeable [SearchRequest{searchType=QUERY_THEN_FETCH, indices=[], "
-                + "indicesOptions=IndicesOptions[ignore_unavailable=false, allow_no_indices=true, expand_wildcards_open=true, "
-                + "expand_wildcards_closed=false, expand_wildcards_hidden=false, allow_aliases_to_multiple_indices=true, "
-                + "forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true], routing='null', preference='null', "
-                + "requestCache=null, scroll=null, maxConcurrentShardRequests=0, batchedReduceSize=512, preFilterShardSize=null, "
-                + "allowPartialSearchResults=null, localClusterAlias=null, getOrCreateAbsoluteStartMillis=-1, ccsMinimizeRoundtrips=true, "
-                + "source={\"query\":{\"dummy\":{}},\"explain\":false}}] are not compatible with version 8.0.0 and the "
+            "[class org.elasticsearch.action.search.SearchRequest] is not compatible with version 8.0.0 and the "
                 + "'search.check_ccs_compatibility' setting is enabled.",
             ex.getCause().getMessage()
         );

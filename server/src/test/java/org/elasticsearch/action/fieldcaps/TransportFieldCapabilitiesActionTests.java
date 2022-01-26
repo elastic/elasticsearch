@@ -90,8 +90,8 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
             );
 
             assertEquals(
-                "parts of writeable [org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest/unset] "
-                    + "are not compatible with version 8.0.0 and the 'search.check_ccs_compatibility' setting is enabled.",
+                "[class org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest] is not compatible with version 8.0.0 and the "
+                    + "'search.check_ccs_compatibility' setting is enabled.",
                 ex.getMessage()
             );
             assertEquals("This query isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());

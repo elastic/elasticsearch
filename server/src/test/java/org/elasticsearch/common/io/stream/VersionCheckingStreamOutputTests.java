@@ -21,7 +21,7 @@ public class VersionCheckingStreamOutputTests extends ESTestCase {
 
         @Override
         public String getWriteableName() {
-            return "test";
+            return "test_writable";
         }
 
         @Override
@@ -43,9 +43,9 @@ public class VersionCheckingStreamOutputTests extends ESTestCase {
                 () -> out.writeNamedWriteable(new DummyNamedWriteable())
             );
             assertEquals(
-                "[org.elasticsearch.common.io.stream.VersionCheckingStreamOutputTests$DummyNamedWriteable] was released first in version "
+                "[test_writable] was released first in version "
                     + Version.CURRENT
-                    + ", but tried to send it to node with version "
+                    + ", failed compatibility check trying to send it to node with version "
                     + streamVersion,
                 e.getMessage()
             );

@@ -70,10 +70,10 @@ public class VersionCheckingStreamOutput extends StreamOutput {
         if (namedWriteable.getMinimalSupportedVersion().after(getVersion())) {
             throw new IllegalArgumentException(
                 "["
-                    + namedWriteable.getClass().getName()
+                    + namedWriteable.getWriteableName()
                     + "] was released first in version "
                     + namedWriteable.getMinimalSupportedVersion()
-                    + ", but tried to send it to node with version "
+                    + ", failed compatibility check trying to send it to node with version "
                     + getVersion()
             );
         }

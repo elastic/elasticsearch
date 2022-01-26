@@ -114,9 +114,9 @@ public final class TransportSearchHelper {
         } catch (Exception e) {
             // if we cannot serialize, raise this as an error to indicate to the caller that CCS has problems with this request
             throw new IllegalArgumentException(
-                "parts of writeable ["
-                    + writeableRequest
-                    + "] are not compatible with version "
+                "["
+                    + writeableRequest.getClass()
+                    + "] is not compatible with version "
                     + CCS_CHECK_VERSION
                     + " and the '"
                     + SearchService.CCS_VERSION_CHECK_SETTING.getKey()

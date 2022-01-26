@@ -79,7 +79,9 @@ public class TransportTermsEnumActionTests extends ESSingleNodeTestCase {
         assertThat(ex.getCause().getMessage(), containsString("the 'search.check_ccs_compatibility' setting is enabled."));
         assertThat(
             ex.getCause().getCause().getMessage(),
-            containsString("was released first in version " + Version.CURRENT + ", but tried to send it to node with version")
+            containsString(
+                "was released first in version " + Version.CURRENT + ", failed compatibility check trying to send it to node with version"
+            )
         );
     }
 }

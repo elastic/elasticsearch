@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.MultiCharSequence;
 
 import java.util.List;
 

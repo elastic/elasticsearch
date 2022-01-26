@@ -87,11 +87,7 @@ public class BasicTokenFilterTests extends BaseTokenStreamTestCase {
         assertTrue(BasicTokenFilter.isPunctuationMark('['));
     }
 
-    public static Analyzer basicAnalyzerFromSettings(
-        boolean isTokenizeCjkChars,
-        boolean isStripAccents,
-        List<String> neverSplit
-    ) {
+    public static Analyzer basicAnalyzerFromSettings(boolean isTokenizeCjkChars, boolean isStripAccents, List<String> neverSplit) {
         return new Analyzer() {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {

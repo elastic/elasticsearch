@@ -22,7 +22,6 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.PrimitiveIterator;

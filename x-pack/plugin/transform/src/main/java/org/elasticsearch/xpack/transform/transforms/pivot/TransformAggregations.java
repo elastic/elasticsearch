@@ -79,7 +79,8 @@ public final class TransformAggregations {
         "t_test", // https://github.com/elastic/elasticsearch/issues/54503,
         "variable_width_histogram", // https://github.com/elastic/elasticsearch/issues/58140
         "rate", // https://github.com/elastic/elasticsearch/issues/61351
-        "multi_terms" // https://github.com/elastic/elasticsearch/issues/67609
+        "multi_terms", // https://github.com/elastic/elasticsearch/issues/67609
+        "time_series" // https://github.com/elastic/elasticsearch/issues/74660
     );
 
     private TransformAggregations() {}
@@ -233,8 +234,7 @@ public final class TransformAggregations {
             );
         }
 
-        if (agg instanceof ValuesSourceAggregationBuilder) {
-            ValuesSourceAggregationBuilder<?> valueSourceAggregation = (ValuesSourceAggregationBuilder<?>) agg;
+        if (agg instanceof ValuesSourceAggregationBuilder<?> valueSourceAggregation) {
             return new Tuple<>(
                 Collections.singletonMap(valueSourceAggregation.getName(), valueSourceAggregation.field()),
                 Collections.singletonMap(valueSourceAggregation.getName(), valueSourceAggregation.getType())

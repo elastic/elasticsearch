@@ -1,5 +1,5 @@
 [[repository-s3]]
-=== S3 Repository
+=== S3 repository
 
 You can use AWS S3 as a repository for {ref}/modules-snapshots.html[Snapshot/Restore].
 
@@ -7,7 +7,7 @@ You can use AWS S3 as a repository for {ref}/modules-snapshots.html[Snapshot/Res
 https://www.elastic.co/cloud/.*
 
 [[repository-s3-usage]]
-==== Getting Started
+==== Getting started
 
 To register an S3 repository, specify the type as `s3` when creating
 the repository. The repository defaults to using
@@ -30,7 +30,7 @@ PUT _snapshot/my_s3_repository
 
 
 [[repository-s3-client]]
-==== Client Settings
+==== Client settings
 
 The client that you use to connect to S3 has a number of settings available.
 The settings have the form `s3.client.CLIENT_NAME.SETTING_NAME`. By default,
@@ -233,7 +233,7 @@ use as a snapshot repository. You will need to work with the supplier of your
 storage system to address any incompatibilities you encounter.
 
 [[repository-s3-repository]]
-==== Repository Settings
+==== Repository settings
 
 The `s3` repository type supports a number of settings to customize how data is
 stored in S3. These can be specified when creating the repository. For example:
@@ -359,7 +359,7 @@ This sets up a repository that uses all client settings from the client
 `my.s3.endpoint` by the repository settings.
 
 [[repository-s3-permissions]]
-===== Recommended S3 Permissions
+===== Recommended S3 permissions
 
 In order to restrict the Elasticsearch snapshot process to the minimum required
 resources, we recommend using Amazon IAM in conjunction with pre-existing S3
@@ -480,7 +480,7 @@ reach a certain age.
 
 [[repository-s3-aws-vpc]]
 [discrete]
-==== AWS VPC Bandwidth Settings
+==== AWS VPC bandwidth settings
 
 AWS instances resolve S3 endpoints to a public IP. If the Elasticsearch
 instances reside in a private subnet in an AWS VPC then all traffic to S3 will

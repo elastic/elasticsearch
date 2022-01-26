@@ -77,7 +77,7 @@ public class SegmentCountStep extends AsyncWaitStep {
                 List<ShardSegments> unmergedShards = idxSegments.getShards()
                     .values()
                     .stream()
-                    .flatMap(iss -> Arrays.stream(iss.getShards()))
+                    .flatMap(iss -> Arrays.stream(iss.shards()))
                     .filter(shardSegments -> shardSegments.getSegments().size() > maxNumSegments)
                     .collect(Collectors.toList());
                 if (unmergedShards.size() > 0) {

@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -22,6 +23,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -61,6 +63,12 @@ public interface XContentFieldFilter {
                 Set.of(includes),
                 Set.of(excludes)
             );
+            final CheckedFunction<XContentType, BytesReference, IOException> emptyValueSupplier = xContentType -> {
+                BytesStreamOutput bStream = new BytesStreamOutput();
+                XContentBuilder builder = XContentFactory.contentBuilder(xContentType, bStream).map(Collections.emptyMap());
+                builder.close();
+                return bStream.bytes();
+            };
             return (originalSource, contentType) -> {
                 if (contentType == null) {
                     contentType = XContentHelper.xContentTypeMayCompressed(originalSource);
@@ -68,6 +76,9 @@ public interface XContentFieldFilter {
                 BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, originalSource.length()));
                 XContentBuilder builder = new XContentBuilder(contentType.xContent(), streamOutput);
                 XContentParser parser = contentType.xContent().createParser(parserConfig, originalSource.streamInput());
+                if ((parser.currentToken() == null) && (parser.nextToken() == null)) {
+                    return emptyValueSupplier.apply(contentType);
+                }
                 builder.copyCurrentStructure(parser);
                 return BytesReference.bytes(builder);
             };

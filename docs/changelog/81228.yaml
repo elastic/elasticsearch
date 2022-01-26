@@ -1,0 +1,5 @@
+pr: 81228
+summary: Add new `random_sampler` aggregation for background sampling documents
+area: "Search, Machine Learning"
+type: feature
+issues: []

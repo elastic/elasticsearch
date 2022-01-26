@@ -76,7 +76,7 @@ generates a consistent id:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:52:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
-  - match: {items.0.index._id: j5DBhPPt0hl5AQAA}
+  - match: {items.0.index._id: g11Xnx49I8jz7dIZeQEAAA}
 
 ---
 index a new document on top of an old one:
@@ -115,7 +115,7 @@ index a new document on top of an old one:
               network:
                 tx: 111434595272
                 rx: 430605511
-  - match: {_id: W1c4VWb-0Rl5AQAA}
+  - match: {_id: M5S3HK24uRBm_tEZeQEAAA}
 
   - do:
       search:
@@ -160,7 +160,7 @@ index a new document on top of an old one over bulk:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
-  - match: {items.0.index._id: W1c4VWb-0Rl5AQAA}
+  - match: {items.0.index._id: M5S3HK24uRBm_tEZeQEAAA}
 
   - do:
       search:
@@ -191,13 +191,13 @@ ids query:
             - field: k8s.pod.network.tx
           query:
             ids:
-              values: ["W1c4VWb-0Rl5AQAA", "j5DBhJMD0hl5AQAA"]
+              values: ["M5S3HK24uRBm_tEZeQEAAA", "g11Xnx49I8iTA9IZeQEAAA"]
           sort: ["@timestamp"]
 
   - match: {hits.total.value: 2}
-  - match: {hits.hits.0._id: "W1c4VWb-0Rl5AQAA"}
+  - match: {hits.hits.0._id: "M5S3HK24uRBm_tEZeQEAAA"}
   - match: {hits.hits.0.fields.k8s\.pod\.network\.tx: [1434595272]}
-  - match: {hits.hits.1._id: "j5DBhJMD0hl5AQAA"}
+  - match: {hits.hits.1._id: "g11Xnx49I8iTA9IZeQEAAA"}
   - match: {hits.hits.1.fields.k8s\.pod\.network\.tx: [2012916202]}
 
 ---
@@ -209,11 +209,25 @@ delete:
   - do:
       delete:
         index:   test
-        id:      W1c4VWb-0Rl5AQAA
+        id:      g11Xnx49I8iTA9IZeQEAAA
+        routing: AY0BPQ
   - match: {result: deleted}
 
 ---
 delete not found:
+  - skip:
+      version: " - 8.0.99"
+      reason: ids generation changed in 8.1
+
+  - do:
+      catch: missing
+      delete:
+        index:   test
+        id:      not found
+        routing: AY0BPQ
+
+---
+delete without routing:
   - skip:
       version: " - 8.0.99"
       reason: ids generation changed in 8.1
@@ -230,51 +244,26 @@ delete over _bulk:
       version: " - 8.0.99"
       reason: ids generation changed in 8.1
 
+  # - do:
+  #     search:
+  #       index: test
+  #       body:
+  #         size: 1000
+  # - match: {aggregations.max_tx.value: 2.012916202E9}
+
   - do:
       bulk:
         index:   test
         body:
-          - '{"delete": {"_id": "W1c4VWb-0Rl5AQAA"}}'
-          - '{"delete": {"_id": "j5DBhJMD0hl5AQAA"}}'
-          - '{"delete": {"_id": "not found"}}'
+          - '{"delete": {"_id": "M5S3HK24uRBm_tEZeQEAAA", "routing": "qH6B6Q"}}'
+          - '{"delete": {"_id": "g11Xnx49I8iTA9IZeQEAAA", "routing": "AY0BPQ"}}'
+          - '{"delete": {"_id": "not found ++ not found", "routing": "AY0BPQ"}}'
+          - '{"delete": {"_id": "g11Xnx49I8iTA9IZeQEAAA", "routing": "inv++l"}}'
+          - '{"delete": {"_id": "g11Xnx49I8iTA9IZeQEAAA"}}'
   - match: {items.0.delete.result: deleted}
   - match: {items.1.delete.result: deleted}
   - match: {items.2.delete.status: 404}
-  - match: {items.2.delete.error.reason: "invalid id [not found]"}
-
----
-routing field with dot in name:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
-
-  - do:
-      indices.create:
-          index: test2
-          body:
-            settings:
-              index:
-                mode: time_series
-                routing_path: [o.*]
-                time_series:
-                  start_time: 2021-04-28T00:00:00Z
-                  end_time: 2021-04-29T00:00:00Z
-                number_of_replicas: 0
-                number_of_shards: 2
-            mappings:
-              properties:
-                o:
-                  properties:
-                    f:
-                      type: keyword
-                      time_series_dimension: true
-
-  - do:
-      index:
-        refresh: true
-        index: test2
-        op_type: index
-        body:
-          "@timestamp": "2021-04-28T18:51:03.142Z"
-          o.f: cat
-  - match: {_id: DV0tCmb-0Rl5AQAA}
+  - match: {items.3.delete.status: 404}
+  - match: {items.3.delete.error.reason: "invalid routing [inv++l] for index [test] in time series mode"}
+  - match: {items.4.delete.status: 404}
+  - match: {items.4.delete.error.reason: "routing is required because [test] is in time series mode"}

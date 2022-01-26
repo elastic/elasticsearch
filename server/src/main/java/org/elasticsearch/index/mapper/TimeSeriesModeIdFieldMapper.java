@@ -103,7 +103,7 @@ public class TimeSeriesModeIdFieldMapper extends IdFieldMapper {
 
     public void createField(DocumentParserContext context, BytesRef tsid) {
         Hash128 hash = new Hash128();
-        MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);   // NOCOMMIT make me a 64 bit hash
+        MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, SEED, hash);
 
         IndexableField[] timestampFields = context.rootDoc().getFields(DataStreamTimestampFieldMapper.DEFAULT_PATH);
         if (timestampFields.length == 0) {

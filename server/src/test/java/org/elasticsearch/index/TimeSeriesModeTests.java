@@ -68,6 +68,15 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
     }
 
+    public void testSourceDisabled() {
+        Settings s = getSettings();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMapperService(s, topMapping(b -> b.startObject("_source").field("enabled", false).endObject()))
+        );
+        assertThat(e.getMessage(), equalTo("source may not be disabled on indices with [index.mode=time_series]"));
+    }
+
     public void testValidateAlias() {
         Settings s = getSettings();
         IndexSettings.MODE.get(s).validateAlias(null, null); // Doesn't throw exception

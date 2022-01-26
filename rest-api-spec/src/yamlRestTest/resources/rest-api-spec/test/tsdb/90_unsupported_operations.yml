@@ -70,7 +70,7 @@ index with specified routing:
       reason: introduced in 8.1.0
 
   - do:
-      catch: /specifying routing is not supported because the destination index \[test\] is in time series mode/
+      catch: /specifying routing while indexing is not supported because the destination index \[test\] is in time series mode/
       index:
         index:   test
         routing: foo
@@ -99,7 +99,7 @@ index with specified routing over _bulk:
         body:
           - '{"index": {"routing": "foo"}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
-  - match: {items.0.index.error.reason: "specifying routing is not supported because the destination index [test] is in time series mode"}
+  - match: {items.0.index.error.reason: "specifying routing while indexing is not supported because the destination index [test] is in time series mode"}
 
 ---
 noop update:

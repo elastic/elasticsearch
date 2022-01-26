@@ -126,6 +126,9 @@ public enum IndexMode {
             if (((RoutingFieldMapper) lookup.getMapper(RoutingFieldMapper.NAME)).required()) {
                 throw new IllegalArgumentException(routingRequiredBad());
             }
+            if (false == lookup.isSourceEnabled()) {
+                throw new IllegalArgumentException("source may not be disabled on indices with " + tsdbMode());
+            }
         }
 
         @Override

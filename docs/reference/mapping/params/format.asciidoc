@@ -180,12 +180,12 @@ The following tables lists all the defaults ISO formats supported:
 `date_time` or `strict_date_time`::
 
     A formatter that combines a full date and time, separated by a 'T':
-    `yyyy-MM-dd'T'HH:mm:ss.SSSZZ`.
+    `yyyy-MM-dd'T'HH:mm:ss.SSSZ`.
 
 `date_time_no_millis` or `strict_date_time_no_millis`::
 
     A formatter that combines a full date and time without millis, separated
-    by a 'T': `yyyy-MM-dd'T'HH:mm:ssZZ`.
+    by a 'T': `yyyy-MM-dd'T'HH:mm:ssZ`.
 
 `hour` or `strict_hour`::
 
@@ -219,34 +219,34 @@ The following tables lists all the defaults ISO formats supported:
 `ordinal_date_time` or `strict_ordinal_date_time`::
 
     A formatter for a full ordinal date and time, using a four digit year and
-    three digit dayOfYear: `yyyy-DDD'T'HH:mm:ss.SSSZZ`.
+    three digit dayOfYear: `yyyy-DDD'T'HH:mm:ss.SSSZ`.
 
 `ordinal_date_time_no_millis` or `strict_ordinal_date_time_no_millis`::
 
     A formatter for a full ordinal date and time without millis, using a four
-    digit year and three digit dayOfYear: `yyyy-DDD'T'HH:mm:ssZZ`.
+    digit year and three digit dayOfYear: `yyyy-DDD'T'HH:mm:ssZ`.
 
 `time` or `strict_time`::
 
     A formatter for a two digit hour of day, two digit minute of hour, two
     digit second of minute, three digit fraction of second, and time zone
-    offset: `HH:mm:ss.SSSZZ`.
+    offset: `HH:mm:ss.SSSZ`.
 
 `time_no_millis` or `strict_time_no_millis`::
 
     A formatter for a two digit hour of day, two digit minute of hour, two
-    digit second of minute, and time zone offset: `HH:mm:ssZZ`.
+    digit second of minute, and time zone offset: `HH:mm:ssZ`.
 
 `t_time` or `strict_t_time`::
 
     A formatter for a two digit hour of day, two digit minute of hour, two
     digit second of minute, three digit fraction of second, and time zone
-    offset prefixed by 'T': `'T'HH:mm:ss.SSSZZ`.
+    offset prefixed by 'T': `'T'HH:mm:ss.SSSZ`.
 
 `t_time_no_millis` or `strict_t_time_no_millis`::
 
     A formatter for a two digit hour of day, two digit minute of hour, two
-    digit second of minute, and time zone offset prefixed by 'T': `'T'HH:mm:ssZZ`.
+    digit second of minute, and time zone offset prefixed by 'T': `'T'HH:mm:ssZ`.
 
 `week_date` or `strict_week_date`::
 
@@ -256,12 +256,12 @@ The following tables lists all the defaults ISO formats supported:
 `week_date_time` or `strict_week_date_time`::
 
     A formatter that combines a full weekyear date and time, separated by a
-    'T': `xxxx-'W'ww-e'T'HH:mm:ss.SSSZZ`.
+    'T': `xxxx-'W'ww-e'T'HH:mm:ss.SSSZ`.
 
 `week_date_time_no_millis` or `strict_week_date_time_no_millis`::
 
     A formatter that combines a full weekyear date and time without millis,
-    separated by a 'T': `xxxx-'W'ww-e'T'HH:mm:ssZZ`.
+    separated by a 'T': `xxxx-'W'ww-e'T'HH:mm:ssZ`.
 
 `weekyear` or `strict_weekyear`::
 

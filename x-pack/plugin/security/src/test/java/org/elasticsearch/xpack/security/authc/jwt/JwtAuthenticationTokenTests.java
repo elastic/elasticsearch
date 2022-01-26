@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSSigner;
-import com.nimbusds.jose.JWSVerifier;
+import com.nimbusds.jose.jwk.JWK;
 
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.junit.Assert;
 
@@ -22,9 +22,9 @@ public class JwtAuthenticationTokenTests extends JwtTestCase {
 
     public void testJwtAuthenticationTokenParse() throws Exception {
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
-        final Object secretOrSecretKeyOrKeyPair = JwtTestCase.randomSecretOrSecretKeyOrKeyPair(signatureAlgorithm);
-        final Tuple<JWSSigner, JWSVerifier> jwsSignerAndVerifier = JwtUtil.createJwsSignerJwsVerifier(secretOrSecretKeyOrKeyPair);
-        final String serializedJWTOriginal = JwtTestCase.randomValidSignedJWT(jwsSignerAndVerifier.v1(), signatureAlgorithm).serialize();
+        final JWK jwk = JwtTestCase.randomJwk(JWSAlgorithm.parse(signatureAlgorithm));
+        final JWSSigner jwsSigner = JwtUtil.createJwsSigner(jwk);
+        final String serializedJWTOriginal = JwtTestCase.randomValidSignedJWT(jwsSigner, signatureAlgorithm).serialize();
 
         final SecureString jwt = new SecureString(serializedJWTOriginal.toCharArray());
         final SecureString clientSharedSecret = randomBoolean() ? null : new SecureString(randomAlphaOfLengthBetween(10, 20).toCharArray());

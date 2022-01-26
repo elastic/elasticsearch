@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
@@ -16,7 +17,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 import java.text.ParseException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -29,14 +29,14 @@ public class JwtAuthenticationToken implements AuthenticationToken {
     private static final List<String> CLAIMS_TO_REMOVE = List.of("iss", "aud", "exp", "iat", "nbf", "auth_time", "nonce", "jti");
 
     // Stored members
-    protected final SecureString endUserSignedJwt; // required
-    protected final SecureString clientAuthorizationSharedSecret; // optional, nullable
+    protected SecureString endUserSignedJwt; // required
+    protected SecureString clientAuthorizationSharedSecret; // optional, nullable
 
     // Parsed members
     protected SignedJWT signedJwt;
     protected JWSHeader jwsHeader;
     protected JWTClaimsSet jwtClaimsSet;
-    protected byte[] jwtSignature;
+    protected Base64URL jwtSignature;
     protected String issuerClaim;
     protected List<String> audiencesClaim;
     protected String subjectClaim;
@@ -63,7 +63,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
             this.signedJwt = parsed;
             this.jwsHeader = parsed.getHeader();
             this.jwtClaimsSet = parsed.getJWTClaimsSet();
-            this.jwtSignature = parsed.getSignature().decode();
+            this.jwtSignature = parsed.getSignature();
         } catch (ParseException e) {
             throw new IllegalArgumentException("Failed to parse JWT bearer token", e);
         }
@@ -126,7 +126,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         return this.jwtClaimsSet;
     }
 
-    public byte[] getSignatureBytes() {
+    public Base64URL getJwtSignature() {
         return this.jwtSignature;
     }
 
@@ -145,13 +145,14 @@ public class JwtAuthenticationToken implements AuthenticationToken {
     @Override
     public void clearCredentials() {
         this.endUserSignedJwt.close();
+        this.endUserSignedJwt = null;
         if (this.clientAuthorizationSharedSecret != null) {
             this.clientAuthorizationSharedSecret.close();
+            this.clientAuthorizationSharedSecret = null;
         }
         this.signedJwt = null;
         this.jwsHeader = null;
         this.jwtClaimsSet = null;
-        Arrays.fill(this.jwtSignature, (byte) 0);
         this.jwtSignature = null;
         this.issuerClaim = null;
         this.audiencesClaim = null;

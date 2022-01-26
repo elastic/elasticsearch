@@ -103,7 +103,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
 
     public void testJwtPath() {
         final String realmName = "jwt" + randomIntBetween(1, 9);
-        final Setting.AffixSetting<String> setting = JwtRealmSettings.JWKSET_PATH;
+        final Setting.AffixSetting<String> setting = JwtRealmSettings.JWKSET_PKC_PATH;
         final String settingKey = RealmSettings.getFullSettingKey(realmName, setting);
         for (final String ignoredValue : new String[] { null, "" }) {
             final Settings settings = Settings.builder().put(settingKey, ignoredValue).build();
@@ -240,7 +240,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
                         + settingKey
                         + "]."
                         + " Allowed values are "
-                        + JwtRealmSettings.SUPPORTED_CLIENT_AUTHORIZATION_TYPES
+                        + JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPES
                         + "."
                 )
             );
@@ -279,7 +279,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
 
     public void testSecureStrings() {
         for (final Setting.AffixSetting<SecureString> setting : List.of(
-            JwtRealmSettings.ISSUER_HMAC_SECRET_KEY,
+            JwtRealmSettings.JWKSET_HMAC_CONTENTS,
             JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET
         )) {
             final String realmName = "jwt" + randomIntBetween(1, 9);
@@ -393,6 +393,102 @@ public class JwtRealmSettingsTests extends JwtTestCase {
                 final Integer actualValue = realmConfig.getSetting(setting);
                 assertThat(actualValue, equalTo(Integer.valueOf(acceptedValue)));
             }
+        }
+    }
+
+    public void testHttpProxySchemeSetting() {
+        final String realmName = "jwt" + randomIntBetween(1, 9);
+        final String settingKey = RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.HTTP_PROXY_SCHEME);
+        for (final String rejectedValue : new String[] { "http", "" }) {
+            final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
+                final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
+                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                final String actualValue = realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_SCHEME);
+                fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
+            });
+            assertThat(
+                exception.getMessage(),
+                equalTo("Invalid value [" + rejectedValue + "] for [" + settingKey + "]. Only `https` is allowed.")
+            );
+        }
+        for (final String ignoredValue : new String[] { null }) {
+            final Settings settings = Settings.builder().put(settingKey, ignoredValue).build();
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final String actualValue = realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_SCHEME);
+            assertThat(actualValue, equalTo(JwtRealmSettings.HTTP_PROXY_SCHEME.getDefault(settings)));
+        }
+        for (final String acceptedValue : new String[] { "https" }) {
+            final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final String actualValue = realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_SCHEME);
+            assertThat(actualValue, equalTo(acceptedValue));
+        }
+    }
+
+    public void testHttpProxyPortSetting() {
+        final String realmName = "jwt" + randomIntBetween(1, 9);
+        final String settingKey = RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.HTTP_PROXY_PORT);
+        for (final String rejectedValue : new String[] { "-1", "0" }) {
+            final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
+                final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
+                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                final Integer actualValue = realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_PORT);
+                fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
+            });
+            assertThat(
+                exception.getMessage(),
+                equalTo("Failed to parse value [" + rejectedValue + "] for setting [" + settingKey + "] must be >= 1")
+            );
+        }
+        for (final String rejectedValue : new String[] { "65536" }) {
+            final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
+                final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
+                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                final Integer actualValue = realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_PORT);
+                fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
+            });
+            assertThat(
+                exception.getMessage(),
+                equalTo("Failed to parse value [" + rejectedValue + "] for setting [" + settingKey + "] must be <= 65535")
+            );
+        }
+        for (final String ignoredValue : new String[] { null }) {
+            final Settings settings = Settings.builder().put(settingKey, ignoredValue).build();
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final Integer actualValue = realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_PORT);
+            assertThat(actualValue, equalTo(JwtRealmSettings.HTTP_PROXY_PORT.getDefault(settings)));
+        }
+        for (final String acceptedValue : new String[] { "1", "433", "8080", "65535" }) {
+            final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final Integer actualValue = realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_PORT);
+            assertThat(actualValue, equalTo(Integer.valueOf(acceptedValue)));
+        }
+    }
+
+    public void testHttpProxyHostSetting() {
+        final String realmName = "jwt" + randomIntBetween(1, 9);
+        final String settingKey = RealmSettings.getFullSettingKey(realmName, JwtRealmSettings.HTTP_PROXY_HOST);
+        for (final String rejectedValue : new String[] { " example.com" }) {
+            final Exception exception = expectThrows(IllegalArgumentException.class, () -> {
+                final Settings settings = Settings.builder().put(settingKey, rejectedValue).build();
+                final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+                final String actualValue = realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_HOST);
+                fail("No exception. Expected one for " + settingKey + "=" + rejectedValue + ". Got " + actualValue + ".");
+            });
+            assertThat(exception.getMessage(), equalTo("Failed to parse value [" + rejectedValue + "] for setting [" + settingKey + "]."));
+        }
+        for (final String ignoredValue : new String[] { null, "" }) {
+            final Settings settings = Settings.builder().put(settingKey, ignoredValue).build();
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final String actualValue = realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_HOST);
+            assertThat(actualValue, equalTo(JwtRealmSettings.HTTP_PROXY_HOST.getDefault(settings)));
+        }
+        for (final String acceptedValue : new String[] { "example.com" }) {
+            final Settings settings = Settings.builder().put(settingKey, acceptedValue).build();
+            final RealmConfig realmConfig = super.buildRealmConfig(JwtRealmSettings.TYPE, realmName, settings, Integer.valueOf(0));
+            final String actualValue = realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_HOST);
+            assertThat(actualValue, equalTo(acceptedValue));
         }
     }
 }

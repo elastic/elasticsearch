@@ -107,6 +107,7 @@ public abstract class RollupShardIndexer {
         this.config = config;
         this.tmpIndex = tmpIndex;
 
+        // refresh shard before rollup
         this.indexShard.refresh("rollup");
         this.searcher = indexShard.acquireSearcher("rollup");
         Closeable toClose = searcher;

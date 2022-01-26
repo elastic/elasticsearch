@@ -421,6 +421,9 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             return Settings.EMPTY;
         }
 
+        // since the timestamp field of time_series index is set to a fixed value, named @timestamp
+        // so if the rollup date_histogram field is not @timestamp, the rollup index can't set index.mode=time_series,
+        // because the time_series timestamp field must be @timestamp
         if (false == DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(config.getGroupConfig().getDateHistogram().getField())) {
             return Settings.EMPTY;
         }

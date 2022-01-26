@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -15,6 +16,9 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> {
 
@@ -78,7 +82,10 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
     }
 
     public void testNoConditions() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new RolloverAction(null, null, null, null, null));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RolloverAction(null, null, null, null, null)
+        );
         assertEquals("At least one rollover condition must be set.", exception.getMessage());
     }
 
@@ -118,5 +125,18 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         assertEquals(action.getMaxDocs(), firstStep.getMaxDocs());
         assertEquals(action.getMaxPrimaryShardDocs(), firstStep.getMaxPrimaryShardDocs());
         assertEquals(nextStepKey, fifthStep.getNextStepKey());
+    }
+
+    public void testBwcSerializationWithMaxPrimaryShardDocs() throws Exception {
+        // In case of serializing to node with older version, replace maxPrimaryShardDocs with maxDocs.
+        RolloverAction instance = new RolloverAction(null, null, null, null, 1L);
+        RolloverAction deserializedInstance = copyInstance(instance, Version.V_8_0_0);
+        assertThat(deserializedInstance.getMaxPrimaryShardDocs(), nullValue());
+
+        // But not if maxSize is also specified:
+        instance = new RolloverAction(null, null, null, 2L, 1L);
+        deserializedInstance = copyInstance(instance, Version.V_8_0_0);
+        assertThat(deserializedInstance.getMaxPrimaryShardDocs(), nullValue());
+        assertThat(deserializedInstance.getMaxDocs(), equalTo(instance.getMaxDocs()));
     }
 }

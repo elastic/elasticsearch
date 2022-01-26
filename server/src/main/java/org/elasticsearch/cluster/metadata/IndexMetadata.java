@@ -44,6 +44,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -73,6 +74,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValue;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
 
 public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
 
@@ -505,6 +507,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final AutoExpandReplicas autoExpandReplicas;
 
+    private final boolean isSearchableSnapshot;
+
+    private final boolean isPartialSearchableSnapshot;
+
     private IndexMetadata(
         final Index index,
         final long version,
@@ -539,7 +545,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         @Nullable final List<String> tierPreference,
         final int shardsPerNodeLimit,
         final LifecycleExecutionState lifecycleExecutionState,
-        final AutoExpandReplicas autoExpandReplicas
+        final AutoExpandReplicas autoExpandReplicas,
+        final boolean isSearchableSnapshot,
+        final boolean isPartialSearchableSnapshot
     ) {
         this.index = index;
         this.version = version;
@@ -582,6 +590,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.shardsPerNodeLimit = shardsPerNodeLimit;
         this.lifecycleExecutionState = lifecycleExecutionState;
         this.autoExpandReplicas = autoExpandReplicas;
+        this.isSearchableSnapshot = isSearchableSnapshot;
+        this.isPartialSearchableSnapshot = isPartialSearchableSnapshot;
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -623,7 +633,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.tierPreference,
             this.shardsPerNodeLimit,
             this.lifecycleExecutionState,
-            this.autoExpandReplicas
+            this.autoExpandReplicas,
+            this.isSearchableSnapshot,
+            this.isPartialSearchableSnapshot
         );
     }
 
@@ -753,6 +765,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public AutoExpandReplicas getAutoExpandReplicas() {
         return autoExpandReplicas;
+    }
+
+    public boolean isSearchableSnapshot() {
+        return isSearchableSnapshot;
+    }
+
+    public boolean isPartialSearchableSnapshot() {
+        return isPartialSearchableSnapshot;
     }
 
     /**
@@ -1588,6 +1608,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 lifecycleExecutionState = LifecycleExecutionState.EMPTY_STATE;
             }
 
+            final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -1622,7 +1643,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 tierPreference,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(settings),
                 lifecycleExecutionState,
-                AutoExpandReplicas.SETTING.get(settings)
+                AutoExpandReplicas.SETTING.get(settings),
+                isSearchableSnapshot,
+                isSearchableSnapshot && settings.getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false)
             );
         }
 

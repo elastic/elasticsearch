@@ -105,7 +105,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * Service responsible for submitting create index requests
@@ -1307,7 +1306,7 @@ public class MetadataCreateIndexService {
      */
     static List<String> validateShrinkIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
-        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+        if (sourceMetadata.isSearchableSnapshot()) {
             throw new IllegalArgumentException("can't shrink searchable snapshot index [" + sourceIndex + ']');
         }
         assert INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings);
@@ -1340,7 +1339,7 @@ public class MetadataCreateIndexService {
 
     static void validateSplitIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
-        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+        if (sourceMetadata.isSearchableSnapshot()) {
             throw new IllegalArgumentException("can't split searchable snapshot index [" + sourceIndex + ']');
         }
         IndexMetadata.selectSplitShard(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
@@ -1348,7 +1347,7 @@ public class MetadataCreateIndexService {
 
     static void validateCloneIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
-        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+        if (sourceMetadata.isSearchableSnapshot()) {
             for (Setting<?> nonCloneableSetting : Arrays.asList(INDEX_STORE_TYPE_SETTING, INDEX_RECOVERY_TYPE_SETTING)) {
                 if (nonCloneableSetting.exists(targetIndexSettings) == false) {
                     throw new IllegalArgumentException(

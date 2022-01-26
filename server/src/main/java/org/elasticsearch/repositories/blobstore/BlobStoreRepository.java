@@ -150,7 +150,6 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
@@ -2679,7 +2678,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             long indexTotalFileSize = 0;
             final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new LinkedBlockingQueue<>();
 
-            if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
+            if (store.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
                 indexCommitPointFiles = Collections.emptyList();
             } else if (filesFromSegmentInfos == null) {
                 // If we did not find a set of files that is equal to the current commit we determine the files to upload by comparing files

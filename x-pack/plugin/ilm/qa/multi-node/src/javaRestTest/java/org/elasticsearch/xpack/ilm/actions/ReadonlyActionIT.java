@@ -73,7 +73,7 @@ public class ReadonlyActionIT extends ESRestTestCase {
         // add a policy
         Map<String, LifecycleAction> hotActions = Map.of(
             RolloverAction.NAME,
-            new RolloverAction(null, null, null, 1L),
+            new RolloverAction(null, null, null, 1L, 1L),
             ReadOnlyAction.NAME,
             new ReadOnlyAction()
         );

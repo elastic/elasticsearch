@@ -177,7 +177,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertTrue(indexExists(index));
 
         // updating the policy to not contain the delete phase at all
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L));
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, 1L));
 
         // ILM must honour the cached delete phase and eventually delete the index
         Request request = new Request("PUT", index + "/_settings");

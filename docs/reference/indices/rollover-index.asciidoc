@@ -234,7 +234,7 @@ POST my-data-stream/_rollover
     "max_age": "7d",
     "max_docs": 1000,
     "max_primary_shard_size": "50gb",
-    "max_shard_docs": "2000"
+    "max_primary_shard_docs": "2000"
   }
 }
 ----
@@ -257,7 +257,7 @@ The API returns:
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
     "[max_primary_shard_size: 50gb]": false,
-    "[max_shard_docs: 2000]": false
+    "[max_primary_shard_docs: 2000]": false
   }
 }
 ----
@@ -305,7 +305,7 @@ POST my-alias/_rollover
     "max_age": "7d",
     "max_docs": 1000,
     "max_primary_shard_size": "50gb",
-    "max_shard_docs": "2000"
+    "max_primary_shard_docs": "2000"
   }
 }
 ----
@@ -328,7 +328,7 @@ The API returns:
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
     "[max_primary_shard_size: 50gb]": false,
-    "[max_shard_docs: 2000]": false
+    "[max_primary_shard_docs: 2000]": false
   }
 }
 ----
@@ -376,7 +376,7 @@ POST my-write-alias/_rollover
     "max_age": "7d",
     "max_docs": 1000,
     "max_primary_shard_size": "50gb",
-    "max_shard_docs": "2000"
+    "max_primary_shard_docs": "2000"
   }
 }
 ----
@@ -399,7 +399,7 @@ The API returns:
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
     "[max_primary_shard_size: 50gb]": false,
-    "[max_shard_docs: 2000]": false
+    "[max_primary_shard_docs: 2000]": false
   }
 }
 ----

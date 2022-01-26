@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 public class MaxPrimaryShardDocsCondition extends Condition<Long> {
-    public static final String NAME = "max_shard_docs";
+    public static final String NAME = "max_primary_shard_docs";
 
     public MaxPrimaryShardDocsCondition(Long value) {
         super(NAME);
@@ -30,7 +30,7 @@ public class MaxPrimaryShardDocsCondition extends Condition<Long> {
 
     @Override
     public Result evaluate(Stats stats) {
-        return new Result(this, this.value <= stats.maxShardDocs());
+        return new Result(this, this.value <= stats.maxPrimaryShardDocs());
     }
 
     @Override

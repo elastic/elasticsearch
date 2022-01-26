@@ -124,7 +124,7 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
     /**
      * Adds a size-based condition to check if the docs of the largest shard has at least <code>numDocs</code>
      */
-    public void addMaxShardDocsCondition(long numDocs) {
+    public void addMaxPrimaryShardDocsCondition(long numDocs) {
         MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(numDocs);
         if (this.conditions.containsKey(maxPrimaryShardDocsCondition.name())) {
             throw new IllegalArgumentException(maxPrimaryShardDocsCondition + " condition is already set");

@@ -222,7 +222,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .max()
                 .orElse(0);
 
-            final long maxShardDocs = indexStats.stream()
+            final long maxPrimaryShardDocs = indexStats.stream()
                 .map(IndexStats::getShards)
                 .filter(Objects::nonNull)
                 .flatMap(Arrays::stream)
@@ -237,7 +237,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 metadata.getCreationDate(),
                 new ByteSizeValue(docsStats == null ? 0 : docsStats.getTotalSizeInBytes()),
                 new ByteSizeValue(maxPrimaryShardSize),
-                maxShardDocs
+                maxPrimaryShardDocs
             );
         }
     }

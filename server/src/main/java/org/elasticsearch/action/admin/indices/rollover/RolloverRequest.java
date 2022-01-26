@@ -46,7 +46,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private static final ParseField MAX_DOCS_CONDITION = new ParseField(MaxDocsCondition.NAME);
     private static final ParseField MAX_SIZE_CONDITION = new ParseField(MaxSizeCondition.NAME);
     private static final ParseField MAX_PRIMARY_SHARD_SIZE_CONDITION = new ParseField(MaxPrimaryShardSizeCondition.NAME);
-    private static final ParseField MAX_SHARD_DOCS_CONDITION = new ParseField(MaxPrimaryShardDocsCondition.NAME);
+    private static final ParseField max_primary_shard_docs_CONDITION = new ParseField(MaxPrimaryShardDocsCondition.NAME);
 
     static {
         CONDITION_PARSER.declareString(
@@ -73,7 +73,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         );
         CONDITION_PARSER.declareLong(
             (conditions, value) -> conditions.put(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(value)),
-            MAX_SHARD_DOCS_CONDITION
+            max_primary_shard_docs_CONDITION
         );
 
         PARSER.declareField(
@@ -264,7 +264,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     /**
      * Adds a size-based condition to check if the docs of the largest shard has at least <code>numDocs</code>
      */
-    public void addMaxShardDocsCondition(long numDocs) {
+    public void addMaxPrimaryShardDocsCondition(long numDocs) {
         MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(numDocs);
         if (this.conditions.containsKey(maxPrimaryShardDocsCondition.name)) {
             throw new IllegalArgumentException(maxPrimaryShardDocsCondition.name + " condition is already set");

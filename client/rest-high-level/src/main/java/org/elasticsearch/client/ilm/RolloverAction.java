@@ -26,7 +26,7 @@ public class RolloverAction implements LifecycleAction, ToXContentObject {
     private static final ParseField MAX_PRIMARY_SHARD_SIZE_FIELD = new ParseField("max_primary_shard_size");
     private static final ParseField MAX_AGE_FIELD = new ParseField("max_age");
     private static final ParseField MAX_DOCS_FIELD = new ParseField("max_docs");
-    private static final ParseField MAX_SHARD_DOCS_FIELD = new ParseField("max_shard_docs");
+    private static final ParseField MAX_PRIMARY_SHARD_DOCS_FIELD = new ParseField("max_primary_shard_docs");
 
     private static final ConstructingObjectParser<RolloverAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -54,28 +54,28 @@ public class RolloverAction implements LifecycleAction, ToXContentObject {
             ValueType.VALUE
         );
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_DOCS_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_SHARD_DOCS_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_PRIMARY_SHARD_DOCS_FIELD);
     }
 
     private final ByteSizeValue maxSize;
     private final ByteSizeValue maxPrimaryShardSize;
     private final TimeValue maxAge;
     private final Long maxDocs;
-    private final Long maxShardDocs;
+    private final Long maxPrimaryShardDocs;
 
     public static RolloverAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public RolloverAction(ByteSizeValue maxSize, ByteSizeValue maxPrimaryShardSize, TimeValue maxAge, Long maxDocs, Long maxShardDocs) {
-        if (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null && maxShardDocs == null) {
+    public RolloverAction(ByteSizeValue maxSize, ByteSizeValue maxPrimaryShardSize, TimeValue maxAge, Long maxDocs, Long maxPrimaryShardDocs) {
+        if (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null && maxPrimaryShardDocs == null) {
             throw new IllegalArgumentException("At least one rollover condition must be set.");
         }
         this.maxSize = maxSize;
         this.maxPrimaryShardSize = maxPrimaryShardSize;
         this.maxAge = maxAge;
         this.maxDocs = maxDocs;
-        this.maxShardDocs = maxShardDocs;
+        this.maxPrimaryShardDocs = maxPrimaryShardDocs;
     }
 
     public ByteSizeValue getMaxSize() {
@@ -94,8 +94,8 @@ public class RolloverAction implements LifecycleAction, ToXContentObject {
         return maxDocs;
     }
 
-    public Long getMaxShardDocs() {
-        return maxShardDocs;
+    public Long getMaxPrimaryShardDocs() {
+        return maxPrimaryShardDocs;
     }
 
     @Override
@@ -118,8 +118,8 @@ public class RolloverAction implements LifecycleAction, ToXContentObject {
         if (maxDocs != null) {
             builder.field(MAX_DOCS_FIELD.getPreferredName(), maxDocs);
         }
-        if (maxShardDocs != null) {
-            builder.field(MAX_SHARD_DOCS_FIELD.getPreferredName(), maxShardDocs);
+        if (maxPrimaryShardDocs != null) {
+            builder.field(MAX_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(), maxPrimaryShardDocs);
         }
         builder.endObject();
         return builder;
@@ -127,7 +127,7 @@ public class RolloverAction implements LifecycleAction, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxShardDocs);
+        return Objects.hash(maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxPrimaryShardDocs);
     }
 
     @Override
@@ -143,7 +143,7 @@ public class RolloverAction implements LifecycleAction, ToXContentObject {
             && Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize)
             && Objects.equals(maxAge, other.maxAge)
             && Objects.equals(maxDocs, other.maxDocs)
-            && Objects.equals(maxShardDocs, other.maxShardDocs);
+            && Objects.equals(maxPrimaryShardDocs, other.maxPrimaryShardDocs);
     }
 
     @Override

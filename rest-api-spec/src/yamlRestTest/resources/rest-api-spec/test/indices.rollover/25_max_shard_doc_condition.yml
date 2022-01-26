@@ -1,5 +1,5 @@
 ---
-"Rollover with max_shard_docs condition":
+"Rollover with max_primary_shard_docs condition":
 
   # create index with alias and replica
   - do:
@@ -29,9 +29,9 @@
         wait_for_active_shards: 1
         body:
           conditions:
-            max_shard_docs: 2
+            max_primary_shard_docs: 2
 
-  - match: { conditions: { "[max_shard_docs: 2]": false } }
+  - match: { conditions: { "[max_primary_shard_docs: 2]": false } }
   - match: { rolled_over: false }
 
   # index second document and wait for refresh
@@ -49,8 +49,8 @@
         wait_for_active_shards: 1
         body:
           conditions:
-            max_shard_docs: 2
+            max_primary_shard_docs: 2
 
-  - match: { conditions: { "[max_shard_docs: 2]": true } }
+  - match: { conditions: { "[max_primary_shard_docs: 2]": true } }
   - match: { rolled_over: true }
 

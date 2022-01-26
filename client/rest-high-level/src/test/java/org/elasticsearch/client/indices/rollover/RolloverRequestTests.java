@@ -51,7 +51,7 @@ public class RolloverRequestTests extends ESTestCase {
         rolloverRequest.addMaxIndexDocsCondition(maxDocsCondition.value());
         rolloverRequest.addMaxIndexSizeCondition(maxSizeCondition.value());
         rolloverRequest.addMaxPrimaryShardSizeCondition(maxPrimaryShardSizeCondition.value());
-        rolloverRequest.addMaxShardDocsCondition(maxPrimaryShardDocsCondition.value());
+        rolloverRequest.addMaxPrimaryShardDocsCondition(maxPrimaryShardDocsCondition.value());
         List<Condition<?>> requestConditions = new ArrayList<>(rolloverRequest.getConditions().values());
         assertThat(requestConditions, containsInAnyOrder(expectedConditions));
     }

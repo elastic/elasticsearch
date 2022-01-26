@@ -39,10 +39,10 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             : null;
-        Long maxShardDocs = (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null || randomBoolean())
+        Long maxPrimaryShardDocs = (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null || randomBoolean())
             ? randomNonNegativeLong()
             : null;
-        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxShardDocs);
+        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxPrimaryShardDocs);
     }
 
     @Override
@@ -56,7 +56,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
         TimeValue maxAge = instance.getMaxAge();
         Long maxDocs = instance.getMaxDocs();
-        Long maxShardDocs = instance.getMaxShardDocs();
+        Long maxPrimaryShardDocs = instance.getMaxPrimaryShardDocs();
         switch (between(0, 3)) {
             case 0 -> maxSize = randomValueOtherThan(maxSize, () -> {
                 ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
@@ -71,10 +71,10 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
                 () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             );
             case 3 -> maxDocs = maxDocs == null ? randomNonNegativeLong() : maxDocs + 1;
-            case 4 -> maxShardDocs = maxShardDocs == null ? randomNonNegativeLong() : maxShardDocs + 1;
+            case 4 -> maxPrimaryShardDocs = maxPrimaryShardDocs == null ? randomNonNegativeLong() : maxPrimaryShardDocs + 1;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxShardDocs);
+        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxPrimaryShardDocs);
     }
 
     public void testNoConditions() {
@@ -116,7 +116,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         assertEquals(action.getMaxPrimaryShardSize(), firstStep.getMaxPrimaryShardSize());
         assertEquals(action.getMaxAge(), firstStep.getMaxAge());
         assertEquals(action.getMaxDocs(), firstStep.getMaxDocs());
-        assertEquals(action.getMaxShardDocs(), firstStep.getMaxShardDocs());
+        assertEquals(action.getMaxPrimaryShardDocs(), firstStep.getMaxPrimaryShardDocs());
         assertEquals(nextStepKey, fifthStep.getNextStepKey());
     }
 }

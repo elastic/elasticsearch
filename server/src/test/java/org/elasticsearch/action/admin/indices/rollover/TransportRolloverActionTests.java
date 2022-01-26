@@ -120,7 +120,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         long notMatchMaxDocs = randomIntBetween(0, 99);
         ByteSizeValue notMatchMaxSize = ByteSizeValue.ofMb(randomIntBetween(0, 9));
         long indexCreated = TimeValue.timeValueHours(3).getMillis();
-        long matchMaxShardDocs = randomIntBetween(10, 100);
+        long matchMaxPrimaryShardDocs = randomIntBetween(10, 100);
         long notMatchShardDocs = randomIntBetween(0, 9);
 
         expectThrows(
@@ -136,7 +136,7 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         results = evaluateConditions(
             conditions,
-            new Condition.Stats(matchMaxDocs, indexCreated, ByteSizeValue.ofMb(120), ByteSizeValue.ofMb(120), matchMaxShardDocs)
+            new Condition.Stats(matchMaxDocs, indexCreated, ByteSizeValue.ofMb(120), ByteSizeValue.ofMb(120), matchMaxPrimaryShardDocs)
         );
         assertThat(results.size(), equalTo(5));
         for (Boolean matched : results.values()) {

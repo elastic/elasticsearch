@@ -41,10 +41,10 @@ public class RolloverActionTests extends AbstractXContentTestCase<RolloverAction
         Long maxDocs = (maxSize == null && maxPrimaryShardSize == null && maxAge == null || randomBoolean())
             ? randomNonNegativeLong()
             : null;
-        Long maxShardDocs = (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null || randomBoolean())
+        Long maxPrimaryShardDocs = (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null || randomBoolean())
             ? randomNonNegativeLong()
             : null;
-        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxShardDocs);
+        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxPrimaryShardDocs);
     }
 
     public void testNoConditions() {

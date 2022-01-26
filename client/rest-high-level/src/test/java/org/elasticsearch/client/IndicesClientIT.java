@@ -1073,7 +1073,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
         {
-            rolloverRequest.addMaxShardDocsCondition(1L);
+            rolloverRequest.addMaxPrimaryShardDocsCondition(1L);
             rolloverRequest.dryRun(true);
             RolloverResponse rolloverResponse = execute(
                 rolloverRequest,
@@ -1086,7 +1086,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals(3, conditionStatus.size());
             assertTrue(conditionStatus.get("[max_docs: 1]"));
             assertTrue(conditionStatus.get("[max_age: 1ms]"));
-            assertTrue(conditionStatus.get("[max_shard_docs: 1]"));
+            assertTrue(conditionStatus.get("[max_primary_shard_docs: 1]"));
             assertEquals("test", rolloverResponse.getOldIndex());
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
@@ -1109,7 +1109,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals(5, conditionStatus.size());
             assertTrue(conditionStatus.get("[max_docs: 1]"));
             assertTrue(conditionStatus.get("[max_age: 1ms]"));
-            assertTrue(conditionStatus.get("[max_shard_docs: 1]"));
+            assertTrue(conditionStatus.get("[max_primary_shard_docs: 1]"));
             assertFalse(conditionStatus.get("[max_size: 1mb]"));
             assertFalse(conditionStatus.get("[max_primary_shard_size: 1mb]"));
             assertEquals("test", rolloverResponse.getOldIndex());

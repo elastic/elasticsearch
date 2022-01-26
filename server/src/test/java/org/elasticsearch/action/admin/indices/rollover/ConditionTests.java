@@ -121,19 +121,19 @@ public class ConditionTests extends ESTestCase {
         assertThat(result.matched(), equalTo(true));
     }
 
-    public void testMaxShardDocs() {
+    public void testMaxPrimaryShardDocs() {
         final MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(100L);
 
-        long maxShardDocsMatch = randomIntBetween(100, 1000);
+        long maxPrimaryShardDocsMatch = randomIntBetween(100, 1000);
         Condition.Result evaluate = maxPrimaryShardDocsCondition.evaluate(
-            new Condition.Stats(randomNonNegativeLong(), 0, randomByteSize(), randomByteSize(), maxShardDocsMatch)
+            new Condition.Stats(randomNonNegativeLong(), 0, randomByteSize(), randomByteSize(), maxPrimaryShardDocsMatch)
         );
         assertThat(evaluate.condition(), equalTo(maxPrimaryShardDocsCondition));
         assertThat(evaluate.matched(), equalTo(true));
 
-        long maxShardDocsNotMatch = randomIntBetween(0, 99);
+        long maxPrimaryShardDocsNotMatch = randomIntBetween(0, 99);
         evaluate = maxPrimaryShardDocsCondition.evaluate(
-            new Condition.Stats(randomNonNegativeLong(), 0, randomByteSize(), randomByteSize(), maxShardDocsNotMatch)
+            new Condition.Stats(randomNonNegativeLong(), 0, randomByteSize(), randomByteSize(), maxPrimaryShardDocsNotMatch)
         );
         assertThat(evaluate.condition(), equalTo(maxPrimaryShardDocsCondition));
         assertThat(evaluate.matched(), equalTo(false));

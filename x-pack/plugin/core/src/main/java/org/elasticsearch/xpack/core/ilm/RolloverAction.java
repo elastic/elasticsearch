@@ -37,7 +37,7 @@ public class RolloverAction implements LifecycleAction {
     public static final ParseField MAX_PRIMARY_SHARD_SIZE_FIELD = new ParseField("max_primary_shard_size");
     public static final ParseField MAX_DOCS_FIELD = new ParseField("max_docs");
     public static final ParseField MAX_AGE_FIELD = new ParseField("max_age");
-    private static final ParseField MAX_SHARD_DOCS_FIELD = new ParseField("max_shard_docs");
+    private static final ParseField max_primary_shard_docs_FIELD = new ParseField("max_primary_shard_docs");
     public static final String LIFECYCLE_ROLLOVER_ALIAS = "index.lifecycle.rollover_alias";
     public static final Setting<String> LIFECYCLE_ROLLOVER_ALIAS_SETTING = Setting.simpleString(
         LIFECYCLE_ROLLOVER_ALIAS,
@@ -72,14 +72,14 @@ public class RolloverAction implements LifecycleAction {
             ValueType.VALUE
         );
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_DOCS_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_SHARD_DOCS_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), max_primary_shard_docs_FIELD);
     }
 
     private final ByteSizeValue maxSize;
     private final ByteSizeValue maxPrimaryShardSize;
     private final Long maxDocs;
     private final TimeValue maxAge;
-    private final Long maxShardDocs;
+    private final Long maxPrimaryShardDocs;
 
     public static RolloverAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -90,16 +90,16 @@ public class RolloverAction implements LifecycleAction {
         @Nullable ByteSizeValue maxPrimaryShardSize,
         @Nullable TimeValue maxAge,
         @Nullable Long maxDocs,
-        @Nullable Long maxShardDocs
+        @Nullable Long maxPrimaryShardDocs
     ) {
-        if (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null && maxShardDocs == null) {
+        if (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null && maxPrimaryShardDocs == null) {
             throw new IllegalArgumentException("At least one rollover condition must be set.");
         }
         this.maxSize = maxSize;
         this.maxPrimaryShardSize = maxPrimaryShardSize;
         this.maxAge = maxAge;
         this.maxDocs = maxDocs;
-        this.maxShardDocs = maxShardDocs;
+        this.maxPrimaryShardDocs = maxPrimaryShardDocs;
     }
 
     public RolloverAction(StreamInput in) throws IOException {
@@ -115,7 +115,7 @@ public class RolloverAction implements LifecycleAction {
         }
         maxAge = in.readOptionalTimeValue();
         maxDocs = in.readOptionalVLong();
-        maxShardDocs = in.readOptionalVLong();
+        maxPrimaryShardDocs = in.readOptionalVLong();
     }
 
     @Override
@@ -132,7 +132,7 @@ public class RolloverAction implements LifecycleAction {
         }
         out.writeOptionalTimeValue(maxAge);
         out.writeOptionalVLong(maxDocs);
-        out.writeOptionalVLong(maxShardDocs);
+        out.writeOptionalVLong(maxPrimaryShardDocs);
     }
 
     @Override
@@ -156,8 +156,8 @@ public class RolloverAction implements LifecycleAction {
         return maxDocs;
     }
 
-    public Long getMaxShardDocs() {
-        return maxShardDocs;
+    public Long getMaxPrimaryShardDocs() {
+        return maxPrimaryShardDocs;
     }
 
     @Override
@@ -175,8 +175,8 @@ public class RolloverAction implements LifecycleAction {
         if (maxDocs != null) {
             builder.field(MAX_DOCS_FIELD.getPreferredName(), maxDocs);
         }
-        if (maxShardDocs != null) {
-            builder.field(MAX_SHARD_DOCS_FIELD.getPreferredName(), maxShardDocs);
+        if (maxPrimaryShardDocs != null) {
+            builder.field(max_primary_shard_docs_FIELD.getPreferredName(), maxPrimaryShardDocs);
         }
         builder.endObject();
         return builder;
@@ -203,7 +203,7 @@ public class RolloverAction implements LifecycleAction {
             maxPrimaryShardSize,
             maxAge,
             maxDocs,
-            maxShardDocs
+            maxPrimaryShardDocs
         );
         RolloverStep rolloverStep = new RolloverStep(rolloverStepKey, waitForActiveShardsKey, client);
         WaitForActiveShardsStep waitForActiveShardsStep = new WaitForActiveShardsStep(waitForActiveShardsKey, updateDateStepKey);

@@ -61,8 +61,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             : null;
-        Long maxShardDocs = randomBoolean() ? null : randomNonNegativeLong();
-        return new WaitForRolloverReadyStep(stepKey, nextStepKey, client, maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxShardDocs);
+        Long maxPrimaryShardDocs = randomBoolean() ? null : randomNonNegativeLong();
+        return new WaitForRolloverReadyStep(stepKey, nextStepKey, client, maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxPrimaryShardDocs);
     }
 
     @Override
@@ -73,7 +73,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
         TimeValue maxAge = instance.getMaxAge();
         Long maxDocs = instance.getMaxDocs();
-        Long maxShardDocs = instance.getMaxShardDocs();
+        Long maxPrimaryShardDocs = instance.getMaxPrimaryShardDocs();
 
         switch (between(0, 5)) {
             case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
@@ -91,10 +91,10 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             );
             case 5 -> maxDocs = randomValueOtherThan(maxDocs, () -> randomNonNegativeLong());
-            case 6 -> maxShardDocs = randomValueOtherThan(maxShardDocs, () -> randomNonNegativeLong());
+            case 6 -> maxPrimaryShardDocs = randomValueOtherThan(maxPrimaryShardDocs, () -> randomNonNegativeLong());
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new WaitForRolloverReadyStep(key, nextKey, instance.getClient(), maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxShardDocs);
+        return new WaitForRolloverReadyStep(key, nextKey, instance.getClient(), maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxPrimaryShardDocs);
     }
 
     @Override
@@ -107,7 +107,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             instance.getMaxPrimaryShardSize(),
             instance.getMaxAge(),
             instance.getMaxDocs(),
-            instance.getMaxShardDocs()
+            instance.getMaxPrimaryShardDocs()
         );
     }
 
@@ -259,8 +259,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
             }
-            if (step.getMaxShardDocs() != null) {
-                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxShardDocs()));
+            if (step.getMaxPrimaryShardDocs() != null) {
+                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
             }
             assertRolloverIndexRequest(request, rolloverTarget, expectedConditions);
             Map<String, Boolean> conditionResults = expectedConditions.stream()
@@ -464,8 +464,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
             }
-            if (step.getMaxShardDocs() != null) {
-                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxShardDocs()));
+            if (step.getMaxPrimaryShardDocs() != null) {
+                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
             }
             assertRolloverIndexRequest(request, alias, expectedConditions);
             Map<String, Boolean> conditionResults = expectedConditions.stream()
@@ -523,8 +523,8 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             if (step.getMaxDocs() != null) {
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
             }
-            if (step.getMaxShardDocs() != null) {
-                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxShardDocs()));
+            if (step.getMaxPrimaryShardDocs() != null) {
+                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxPrimaryShardDocs()));
             }
             assertRolloverIndexRequest(request, alias, expectedConditions);
             listener.onFailure(exception);

@@ -82,7 +82,7 @@ TIP: To see the current shard size, use the <<cat-shards, _cat shards>> API.
 The `store` value shows the size each shard, and `prirep` indicates whether a
 shard is a primary (`p`) or a replica (`r`).
 
-`max_shard_docs`::
+`max_primary_shard_docs`::
 (Optional, integer)
 Triggers rollover when the largest shard in the index reaches a certain number of documents.
 This is the maximum docs of the shards in the index. As with `max_docs`
@@ -177,7 +177,7 @@ PUT _ilm/policy/my_policy
       "hot": {
         "actions": {
           "rollover" : {
-            "max_shard_docs": 10000000
+            "max_primary_shard_docs": 10000000
           }
         }
       }

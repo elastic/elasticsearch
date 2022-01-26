@@ -2,4 +2,5 @@ pr: 82924
 summary: New `GeoHexGrid` aggregation
 area: Geo
 type: feature
-issues: []
+issues:
+  - 81579

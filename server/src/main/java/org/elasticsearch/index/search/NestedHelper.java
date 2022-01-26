@@ -21,21 +21,20 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 
-import java.util.function.Function;
 import java.util.function.Predicate;
 
 /** Utility class to filter parent and children clauses when building nested
  * queries. */
 public final class NestedHelper {
 
-    private final Function<String, ObjectMapper> objectMapperLookup;
+    private final NestedLookup nestedLookup;
     private final Predicate<String> isMappedFieldPredicate;
 
-    public NestedHelper(Function<String, ObjectMapper> objectMapperLookup, Predicate<String> isMappedFieldPredicate) {
-        this.objectMapperLookup = objectMapperLookup;
+    public NestedHelper(NestedLookup nestedLookup, Predicate<String> isMappedFieldPredicate) {
+        this.nestedLookup = nestedLookup;
         this.isMappedFieldPredicate = isMappedFieldPredicate;
     }
 
@@ -102,13 +101,7 @@ public final class NestedHelper {
             // field does not exist
             return false;
         }
-        for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
-            ObjectMapper mapper = objectMapperLookup.apply(parent);
-            if (mapper != null && mapper.isNested()) {
-                return true;
-            }
-        }
-        return false;
+        return nestedLookup.getNestedParent(field) != null;
     }
 
     /** Returns true if the given query might match parent documents or documents
@@ -171,30 +164,18 @@ public final class NestedHelper {
         if (isMappedFieldPredicate.test(field) == false) {
             return false;
         }
-        for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
-            ObjectMapper mapper = objectMapperLookup.apply(parent);
-            if (mapper != null && mapper.isNested()) {
-                NestedObjectMapper nestedMapper = (NestedObjectMapper) mapper;
-                if (mapper.fullPath().equals(nestedPath)) {
-                    // If the mapper does not include in its parent or in the root object then
-                    // the query might only match nested documents with the given path
-                    return nestedMapper.isIncludeInParent() || nestedMapper.isIncludeInRoot();
-                } else {
-                    // the first parent nested mapper does not have the expected path
-                    // It might be misconfiguration or a sub nested mapper
-                    return true;
-                }
-            }
+        String nestedParent = nestedLookup.getNestedParent(field);
+        if (nestedParent == null || nestedParent.startsWith(nestedPath) == false) {
+            // the field is not a sub field of the nested path
+            return true;
         }
-        return true; // the field is not a sub field of the nested path
-    }
-
-    public static String parentObject(String field) {
-        int lastDot = field.lastIndexOf('.');
-        if (lastDot == -1) {
-            return null;
+        NestedObjectMapper nestedMapper = nestedLookup.getNestedMappers().get(nestedParent);
+        // If the mapper does not include in its parent or in the root object then
+        // the query might only match nested documents with the given path
+        if (nestedParent.equals(nestedPath)) {
+            return nestedMapper.isIncludeInParent() || nestedMapper.isIncludeInRoot();
         }
-        return field.substring(0, lastDot);
+        return true;
     }
 
 }

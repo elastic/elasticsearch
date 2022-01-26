@@ -569,12 +569,12 @@ public class RolloverIT extends ESIntegTestCase {
 
         // A small max_shard_docs
         {
-            MaxShardDocsCondition maxShardDocsCondition = new MaxShardDocsCondition(randomLongBetween(1, 9));
+            MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(randomLongBetween(1, 9));
             long beforeTime = client().threadPool().absoluteTimeInMillis() - 1000L;
             final RolloverResponse response = client().admin()
                 .indices()
                 .prepareRolloverIndex("test_alias")
-                .addMaxShardDocsCondition(maxShardDocsCondition.value)
+                .addMaxShardDocsCondition(maxPrimaryShardDocsCondition.value)
                 .get();
             assertThat(response.getOldIndex(), equalTo("test-1"));
             assertThat(response.getNewIndex(), equalTo("test-000002"));
@@ -582,7 +582,8 @@ public class RolloverIT extends ESIntegTestCase {
             final IndexMetadata oldIndex = client().admin().cluster().prepareState().get().getState().metadata().index("test-1");
             List<Condition<?>> metConditions = oldIndex.getRolloverInfos().get("test_alias").getMetConditions();
             assertThat(metConditions.size(), equalTo(1));
-            assertThat(metConditions.get(0).toString(), equalTo(new MaxShardDocsCondition(maxShardDocsCondition.value).toString()));
+            assertThat(metConditions.get(0).toString(), equalTo(new MaxPrimaryShardDocsCondition(
+                maxPrimaryShardDocsCondition.value).toString()));
             assertThat(
                 oldIndex.getRolloverInfos().get("test_alias").getTime(),
                 is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L)))

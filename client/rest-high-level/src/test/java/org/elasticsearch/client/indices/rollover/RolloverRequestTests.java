@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxShardDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -40,18 +40,18 @@ public class RolloverRequestTests extends ESTestCase {
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(10000L);
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(2000));
         MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(new ByteSizeValue(3000));
-        MaxShardDocsCondition maxShardDocsCondition = new MaxShardDocsCondition(5000L);
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(5000L);
         Condition<?>[] expectedConditions = new Condition<?>[] {
             maxAgeCondition,
             maxDocsCondition,
             maxSizeCondition,
             maxPrimaryShardSizeCondition,
-            maxShardDocsCondition };
+            maxPrimaryShardDocsCondition};
         rolloverRequest.addMaxIndexAgeCondition(maxAgeCondition.value());
         rolloverRequest.addMaxIndexDocsCondition(maxDocsCondition.value());
         rolloverRequest.addMaxIndexSizeCondition(maxSizeCondition.value());
         rolloverRequest.addMaxPrimaryShardSizeCondition(maxPrimaryShardSizeCondition.value());
-        rolloverRequest.addMaxShardDocsCondition(maxShardDocsCondition.value());
+        rolloverRequest.addMaxShardDocsCondition(maxPrimaryShardDocsCondition.value());
         List<Condition<?>> requestConditions = new ArrayList<>(rolloverRequest.getConditions().values());
         assertThat(requestConditions, containsInAnyOrder(expectedConditions));
     }

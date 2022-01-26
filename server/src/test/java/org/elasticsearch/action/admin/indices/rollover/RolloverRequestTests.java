@@ -77,8 +77,9 @@ public class RolloverRequestTests extends ESTestCase {
             MaxPrimaryShardSizeCondition.NAME
         );
         assertThat(maxPrimaryShardSizeCondition.value.getBytes(), equalTo(ByteSizeUnit.GB.toBytes(55)));
-        MaxShardDocsCondition maxShardDocsCondition = (MaxShardDocsCondition)conditions.get(MaxShardDocsCondition.NAME);
-        assertThat(maxShardDocsCondition.value, equalTo(10L));
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = (MaxPrimaryShardDocsCondition)conditions.get(
+            MaxPrimaryShardDocsCondition.NAME);
+        assertThat(maxPrimaryShardDocsCondition.value, equalTo(10L));
     }
 
     public void testParsingWithIndexSettings() throws Exception {

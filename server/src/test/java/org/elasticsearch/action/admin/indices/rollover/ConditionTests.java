@@ -122,20 +122,20 @@ public class ConditionTests extends ESTestCase {
     }
 
     public void testMaxShardDocs() {
-        final MaxShardDocsCondition maxShardDocsCondition = new MaxShardDocsCondition(100L);
+        final MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(100L);
 
         long maxShardDocsMatch = randomIntBetween(100, 1000);
-        Condition.Result evaluate = maxShardDocsCondition.evaluate(
+        Condition.Result evaluate = maxPrimaryShardDocsCondition.evaluate(
             new Condition.Stats(randomNonNegativeLong(), 0, randomByteSize(), randomByteSize(), maxShardDocsMatch)
         );
-        assertThat(evaluate.condition(), equalTo(maxShardDocsCondition));
+        assertThat(evaluate.condition(), equalTo(maxPrimaryShardDocsCondition));
         assertThat(evaluate.matched(), equalTo(true));
 
         long maxShardDocsNotMatch = randomIntBetween(0, 99);
-        evaluate = maxShardDocsCondition.evaluate(
+        evaluate = maxPrimaryShardDocsCondition.evaluate(
             new Condition.Stats(randomNonNegativeLong(), 0, randomByteSize(), randomByteSize(), maxShardDocsNotMatch)
         );
-        assertThat(evaluate.condition(), equalTo(maxShardDocsCondition));
+        assertThat(evaluate.condition(), equalTo(maxPrimaryShardDocsCondition));
         assertThat(evaluate.matched(), equalTo(false));
     }
 
@@ -168,11 +168,11 @@ public class ConditionTests extends ESTestCase {
             condition -> new MaxPrimaryShardSizeCondition(randomByteSize())
         );
 
-        MaxShardDocsCondition maxShardDocsCondition = new MaxShardDocsCondition(randomNonNegativeLong());
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(randomNonNegativeLong());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            maxShardDocsCondition,
-            condition -> new MaxShardDocsCondition(condition.value),
-            condition -> new MaxShardDocsCondition(randomNonNegativeLong())
+            maxPrimaryShardDocsCondition,
+            condition -> new MaxPrimaryShardDocsCondition(condition.value),
+            condition -> new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
         );
     }
 

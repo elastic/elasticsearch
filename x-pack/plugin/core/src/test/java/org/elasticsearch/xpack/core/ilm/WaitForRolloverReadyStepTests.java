@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxShardDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -260,7 +260,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
             }
             if (step.getMaxShardDocs() != null) {
-                expectedConditions.add(new MaxShardDocsCondition(step.getMaxShardDocs()));
+                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxShardDocs()));
             }
             assertRolloverIndexRequest(request, rolloverTarget, expectedConditions);
             Map<String, Boolean> conditionResults = expectedConditions.stream()
@@ -465,7 +465,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
             }
             if (step.getMaxShardDocs() != null) {
-                expectedConditions.add(new MaxShardDocsCondition(step.getMaxShardDocs()));
+                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxShardDocs()));
             }
             assertRolloverIndexRequest(request, alias, expectedConditions);
             Map<String, Boolean> conditionResults = expectedConditions.stream()
@@ -524,7 +524,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 expectedConditions.add(new MaxDocsCondition(step.getMaxDocs()));
             }
             if (step.getMaxShardDocs() != null) {
-                expectedConditions.add(new MaxShardDocsCondition(step.getMaxShardDocs()));
+                expectedConditions.add(new MaxPrimaryShardDocsCondition(step.getMaxShardDocs()));
             }
             assertRolloverIndexRequest(request, alias, expectedConditions);
             listener.onFailure(exception);

@@ -15,15 +15,15 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class MaxShardDocsCondition extends Condition<Long> {
+public class MaxPrimaryShardDocsCondition extends Condition<Long> {
     public static final String NAME = "max_shard_docs";
 
-    public MaxShardDocsCondition(Long value) {
+    public MaxPrimaryShardDocsCondition(Long value) {
         super(NAME);
         this.value = value;
     }
 
-    public MaxShardDocsCondition(StreamInput in) throws IOException {
+    public MaxPrimaryShardDocsCondition(StreamInput in) throws IOException {
         super(NAME);
         this.value = in.readLong();
     }
@@ -48,9 +48,9 @@ public class MaxShardDocsCondition extends Condition<Long> {
         return builder.field(NAME, value);
     }
 
-    public static MaxShardDocsCondition fromXContent(XContentParser parser) throws IOException {
+    public static MaxPrimaryShardDocsCondition fromXContent(XContentParser parser) throws IOException {
         if (parser.nextToken() == XContentParser.Token.VALUE_NUMBER) {
-            return new MaxShardDocsCondition(parser.longValue());
+            return new MaxPrimaryShardDocsCondition(parser.longValue());
         } else {
             throw new IllegalArgumentException("invalid token: " + parser.currentToken());
         }

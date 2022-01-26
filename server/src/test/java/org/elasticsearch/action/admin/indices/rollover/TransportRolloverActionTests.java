@@ -107,13 +107,13 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(
             ByteSizeValue.ofMb(randomIntBetween(10, 100))
         );
-        MaxShardDocsCondition maxShardDocsCondition = new MaxShardDocsCondition(10L);
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(10L);
         final Set<Condition<?>> conditions = Set.of(
             maxAgeCondition,
             maxDocsCondition,
             maxSizeCondition,
             maxPrimaryShardSizeCondition,
-            maxShardDocsCondition
+            maxPrimaryShardDocsCondition
         );
 
         long matchMaxDocs = randomIntBetween(100, 1000);
@@ -157,7 +157,7 @@ public class TransportRolloverActionTests extends ESTestCase {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(maxPrimaryShardSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
-            } else if (entry.getKey().equals(maxShardDocsCondition.toString())) {
+            } else if (entry.getKey().equals(maxPrimaryShardDocsCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
             } else {
                 fail("unknown condition result found " + entry.getKey());
@@ -172,13 +172,13 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(
             new ByteSizeValue(randomNonNegativeLong())
         );
-        MaxShardDocsCondition maxShardDocsCondition = new MaxShardDocsCondition(randomNonNegativeLong());
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(randomNonNegativeLong());
         final Set<Condition<?>> conditions = Set.of(
             maxAgeCondition,
             maxDocsCondition,
             maxSizeCondition,
             maxPrimaryShardSizeCondition,
-            maxShardDocsCondition
+            maxPrimaryShardDocsCondition
         );
 
         final Settings settings = Settings.builder()
@@ -204,7 +204,7 @@ public class TransportRolloverActionTests extends ESTestCase {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(maxPrimaryShardSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
-            } else if (entry.getKey().equals(maxShardDocsCondition.toString())) {
+            } else if (entry.getKey().equals(maxPrimaryShardDocsCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
             } else {
                 fail("unknown condition result found " + entry.getKey());
@@ -219,13 +219,13 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(
             ByteSizeValue.ofMb(randomIntBetween(10, 100))
         );
-        MaxShardDocsCondition maxShardDocsCondition = new MaxShardDocsCondition(10L);
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(10L);
         final Set<Condition<?>> conditions = Set.of(
             maxAgeCondition,
             maxDocsCondition,
             maxSizeCondition,
             maxPrimaryShardSizeCondition,
-            maxShardDocsCondition
+            maxPrimaryShardDocsCondition
         );
 
         final Settings settings = Settings.builder()

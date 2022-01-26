@@ -46,7 +46,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private static final ParseField MAX_DOCS_CONDITION = new ParseField(MaxDocsCondition.NAME);
     private static final ParseField MAX_SIZE_CONDITION = new ParseField(MaxSizeCondition.NAME);
     private static final ParseField MAX_PRIMARY_SHARD_SIZE_CONDITION = new ParseField(MaxPrimaryShardSizeCondition.NAME);
-    private static final ParseField MAX_SHARD_DOCS_CONDITION = new ParseField(MaxShardDocsCondition.NAME);
+    private static final ParseField MAX_SHARD_DOCS_CONDITION = new ParseField(MaxPrimaryShardDocsCondition.NAME);
 
     static {
         CONDITION_PARSER.declareString(
@@ -72,7 +72,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             MAX_PRIMARY_SHARD_SIZE_CONDITION
         );
         CONDITION_PARSER.declareLong(
-            (conditions, value) -> conditions.put(MaxShardDocsCondition.NAME, new MaxShardDocsCondition(value)),
+            (conditions, value) -> conditions.put(MaxPrimaryShardDocsCondition.NAME, new MaxPrimaryShardDocsCondition(value)),
             MAX_SHARD_DOCS_CONDITION
         );
 
@@ -265,11 +265,11 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      * Adds a size-based condition to check if the docs of the largest shard has at least <code>numDocs</code>
      */
     public void addMaxShardDocsCondition(long numDocs) {
-        MaxShardDocsCondition maxShardDocsCondition = new MaxShardDocsCondition(numDocs);
-        if (this.conditions.containsKey(maxShardDocsCondition.name)) {
-            throw new IllegalArgumentException(maxShardDocsCondition.name + " condition is already set");
+        MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(numDocs);
+        if (this.conditions.containsKey(maxPrimaryShardDocsCondition.name)) {
+            throw new IllegalArgumentException(maxPrimaryShardDocsCondition.name + " condition is already set");
         }
-        this.conditions.put(maxShardDocsCondition.name, maxShardDocsCondition);
+        this.conditions.put(maxPrimaryShardDocsCondition.name, maxPrimaryShardDocsCondition);
     }
 
     public boolean isDryRun() {

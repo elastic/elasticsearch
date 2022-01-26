@@ -18,7 +18,7 @@ import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxShardDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.cli.MockTerminal;
@@ -136,7 +136,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             new MaxDocsCondition(randomNonNegativeLong()),
             new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
             new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
-            new MaxShardDocsCondition(randomNonNegativeLong())
+            new MaxPrimaryShardDocsCondition(randomNonNegativeLong())
         );
 
         final IndexMetadata.Builder metadata = IndexMetadata.builder(routing.getIndexName())

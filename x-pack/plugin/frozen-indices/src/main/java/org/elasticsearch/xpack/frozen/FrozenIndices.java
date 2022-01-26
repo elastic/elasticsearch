@@ -40,7 +40,7 @@ public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin 
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (indexSettings.getValue(FrozenEngine.INDEX_FROZEN) && indexSettings.getIndexMetadata().isSearchableSnapshot()) {
+        if (indexSettings.getValue(FrozenEngine.INDEX_FROZEN) && indexSettings.getIndexMetadata().isSearchableSnapshot() == false) {
             return Optional.of(config -> new FrozenEngine(config, true, false));
         } else {
             return Optional.empty();

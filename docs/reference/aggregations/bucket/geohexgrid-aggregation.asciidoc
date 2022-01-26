@@ -17,13 +17,12 @@ resolutions] on how precision (zoom) correlates to size on the ground.
 Precision for this aggregation can be between 0 and 15, inclusive.
 
 WARNING: High-precision requests can be very expensive in terms of RAM and
-result sizes. For example, the highest-precision geohex with a precision of `15`
+result sizes. For example, the highest-precision geohex with a precision of 15
 produces cells that cover less than 10cm by 10cm. We recommend you use a
 filter to limit high-precision requests to a smaller geographic area. For an example,
-refer to <<geohexgrid-high-precision-ex>>.
+refer to <<geohexgrid-high-precision>>.
 
-
-
+[[geohexgrid-low-precision]]
 ==== Simple low-precision request
 
 [source,console,id=geohexgrid-aggregation-example]
@@ -94,11 +93,12 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
+[[geohexgrid-high-precision]]
 ==== High-precision requests
 
-When requesting detailed buckets (typically for displaying a "zoomed in" map)
+When requesting detailed buckets (typically for displaying a "zoomed in" map),
 a filter like <<query-dsl-geo-bounding-box-query,geo_bounding_box>> should be
-applied to narrow the subject area otherwise potentially millions of buckets
+applied to narrow the subject area. Otherwise, potentially millions of buckets
 will be created and returned.
 
 [source,console,id=geohexgrid-high-precision-ex]
@@ -129,6 +129,8 @@ POST /museums/_search?size=0
 --------------------------------------------------
 // TEST[continued]
 
+Response:
+
 [source,console-result]
 --------------------------------------------------
 {
@@ -158,13 +160,14 @@ POST /museums/_search?size=0
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
+[[geohexgrid-addtl-bounding-box-filtering]]
 ==== Requests with additional bounding box filtering
 
 The `geohex_grid` aggregation supports an optional `bounds` parameter
-that restricts the cells considered to those that intersects the
-provided bounds. The `bounds` parameter accepts the bounding box in
-all the same <<query-dsl-geo-bounding-box-query-accepted-formats,accepted formats>> of the
-bounds specified in the Geo Bounding Box Query. This bounding box can be used with or
+that restricts the cells considered to those that intersect the
+provided bounds. The `bounds` parameter accepts the same
+<<query-dsl-geo-bounding-box-query-accepted-formats,bounding box formats>>
+as the geo-bounding box query. This bounding box can be used with or
 without an additional `geo_bounding_box` query for filtering the points prior to aggregating.
 It is an independent bounding box that can intersect with, be equal to, or be disjoint
 to any additional `geo_bounding_box` queries defined in the context of the aggregation.
@@ -188,6 +191,8 @@ POST /museums/_search?size=0
 }
 --------------------------------------------------
 // TEST[continued]
+
+Response:
 
 [source,console-result]
 --------------------------------------------------
@@ -215,14 +220,18 @@ POST /museums/_search?size=0
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,/]
 
+[[geohexgrid-options]]
 ==== Options
 
 [horizontal]
-field::         Mandatory. The name of the field indexed with GeoPoints.
+field::
+(Required, string) Field containing indexed geo-point values. This field must be
+explicitly mapped as a <<geo-point,`geo_point`>> field. If the field contains an
+array, `geohex_grid` aggregates all array values.
 
-precision::     Optional. The integer zoom of the key used to define
-                cells/buckets in the results. Defaults to 6.
-                Values outside of [0,15] will be rejected.
+precision::
+(Optional, integer) Integer zoom of the key used to define cells/buckets in
+the results. Defaults to `6`. Values outside of [`0`,`15`] will be rejected.
 
 bounds::
 (Optional, object) Bounding box used to filter the geo-points in each bucket.

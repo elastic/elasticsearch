@@ -52,7 +52,7 @@ public class UpdateRollupIndexPolicyStep extends AsyncActionStep {
         final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         final String indexName = indexMetadata.getIndex().getName();
         final LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
-        final String rollupIndexName = lifecycleState.getRollupIndexName();
+        final String rollupIndexName = lifecycleState.rollupIndexName();
         if (Strings.hasText(rollupIndexName) == false) {
             listener.onFailure(
                 new IllegalStateException(

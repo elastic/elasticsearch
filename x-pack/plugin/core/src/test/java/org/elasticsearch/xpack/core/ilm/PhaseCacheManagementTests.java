@@ -105,7 +105,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         assertThat(beforeState, equalTo(afterState));
 
         // Check that the phase definition has been refreshed
-        assertThat(afterExState.getPhaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
+        assertThat(afterExState.phaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
             {
               "policy": "my-policy",
               "phase_definition": {
@@ -549,7 +549,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         assertThat(beforeState, equalTo(afterState));
 
         // Check that the phase definition has been refreshed
-        assertThat(afterExState.getPhaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
+        assertThat(afterExState.phaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
             {
               "policy": "my-policy",
               "phase_definition": {

@@ -45,7 +45,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -396,12 +396,12 @@ public class MasterService extends AbstractLifecycleComponent {
             previousClusterState,
             newClusterState,
             getNonFailedTasks(taskInputs, clusterTasksResult),
-            clusterTasksResult.executionResults
+            clusterTasksResult.executionResults()
         );
     }
 
     private ClusterState patchVersions(ClusterState previousClusterState, ClusterTasksResult<?> executionResult) {
-        ClusterState newClusterState = executionResult.resultingState;
+        ClusterState newClusterState = executionResult.resultingState();
 
         if (previousClusterState != newClusterState) {
             // only the master controls the version numbers
@@ -426,9 +426,8 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Submits a cluster state update task; unlike {@link #submitStateUpdateTask(String, Object, ClusterStateTaskConfig,
-     * ClusterStateTaskExecutor, ClusterStateTaskListener)}, submitted updates will not be batched.
-     *  @param source     the source of the cluster state update task
+     * Submits a cluster state update task
+     * @param source     the source of the cluster state update task
      * @param updateTask the full context for the cluster state update
      * @param executor
      *
@@ -438,7 +437,7 @@ public class MasterService extends AbstractLifecycleComponent {
         T updateTask,
         ClusterStateTaskExecutor<T> executor
     ) {
-        submitStateUpdateTask(source, updateTask, updateTask, executor, updateTask);
+        submitStateUpdateTask(source, updateTask, updateTask, executor);
     }
 
     /**
@@ -450,24 +449,21 @@ public class MasterService extends AbstractLifecycleComponent {
      * tasks will all be executed on the executor in a single batch
      *
      * @param source   the source of the cluster state update task
-     * @param task     the state needed for the cluster state update task
+     * @param task     the state and the callback needed for the cluster state update task
      * @param config   the cluster state update task configuration
      * @param executor the cluster state update task executor; tasks
      *                 that share the same executor will be executed
      *                 batches on this executor
-     * @param listener callback after the cluster state update task
-     *                 completes
      * @param <T>      the type of the cluster state update task state
      *
      */
-    public <T> void submitStateUpdateTask(
+    public <T extends ClusterStateTaskListener> void submitStateUpdateTask(
         String source,
         T task,
         ClusterStateTaskConfig config,
-        ClusterStateTaskExecutor<T> executor,
-        ClusterStateTaskListener listener
+        ClusterStateTaskExecutor<T> executor
     ) {
-        submitStateUpdateTasks(source, Collections.singletonMap(task, listener), config, executor);
+        submitStateUpdateTasks(source, List.of(task), config, executor);
     }
 
     /**
@@ -815,9 +811,9 @@ public class MasterService extends AbstractLifecycleComponent {
         try {
             List<Object> inputs = taskInputs.updateTasks.stream().map(tUpdateTask -> tUpdateTask.task).collect(Collectors.toList());
             clusterTasksResult = taskInputs.executor.execute(previousClusterState, inputs);
-            if (previousClusterState != clusterTasksResult.resultingState
+            if (previousClusterState != clusterTasksResult.resultingState()
                 && previousClusterState.nodes().isLocalNodeElectedMaster()
-                && (clusterTasksResult.resultingState.nodes().isLocalNodeElectedMaster() == false)) {
+                && (clusterTasksResult.resultingState().nodes().isLocalNodeElectedMaster() == false)) {
                 throw new AssertionError("update task submitted to MasterService cannot remove master");
             }
         } catch (Exception e) {
@@ -838,20 +834,21 @@ public class MasterService extends AbstractLifecycleComponent {
                 .build(previousClusterState);
         }
 
-        assert clusterTasksResult.executionResults != null;
-        assert clusterTasksResult.executionResults.size() == taskInputs.updateTasks.size()
+        assert clusterTasksResult.executionResults() != null;
+        assert clusterTasksResult.executionResults().size() == taskInputs.updateTasks.size()
             : String.format(
                 Locale.ROOT,
                 "expected [%d] task result%s but was [%d]",
                 taskInputs.updateTasks.size(),
                 taskInputs.updateTasks.size() == 1 ? "" : "s",
-                clusterTasksResult.executionResults.size()
+                clusterTasksResult.executionResults().size()
             );
         if (Assertions.ENABLED) {
             ClusterTasksResult<Object> finalClusterTasksResult = clusterTasksResult;
             taskInputs.updateTasks.forEach(
                 updateTask -> {
-                    assert finalClusterTasksResult.executionResults.containsKey(updateTask.task) : "missing task result for " + updateTask;
+                    assert finalClusterTasksResult.executionResults().containsKey(updateTask.task)
+                        : "missing task result for " + updateTask;
                 }
             );
         }
@@ -861,8 +858,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private List<Batcher.UpdateTask> getNonFailedTasks(TaskInputs taskInputs, ClusterTasksResult<Object> clusterTasksResult) {
         return taskInputs.updateTasks.stream().filter(updateTask -> {
-            assert clusterTasksResult.executionResults.containsKey(updateTask.task) : "missing " + updateTask;
-            final ClusterStateTaskExecutor.TaskResult taskResult = clusterTasksResult.executionResults.get(updateTask.task);
+            assert clusterTasksResult.executionResults().containsKey(updateTask.task) : "missing " + updateTask;
+            final ClusterStateTaskExecutor.TaskResult taskResult = clusterTasksResult.executionResults().get(updateTask.task);
             return taskResult.isSuccess();
         }).collect(Collectors.toList());
     }
@@ -895,7 +892,7 @@ public class MasterService extends AbstractLifecycleComponent {
      * potentially with more tasks of the same executor.
      *
      * @param source   the source of the cluster state update task
-     * @param tasks    a map of update tasks and their corresponding listeners
+     * @param tasks    a collection of update tasks and their corresponding listeners
      * @param config   the cluster state update task configuration
      * @param executor the cluster state update task executor; tasks
      *                 that share the same executor will be executed
@@ -903,9 +900,9 @@ public class MasterService extends AbstractLifecycleComponent {
      * @param <T>      the type of the cluster state update task state
      *
      */
-    public <T> void submitStateUpdateTasks(
+    public <T extends ClusterStateTaskListener> void submitStateUpdateTasks(
         final String source,
-        final Map<T, ClusterStateTaskListener> tasks,
+        final Collection<T> tasks,
         final ClusterStateTaskConfig config,
         final ClusterStateTaskExecutor<T> executor
     ) {
@@ -917,10 +914,9 @@ public class MasterService extends AbstractLifecycleComponent {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.markAsSystemContext();
 
-            List<Batcher.UpdateTask> safeTasks = tasks.entrySet()
-                .stream()
-                .map(e -> taskBatcher.new UpdateTask(config.priority(), source, e.getKey(), safe(e.getValue(), supplier), executor))
-                .collect(Collectors.toList());
+            List<Batcher.UpdateTask> safeTasks = tasks.stream()
+                .map(e -> taskBatcher.new UpdateTask(config.priority(), source, e, safe(e, supplier), executor))
+                .toList();
             taskBatcher.submitTasks(safeTasks, config.timeout());
         } catch (EsRejectedExecutionException e) {
             // ignore cases where we are shutting down..., there is really nothing interesting

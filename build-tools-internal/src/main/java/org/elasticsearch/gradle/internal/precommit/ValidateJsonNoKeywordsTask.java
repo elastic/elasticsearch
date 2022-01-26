@@ -81,7 +81,7 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
 
     @TaskAction
     public void validate(InputChanges inputChanges) {
-        ObjectMapper mapper = new ObjectMapper().configure(JsonParser.Feature.ALLOW_COMMENTS, true);
+        final ObjectMapper mapper = new ObjectMapper().configure(JsonParser.Feature.ALLOW_COMMENTS, true);
         final Map<File, Set<String>> errors = new LinkedHashMap<>();
 
         getLogger().debug("Loading keywords from {}", jsonKeywords.getName());

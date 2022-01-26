@@ -46,10 +46,10 @@ public class PackageUpgradeTests extends PackagingTestCase {
     public void test10InstallBwcVersion() throws Exception {
         installation = installPackage(sh, bwcDistribution);
         assertInstalled(bwcDistribution);
-        if (installation.distribution.baseVersion.startsWith("8.")) {
+        // TODO Modify tests below to work with security when BWC version is after 8.0.0
+        if (Version.fromString(bwcDistribution.baseVersion).onOrAfter(Version.V_8_0_0)) {
             possiblyRemoveSecurityConfiguration(installation);
         }
-        // TODO: Add more tests here to assert behavior when updating from < v8 to > v8 with implicit/explicit behavior,
     }
 
     public void test11ModifyKeystore() throws Exception {
@@ -98,7 +98,8 @@ public class PackageUpgradeTests extends PackagingTestCase {
             installation = Packages.upgradePackage(sh, distribution);
         }
         // We add this so that we don't trigger the SecurityImplicitBehaviorBootstrapCheck in 8
-        if (bwcDistribution.baseVersion.startsWith("7.") && distribution.baseVersion.startsWith("8.")) {
+        if (Version.fromString(bwcDistribution.baseVersion).before(Version.V_8_0_0)
+            && Version.fromString(distribution.baseVersion).onOrAfter(Version.V_8_0_0)) {
             ServerUtils.addSettingToExistingConfiguration(installation, "xpack.security.enabled", "false");
         }
 
@@ -121,7 +122,7 @@ public class PackageUpgradeTests extends PackagingTestCase {
     }
 
     private void possiblyRemoveSecurityConfiguration(Installation es) throws IOException {
-        ServerUtils.disableSecurityFeatures(installation);
+        ServerUtils.disableSecurityFeatures(es);
         if (Files.exists(es.config("certs"))) {
             FileUtils.rm(es.config("certs"));
         }

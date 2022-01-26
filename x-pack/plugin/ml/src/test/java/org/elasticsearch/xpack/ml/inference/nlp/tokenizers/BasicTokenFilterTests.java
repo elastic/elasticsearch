@@ -28,7 +28,7 @@ import java.util.List;
 public class BasicTokenFilterTests extends BaseTokenStreamTestCase {
 
     public void testNeverSplit_GivenNoLowerCase() throws IOException {
-        Analyzer analyzer = basicAnalyzerFromSettings(false, false, false, List.of("[UNK]"));
+        Analyzer analyzer = basicAnalyzerFromSettings(false, false, List.of("[UNK]"));
         assertAnalyzesToNoCharFilter(analyzer, "1 (return) [ Patois ", new String[] { "1", "(", "return", ")", "[", "Patois" });
         assertAnalyzesToNoCharFilter(analyzer, "Hello [UNK].", new String[] { "Hello", "[UNK]", "." });
         assertAnalyzesToNoCharFilter(analyzer, "Hello-[UNK]", new String[] { "Hello", "-", "[UNK]" });
@@ -44,7 +44,7 @@ public class BasicTokenFilterTests extends BaseTokenStreamTestCase {
     }
 
     public void testNeverSplit_GivenLowerCase() throws IOException {
-        Analyzer analyzer = basicAnalyzerFromSettings(true, false, false, List.of("[UNK]"));
+        Analyzer analyzer = basicAnalyzerFromSettings(false, false, List.of("[UNK]"));
         assertAnalyzesToNoCharFilter(
             analyzer,
             " \tHeLLo!how  \n Are yoU? [UNK]",
@@ -59,13 +59,13 @@ public class BasicTokenFilterTests extends BaseTokenStreamTestCase {
     }
 
     public void testSplitCJK() throws Exception {
-        Analyzer analyzer = basicAnalyzerFromSettings(true, true, false, List.of("[UNK]"));
+        Analyzer analyzer = basicAnalyzerFromSettings(true, false, List.of("[UNK]"));
         assertAnalyzesToNoCharFilter(analyzer, "hello ah\u535A\u63A8zz", new String[] { "hello", "ah", "\u535A", "\u63A8", "zz" });
         assertAnalyzesToNoCharFilter(analyzer, "hello world", new String[] { "hello", "world" });
     }
 
     public void testStripAccents() throws Exception {
-        Analyzer analyzer = basicAnalyzerFromSettings(true, true, true, List.of("[UNK]"));
+        Analyzer analyzer = basicAnalyzerFromSettings(true, true, List.of("[UNK]"));
         assertAnalyzesToNoCharFilter(analyzer, "HäLLo how are you", new String[] { "HaLLo", "how", "are", "you" });
     }
 
@@ -88,7 +88,6 @@ public class BasicTokenFilterTests extends BaseTokenStreamTestCase {
     }
 
     public static Analyzer basicAnalyzerFromSettings(
-        boolean isLowerCase,
         boolean isTokenizeCjkChars,
         boolean isStripAccents,
         List<String> neverSplit
@@ -100,7 +99,7 @@ public class BasicTokenFilterTests extends BaseTokenStreamTestCase {
                 try {
                     return new TokenStreamComponents(
                         t,
-                        BasicTokenFilter.buildFromSettings(isLowerCase, isTokenizeCjkChars, isStripAccents, neverSplit, t)
+                        BasicTokenFilter.buildFromSettings(isTokenizeCjkChars, isStripAccents, neverSplit, t)
                     );
                 } catch (IOException ex) {
                     throw new UncheckedIOException(ex);
@@ -129,13 +128,12 @@ public class BasicTokenFilterTests extends BaseTokenStreamTestCase {
     }
 
     public static List<DelimitedToken> basicTokenize(
-        boolean isLowerCase,
         boolean isTokenizeCjkChars,
         boolean isStripAccents,
         List<String> neverSplit,
         String input
     ) throws IOException {
-        try (Analyzer analyzer = basicAnalyzerFromSettings(isLowerCase, isTokenizeCjkChars, isStripAccents, neverSplit)) {
+        try (Analyzer analyzer = basicAnalyzerFromSettings(isTokenizeCjkChars, isStripAccents, neverSplit)) {
             return basicTokenize(analyzer, input);
         }
     }

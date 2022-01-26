@@ -14,7 +14,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-import org.elasticsearch.xpack.ml.inference.nlp.MultiCharSequence;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,7 +50,7 @@ public final class WordPieceTokenFilter extends TokenFilter {
         for (var word : dictionary) {
             vocabMap.put(word, i++);
         }
-        input = BasicTokenFilter.buildFromSettings(isLowerCase, isTokenizeCjkChars, isStripAccents, neverSplit, input);
+        input = BasicTokenFilter.buildFromSettings(isTokenizeCjkChars, isStripAccents, neverSplit, input);
         return new WordPieceTokenFilter(input, new CharArraySet(neverSplit, isLowerCase), vocabMap, unknownToken, maxInputCharsPerWord);
     }
 

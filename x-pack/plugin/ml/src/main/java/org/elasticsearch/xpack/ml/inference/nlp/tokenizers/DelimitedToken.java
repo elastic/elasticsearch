@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class DelimitedToken {
@@ -47,4 +48,16 @@ public class DelimitedToken {
         return endOffset;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DelimitedToken that = (DelimitedToken) o;
+        return startOffset == that.startOffset && endOffset == that.endOffset && Objects.equals(charSequence, that.charSequence);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(charSequence, startOffset, endOffset);
+    }
 }

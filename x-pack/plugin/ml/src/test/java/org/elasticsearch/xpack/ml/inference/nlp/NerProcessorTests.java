@@ -166,7 +166,7 @@ public class NerProcessorTests extends ESTestCase {
 
     public void testGroupTaggedTokens() throws IOException {
         String input = "Hi Sarah Jessica, I live in Manchester and work for Elastic";
-        List<DelimitedToken> tokens = basicTokenize(randomBoolean(), randomBoolean(), randomBoolean(), List.of(), input);
+        List<DelimitedToken> tokens = basicTokenize(randomBoolean(), randomBoolean(), List.of(), input);
         assertThat(tokens, hasSize(12));
 
         List<NerProcessor.NerResultProcessor.TaggedToken> taggedTokens = new ArrayList<>();
@@ -196,7 +196,7 @@ public class NerProcessorTests extends ESTestCase {
 
     public void testGroupTaggedTokens_GivenNoEntities() throws IOException {
         String input = "Hi there";
-        List<DelimitedToken> tokens = basicTokenize(randomBoolean(), randomBoolean(), randomBoolean(), List.of(), input);
+        List<DelimitedToken> tokens = basicTokenize(randomBoolean(), randomBoolean(), List.of(), input);
 
         List<NerProcessor.NerResultProcessor.TaggedToken> taggedTokens = new ArrayList<>();
         taggedTokens.add(new NerProcessor.NerResultProcessor.TaggedToken(tokens.get(0), NerProcessor.IobTag.O, 1.0));
@@ -208,7 +208,7 @@ public class NerProcessorTests extends ESTestCase {
 
     public void testGroupTaggedTokens_GivenConsecutiveEntities() throws IOException {
         String input = "Rita, Sue, and Bob too";
-        List<DelimitedToken> tokens = basicTokenize(randomBoolean(), randomBoolean(), randomBoolean(), List.of(), input);
+        List<DelimitedToken> tokens = basicTokenize(randomBoolean(), randomBoolean(), List.of(), input);
 
         List<NerProcessor.NerResultProcessor.TaggedToken> taggedTokens = new ArrayList<>();
         int i = 0;
@@ -232,7 +232,7 @@ public class NerProcessorTests extends ESTestCase {
 
     public void testGroupTaggedTokens_GivenConsecutiveContinuingEntities() throws IOException {
         String input = "FirstName SecondName, NextPerson NextPersonSecondName. something_else";
-        List<DelimitedToken> tokens = basicTokenize(randomBoolean(), randomBoolean(), randomBoolean(), List.of(), input);
+        List<DelimitedToken> tokens = basicTokenize(randomBoolean(), randomBoolean(), List.of(), input);
 
         List<NerProcessor.NerResultProcessor.TaggedToken> taggedTokens = new ArrayList<>();
         int i = 0;
@@ -254,7 +254,7 @@ public class NerProcessorTests extends ESTestCase {
 
     public void testEntityContainsPunctuation() throws IOException {
         String input = "Alexander, my name is Benjamin Trent, I work at Acme Inc..";
-        List<DelimitedToken> tokens = basicTokenize(randomBoolean(), randomBoolean(), randomBoolean(), List.of(), input);
+        List<DelimitedToken> tokens = basicTokenize(randomBoolean(), randomBoolean(), List.of(), input);
 
         List<NerProcessor.NerResultProcessor.TaggedToken> taggedTokens = new ArrayList<>();
         int i = 0;

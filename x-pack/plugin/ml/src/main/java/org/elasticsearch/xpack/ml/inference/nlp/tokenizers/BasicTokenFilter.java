@@ -46,7 +46,6 @@ public final class BasicTokenFilter extends TokenFilter {
     private State current;
 
     public static BasicTokenFilter buildFromSettings(
-        boolean isLowerCase,
         boolean isTokenizeCjkChars,
         boolean isStripAccents,
         List<String> neverSplit,
@@ -71,7 +70,7 @@ public final class BasicTokenFilter extends TokenFilter {
                 return new ControlCharFilter(reader);
             }
         };
-        CharArraySet neverSplitSet = CharArraySet.copy(new HashSet<>(neverSplit));
+        CharArraySet neverSplitSet = new CharArraySet(neverSplit, false);
         CharSeqTokenTrieNode neverSplitTree;
         try (analyzer) {
             neverSplitTree = CharSeqTokenTrieNode.build(neverSplit, c -> {
@@ -218,29 +217,32 @@ public final class BasicTokenFilter extends TokenFilter {
     }
 
     void stripAccent() {
+        accentBuffer.setLength(0);
         if (normalizer.quickCheck(termAtt) != Normalizer.YES) {
-            accentBuffer.setLength(0);
             normalizer.normalize(termAtt, accentBuffer);
-            IntArrayList badIndices = new IntArrayList();
-            IntArrayList charCount = new IntArrayList();
-            int index = 0;
-            for (PrimitiveIterator.OfInt it = accentBuffer.codePoints().iterator(); it.hasNext();) {
-                int cp = it.next();
-                if (Character.getType(cp) == Character.NON_SPACING_MARK) {
-                    badIndices.add(index);
-                    charCount.add(Character.charCount(cp));
-                }
-                index++;
-            }
-            for (int i = 0; i < badIndices.size(); i++) {
-                int badIndex = badIndices.get(i);
-                int count = charCount.get(i);
-                for (int j = 0; j < count && badIndex < accentBuffer.length(); j++) {
-                    accentBuffer.deleteCharAt(badIndex);
-                }
-            }
-            termAtt.setEmpty().append(accentBuffer);
         }
+        IntArrayList badIndices = new IntArrayList();
+        IntArrayList charCount = new IntArrayList();
+        int index = 0;
+        for (PrimitiveIterator.OfInt it = accentBuffer.codePoints().iterator(); it.hasNext();) {
+            int cp = it.next();
+            if (Character.getType(cp) == Character.NON_SPACING_MARK) {
+                badIndices.add(index);
+                charCount.add(Character.charCount(cp));
+            }
+            index++;
+        }
+        if (badIndices.isEmpty()) {
+            return;
+        }
+        for (int i = 0; i < badIndices.size(); i++) {
+            int badIndex = badIndices.get(i);
+            int count = charCount.get(i);
+            for (int j = 0; j < count && badIndex < accentBuffer.length(); j++) {
+                accentBuffer.deleteCharAt(badIndex);
+            }
+        }
+        termAtt.setEmpty().append(accentBuffer);
     }
 
     static boolean isPunctuationMark(int codePoint) {

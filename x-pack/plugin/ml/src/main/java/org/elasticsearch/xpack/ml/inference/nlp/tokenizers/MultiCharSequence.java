@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.nlp;
+package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import org.apache.lucene.util.CharsRef;
 

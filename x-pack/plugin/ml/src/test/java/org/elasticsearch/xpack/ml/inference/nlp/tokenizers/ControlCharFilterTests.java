@@ -18,7 +18,7 @@ public class ControlCharFilterTests extends ESTestCase {
 
     public void testOnlyControlChars() throws IOException {
         ControlCharFilter controlCharFilter = new ControlCharFilter(
-            new CharArrayReader(new char[] { Character.SURROGATE, Character.SURROGATE, Character.SURROGATE, Character.SURROGATE })
+            new CharArrayReader(new char[] { Character.FORMAT, Character.CONTROL, Character.CONTROL, Character.CONTROL })
         );
         char[] output = new char[10];
         assertThat(controlCharFilter.read(output, 0, 5), equalTo(-1));
@@ -34,11 +34,11 @@ public class ControlCharFilterTests extends ESTestCase {
         ControlCharFilter controlCharFilter = new ControlCharFilter(
             new CharArrayReader(
                 new char[] {
-                    Character.SURROGATE,
-                    Character.SURROGATE,
+                    Character.FORMAT,
+                    Character.FORMAT,
                     'a',
-                    Character.SURROGATE,
-                    Character.SURROGATE,
+                    Character.FORMAT,
+                    Character.FORMAT,
                     'b',
                     'b',
                     Character.CONTROL,
@@ -60,7 +60,7 @@ public class ControlCharFilterTests extends ESTestCase {
         for (; i < 1000; i++) {
             charArray[i] = 'a';
         }
-        charArray[i++] = Character.SURROGATE;
+        charArray[i++] = Character.CONTROL;
         charArray[i++] = Character.CONTROL;
         for (int j = 0; j < 997; j++) {
             charArray[i++] = 'a';

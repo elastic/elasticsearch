@@ -225,9 +225,9 @@ Response:
 
 [horizontal]
 field::
-(Required, string) Field containing indexed geo-point values. This field must be
-explicitly mapped as a <<geo-point,`geo_point`>> field. If the field contains an
-array, `geohex_grid` aggregates all array values.
+(Required, string) Field containing indexed geo-point values. Must be explicitly
+mapped as a <<geo-point,`geo_point`>> field. If the field contains an array,
+`geohex_grid` aggregates all array values.
 
 precision::
 (Optional, integer) Integer zoom of the key used to define cells/buckets in

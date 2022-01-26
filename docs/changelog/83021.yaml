@@ -1,5 +1,5 @@
 pr: 83021
 summary: Correct context for CancellableSOCache listener
-area: Stats
+area: Features/Stats
 type: bug
 issues: []

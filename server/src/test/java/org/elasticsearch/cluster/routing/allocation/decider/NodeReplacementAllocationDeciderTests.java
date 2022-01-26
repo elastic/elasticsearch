@@ -85,7 +85,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build())
             .build();
 
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
         DiscoveryNode node = randomFrom(NODE_A, NODE_B, NODE_C);
         RoutingNode routingNode = new RoutingNode(node.getId(), node, shard);
         allocation.debugDecision(true);
@@ -101,7 +101,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
 
     public void testCanForceAllocate() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"), NODE_A.getId(), NODE_B.getName());
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
         RoutingNode routingNode = new RoutingNode(NODE_A.getId(), NODE_A, shard);
         allocation.debugDecision(true);
 
@@ -144,7 +144,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
 
     public void testCannotRemainOnReplacedNode() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"), NODE_A.getId(), NODE_B.getName());
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
         RoutingNode routingNode = new RoutingNode(NODE_A.getId(), NODE_A, shard);
         allocation.debugDecision(true);
 
@@ -170,7 +170,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
 
     public void testCanAllocateToNeitherSourceNorTarget() {
         ClusterState state = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"), NODE_A.getId(), NODE_B.getName());
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
         RoutingNode routingNode = new RoutingNode(NODE_A.getId(), NODE_A, shard);
         allocation.debugDecision(true);
 

@@ -207,8 +207,13 @@ the `repository-s3` type allows you to use these systems in place of AWS S3.
 To do so, you should set the `s3.client.CLIENT_NAME.endpoint` setting to the
 system's endpoint. This setting accepts IP addresses and hostnames and may
 include a port. For example, the endpoint may be `172.17.0.2` or
-`172.17.0.2:9000`. You may also need to set `s3.client.CLIENT_NAME.protocol` to
-`http` if the endpoint does not support HTTPS.
+`172.17.0.2:9000`.
+
+By default {es} communicates with your storage system using HTTPS, and
+validates the repository's certificate chain using the JVM-wide truststore.
+Ensure that the JVM-wide truststore includes an entry for your repository. If
+you wish to use unsecured HTTP communication instead of HTTPS, set
+`s3.client.CLIENT_NAME.protocol` to `http`.
 
 https://minio.io[MinIO] is an example of a storage system that provides an
 S3-compatible API. The `repository-s3` type allows {es} to work with

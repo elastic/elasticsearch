@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.useragent;
 
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -113,7 +114,7 @@ public class UserAgentProcessor extends AbstractProcessor {
                     break;
                 case OS:
                     if (uaClient.operatingSystem() != null) {
-                        Map<String, String> osDetails = new HashMap<>(3);
+                        Map<String, String> osDetails = Maps.newMapWithExpectedSize(3);
                         if (uaClient.operatingSystem().name() != null) {
                             osDetails.put("name", uaClient.operatingSystem().name());
                             StringBuilder sb = new StringBuilder();
@@ -136,7 +137,7 @@ public class UserAgentProcessor extends AbstractProcessor {
                     }
                     break;
                 case DEVICE:
-                    Map<String, String> deviceDetails = new HashMap<>(1);
+                    Map<String, String> deviceDetails = Maps.newMapWithExpectedSize(1);
                     if (uaClient.device() != null && uaClient.device().name() != null) {
                         deviceDetails.put("name", uaClient.device().name());
                         if (extractDeviceType) {

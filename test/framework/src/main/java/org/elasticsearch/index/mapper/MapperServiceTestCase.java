@@ -513,6 +513,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public boolean isInSortOrderExecutionRequired() {
+                return false;
+            }
+
+            @Override
             public void close() {
                 throw new UnsupportedOperationException();
             }

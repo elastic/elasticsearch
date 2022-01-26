@@ -17,8 +17,9 @@ makes this data access pattern possible. They store the same values as the
 sorting and aggregations. Doc values are supported on almost all field types,
 with the __notable exception of `text` and `annotated_text` fields__.
 
-<<number,Numeric types>>, such as `long` and `double`, and <<date,Date types>>
-can also be queried
+<<number,Numeric types>>, <<date,date types>>, the <<boolean,boolean type>>,
+the <<ip,ip type>> and the <<keyword,keyword type>>
+can also be queried using term or range-based queries
 when they are not <<mapping-index,indexed>> but only have doc values enabled.
 Query performance on doc values is much slower than on index structures, but
 offers an interesting tradeoff between disk usage and query performance for

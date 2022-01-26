@@ -9,70 +9,156 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
+import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * A runtime field that retrieves fields from related indices.
+ * <pre>
  * {
- *    "type": "lookup",
- *    "lookup_index": "an_external_index",
- *    "id_field": "field_whose_values_are_ids_of_lookup_index",
- *    "lookup_fields: ["field-1", "field-2"]
- *  }
+ *     "type": "lookup",
+ *     "index": "an_external_index",
+ *     "query_type": "term",
+ *     "query_input_field": "ip_address",
+ *     "query_target_field": "host_ip",
+ *     "fetch_fields": [
+ *         "field-1",
+ *         "field-2"
+ *     ],
+ *     "max_match_size": 1
+ * }
+ * </pre>
  */
 public final class LookupRuntimeFieldType extends MappedFieldType {
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(Builder::new);
     public static final String CONTENT_TYPE = "lookup";
+    public static final Set<String> SUPPORTED_QUERY_TYPES = Set.of("term");
 
     private static class Builder extends RuntimeField.Builder {
-        private final FieldMapper.Parameter<String> lookupIndex = FieldMapper.Parameter.stringParam(
-            "lookup_index",
+        private final FieldMapper.Parameter<String> index = FieldMapper.Parameter.stringParam(
+            "index",
             false,
             RuntimeField.initializerNotSupported(),
             null
         ).addValidator(v -> {
             if (Strings.isEmpty(v)) {
-                throw new IllegalArgumentException("[lookup_index] parameter must be specified");
+                throw new IllegalArgumentException("[index] parameter must be specified");
             }
         });
 
-        private final FieldMapper.Parameter<String> idField = FieldMapper.Parameter.stringParam(
-            "id_field",
+        private final FieldMapper.Parameter<String> queryType = FieldMapper.Parameter.stringParam(
+            "query_type",
+            false,
+            RuntimeField.initializerNotSupported(),
+            null
+        ).addValidator(queryType -> {
+            if (SUPPORTED_QUERY_TYPES.contains(queryType) == false) {
+                throw new IllegalArgumentException("Supported query types: [" + SUPPORTED_QUERY_TYPES + "]; got [" + queryType + "]");
+            }
+        });
+
+        private final FieldMapper.Parameter<String> queryInputField = FieldMapper.Parameter.stringParam(
+            "query_input_field",
             false,
             RuntimeField.initializerNotSupported(),
             null
         ).addValidator(v -> {
             if (Strings.isEmpty(v)) {
-                throw new IllegalArgumentException("[id_field] parameter must be specified");
+                throw new IllegalArgumentException("[query_input_field] parameter must be specified");
             }
         });
 
-        private final FieldMapper.Parameter<List<String>> lookupFields = FieldMapper.Parameter.stringArrayParam(
-            "lookup_fields",
+        private final FieldMapper.Parameter<String> queryTargetField = FieldMapper.Parameter.stringParam(
+            "query_target_field",
             false,
             RuntimeField.initializerNotSupported(),
-            List.of()
-        );
+            null
+        ).addValidator(v -> {
+            if (Strings.isEmpty(v)) {
+                throw new IllegalArgumentException("[query_target_field] parameter must be specified");
+            }
+        });
+
+        private final FieldMapper.Parameter<Integer> maxMatchSize = FieldMapper.Parameter.intParam(
+            "max_match_size",
+            false,
+            RuntimeField.initializerNotSupported(),
+            1
+        ).addValidator(v -> {
+            if (v < 1 || v > 100) {
+                throw new IllegalArgumentException("[max_match_size] must be between 1 and 100");
+            }
+        });
+
+        private static FieldMapper.Parameter<List<FieldAndFormat>> newFetchFields() {
+            final FieldMapper.Parameter<List<FieldAndFormat>> fetchFields = new FieldMapper.Parameter<>(
+                "fetch_fields",
+                false,
+                List::of,
+                (s, ctx, o) -> parseFetchFields(o),
+                RuntimeField.initializerNotSupported(),
+                XContentBuilder::field,
+                Object::toString
+            );
+            fetchFields.addValidator(fields -> {
+                if (fields.isEmpty()) {
+                    throw new MapperParsingException("[fetch_fields] parameter must not be empty");
+                }
+            });
+            return fetchFields;
+        }
+
+        @SuppressWarnings("rawtypes")
+        private static List<FieldAndFormat> parseFetchFields(Object o) {
+            final List<?> values = (List<?>) o;
+            return values.stream().map(v -> {
+                if (v instanceof Map m) {
+                    final String field = (String) m.get(FieldAndFormat.FIELD_FIELD.getPreferredName());
+                    final String format = (String) m.get(FieldAndFormat.FORMAT_FIELD.getPreferredName());
+                    if (field == null) {
+                        throw new MapperParsingException("[field] parameter of [fetch_fields] must be provided");
+                    }
+                    return new FieldAndFormat(field, format);
+                } else if (v instanceof String s) {
+                    return new FieldAndFormat(s, null);
+                } else {
+                    throw new MapperParsingException("unexpected value [" + v + "] for [fetch_fields] parameter");
+                }
+            }).toList();
+        }
+
+        private final FieldMapper.Parameter<List<FieldAndFormat>> fetchFields = newFetchFields();
 
         Builder(String name) {
             super(name);
+
         }
 
         @Override
         protected List<FieldMapper.Parameter<?>> getParameters() {
             final List<FieldMapper.Parameter<?>> parameters = new ArrayList<>(super.getParameters());
-            parameters.add(lookupIndex);
-            parameters.add(idField);
-            parameters.add(lookupFields);
+            parameters.add(index);
+            parameters.add(queryType);
+            parameters.add(queryInputField);
+            parameters.add(queryTargetField);
+            parameters.add(maxMatchSize);
+            parameters.add(fetchFields);
             return parameters;
         }
 
@@ -81,9 +167,11 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
             final LookupRuntimeFieldType ft = new LookupRuntimeFieldType(
                 name,
                 meta(),
-                lookupIndex.get(),
-                idField.get(),
-                lookupFields.get()
+                index.get(),
+                queryInputField.get(),
+                queryTargetField.get(),
+                maxMatchSize.get(),
+                fetchFields.get()
             );
             return new LeafRuntimeField(name, ft, getParameters());
         }
@@ -99,15 +187,27 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
     }
 
     private static final ValueFetcher EMPTY_VALUE_FETCHER = (lookup, ignoredValues) -> List.of();
-    private final String lookupIndex;
-    private final String idField;
-    private final List<String> lookupFields;
+    private final String index;
+    private final String queryInputField;
+    private final String queryTargetField;
+    private final int maxMatchSize;
+    private final List<FieldAndFormat> fetchFields;
 
-    LookupRuntimeFieldType(String name, Map<String, String> meta, String lookupIndex, String idField, List<String> lookupFields) {
+    private LookupRuntimeFieldType(
+        String name,
+        Map<String, String> meta,
+        String index,
+        String queryInputField,
+        String queryTargetField,
+        int maxMatchSize,
+        List<FieldAndFormat> fetchFields
+    ) {
         super(name, false, false, false, TextSearchInfo.NONE, meta);
-        this.lookupIndex = lookupIndex;
-        this.idField = idField;
-        this.lookupFields = lookupFields;
+        this.index = index;
+        this.queryInputField = queryInputField;
+        this.queryTargetField = queryTargetField;
+        this.maxMatchSize = maxMatchSize;
+        this.fetchFields = fetchFields;
     }
 
     @Override
@@ -125,15 +225,34 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is a lookup field.");
     }
 
-    public String getLookupIndex() {
-        return lookupIndex;
-    }
+    @Override
+    public LookupFieldCollector lookupFieldCollector(SearchExecutionContext context) {
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException(
+                "cannot be executed against lookup field ["
+                    + name()
+                    + "] while ["
+                    + ALLOW_EXPENSIVE_QUERIES.getKey()
+                    + "] is set to [false]."
+            );
+        }
+        return new LookupFieldCollector() {
+            @Override
+            public List<LookupField> collect(Function<String, List<Object>> inputFieldValues) {
+                final List<Object> inputValues = inputFieldValues.apply(queryInputField);
+                if (inputValues == null) {
+                    return List.of();
+                }
+                return inputValues.stream().map(input -> {
+                    final TermQueryBuilder query = new TermQueryBuilder(queryTargetField, input.toString());
+                    return new LookupField(index, query, fetchFields, maxMatchSize);
+                }).toList();
+            }
 
-    public String getIdField() {
-        return idField;
-    }
-
-    public List<String> getLookupFields() {
-        return lookupFields;
+            @Override
+            public List<String> inputFields() {
+                return List.of(queryInputField);
+            }
+        };
     }
 }

@@ -157,7 +157,7 @@ The `runtime` section can be any of these data types:
 * `ip`
 * `keyword`
 * `long`
-* `lookup`
+* <<lookup-runtime-fields, `lookup`>>
 // end::runtime-data-types[]
 
 Runtime fields with a `type` of `date` can accept the
@@ -807,6 +807,117 @@ address.
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 // TESTRESPONSE[s/"_id" : "oWs5KXYB-XyJbifr9mrz"/"_id": $body.hits.hits.0._id/]
 // TESTRESPONSE[s/"day_of_week" : \[\n\s+"Sunday"\n\s\]/"day_of_week": $body.hits.hits.0.fields.day_of_week/]
+
+
+[[lookup-runtime-fields]]
+==== Retrieve fields from related indices
+
+The <<search-fields,`fields`>> parameter on the `_search` API can also be used to retrieve fields from
+the related indices via runtime fields with a type of `lookup`.
+
+[source,console]
+----
+POST ip_location/_doc?refresh
+{
+  "ip": "192.168.1.1",
+  "country": "Canada",
+  "city": "Montreal"
+}
+
+PUT logs/_doc/1?refresh
+{
+  "host": "192.168.1.1",
+  "message": "the first message"
+}
+
+PUT logs/_doc/2?refresh
+{
+  "host": "192.168.1.2",
+  "message": "the second message"
+}
+
+POST logs/_search
+{
+  "runtime_mappings": {
+    "location": {
+        "type": "lookup", <1>
+        "index": "ip_location", <2>
+        "query_type": "term", <3>
+        "query_input_field": "host", <4>
+        "query_target_field": "ip", <5>
+        "fetch_fields": ["country", "city"], <6>
+        "max_match_size": 1 <7>
+    }
+  },
+  "fields": [
+    "host",
+    "message",
+    "location"
+  ],
+  "_source": false
+}
+----
+<1> Define a runtime field in a search request with a type of `lookup` that retrieves fields from the lookup index using the <<search-multi-search,Multi search API>>
+<2> The lookup index where the lookup query executes against
+<3> The type of the lookup query. Only the search type of <<query-dsl-term-query, `term`>> is currently supported
+<4> A field on the searching index whose values are used as the input values of the lookup query
+<5> A field on the lookup index which the lookup query searches against
+<6> A list of fields to retrieve from the lookup index. See the <<search-fields, `fields`>> parameter of a search request.
+<7> An optional parameter to control the maximum number of matching documents from the lookup query. This value must be between 1 and 100.
+
+The above search returns the country and city from the `ip_location` index
+for each ip address of the returned search hits.
+
+[source,console-result]
+----
+{
+  "took": 3,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 2,
+      "relation": "eq"
+    },
+    "max_score": 1.0,
+    "hits": [
+      {
+        "_index": "logs",
+        "_id": "1",
+        "_score": 1.0,
+        "fields": {
+          "host": [ "192.168.1.1" ],
+          "location": [
+            {
+              "city": [ "Montreal" ],
+              "country": [ "Canada" ]
+            }
+          ],
+          "message": [ "the first message" ]
+        }
+      },
+      {
+        "_index": "logs",
+        "_id": "2",
+        "_score": 1.0,
+        "fields": {
+          "host": [ "192.168.1.2" ],
+          "message": [ "the second message" ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 3/"took": $body.took/]
+
+The response of lookup fields are grouped to maintain the independence
+of each document from the lookup index.
 
 [[runtime-indexed]]
 === Index a runtime field

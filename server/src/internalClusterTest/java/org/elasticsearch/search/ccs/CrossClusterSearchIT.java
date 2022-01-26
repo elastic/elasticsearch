@@ -43,6 +43,8 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -60,6 +62,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
@@ -310,16 +313,33 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             .get();
 
         // Search on the remote cluster only
+        final String runtimeMappingSource = """
+            {
+                "from": {
+                    "type": "lookup",
+                    "index": "users",
+                    "query_type": "term",
+                    "query_input_field": "from_user",
+                    "query_target_field": "_id",
+                    "fetch_fields": ["name"]
+                },
+                "to": {
+                    "type": "lookup",
+                    "index": "users",
+                    "query_type": "term",
+                    "query_input_field": "to_user",
+                    "query_target_field": "_id",
+                    "fetch_fields": ["name"]
+                }
+            }
+            """;
+        final Map<String, Object> runtimeMappings;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, runtimeMappingSource)) {
+            runtimeMappings = parser.map();
+        }
         {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(new TermQueryBuilder("to_user", "c"))
-                .runtimeMappings(
-                    Map.of(
-                        "from",
-                        Map.of("type", "lookup", "lookup_index", "users", "id_field", "from_user"),
-                        "to",
-                        Map.of("type", "lookup", "lookup_index", "users", "id_field", "to_user")
-                    )
-                )
+                .runtimeMappings(runtimeMappings)
                 .sort(new FieldSortBuilder("duration"))
                 .fetchField("from")
                 .fetchField("to");
@@ -328,46 +348,17 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             SearchResponse searchResponse = client().search(request).actionGet();
             ElasticsearchAssertions.assertHitCount(searchResponse, 2);
             SearchHit hit0 = searchResponse.getHits().getHits()[0];
-            assertThat(
-                hit0.field("from").getValues(),
-                contains(
-                    Map.of(
-                        "_id",
-                        List.of("unknown_caller"),
-                        "_failure",
-                        List.of(
-                            Map.of(
-                                "type",
-                                "resource_not_found_exception",
-                                "status",
-                                "NOT_FOUND",
-                                "reason",
-                                "id [unknown_caller] on index [users] doesn't exist"
-                            )
-                        )
-                    )
-                )
-            );
-            assertThat(hit0.field("to").getValues(), contains(Map.of("_id", List.of("c"), "name", List.of("Local C"))));
+            assertThat(hit0.field("from"), nullValue());
+            assertThat(hit0.field("to").getValues(), contains(Map.of("name", List.of("Local C"))));
 
             SearchHit hit1 = searchResponse.getHits().getHits()[1];
-            assertThat(
-                hit1.field("from").getValues(),
-                contains(Map.of("_id", List.of("a"), "name", List.of("Local A")), Map.of("_id", List.of("b"), "name", List.of("Local B")))
-            );
-            assertThat(hit1.field("to").getValues(), contains(Map.of("_id", List.of("c"), "name", List.of("Local C"))));
+            assertThat(hit1.field("from").getValues(), contains(Map.of("name", List.of("Local A")), Map.of("name", List.of("Local B"))));
+            assertThat(hit1.field("to").getValues(), contains(Map.of("name", List.of("Local C"))));
         }
         // Search on both clusters
         {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(new TermQueryBuilder("to_user", "c"))
-                .runtimeMappings(
-                    Map.of(
-                        "from",
-                        Map.of("type", "lookup", "lookup_index", "users", "id_field", "from_user"),
-                        "to",
-                        Map.of("type", "lookup", "lookup_index", "users", "id_field", "to_user")
-                    )
-                )
+                .runtimeMappings(runtimeMappings)
                 .sort(new FieldSortBuilder("duration"))
                 .fetchField("from")
                 .fetchField("to");
@@ -376,41 +367,16 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             SearchResponse searchResponse = client().search(request).actionGet();
             ElasticsearchAssertions.assertHitCount(searchResponse, 3);
             SearchHit hit0 = searchResponse.getHits().getHits()[0];
-            assertThat(
-                hit0.field("from").getValues(),
-                contains(
-                    Map.of(
-                        "_id",
-                        List.of("unknown_caller"),
-                        "_failure",
-                        List.of(
-                            Map.of(
-                                "type",
-                                "resource_not_found_exception",
-                                "status",
-                                "NOT_FOUND",
-                                "reason",
-                                "id [unknown_caller] on index [users] doesn't exist"
-                            )
-                        )
-                    )
-                )
-            );
-            assertThat(hit0.field("to").getValues(), contains(Map.of("_id", List.of("c"), "name", List.of("Local C"))));
+            assertThat(hit0.field("from"), nullValue());
+            assertThat(hit0.field("to").getValues(), contains(Map.of("name", List.of("Local C"))));
 
             SearchHit hit1 = searchResponse.getHits().getHits()[1];
-            assertThat(
-                hit1.field("from").getValues(),
-                contains(Map.of("_id", List.of("a"), "name", List.of("Local A")), Map.of("_id", List.of("b"), "name", List.of("Local B")))
-            );
-            assertThat(hit1.field("to").getValues(), contains(Map.of("_id", List.of("c"), "name", List.of("Local C"))));
+            assertThat(hit1.field("from").getValues(), contains(Map.of("name", List.of("Local A")), Map.of("name", List.of("Local B"))));
+            assertThat(hit1.field("to").getValues(), contains(Map.of("name", List.of("Local C"))));
 
             SearchHit hit2 = searchResponse.getHits().getHits()[2];
-            assertThat(hit2.field("from").getValues(), contains(Map.of("_id", List.of("a"), "name", List.of("Local A"))));
-            assertThat(
-                hit2.field("to").getValues(),
-                contains(Map.of("_id", List.of("b"), "name", List.of("Local B")), Map.of("_id", List.of("c"), "name", List.of("Local C")))
-            );
+            assertThat(hit2.field("from").getValues(), contains(Map.of("name", List.of("Local A"))));
+            assertThat(hit2.field("to").getValues(), contains(Map.of("name", List.of("Local B")), Map.of("name", List.of("Local C"))));
         }
     }
 

@@ -8,12 +8,13 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.get.MultiGetShardRequest;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -21,18 +22,16 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class LookupRuntimeFieldIT extends ESIntegTestCase {
 
@@ -46,12 +45,13 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("authors")
+            .setMapping("author", "type=keyword", "joined", "type=date,format=yyyy-MM-dd")
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
         client().prepareBulk("authors")
-            .add(new IndexRequest().id("john").source("first_name", "John", "last_name", "New York"))
-            .add(new IndexRequest().id("mike").source("first_name", "Mike", "last_name", "Boston"))
-            .add(new IndexRequest().id("jack").source("first_name", "Jack", "last_name", "Austin"))
+            .add(new IndexRequest().source("author", "john", "first_name", "John", "last_name", "New York", "joined", "2020-03-01"))
+            .add(new IndexRequest().source("author", "mike", "first_name", "Mike", "last_name", "Boston", "joined", "2010-06-20"))
+            .add(new IndexRequest().source("author", "jack", "first_name", "Jack", "last_name", "Austin", "joined", "1999-11-03"))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         client().admin()
@@ -68,33 +68,28 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
             .indices()
             .prepareCreate("books")
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
-            .setMapping(
-                Map.of(
-                    "properties",
-                    Map.of(
-                        "title",
-                        Map.of("type", "text"),
-                        "author_id",
-                        Map.of("type", "keyword"),
-                        "published_date",
-                        Map.of("type", "date", "format", "yyyy-MM-dd")
-                    ),
-                    "runtime",
-                    Map.of(
-                        "author",
-                        Map.of(
-                            "type",
-                            "lookup",
-                            "lookup_index",
-                            "authors",
-                            "id_field",
-                            "author_id",
-                            "lookup_fields",
-                            List.of("first_name", "last_name")
-                        )
-                    )
-                )
-            )
+            .setMapping("""
+                {
+                    "properties": {
+                        "title": {"type": "text"},
+                        "author_id": {"type": "keyword"},
+                        "published_date": {
+                            "type": "date",
+                            "format": "yyyy-MM-dd"
+                        }
+                    },
+                    "runtime": {
+                        "author": {
+                            "type": "lookup",
+                            "index": "authors",
+                            "query_type": "term",
+                            "query_input_field": "author_id",
+                            "query_target_field": "author",
+                            "fetch_fields": ["first_name", "last_name"]
+                        }
+                    }
+                }
+                """)
             .get();
         client().prepareBulk("books")
             .add(
@@ -153,7 +148,7 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
         assertThat(hit0.field("title").getValues(), equalTo(List.of("the fifth book")));
         assertThat(
             hit0.field("author").getValues(),
-            equalTo(List.of(Map.of("_id", List.of("mike"), "first_name", List.of("Mike"), "last_name", List.of("Boston"))))
+            equalTo(List.of(Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston"))))
         );
 
         SearchHit hit1 = searchResponse.getHits().getHits()[1];
@@ -162,8 +157,8 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
             hit1.field("author").getValues(),
             equalTo(
                 List.of(
-                    Map.of("_id", List.of("mike"), "first_name", List.of("Mike"), "last_name", List.of("Boston")),
-                    Map.of("_id", List.of("jack"), "first_name", List.of("Jack"), "last_name", List.of("Austin"))
+                    Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston")),
+                    Map.of("first_name", List.of("Jack"), "last_name", List.of("Austin"))
                 )
             )
         );
@@ -172,32 +167,24 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
         assertThat(hit2.field("title").getValues(), equalTo(List.of("the third book")));
         assertThat(
             hit2.field("author").getValues(),
-            equalTo(
-                List.of(
-                    Map.of(
-                        "_id",
-                        List.of("mark"),
-                        "_failure",
-                        List.of(
-                            Map.of(
-                                "reason",
-                                "id [mark] on index [authors] doesn't exist",
-                                "type",
-                                "resource_not_found_exception",
-                                "status",
-                                "NOT_FOUND"
-                            )
-                        )
-                    ),
-                    Map.of("_id", List.of("mike"), "first_name", List.of("Mike"), "last_name", List.of("Boston"))
-                )
-            )
+            equalTo(List.of(Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston"))))
         );
     }
 
-    public void testLookupMultipleIndices() {
+    public void testLookupMultipleIndices() throws IOException {
         SearchResponse searchResponse = client().prepareSearch("books")
-            .setRuntimeMappings(Map.of("publisher", Map.of("type", "lookup", "lookup_index", "publishers", "id_field", "publisher_id")))
+            .setRuntimeMappings(parseMapping("""
+                {
+                    "publisher": {
+                        "type": "lookup",
+                        "index": "publishers",
+                        "query_type": "term",
+                        "query_input_field": "publisher_id",
+                        "query_target_field": "_id",
+                        "fetch_fields": ["name", "city"]
+                    }
+                }
+                """))
             .setFetchSource(false)
             .addFetchField("title")
             .addFetchField("author")
@@ -209,11 +196,11 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
         assertThat(hit0.field("title").getValues(), equalTo(List.of("the fifth book")));
         assertThat(
             hit0.field("author").getValues(),
-            equalTo(List.of(Map.of("_id", List.of("mike"), "first_name", List.of("Mike"), "last_name", List.of("Boston"))))
+            equalTo(List.of(Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston"))))
         );
         assertThat(
             hit0.field("publisher").getValues(),
-            equalTo(List.of(Map.of("_id", List.of("p2"), "name", List.of("The second publisher"), "city", List.of("Toronto"))))
+            equalTo(List.of(Map.of("name", List.of("The second publisher"), "city", List.of("Toronto"))))
         );
 
         SearchHit hit1 = searchResponse.getHits().getHits()[1];
@@ -222,163 +209,79 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
             hit1.field("author").getValues(),
             equalTo(
                 List.of(
-                    Map.of("_id", List.of("mike"), "first_name", List.of("Mike"), "last_name", List.of("Boston")),
-                    Map.of("_id", List.of("jack"), "first_name", List.of("Jack"), "last_name", List.of("Austin"))
+                    Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston")),
+                    Map.of("first_name", List.of("Jack"), "last_name", List.of("Austin"))
                 )
             )
         );
         assertThat(
             hit1.field("publisher").getValues(),
-            equalTo(List.of(Map.of("_id", List.of("p1"), "name", List.of("The first publisher"), "city", List.of("Montreal", "Vancouver"))))
+            equalTo(List.of(Map.of("name", List.of("The first publisher"), "city", List.of("Montreal", "Vancouver"))))
         );
     }
 
-    public void testSourceFiltering() {
-        SearchResponse searchResponse = client().prepareSearch("books")
-            .setFetchSource(false)
-            .setRuntimeMappings(
-                Map.of(
-                    "full_author",
-                    Map.of("type", "lookup", "lookup_index", "authors", "id_field", "author_id", "lookup_fields", List.of("*")),
-                    "compact_author",
-                    Map.of("type", "lookup", "lookup_index", "authors", "id_field", "author_id", "lookup_fields", List.of("first*"))
-                )
-            )
-            .addFetchField("title")
-            .addFetchField("author")
-            .addFetchField("full_author")
-            .addFetchField("compact_author")
-            .addSort("published_date", SortOrder.DESC)
-            .setSize(1)
-            .get();
+    public void testFetchField() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("books").setRuntimeMappings(parseMapping("""
+            {
+                "author": {
+                    "type": "lookup",
+                    "index": "authors",
+                    "query_type": "term",
+                    "query_input_field": "author_id",
+                    "query_target_field": "author",
+                    "fetch_fields": ["first_name", {"field": "joined", "format": "MM/yyyy"}]
+                }
+            }
+            """)).addFetchField("author").addFetchField("title").addSort("published_date", SortOrder.ASC).setSize(1).get();
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
         SearchHit hit0 = searchResponse.getHits().getHits()[0];
-        assertThat(hit0.field("title").getValues(), equalTo(List.of("the fifth book")));
-        assertThat(
-            hit0.field("author").getValues(),
-            equalTo(List.of(Map.of("_id", List.of("mike"), "first_name", List.of("Mike"), "last_name", List.of("Boston"))))
-        );
-        assertThat(
-            hit0.field("full_author").getValues(),
-            equalTo(List.of(Map.of("_id", List.of("mike"), "first_name", List.of("Mike"), "last_name", List.of("Boston"))))
-        );
-        assertThat(
-            hit0.field("compact_author").getValues(),
-            equalTo(List.of(Map.of("_id", List.of("mike"), "first_name", List.of("Mike"))))
-        );
+        // "author", "john", "first_name", "John", "last_name", "New York", "joined", "2020-03-01"
+        assertThat(hit0.field("title").getValues(), equalTo(List.of("the first book")));
+        assertThat(hit0.field("author").getValues(), equalTo(List.of(Map.of("first_name", List.of("John"), "joined", List.of("03/2020")))));
     }
 
-    public void testIndexNotExist() {
-        SearchResponse searchResponse = client().prepareSearch("books")
-            .setRuntimeMappings(Map.of("another_author", Map.of("type", "lookup", "lookup_index", "book_author", "id_field", "author_id")))
-            .setFetchSource(false)
-            .setQuery(new TermQueryBuilder("title", "second"))
-            .addFetchField("title")
-            .addFetchField("another_author")
-            .get();
-        ElasticsearchAssertions.assertHitCount(searchResponse, 1);
-        SearchHit hit0 = searchResponse.getHits().getHits()[0];
-        assertThat(hit0.field("title").getValues(), equalTo(List.of("the second book")));
-        assertThat(
-            hit0.field("another_author").getValues(),
-            equalTo(
-                List.of(
-                    Map.of(
-                        "_id",
-                        List.of("mike"),
-                        "_failure",
-                        List.of(Map.of("type", "index_not_found_exception", "reason", "no such index [book_author]", "status", "NOT_FOUND"))
-                    )
-                )
-            )
-        );
-    }
-
-    public void testMatchKeyDoesNotExist() {
-        SearchResponse searchResponse = client().prepareSearch("books")
-            .setFetchSource(false)
-            .setQuery(new TermQueryBuilder("title", "third"))
-            .addFetchField("title")
-            .addFetchField("author")
-            .get();
-        ElasticsearchAssertions.assertHitCount(searchResponse, 1);
-        SearchHit hit0 = searchResponse.getHits().getHits()[0];
-        assertThat(hit0.field("title").getValues(), equalTo(List.of("the third book")));
-        assertThat(
-            hit0.field("author").getValues(),
-            equalTo(
-                List.of(
-                    Map.of(
-                        "_id",
-                        List.of("mark"),
-                        "_failure",
-                        List.of(
-                            Map.of(
-                                "type",
-                                "resource_not_found_exception",
-                                "reason",
-                                "id [mark] on index [authors] doesn't exist",
-                                "status",
-                                "NOT_FOUND"
-                            )
-                        )
-                    ),
-                    Map.of("_id", List.of("mike"), "first_name", List.of("Mike"), "last_name", List.of("Boston"))
-                )
-            )
-        );
-    }
-
-    public void testLookupLocallyOnDataNodes() throws Exception {
-        ElasticsearchAssertions.assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("authors")
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"))
+    public void testIndexNotExist() throws IOException {
+        IndexNotFoundException failure = expectThrows(
+            IndexNotFoundException.class,
+            () -> client().prepareSearch("books")
+                .setRuntimeMappings(parseMapping("""
+                    {
+                        "another_author": {
+                            "type": "lookup",
+                            "index": "book_author",
+                            "query_type": "term",
+                            "query_input_field": "author_id",
+                            "query_target_field": "another_field",
+                            "fetch_fields": ["name*"]
+                        }
+                    }
+                    """))
+                .setFetchSource(false)
+                .setQuery(new TermQueryBuilder("title", "second"))
+                .addFetchField("title")
+                .addFetchField("another_author")
                 .get()
         );
-        ensureGreen("authors");
-        final AtomicInteger lookupRequests = new AtomicInteger();
-        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-            MockTransportService mockTransportService = (MockTransportService) transportService;
-            mockTransportService.addRequestHandlingBehavior("indices:data/read/mget[shard][s]", (handler, request, channel, task) -> {
-                assertThat(request, instanceOf(MultiGetShardRequest.class));
-                assertThat(((MultiGetShardRequest) request).preference(), equalTo("_only_local"));
-                assertThat(channel.getChannelType(), equalTo("direct"));
-                lookupRequests.incrementAndGet();
-                handler.messageReceived(request, channel, task);
-            });
-        }
-        SearchResponse searchResponse = client().prepareSearch("books")
-            .setSearchType(randomFrom(SearchType.values()))
-            .setFetchSource(false)
-            .addFetchField("title")
-            .addFetchField("author")
-            .addSort("published_date", SortOrder.DESC)
-            .setSize(2)
-            .get();
-        assertThat(searchResponse.getHits().getHits(), arrayWithSize(2));
-        SearchHit hit0 = searchResponse.getHits().getHits()[0];
-        assertThat(hit0.field("title").getValues(), equalTo(List.of("the fifth book")));
-        assertThat(
-            hit0.field("author").getValues(),
-            equalTo(List.of(Map.of("_id", List.of("mike"), "first_name", List.of("Mike"), "last_name", List.of("Boston"))))
-        );
+        assertThat(failure.getMessage(), equalTo("no such index [book_author]"));
+    }
 
-        SearchHit hit1 = searchResponse.getHits().getHits()[1];
-        assertThat(hit1.field("title").getValues(), equalTo(List.of("the forth book")));
-        assertThat(
-            hit1.field("author").getValues(),
-            equalTo(
-                List.of(
-                    Map.of("_id", List.of("mike"), "first_name", List.of("Mike"), "last_name", List.of("Boston")),
-                    Map.of("_id", List.of("jack"), "first_name", List.of("Jack"), "last_name", List.of("Austin"))
-                )
-            )
+    public void testExpensiveQueries() throws Exception {
+        // Coordinating node doesn't allow expensive queries
+        final String newNode = internalCluster().startNode(Settings.builder().put("search.allow_expensive_queries", false));
+        final ElasticsearchException error = expectThrows(
+            ElasticsearchException.class,
+            () -> client(newNode).prepareSearch("books").addFetchField("title").addFetchField("author").get()
         );
-        assertThat(lookupRequests.get(), greaterThan(0));
-        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-            MockTransportService mockTransportService = (MockTransportService) transportService;
-            mockTransportService.clearAllRules();
+        assertThat(
+            error.getMessage(),
+            equalTo("cannot be executed against lookup field while [search.allow_expensive_queries] is set to [false].")
+        );
+        internalCluster().stopNode(newNode);
+    }
+
+    private Map<String, Object> parseMapping(String mapping) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, mapping)) {
+            return parser.map();
         }
     }
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -43,6 +44,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xcontent.ObjectPath.eval;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
@@ -1043,6 +1045,107 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             fieldAndFormatList.add(new FieldAndFormat(randomAlphaOfLength(150) + "*", null, true));
         }
         expectThrows(TooComplexToDeterminizeException.class, () -> fetchFields(mapperService, source, fieldAndFormatList));
+    }
+
+    public void testCollectLookupFields() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "properties" : {
+                  "foo" : {
+                    "type" : "keyword"
+                  },
+                  "bar": {
+                    "type": "keyword"
+                  }
+                },
+                "runtime": {
+                    "foo_lookup_field": {
+                        "type": "lookup",
+                        "index": "my_index",
+                        "query_type": "term",
+                        "query_input_field": "foo",
+                        "query_target_field": "term_field_foo",
+                        "fetch_fields": ["remote_field_*"]
+                    },
+                    "bar_lookup_field": {
+                        "type": "lookup",
+                        "index": "my_index",
+                        "query_type": "term",
+                        "query_input_field": "bar",
+                        "query_target_field": "term_field_bar",
+                        "fetch_fields": ["*"]
+                    }
+                }
+              }
+            }
+            """;
+        MapperService mapperService = createMapperService(mapping);
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("foo", List.of("f1", "f2")).endObject();
+
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "fo*");
+        assertThat(
+            fields,
+            equalTo(
+                Map.of(
+                    "foo",
+                    new DocumentField("foo", List.of("f1", "f2")),
+                    "foo_lookup_field",
+                    new DocumentField(
+                        "foo_lookup_field",
+                        List.of(),
+                        List.of(),
+                        List.of(
+                            new LookupField(
+                                "my_index",
+                                new TermQueryBuilder("term_field_foo", "f1"),
+                                List.of(new FieldAndFormat("remote_field_*", null)),
+                                1
+                            ),
+                            new LookupField(
+                                "my_index",
+                                new TermQueryBuilder("term_field_foo", "f2"),
+                                List.of(new FieldAndFormat("remote_field_*", null)),
+                                1
+                            )
+                        )
+                    )
+                )
+            )
+        );
+
+        fields = fetchFields(mapperService, source, "foo_lookup_field");
+        assertThat(
+            fields,
+            equalTo(
+                Map.of(
+                    "foo_lookup_field",
+                    new DocumentField(
+                        "foo_lookup_field",
+                        List.of(),
+                        List.of(),
+                        List.of(
+                            new LookupField(
+                                "my_index",
+                                new TermQueryBuilder("term_field_foo", "f1"),
+                                List.of(new FieldAndFormat("remote_field_*", null)),
+                                1
+                            ),
+                            new LookupField(
+                                "my_index",
+                                new TermQueryBuilder("term_field_foo", "f2"),
+                                List.of(new FieldAndFormat("remote_field_*", null)),
+                                1
+                            )
+                        )
+                    )
+                )
+            )
+        );
+
+        fields = fetchFields(mapperService, source, "bar*");
+        assertThat(fields, anEmptyMap());
     }
 
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {

@@ -14,11 +14,11 @@ setup:
   - do:
       index:
         index: logs
-        body: { ip: '192.168.1.1', msg: 'The first message', ord: 1}
+        body: { ip: '192.168.1.1', msg: 'The first message', ord: 1 }
   - do:
       index:
         index: logs
-        body: { ip: '192.168.1.2', msg: 'The second message', ord: 2}
+        body: { ip: '192.168.1.2', msg: 'The second message', ord: 2 }
 
   - do:
       indices.refresh:
@@ -36,23 +36,40 @@ setup:
           runtime_mappings:
             location:
               type: lookup
-              lookup_index: ip_locations
-              id_field: ip
+              index: ip_locations
+              query_type: term
+              query_input_field: ip
+              query_target_field: _id
+              fetch_fields: [ "city", "country" ]
           sort: ord
           fields:
             - msg
             - location
 
-  - match: { hits.hits.0.fields.msg: ['The first message']}
-  - match: { hits.hits.0.fields.location: [{ "_id": ['192.168.1.1'], country: ['Canada'], city: ['Montreal']}]}
-  - match: { hits.hits.1.fields.msg: ['The second message']}
-  - match: { hits.hits.1.fields.location: [
-              { "_id": ['192.168.1.2'],
-                "_failure": [
-                      { "type": "resource_not_found_exception",
-                        "status": "NOT_FOUND",
-                        "reason": "id [192.168.1.2] on index [ip_locations] doesn't exist"
-                      }
-                ]
-              }]
-           }
+  - match: { hits.hits.0.fields.msg: [ 'The first message' ] }
+  - match: { hits.hits.0.fields.location: [ { country: [ 'Canada' ], city: [ 'Montreal' ] } ] }
+  - match: { hits.hits.1.fields.msg: [ 'The second message' ] }
+  - match: { hits.hits.1.fields.location: null }
+
+---
+"Lookup index doesn't exist":
+  - skip:
+      version: " - 8.0.99"
+      reason: "Lookup fields are introduced in 8.1"
+  - do:
+      catch: /no such index/
+      search:
+        index: logs
+        body:
+          runtime_mappings:
+            location:
+              type: lookup
+              index: another_ip_locations
+              query_type: term
+              query_input_field: ip
+              query_target_field: _id
+              fetch_fields: [ "*" ]
+          sort: ord
+          fields:
+            - msg
+            - location

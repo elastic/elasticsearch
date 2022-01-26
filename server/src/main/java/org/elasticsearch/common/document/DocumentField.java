@@ -38,9 +38,9 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsV
 public class DocumentField implements Writeable, Iterable<Object> {
 
     private final String name;
-    private List<Object> values;
+    private final List<Object> values;
     private final List<Object> ignoredValues;
-    private List<LookupField> lookupFields;
+    private final List<LookupField> lookupFields;
 
     public DocumentField(StreamInput in) throws IOException {
         name = in.readString();
@@ -119,28 +119,8 @@ public class DocumentField implements Writeable, Iterable<Object> {
         if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
             out.writeCollection(lookupFields);
         } else {
-            if (lookupFields.isEmpty() == false) {
-                throw new IllegalStateException("lookup fields require all nodes on 8.1.0 or later");
-            }
-        }
-    }
-
-    /**
-     * Merges resolved lookup fields to regular fields
-     */
-    public void mergeLookupFieldsToFields() {
-        if (lookupFields.stream().anyMatch(LookupField::isResolved)) {
-            final List<Object> newValues = new ArrayList<>(this.values);
-            final List<LookupField> newLookupFields = new ArrayList<>();
-            for (LookupField lookupField : this.lookupFields) {
-                if (lookupField.isResolved()) {
-                    newValues.add(lookupField.asDocumentFieldValue());
-                } else {
-                    newLookupFields.add(lookupField);
-                }
-            }
-            this.lookupFields = newLookupFields;
-            this.values = newValues;
+            // We deliberately not to fail CCS search requests when the remote clusters are on the new version,
+            // and have lookup fields, but the local cluster is still on an old version.
         }
     }
 
@@ -215,7 +195,17 @@ public class DocumentField implements Writeable, Iterable<Object> {
 
     @Override
     public String toString() {
-        return "DocumentField{" + "name='" + name + '\'' + ", values=" + values + ", ignoredValues=" + ignoredValues + '}';
+        return "DocumentField{"
+            + "name='"
+            + name
+            + '\''
+            + ", values="
+            + values
+            + ", ignoredValues="
+            + ignoredValues
+            + ", lookupFields="
+            + lookupFields
+            + '}';
     }
 
 }

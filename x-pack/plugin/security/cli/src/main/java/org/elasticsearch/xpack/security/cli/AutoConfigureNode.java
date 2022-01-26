@@ -782,7 +782,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         || localFinalEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.getKey())
                         || localFinalEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey()))) {
                         bw.newLine();
-                        bw.write("# Allow HTTP API connections from localhost and local networks");
+                        bw.write("# Allow HTTP API connections from anywhere");
                         bw.newLine();
                         bw.write("# Connections are encrypted and require user authentication");
                         bw.newLine();
@@ -798,7 +798,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         || localFinalEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.getKey())
                         || localFinalEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey()))) {
                         bw.newLine();
-                        bw.write("# Allow other nodes to join the cluster from localhost and local networks");
+                        bw.write("# Allow other nodes to join the cluster from anywhere");
                         bw.newLine();
                         bw.write("# Connections are encrypted and mutually authenticated");
                         bw.newLine();
@@ -882,9 +882,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
     protected String hostSettingValue(InetAddress[] allAddresses) {
         if (Arrays.stream(allAddresses).anyMatch(InetAddress::isSiteLocalAddress)) {
-            return "[_local_, _site_]";
+            return "0.0.0.0";
         } else {
-            return "[_local_]";
+            return "_local_";
         }
     }
 

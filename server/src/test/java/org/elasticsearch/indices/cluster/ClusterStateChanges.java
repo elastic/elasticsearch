@@ -38,6 +38,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskResult;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -440,7 +441,7 @@ public class ClusterStateChanges {
     private <T> ClusterState runTasks(ClusterStateTaskExecutor<T> executor, ClusterState clusterState, List<T> entries) {
         try {
             ClusterTasksResult<T> result = executor.execute(clusterState, entries);
-            for (ClusterStateTaskExecutor.TaskResult taskResult : result.executionResults().values()) {
+            for (TaskResult taskResult : result.executionResults().values()) {
                 if (taskResult.isSuccess() == false) {
                     throw taskResult.getFailure();
                 }
@@ -465,16 +466,25 @@ public class ClusterStateChanges {
         });
     }
 
+    @SuppressWarnings("unchecked")
     private ClusterState executeClusterStateUpdateTask(ClusterState state, Runnable runnable) {
-        ClusterState[] result = new ClusterState[1];
+        ClusterState[] resultingState = new ClusterState[1];
         doAnswer(invocationOnMock -> {
             ClusterStateUpdateTask task = (ClusterStateUpdateTask) invocationOnMock.getArguments()[1];
-            result[0] = task.execute(state);
+            ClusterStateTaskExecutor<ClusterStateUpdateTask> executor = (ClusterStateTaskExecutor<ClusterStateUpdateTask>) invocationOnMock
+                .getArguments()[2];
+            ClusterTasksResult<ClusterStateUpdateTask> result = executor.execute(state, List.of(task));
+            for (TaskResult taskResult : result.executionResults().values()) {
+                if (taskResult.isSuccess() == false) {
+                    throw taskResult.getFailure();
+                }
+            }
+            resultingState[0] = result.resultingState();
             return null;
         }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
         runnable.run();
-        assertThat(result[0], notNullValue());
-        return result[0];
+        assertThat(resultingState[0], notNullValue());
+        return resultingState[0];
     }
 
     private ActionListener<TransportResponse.Empty> createTestListener() {

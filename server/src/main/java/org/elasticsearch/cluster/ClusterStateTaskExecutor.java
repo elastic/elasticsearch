@@ -106,10 +106,6 @@ public interface ClusterStateTaskExecutor<T> {
             public ClusterTasksResult<T> build(ClusterState resultingState) {
                 return new ClusterTasksResult<>(resultingState, executionResults);
             }
-
-            ClusterTasksResult<T> build(ClusterTasksResult<T> result, ClusterState previousState) {
-                return new ClusterTasksResult<>(result.resultingState == null ? previousState : result.resultingState, executionResults);
-            }
         }
     }
 

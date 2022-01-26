@@ -104,6 +104,16 @@ public abstract class MappedFieldType {
      */
     public abstract ValueFetcher valueFetcher(SearchExecutionContext context, @Nullable String format);
 
+    /**
+     * Create a helper class to collect lookup fields during the {@link FetchFieldsPhase}.
+     * A lookup field is an **unresolved** fetch field whose value will be resolved later.
+     *
+     * @see LookupRuntimeFieldType#lookupFieldCollector(SearchExecutionContext)
+     */
+    public LookupFieldCollector lookupFieldCollector(SearchExecutionContext context) {
+        return null;
+    }
+
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
 

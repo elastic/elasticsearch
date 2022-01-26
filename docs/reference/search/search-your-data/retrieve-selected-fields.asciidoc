@@ -32,6 +32,7 @@ parameter:
 * Formats dates and spatial data types
 * Retrieves <<runtime-retrieving-fields,runtime field values>>
 * Returns fields calculated by a script at index time
+* Returns fields from related indices using <<lookup-runtime-fields, lookup runtime fields>>
 // end::fields-param-desc[]
 
 Other mapping options are also respected, including
@@ -287,123 +288,6 @@ structure of the nested `user` array:
 
 However, when the `fields` pattern targets the nested `user` field directly, no
 values will be returned because the pattern doesn't match any leaf fields.
-
-[discrete]
-[[lookup-runtime-fields]]
-==== Retrieve fields from related indices
-
-The `fields` parameter can also be used to retrieve fields from related indices
-via <<runtime, runtime fields>> defined in the index mapping or the search request.
-
-[source,console]
-----
-POST ip_location/_doc/192.168.1.1
-{
-  "country": "Canada",
-  "city": "Montreal"
-}
-
-PUT logs/_doc/1?refresh
-{
-  "ip": "192.168.1.1",
-  "message": "the first message"
-}
-
-PUT logs/_doc/2?refresh
-{
-  "ip": "192.168.1.2",
-  "message": "the second message"
-}
-
-POST logs/_search
-{
-  "runtime_mappings": {
-    "location": {
-        "type": "lookup", <1>
-        "lookup_index": "ip_location", <2>
-        "id_field": "ip", <3>
-        "lookup_fields": ["country", "cit*"] <4>
-    }
-  },
-  "fields": [
-    "ip",
-    "message",
-    "location"
-  ],
-  "_source": false
-}
-----
-<1> A runtime with a type of `lookup` that retrieves fields from the lookup index using the <<docs-get,GET API>>
-<2> An index where the lookup fields are retrieved from
-<3> A field on the searching index whose values are the `_id` of the documents on the lookup index
-<4> An optional list of fields to retrieve from the lookup index
-
-The above search returns the country and city from the `ip_location` index
-for each ip address of the returned search hits.
-
-[source,console-result]
-----
-{
-  "took": 3,
-  "timed_out": false,
-  "_shards": {
-    "total": 1,
-    "successful": 1,
-    "skipped": 0,
-    "failed": 0
-  },
-  "hits": {
-    "total": {
-      "value": 2,
-      "relation": "eq"
-    },
-    "max_score": 1.0,
-    "hits": [
-      {
-        "_index": "logs",
-        "_id": "1",
-        "_score": 1.0,
-        "fields": {
-          "ip": [ "192.168.1.1" ],
-          "location": [
-            {
-              "_id": ["192.168.1.1"],
-              "city": [ "Montreal" ],
-              "country": [ "Canada" ]
-            }
-          ],
-          "message": [ "the first message" ]
-        }
-      },
-      {
-        "_index": "logs",
-        "_id": "2",
-        "_score": 1.0,
-        "fields": {
-          "ip": [ "192.168.1.2" ],
-          "location": [
-            {
-              "_id": ["192.168.1.2"],
-              "_failure": [{
-                  "type": "resource_not_found_exception",
-                  "reason": "id [192.168.1.2] on index [ip_location] doesn't exist",
-                  "status": "NOT_FOUND"
-              }]
-            }
-          ],
-          "message": [ "the second message" ]
-        }
-      }
-    ]
-  }
-}
-----
-// TESTRESPONSE[s/"took": 3/"took": $body.took/]
-
-The response of lookup fields is similar to the response of nested fields.
-Values inside `lookup` fields are grouped to maintain the independence
-of each document from the lookup index. If there is any error during
-the lookup, the error is returned under the `_failure` field.
 
 [discrete]
 [[retrieve-unmapped-fields]]

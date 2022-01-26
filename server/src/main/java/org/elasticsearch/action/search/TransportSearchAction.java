@@ -162,7 +162,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.executorSelector = executorSelector;
         this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(clusterService.getSettings());
-        this.fetchLookupFieldsPhase = new FetchLookupFieldsPhase(transportService, searchService::isAllowExpensiveQueries);
+        this.fetchLookupFieldsPhase = new FetchLookupFieldsPhase(searchTransportService, searchService::isAllowExpensiveQueries);
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -274,17 +274,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        listener = listener.delegateFailure((innerListener, resp) -> {
-            fetchLookupFieldsPhase.fetchLookupFields(
+        listener = listener.delegateFailure(
+            (innerListener, resp) -> fetchLookupFieldsPhase.fetchLookupFields(
+                (SearchTask) task,
                 searchRequest.getLocalClusterAlias(),
-                task,
                 resp.getHits(),
-                false,
-                true,
-                true,
-                ActionListener.wrap(() -> innerListener.onResponse(resp))
-            );
-        });
+                innerListener.map(nullValue -> resp)
+            )
+        );
         executeRequest((SearchTask) task, searchRequest, this::searchAsyncAction, listener);
     }
 

@@ -123,7 +123,7 @@ public class MockNode extends Node {
     protected SearchService newSearchService(
         ClusterService clusterService,
         IndicesService indicesService,
-        TransportService transportService,
+        ThreadPool threadPool,
         ScriptService scriptService,
         BigArrays bigArrays,
         FetchPhase fetchPhase,
@@ -135,7 +135,7 @@ public class MockNode extends Node {
             return super.newSearchService(
                 clusterService,
                 indicesService,
-                transportService,
+                threadPool,
                 scriptService,
                 bigArrays,
                 fetchPhase,
@@ -147,7 +147,7 @@ public class MockNode extends Node {
         return new MockSearchService(
             clusterService,
             indicesService,
-            transportService,
+            threadPool,
             scriptService,
             bigArrays,
             fetchPhase,

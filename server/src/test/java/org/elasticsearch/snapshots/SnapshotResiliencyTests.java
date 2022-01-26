@@ -1960,7 +1960,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final SearchService searchService = new SearchService(
                     clusterService,
                     indicesService,
-                    transportService,
+                    threadPool,
                     scriptService,
                     bigArrays,
                     new FetchPhase(Collections.emptyList()),

@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -479,6 +480,38 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             return fields;
         } else {
             return emptyMap();
+        }
+    }
+
+    /**
+     * Resolve the lookup fields with the given results and merge them as regular fetch fields.
+     */
+    public void resolveLookupFields(Map<LookupField, List<Object>> lookupResults) {
+        if (lookupResults.isEmpty()) {
+            return;
+        }
+        final List<String> fields = new ArrayList<>(documentFields.keySet());
+        for (String field : fields) {
+            documentFields.computeIfPresent(field, (k, docField) -> {
+                if (docField.getLookupFields().isEmpty()) {
+                    return docField;
+                }
+                final List<LookupField> newLookupFields = new ArrayList<>();
+                final List<Object> newValues = new ArrayList<>(docField.getValues());
+                for (LookupField lookupField : docField.getLookupFields()) {
+                    final List<Object> resolvedValues = lookupResults.get(lookupField);
+                    if (resolvedValues != null) {
+                        newValues.addAll(resolvedValues);
+                    } else {
+                        newLookupFields.add(lookupField);
+                    }
+                }
+                if (newValues.isEmpty() && newLookupFields.isEmpty() && docField.getIgnoredValues().isEmpty()) {
+                    return null;
+                } else {
+                    return new DocumentField(docField.getName(), newValues, docField.getIgnoredValues(), newLookupFields);
+                }
+            });
         }
     }
 

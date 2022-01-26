@@ -68,7 +68,9 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         }
         // support _uid for loading older indices
         if ("_uid".equals(fieldInfo.name)) {
-            return Status.YES;
+            if (requiredFields.remove(IdFieldMapper.NAME) || requiredFields.remove("_type")) {
+                return Status.YES;
+            }
         }
         // All these fields are single-valued so we can stop when the set is
         // empty
@@ -111,8 +113,9 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         if ("_uid".equals(fieldInfo.name)) {
             // 5.x-only
             int delimiterIndex = value.indexOf('#'); // type is not allowed to have # in it..., ids can
-            // type = value.substring(0, delimiterIndex);
+            String type = value.substring(0, delimiterIndex);
             id = value.substring(delimiterIndex + 1);
+            addValue("_type", type);
         } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
             // only applies to 5.x indices that have single_type = true
             id = value;

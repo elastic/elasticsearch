@@ -43,7 +43,7 @@ public class RolloverRequestTests extends ESTestCase {
             maxAgeCondition,
             maxDocsCondition,
             maxSizeCondition,
-            maxPrimaryShardSizeCondition};
+            maxPrimaryShardSizeCondition };
         rolloverRequest.addMaxIndexAgeCondition(maxAgeCondition.value());
         rolloverRequest.addMaxIndexDocsCondition(maxDocsCondition.value());
         rolloverRequest.addMaxIndexSizeCondition(maxSizeCondition.value());

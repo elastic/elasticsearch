@@ -45,10 +45,7 @@ public class RolloverActionTests extends AbstractXContentTestCase<RolloverAction
     }
 
     public void testNoConditions() {
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> new RolloverAction(null, null, null, null)
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new RolloverAction(null, null, null, null));
         assertEquals("At least one rollover condition must be set.", exception.getMessage());
     }
 }

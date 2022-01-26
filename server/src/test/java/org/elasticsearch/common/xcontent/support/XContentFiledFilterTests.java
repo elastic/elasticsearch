@@ -237,7 +237,6 @@ public class XContentFiledFilterTests extends AbstractFilteringTestCase {
         testFilter(actual, actual, singleton("*.obj2"), emptySet());
     }
 
-    @AwaitsFix(bugUrl = "todo: dot in filed name is not supported for XContentParser")
     public void testDotsInFieldNames() throws IOException {
         Builder actual = builder -> builder.startObject()
             .field("foo.bar", 2)

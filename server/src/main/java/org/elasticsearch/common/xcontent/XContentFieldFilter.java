@@ -62,7 +62,7 @@ public interface XContentFieldFilter {
             final XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
                 Set.of(includes),
                 Set.of(excludes)
-            );
+            ).withSupportDotInFieldName(true);
             final CheckedFunction<XContentType, BytesReference, IOException> emptyValueSupplier = xContentType -> {
                 BytesStreamOutput bStream = new BytesStreamOutput();
                 XContentBuilder builder = XContentFactory.contentBuilder(xContentType, bStream).map(Collections.emptyMap());

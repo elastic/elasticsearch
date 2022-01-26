@@ -32,7 +32,8 @@ public class XContentParserConfiguration {
         DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
         RestApiVersion.current(),
         null,
-        null
+        null,
+        false
     );
 
     final NamedXContentRegistry registry;
@@ -40,26 +41,29 @@ public class XContentParserConfiguration {
     final RestApiVersion restApiVersion;
     final FilterPath[] includes;
     final FilterPath[] excludes;
+    final boolean supportDotInFieldName;
 
     private XContentParserConfiguration(
         NamedXContentRegistry registry,
         DeprecationHandler deprecationHandler,
         RestApiVersion restApiVersion,
         FilterPath[] includes,
-        FilterPath[] excludes
+        FilterPath[] excludes,
+        boolean supportDotInFieldName
     ) {
         this.registry = registry;
         this.deprecationHandler = deprecationHandler;
         this.restApiVersion = restApiVersion;
         this.includes = includes;
         this.excludes = excludes;
+        this.supportDotInFieldName = supportDotInFieldName;
     }
 
     /**
      * Replace the registry backing {@link XContentParser#namedObject}.
      */
     public XContentParserConfiguration withRegistry(NamedXContentRegistry registry) {
-        return new XContentParserConfiguration(registry, deprecationHandler, restApiVersion, includes, excludes);
+        return new XContentParserConfiguration(registry, deprecationHandler, restApiVersion, includes, excludes, supportDotInFieldName);
     }
 
     public NamedXContentRegistry registry() {
@@ -71,7 +75,7 @@ public class XContentParserConfiguration {
      * a deprecated field.
      */
     public XContentParserConfiguration withDeprecationHandler(DeprecationHandler deprecationHandler) {
-        return new XContentParserConfiguration(registry, deprecationHandler, restApiVersion, includes, excludes);
+        return new XContentParserConfiguration(registry, deprecationHandler, restApiVersion, includes, excludes, supportDotInFieldName);
     }
 
     public DeprecationHandler deprecationHandler() {
@@ -83,7 +87,7 @@ public class XContentParserConfiguration {
      * {@link RestApiVersion}.
      */
     public XContentParserConfiguration withRestApiVersion(RestApiVersion restApiVersion) {
-        return new XContentParserConfiguration(registry, deprecationHandler, restApiVersion, includes, excludes);
+        return new XContentParserConfiguration(registry, deprecationHandler, restApiVersion, includes, excludes, supportDotInFieldName);
     }
 
     public RestApiVersion restApiVersion() {
@@ -99,8 +103,13 @@ public class XContentParserConfiguration {
             deprecationHandler,
             restApiVersion,
             FilterPath.compile(includeStrings),
-            FilterPath.compile(excludeStrings)
+            FilterPath.compile(excludeStrings),
+            supportDotInFieldName
         );
+    }
+
+    public XContentParserConfiguration withSupportDotInFieldName(boolean supportDotInFieldName) {
+        return new XContentParserConfiguration(registry, deprecationHandler, restApiVersion, includes, excludes, supportDotInFieldName);
     }
 
     public JsonParser filter(JsonParser parser) {
@@ -112,10 +121,20 @@ public class XContentParserConfiguration {
                     throw new UnsupportedOperationException("double wildcards are not supported in filtered excludes");
                 }
             }
-            filtered = new FilteringParserDelegate(filtered, new FilterPathBasedFilter(excludes, false), true, true);
+            filtered = new FilteringParserDelegate(
+                filtered,
+                new FilterPathBasedFilter(excludes, false).supportDotInFieldName(supportDotInFieldName),
+                true,
+                true
+            );
         }
         if (includes != null) {
-            filtered = new FilteringParserDelegate(filtered, new FilterPathBasedFilter(includes, true), true, true);
+            filtered = new FilteringParserDelegate(
+                filtered,
+                new FilterPathBasedFilter(includes, true).supportDotInFieldName(supportDotInFieldName),
+                true,
+                true
+            );
         }
         return filtered;
     }

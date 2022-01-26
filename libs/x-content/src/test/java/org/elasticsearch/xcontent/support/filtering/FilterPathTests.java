@@ -338,4 +338,33 @@ public class FilterPathTests extends ESTestCase {
         assertFalse(filterPath.matches(randomAlphaOfLength(10), nextFilters));
         assertEquals(nextFilters.size(), 0);
     }
+
+    public void testDotInFieldName() {
+        // FilterPath match
+        FilterPath[] filterPaths = FilterPath.compile(singleton("foo"));
+        List<FilterPath> nextFilters = new ArrayList<>();
+        assertTrue(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+
+        // FilterPath not match
+        filterPaths = FilterPath.compile(singleton("bar"));
+        assertFalse(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+
+        // FilterPath equals to fieldName
+        filterPaths = FilterPath.compile(singleton("foo.bar"));
+        assertTrue(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+
+        // FilterPath longer than fieldName
+        filterPaths = FilterPath.compile(singleton("foo.bar.test"));
+        assertFalse(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 1);
+        nextFilters.clear();
+
+        // partial match
+        filterPaths = FilterPath.compile(singleton("foo.bar.test"));
+        assertFalse(filterPaths[0].matches("foo.bar.text", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+    }
 }

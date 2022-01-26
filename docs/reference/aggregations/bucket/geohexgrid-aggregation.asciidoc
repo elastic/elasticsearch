@@ -101,7 +101,7 @@ a filter like <<query-dsl-geo-bounding-box-query,geo_bounding_box>> should be
 applied to narrow the subject area otherwise potentially millions of buckets
 will be created and returned.
 
-[source,console]
+[source,console,id=geohexgrid-high-precision-ex]
 --------------------------------------------------
 POST /museums/_search?size=0
 {

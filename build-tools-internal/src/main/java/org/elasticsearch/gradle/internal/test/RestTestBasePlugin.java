@@ -21,7 +21,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.ProviderFactory;
-import org.jetbrains.annotations.Nullable;
 
 import javax.inject.Inject;
 
@@ -70,13 +69,14 @@ public class RestTestBasePlugin implements Plugin<Project> {
             }
         });
 
-        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(project.getTasks().withType(RestIntegTestTask.class)));
+        project.getTasks()
+            .named(JavaBasePlugin.CHECK_TASK_NAME)
+            .configure(check -> check.dependsOn(project.getTasks().withType(RestIntegTestTask.class)));
         project.getTasks()
             .withType(StandaloneRestIntegTestTask.class)
             .configureEach(t -> t.finalizedBy(project.getTasks().withType(FixtureStop.class)));
     }
 
-    @Nullable
     private String systemProperty(String propName) {
         return providerFactory.systemProperty(propName).forUseAtConfigurationTime().getOrNull();
     }

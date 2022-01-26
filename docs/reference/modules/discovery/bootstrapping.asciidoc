@@ -61,13 +61,13 @@ nodes on the command-line that is used to start Elasticsearch:
 
 [source,bash]
 --------------------------------------------------
-$ bin/elasticsearch -Ecluster.initial_master_nodes=master-a,master-b,master-c
+bin/elasticsearch -E cluster.initial_master_nodes=master-a,master-b,master-c
 --------------------------------------------------
 
-[NOTE]
-==================================================
-
-[[modules-discovery-bootstrap-cluster-fqdns]] The node names used in the
+[[modules-discovery-bootstrap-cluster-fqdns]]
+.Node name formats must match
+****
+The node names used in the
 `cluster.initial_master_nodes` list must exactly match the `node.name`
 properties of the nodes. By default the node name is set to the machine's
 hostname which may or may not be fully-qualified depending on your system
@@ -93,9 +93,9 @@ This message shows the node names `master-a.example.com` and
 `master-a` and `master-b`, and it is clear from this message that they do not
 match exactly.
 
-==================================================
+****
 
-[discrete]
+[[bootstrap-cluster-name]]
 ==== Choosing a cluster name
 
 The <<cluster-name,`cluster.name`>> setting enables you to create multiple
@@ -105,7 +105,7 @@ will only form a cluster from nodes that all have the same cluster name. The
 default value for the cluster name is `elasticsearch`, but it is recommended to
 change this to reflect the logical name of the cluster.
 
-[discrete]
+[[bootstrap-auto-bootstrap]]
 ==== Auto-bootstrapping in development mode
 
 If the cluster is running with a completely default configuration then it will
@@ -125,10 +125,10 @@ in the <<modules-discovery-bootstrap-cluster,section on cluster bootstrapping>>:
 * `discovery.seed_hosts`
 * `cluster.initial_master_nodes`
 
-[NOTE]
-==================================================
-
-[[modules-discovery-bootstrap-cluster-joining]] If you start an {es} node
+[[modules-discovery-bootstrap-cluster-joining]]
+.Forming a single cluster
+****
+If you start an {es} node
 without configuring these settings then it will start up in development mode and
 auto-bootstrap itself into a new cluster. If you start some {es} nodes on
 different hosts then by default they will not discover each other and will form
@@ -145,4 +145,4 @@ If you intended to form a single cluster then you should start again:
 * Configure `cluster.initial_master_nodes` as described above.
 * Restart all the nodes and verify that they have formed a single cluster.
 
-==================================================
+****

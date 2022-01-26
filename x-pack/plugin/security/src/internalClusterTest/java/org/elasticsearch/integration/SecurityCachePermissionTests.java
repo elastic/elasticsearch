@@ -26,23 +26,17 @@ public class SecurityCachePermissionTests extends SecurityIntegTestCase {
 
     @Override
     public String configUsers() {
-        return super.configUsers()
-                + READ_ONE_IDX_USER + ":" + SecuritySettingsSource.TEST_PASSWORD_HASHED + "\n";
+        return super.configUsers() + READ_ONE_IDX_USER + ":" + SecuritySettingsSource.TEST_PASSWORD_HASHED + "\n";
     }
 
     @Override
     public String configRoles() {
-        return super.configRoles()
-                + "\nread_one_idx:\n"
-                + "  indices:\n"
-                + "    'data':\n"
-                + "      - read\n";
+        return super.configRoles() + "\nread_one_idx:\n" + "  indices:\n" + "    'data':\n" + "      - read\n";
     }
 
     @Override
     public String configUsersRoles() {
-        return super.configUsersRoles()
-                + "read_one_idx:" + READ_ONE_IDX_USER + "\n";
+        return super.configUsersRoles() + "read_one_idx:" + READ_ONE_IDX_USER + "\n";
     }
 
     @Before
@@ -53,19 +47,35 @@ public class SecurityCachePermissionTests extends SecurityIntegTestCase {
     }
 
     public void testThatTermsFilterQueryDoesntLeakData() {
-        SearchResponse response = client().prepareSearch("data").setTypes("a").setQuery(QueryBuilders.constantScoreQuery(
-                QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "tokens", "1", "tokens"))))
-                .execute().actionGet();
+        SearchResponse response = client().prepareSearch("data")
+            .setTypes("a")
+            .setQuery(
+                QueryBuilders.constantScoreQuery(
+                    QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "tokens", "1", "tokens"))
+                )
+            )
+            .execute()
+            .actionGet();
         assertThat(response.isTimedOut(), is(false));
         assertThat(response.getHits().getHits().length, is(1));
 
         // Repeat with unauthorized user!!!!
         try {
-            response = client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER,
-                    SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)))
-                    .prepareSearch("data").setTypes("a").setQuery(QueryBuilders.constantScoreQuery(
-                    QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "tokens", "1", "tokens"))))
-                    .execute().actionGet();
+            response = client().filterWithHeader(
+                singletonMap(
+                    "Authorization",
+                    basicAuthHeaderValue(READ_ONE_IDX_USER, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+                )
+            )
+                .prepareSearch("data")
+                .setTypes("a")
+                .setQuery(
+                    QueryBuilders.constantScoreQuery(
+                        QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "tokens", "1", "tokens"))
+                    )
+                )
+                .execute()
+                .actionGet();
             fail("search phase exception should have been thrown! response was:\n" + response.toString());
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.toString(), containsString("ElasticsearchSecurityException[action"));

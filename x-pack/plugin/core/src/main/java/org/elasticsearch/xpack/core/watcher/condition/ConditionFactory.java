@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.condition;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Clock;

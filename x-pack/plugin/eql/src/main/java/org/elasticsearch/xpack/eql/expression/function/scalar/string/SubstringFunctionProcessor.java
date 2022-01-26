@@ -91,16 +91,13 @@ public class SubstringFunctionProcessor implements Processor {
         }
 
         SubstringFunctionProcessor other = (SubstringFunctionProcessor) obj;
-        return Objects.equals(input(), other.input())
-                && Objects.equals(start(), other.start())
-                && Objects.equals(end(), other.end());
+        return Objects.equals(input(), other.input()) && Objects.equals(start(), other.start()) && Objects.equals(end(), other.end());
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(input(), start(), end());
     }
-
 
     @Override
     public String getWriteableName() {

@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.ByteUtils;
 import java.math.BigInteger;
 import java.util.Objects;
 
-
 /**
  * MurmurHash3 hashing functions.
  */
@@ -39,8 +38,7 @@ public enum MurmurHash3 {
                 return false;
             }
             Hash128 that = (Hash128) other;
-            return Objects.equals(this.h1, that.h1)
-                && Objects.equals(this.h2, that.h2);
+            return Objects.equals(this.h1, that.h1) && Objects.equals(this.h2, that.h2);
         }
 
         @Override

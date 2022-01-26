@@ -71,7 +71,6 @@ public class PutCalendarJobRequest extends ActionRequest {
         }
 
         PutCalendarJobRequest that = (PutCalendarJobRequest) other;
-        return Objects.equals(jobIds, that.jobIds) &&
-            Objects.equals(calendarId, that.calendarId);
+        return Objects.equals(jobIds, that.jobIds) && Objects.equals(calendarId, that.calendarId);
     }
 }

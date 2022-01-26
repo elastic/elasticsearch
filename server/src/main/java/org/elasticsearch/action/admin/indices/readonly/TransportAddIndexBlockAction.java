@@ -45,12 +45,26 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
     private final DestructiveOperations destructiveOperations;
 
     @Inject
-    public TransportAddIndexBlockAction(TransportService transportService, ClusterService clusterService,
-                                        ThreadPool threadPool, MetadataIndexStateService indexStateService,
-                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        DestructiveOperations destructiveOperations) {
-        super(AddIndexBlockAction.NAME, transportService, clusterService, threadPool, actionFilters, AddIndexBlockRequest::new,
-            indexNameExpressionResolver, AddIndexBlockResponse::new, ThreadPool.Names.SAME);
+    public TransportAddIndexBlockAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataIndexStateService indexStateService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        DestructiveOperations destructiveOperations
+    ) {
+        super(
+            AddIndexBlockAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            AddIndexBlockRequest::new,
+            indexNameExpressionResolver,
+            AddIndexBlockResponse::new,
+            ThreadPool.Names.SAME
+        );
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;
     }
@@ -63,36 +77,37 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
 
     @Override
     protected ClusterBlockException checkBlock(AddIndexBlockRequest request, ClusterState state) {
-        if (request.getBlock().getBlock().levels().contains(ClusterBlockLevel.METADATA_WRITE) &&
-            state.blocks().global(ClusterBlockLevel.METADATA_WRITE).isEmpty())  {
+        if (request.getBlock().getBlock().levels().contains(ClusterBlockLevel.METADATA_WRITE)
+            && state.blocks().global(ClusterBlockLevel.METADATA_WRITE).isEmpty()) {
             return null;
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks()
+            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
-    protected void masterOperation(AddIndexBlockRequest request, ClusterState state,
-                                   ActionListener<AddIndexBlockResponse> listener) throws Exception {
+    protected void masterOperation(AddIndexBlockRequest request, ClusterState state, ActionListener<AddIndexBlockResponse> listener)
+        throws Exception {
         throw new UnsupportedOperationException("The task parameter is required");
     }
 
     @Override
-    protected void masterOperation(final Task task,
-                                   final AddIndexBlockRequest request,
-                                   final ClusterState state,
-                                   final ActionListener<AddIndexBlockResponse> listener) throws Exception {
+    protected void masterOperation(
+        final Task task,
+        final AddIndexBlockRequest request,
+        final ClusterState state,
+        final ActionListener<AddIndexBlockResponse> listener
+    ) throws Exception {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new AddIndexBlockResponse(true, false, Collections.emptyList()));
             return;
         }
 
-        final AddIndexBlockClusterStateUpdateRequest addBlockRequest = new AddIndexBlockClusterStateUpdateRequest(request.getBlock(),
-            task.getId())
-            .ackTimeout(request.timeout())
-            .masterNodeTimeout(request.masterNodeTimeout())
-            .indices(concreteIndices);
+        final AddIndexBlockClusterStateUpdateRequest addBlockRequest = new AddIndexBlockClusterStateUpdateRequest(
+            request.getBlock(),
+            task.getId()
+        ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices);
         indexStateService.addIndexBlock(addBlockRequest, listener.delegateResponse((delegatedListener, t) -> {
             logger.debug(() -> new ParameterizedMessage("failed to mark indices as readonly [{}]", (Object) concreteIndices), t);
             delegatedListener.onFailure(t);

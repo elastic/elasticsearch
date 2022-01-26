@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[delete-async-sql-search-api]]
 === Delete async SQL search API
 ++++

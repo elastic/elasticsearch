@@ -15,10 +15,10 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -62,7 +62,9 @@ public final class SourceDestValidator {
     public static final String DEST_LOWERCASE = "Destination index [{0}] must be lowercase";
     public static final String NEEDS_REMOTE_CLUSTER_SEARCH = "Source index is configured with a remote index pattern(s) [{0}]"
         + " but the current node [{1}] is not allowed to connect to remote clusters."
-        + " Please enable " + REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " for all {2} nodes.";
+        + " Please enable "
+        + REMOTE_CLUSTER_CLIENT_ROLE.roleName()
+        + " for all {2} nodes.";
     public static final String ERROR_REMOTE_CLUSTER_SEARCH = "Error resolving remote source: {0}";
     public static final String UNKNOWN_REMOTE_CLUSTER_LICENSE = "Error during license check ({0}) for remote cluster "
         + "alias(es) {1}, error: {2}";
@@ -193,7 +195,8 @@ public final class SourceDestValidator {
                         IndicesOptions.lenientExpandOpen(),
                         destIndex,
                         true,
-                        false);
+                        false
+                    );
 
                     resolvedDest = singleWriteIndex != null ? singleWriteIndex.getName() : destIndex;
                 } catch (IllegalArgumentException e) {
@@ -409,7 +412,8 @@ public final class SourceDestValidator {
                     NEEDS_REMOTE_CLUSTER_SEARCH,
                     context.resolveRemoteSource(),
                     context.getNodeName(),
-                    nodeRoleThatRequiresRemoteClusterClient);
+                    nodeRoleThatRequiresRemoteClusterClient
+                );
                 listener.onResponse(context);
                 return;
             }
@@ -472,8 +476,10 @@ public final class SourceDestValidator {
             List<String> remoteIndices = new ArrayList<>(context.resolveRemoteSource());
             Map<String, Version> remoteClusterVersions;
             try {
-                List<String> remoteAliases =
-                    RemoteClusterLicenseChecker.remoteClusterAliases(context.getRegisteredRemoteClusterNames(), remoteIndices);
+                List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
+                    context.getRegisteredRemoteClusterNames(),
+                    remoteIndices
+                );
                 remoteClusterVersions = remoteAliases.stream().collect(toMap(identity(), context::getRemoteClusterVersion));
             } catch (NoSuchRemoteClusterException e) {
                 context.addValidationError(e.getMessage());
@@ -484,19 +490,21 @@ public final class SourceDestValidator {
                 listener.onResponse(context);
                 return;
             }
-            Map<String, Version> oldRemoteClusterVersions =
-                remoteClusterVersions.entrySet().stream()
-                    .filter(entry -> entry.getValue().before(minExpectedVersion))
-                    .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
+            Map<String, Version> oldRemoteClusterVersions = remoteClusterVersions.entrySet()
+                .stream()
+                .filter(entry -> entry.getValue().before(minExpectedVersion))
+                .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
             if (oldRemoteClusterVersions.isEmpty() == false) {
                 context.addValidationError(
                     REMOTE_CLUSTERS_TOO_OLD,
                     minExpectedVersion,
                     reason,
-                    oldRemoteClusterVersions.entrySet().stream()
+                    oldRemoteClusterVersions.entrySet()
+                        .stream()
                         .sorted(comparingByKey())  // sort to have a deterministic order among clusters in the resulting string
                         .map(e -> e.getKey() + " (" + e.getValue() + ")")
-                        .collect(joining(", ")));
+                        .collect(joining(", "))
+                );
             }
             listener.onResponse(context);
         }
@@ -585,18 +593,17 @@ public final class SourceDestValidator {
      */
     private static List<String> remoteClusterAliases(final Set<String> remoteClusters, final List<String> indices) {
         return indices.stream()
-                .filter(RemoteClusterLicenseChecker::isRemoteIndex)
-                .map(index -> index.substring(0, index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR)))
-                .distinct()
-                .flatMap(clusterExpression ->
-                {
-                    List<String> resolved = clusterNameExpressionResolver.resolveClusterNames(remoteClusters, clusterExpression);
-                    if (resolved.isEmpty()) {
-                        throw new NoSuchRemoteClusterException(clusterExpression);
-                    }
-                    return resolved.stream();
-                })
-                .distinct()
-                .collect(Collectors.toList());
+            .filter(RemoteClusterLicenseChecker::isRemoteIndex)
+            .map(index -> index.substring(0, index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR)))
+            .distinct()
+            .flatMap(clusterExpression -> {
+                List<String> resolved = clusterNameExpressionResolver.resolveClusterNames(remoteClusters, clusterExpression);
+                if (resolved.isEmpty()) {
+                    throw new NoSuchRemoteClusterException(clusterExpression);
+                }
+                return resolved.stream();
+            })
+            .distinct()
+            .collect(Collectors.toList());
     }
 }

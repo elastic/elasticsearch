@@ -60,7 +60,7 @@ import java.util.Objects;
 /**
  * Analyze the disk usage of each field in the index.
  */
- final class IndexDiskUsageAnalyzer {
+final class IndexDiskUsageAnalyzer {
     private final Logger logger;
     private final IndexCommit commit;
     private final TrackingReadBytesDirectory directory;
@@ -199,9 +199,11 @@ import java.util.Objects;
         }
     }
 
-    private <DV extends DocIdSetIterator> DV iterateDocValues(int maxDocs,
-                                                              CheckedSupplier<DV, IOException> dvReader,
-                                                              CheckedConsumer<DV, IOException> valueAccessor) throws IOException {
+    private <DV extends DocIdSetIterator> DV iterateDocValues(
+        int maxDocs,
+        CheckedSupplier<DV, IOException> dvReader,
+        CheckedConsumer<DV, IOException> valueAccessor
+    ) throws IOException {
         // As we track the min/max positions of read bytes, we just visit the first and last values of the docValues iterator.
         // Here we use a binary search like to visit the right most index that has values
         DV dv = dvReader.get();
@@ -342,7 +344,9 @@ import java.util.Objects;
             final BlockTermState minState = getBlockTermState(termsEnum, terms.getMin());
             if (minState != null) {
                 final BlockTermState maxState = Objects.requireNonNull(
-                    getBlockTermState(termsEnum, terms.getMax()), "can't retrieve the block term state of the max term");
+                    getBlockTermState(termsEnum, terms.getMax()),
+                    "can't retrieve the block term state of the max term"
+                );
                 final long skippedBytes = maxState.distance(minState);
                 stats.addInvertedIndex(field.name, skippedBytes);
                 termsEnum.seekExact(terms.getMax());
@@ -425,8 +429,15 @@ import java.util.Objects;
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
             for (int dim = 0; dim < numDims; dim++) {
                 int offset = dim * bytesPerDim;
-                if (FutureArrays.compareUnsigned(minPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) > 0 ||
-                    FutureArrays.compareUnsigned(maxPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) < 0) {
+                if (FutureArrays.compareUnsigned(minPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) > 0
+                    || FutureArrays.compareUnsigned(
+                        maxPackedValue,
+                        offset,
+                        offset + bytesPerDim,
+                        point,
+                        offset,
+                        offset + bytesPerDim
+                    ) < 0) {
                     return PointValues.Relation.CELL_OUTSIDE_QUERY;
                 }
             }
@@ -638,7 +649,6 @@ import java.util.Objects;
             maxPosition = Math.max(maxPosition, position + length - 1);
         }
 
-
         void resetBytesRead() {
             minPosition = Long.MAX_VALUE;
             maxPosition = Long.MIN_VALUE;
@@ -720,19 +730,33 @@ import java.util.Objects;
         long termVectorsTimeInNanos;
 
         long totalInNanos() {
-            return invertedIndexTimeInNanos + storedFieldsTimeInNanos + docValuesTimeInNanos
-                + pointsTimeInNanos + normsTimeInNanos + termVectorsTimeInNanos;
+            return invertedIndexTimeInNanos + storedFieldsTimeInNanos + docValuesTimeInNanos + pointsTimeInNanos + normsTimeInNanos
+                + termVectorsTimeInNanos;
         }
 
         @Override
         public String toString() {
-            return "total: " + totalInNanos() / 1000_000 + "ms" +
-                ", inverted index: " + invertedIndexTimeInNanos / 1000_000 + "ms" +
-                ", stored fields: " + storedFieldsTimeInNanos / 1000_000 + "ms" +
-                ", doc values: " + docValuesTimeInNanos / 1000_000 + "ms" +
-                ", points: " + pointsTimeInNanos / 1000_000 + "ms" +
-                ", norms: " + normsTimeInNanos / 1000_000 + "ms" +
-                ", term vectors: " + termVectorsTimeInNanos / 1000_000 + "ms";
+            return "total: "
+                + totalInNanos() / 1000_000
+                + "ms"
+                + ", inverted index: "
+                + invertedIndexTimeInNanos / 1000_000
+                + "ms"
+                + ", stored fields: "
+                + storedFieldsTimeInNanos / 1000_000
+                + "ms"
+                + ", doc values: "
+                + docValuesTimeInNanos / 1000_000
+                + "ms"
+                + ", points: "
+                + pointsTimeInNanos / 1000_000
+                + "ms"
+                + ", norms: "
+                + normsTimeInNanos / 1000_000
+                + "ms"
+                + ", term vectors: "
+                + termVectorsTimeInNanos / 1000_000
+                + "ms";
         }
     }
 }

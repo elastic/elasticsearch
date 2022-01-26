@@ -130,7 +130,7 @@ public final class DomainSplitFunction {
             if (excluded.containsKey(ancestorName)) {
                 return i + 1;
             }
-            String [] pieces = ancestorName.split("\\.");
+            String[] pieces = ancestorName.split("\\.");
             if (pieces.length >= 2 && under.containsKey(pieces[1])) {
                 return i;
             }
@@ -163,8 +163,11 @@ public final class DomainSplitFunction {
     public static List<String> domainSplit(String host, Map<String, Object> params) {
         // NOTE: we don't check SpecialPermission because this will be called (indirectly) from scripts
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            deprecationLogger.critical(DeprecationCategory.API, "domainSplit",
-                "Method [domainSplit] taking params is deprecated. Remove the params argument.");
+            deprecationLogger.warn(
+                DeprecationCategory.API,
+                "domainSplit",
+                "Method [domainSplit] taking params is deprecated. Remove the params argument."
+            );
             return null;
         });
         return domainSplit(host);
@@ -184,7 +187,7 @@ public final class DomainSplitFunction {
             return Arrays.asList("", host);
         }
         boolean tentativeIP = true;
-        for(int i = 0; i < host.length(); i++) {
+        for (int i = 0; i < host.length(); i++) {
             if ((Character.isDigit(host.charAt(i)) || host.charAt(i) == '.') == false) {
                 tentativeIP = false;
                 break;
@@ -193,7 +196,7 @@ public final class DomainSplitFunction {
         if (tentativeIP) {
             /* special-snowflake rules now... */
             if (host.equals(".")) {
-                return Arrays.asList("","");
+                return Arrays.asList("", "");
             }
             return Arrays.asList("", host);
         }

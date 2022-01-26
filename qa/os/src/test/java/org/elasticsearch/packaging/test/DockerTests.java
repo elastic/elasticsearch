@@ -18,6 +18,8 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.elasticsearch.packaging.util.docker.DockerRun;
+import org.elasticsearch.packaging.util.docker.DockerShell;
+import org.elasticsearch.packaging.util.docker.MockServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -34,19 +36,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static java.util.Arrays.asList;
 import static org.elasticsearch.packaging.util.Distribution.Packaging;
-import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
-import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
-import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
+import static org.elasticsearch.packaging.util.FileUtils.deleteIfExists;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.docker.Docker.chownWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.docker.Docker.copyFromContainer;
@@ -55,7 +56,6 @@ import static org.elasticsearch.packaging.util.docker.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageHealthcheck;
 import static org.elasticsearch.packaging.util.docker.Docker.getImageLabels;
 import static org.elasticsearch.packaging.util.docker.Docker.getJson;
-import static org.elasticsearch.packaging.util.docker.Docker.listContents;
 import static org.elasticsearch.packaging.util.docker.Docker.mkDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.docker.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.restartContainer;
@@ -73,6 +73,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -87,14 +88,16 @@ import static org.junit.Assume.assumeTrue;
 /**
  * This class tests the Elasticsearch Docker images. We have several:
  * <ul>
- *     <li>The default image with a custom, small base image</li>
+ *     <li>The default image</li>
  *     <li>A UBI-based image</li>
  *     <li>Another UBI image for Iron Bank</li>
- *     <li>Images for Cloud</li>
  * </ul>
  */
 public class DockerTests extends PackagingTestCase {
     private Path tempDir;
+
+    private static final String EXAMPLE_PLUGIN_SYSPROP = "tests.example-plugin";
+    private static final String EXAMPLE_PLUGIN_PATH = System.getProperty(EXAMPLE_PLUGIN_SYSPROP);
 
     @BeforeClass
     public static void filterDistros() {
@@ -133,11 +136,6 @@ public class DockerTests extends PackagingTestCase {
      * Checks that no plugins are initially active.
      */
     public void test020PluginsListWithNoPlugins() {
-        assumeTrue(
-            "Only applies to non-Cloud images",
-            distribution.packaging != Packaging.DOCKER_CLOUD && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
-        );
-
         final Installation.Executables bin = installation.executables();
         final Result r = sh.run(bin.pluginTool + " list");
 
@@ -145,54 +143,115 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that Cloud images bundle a selection of plugins.
+     * Check that a plugin can be installed without special permissions.
      */
-    public void test021PluginsListWithPlugins() {
-        assumeTrue(
-            "Only applies to Cloud images",
-            distribution.packaging == Packaging.DOCKER_CLOUD || distribution().packaging == Packaging.DOCKER_CLOUD_ESS
-        );
-
-        final Installation.Executables bin = installation.executables();
-        final List<String> plugins = Arrays.asList(sh.run(bin.pluginTool + " list").stdout.split("\n"));
-
-        assertThat(
-            "Expected standard plugins to be listed",
-            plugins,
-            equalTo(Arrays.asList("repository-azure", "repository-gcs", "repository-s3"))
-        );
-    }
-
-    /**
-     * Checks that ESS images can install plugins from the local archive.
-     */
-    public void test022InstallPluginsFromLocalArchive() {
-        assumeTrue("Only applies to ESS images", distribution().packaging == Packaging.DOCKER_CLOUD_ESS);
+    public void test022InstallPlugin() {
+        runContainer(distribution(), builder().volume(Paths.get(EXAMPLE_PLUGIN_PATH), "/analysis-icu.zip"));
 
         final String plugin = "analysis-icu";
+        assertThat("Expected " + plugin + " to not be installed", listPlugins(), not(hasItems(plugin)));
 
         final Installation.Executables bin = installation.executables();
-        List<String> plugins = Arrays.asList(sh.run(bin.pluginTool + " list").stdout.split("\n"));
+        sh.run(bin.pluginTool + " install file:///analysis-icu.zip");
 
-        assertThat("Expected " + plugin + " to not be installed", plugins, not(hasItems(plugin)));
-
-        // Stuff the proxy settings with garbage, so any attempt to go out to the internet would fail
-        sh.getEnv()
-            .put("ES_JAVA_OPTS", "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999");
-        sh.run("/opt/plugins/plugin-wrapper.sh install --batch analysis-icu");
-
-        plugins = Arrays.asList(sh.run(bin.pluginTool + " list").stdout.split("\n"));
-
-        assertThat("Expected " + plugin + " to be installed", plugins, hasItems(plugin));
+        assertThat("Expected installed plugins to be listed", listPlugins(), equalTo(asList("analysis-icu")));
     }
 
     /**
-     * Check that the JDK's cacerts file is a symlink to the copy provided by the operating system.
+     * Checks that plugins can be installed by deploying a plugins config file.
+     */
+    public void test024InstallPluginUsingConfigFile() throws Exception {
+        final StringJoiner pluginsDescriptor = new StringJoiner("\n", "", "\n");
+        pluginsDescriptor.add("plugins:");
+        pluginsDescriptor.add("  - id: analysis-icu");
+        pluginsDescriptor.add("    location: file:///analysis-icu.zip");
+
+        final String filename = "elasticsearch-plugins.yml";
+        append(tempDir.resolve(filename), pluginsDescriptor.toString());
+
+        // Restart the container. This will sync the plugins automatically. Also
+        // stuff the proxy settings with garbage, so any attempt to go out to the internet would fail. The
+        // command should instead use the bundled plugin archive.
+        runContainer(
+            distribution(),
+            builder().volume(tempDir.resolve(filename), installation.config.resolve(filename))
+                .volume(Paths.get(EXAMPLE_PLUGIN_PATH), "/analysis-icu.zip")
+                .envVar(
+                    "ES_JAVA_OPTS",
+                    "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
+                )
+        );
+
+        // Since ES is doing the installing, give it a chance to complete
+        waitForElasticsearch(installation);
+
+        assertThat("List of installed plugins is incorrect", listPlugins(), hasItems("analysis-icu"));
+    }
+
+    /**
+     * Check that when using Elasticsearch's plugins sync capability, it will use a proxy when configured to do so.
+     * This could either be in the plugins config file, or via the standard Java system properties.
+     */
+    public void test026SyncPluginsUsingProxy() {
+        MockServer.withMockServer(mockServer -> {
+            for (boolean useConfigFile : asList(true, false)) {
+                mockServer.clearExpectations();
+
+                final StringJoiner config = new StringJoiner("\n", "", "\n");
+                config.add("plugins:");
+                // This is the new plugin to install. We don't use an official plugin because then Elasticsearch
+                // will attempt an SSL connection and that just makes everything more complicated.
+                config.add("  - id: my-plugin");
+                config.add("    location: http://example.com/my-plugin.zip");
+
+                if (useConfigFile) {
+                    config.add("proxy: mockserver:" + mockServer.getPort());
+                }
+
+                final String filename = "elasticsearch-plugins.yml";
+                final Path pluginsConfigPath = tempDir.resolve(filename);
+                deleteIfExists(pluginsConfigPath);
+                append(pluginsConfigPath, config.toString());
+
+                final DockerRun builder = builder().volume(pluginsConfigPath, installation.config.resolve(filename))
+                    .extraArgs("--link " + mockServer.getContainerId() + ":mockserver");
+
+                if (useConfigFile == false) {
+                    builder.envVar("ES_JAVA_OPTS", "-Dhttp.proxyHost=mockserver -Dhttp.proxyPort=" + mockServer.getPort());
+                }
+
+                // Restart the container. This will sync plugins automatically, which will fail because
+                // ES will be unable to install `my-plugin`
+                final Result result = runContainerExpectingFailure(distribution(), builder);
+
+                final List<Map<String, String>> interactions = mockServer.getInteractions();
+
+                assertThat(result.stderr, containsString("FileNotFoundException: http://example.com/my-plugin.zip"));
+
+                // Now check that Elasticsearch did use the proxy server
+                assertThat(interactions, hasSize(1));
+                final Map<String, String> interaction = interactions.get(0);
+                assertThat(interaction, hasEntry("httpRequest.headers.Host[0]", "example.com"));
+                assertThat(interaction, hasEntry("httpRequest.headers.User-Agent[0]", "elasticsearch-plugin-installer"));
+                assertThat(interaction, hasEntry("httpRequest.method", "GET"));
+                assertThat(interaction, hasEntry("httpRequest.path", "/my-plugin.zip"));
+            }
+        });
+    }
+
+    /**
+     * Check that the JDK's `cacerts` file is a symlink to the copy provided by the operating system.
      */
     public void test040JavaUsesTheOsProvidedKeystore() {
         final String path = sh.run("realpath jdk/lib/security/cacerts").stdout;
 
-        assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
+        if (distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_IRON_BANK) {
+            // In these images, the `cacerts` file ought to be a symlink here
+            assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
+        } else {
+            // Whereas on other images, it's a real file so the real path is the same
+            assertThat(path, equalTo("/usr/share/elasticsearch/jdk/lib/security/cacerts"));
+        }
     }
 
     /**
@@ -320,16 +379,23 @@ public class DockerTests extends PackagingTestCase {
         chownWithPrivilegeEscalation(tempEsDataDir, "501:501");
         chownWithPrivilegeEscalation(tempEsLogsDir, "501:501");
 
-        // Restart the container
-        runContainer(
-            distribution(),
-            builder().uid(501, 501)
-                .volume(tempEsDataDir.toAbsolutePath(), installation.data)
-                .volume(tempEsConfigDir.toAbsolutePath(), installation.config)
-                .volume(tempEsLogsDir.toAbsolutePath(), installation.logs)
-        );
+        try {
+            // Restart the container
+            runContainer(
+                distribution(),
+                builder().uid(501, 501)
+                    .volume(tempEsDataDir.toAbsolutePath(), installation.data)
+                    .volume(tempEsConfigDir.toAbsolutePath(), installation.config)
+                    .volume(tempEsLogsDir.toAbsolutePath(), installation.logs)
+            );
 
-        waitForElasticsearch(installation);
+            waitForElasticsearch(installation);
+            removeContainer();
+        } finally {
+            rmDirWithPrivilegeEscalation(tempEsConfigDir);
+            rmDirWithPrivilegeEscalation(tempEsDataDir);
+            rmDirWithPrivilegeEscalation(tempEsLogsDir);
+        }
     }
 
     /**
@@ -929,6 +995,19 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Ensure that the default shell in the image is {@code bash}, since some alternatives e.g. {@code dash}
+     * are stricter about environment variable names.
+     */
+    public void test170DefaultShellIsBash() {
+        final Result result = DockerShell.executeCommand("/bin/sh", "-c", "echo $SHELL");
+        if (result.isSuccess()) {
+            assertThat(result.stdout, equalTo("/bin/bash"));
+        } else {
+            throw new RuntimeException("Command failed: " + result.stderr);
+        }
+    }
+
+    /**
      * Check that the UBI images has the correct license information in the correct place.
      */
     public void test200UbiImagesHaveLicenseDirectory() {
@@ -1002,20 +1081,8 @@ public class DockerTests extends PackagingTestCase {
         assertFalse(labelKeys.stream().anyMatch(l -> l.startsWith("org.opencontainers.")));
     }
 
-    /**
-     * Check that the Cloud image contains the required Beats
-     */
-    public void test400CloudImageBundlesBeats() {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_CLOUD || distribution.packaging == Packaging.DOCKER_CLOUD_ESS);
-
-        final List<String> contents = listContents("/opt");
-        assertThat("Expected beats in /opt", contents, hasItems("filebeat", "metricbeat"));
-
-        Stream.of("filebeat", "metricbeat").forEach(beat -> {
-            assertThat(Paths.get("/opt/" + beat), file(Directory, "root", "root", p755));
-            assertThat(Paths.get("/opt/" + beat + "/" + beat), file(File, "root", "root", p755));
-            assertThat(Paths.get("/opt/" + beat + "/module"), file(Directory, "root", "root", p755));
-            assertThat(Paths.get("/opt/" + beat + "/modules.d"), file(Directory, "root", "root", p755));
-        });
+    private List<String> listPlugins() {
+        final Installation.Executables bin = installation.executables();
+        return Arrays.stream(sh.run(bin.pluginTool + " list").stdout.split("\n")).collect(Collectors.toList());
     }
 }

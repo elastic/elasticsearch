@@ -24,7 +24,8 @@ import java.util.List;
 /** Rest handler for feature state reset requests */
 public class RestResetFeatureStateAction extends BaseRestHandler {
 
-    @Override public boolean allowSystemIndexAccessByDefault() {
+    @Override
+    public boolean allowSystemIndexAccessByDefault() {
         return true;
     }
 
@@ -48,7 +49,8 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
             new RestToXContentListener<ResetFeatureStateResponse>(restChannel) {
                 @Override
                 protected RestStatus getStatus(ResetFeatureStateResponse response) {
-                    long failures = response.getFeatureStateResetStatuses().stream()
+                    long failures = response.getFeatureStateResetStatuses()
+                        .stream()
                         .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
                         .count();
                     if (failures == 0) {
@@ -58,6 +60,7 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
                     }
                     return RestStatus.MULTI_STATUS;
                 }
-            });
+            }
+        );
     }
 }

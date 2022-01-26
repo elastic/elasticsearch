@@ -43,8 +43,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Predicate;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.contains;
@@ -54,14 +54,13 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -88,18 +87,37 @@ public class ReservedRealmTests extends ESTestCase {
     public void testInvalidHashingAlgorithmFails() {
         final String invalidAlgoId = randomFrom("sha1", "md5", "noop");
         final Settings invalidSettings = Settings.builder().put("xpack.security.authc.password_hashing.algorithm", invalidAlgoId).build();
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new ReservedRealm(mock(Environment.class),
-            invalidSettings, usersStore, new AnonymousUser(Settings.EMPTY), securityIndex, threadPool));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ReservedRealm(
+                mock(Environment.class),
+                invalidSettings,
+                usersStore,
+                new AnonymousUser(Settings.EMPTY),
+                securityIndex,
+                threadPool
+            )
+        );
         assertThat(exception.getMessage(), containsString(invalidAlgoId));
         assertThat(exception.getMessage(), containsString("Invalid algorithm"));
     }
 
     public void testReservedUserEmptyPasswordAuthenticationFails() throws Throwable {
-        final String principal = randomFrom(UsernamesField.ELASTIC_NAME, UsernamesField.KIBANA_NAME, UsernamesField.LOGSTASH_NAME,
-            UsernamesField.BEATS_NAME);
+        final String principal = randomFrom(
+            UsernamesField.ELASTIC_NAME,
+            UsernamesField.KIBANA_NAME,
+            UsernamesField.LOGSTASH_NAME,
+            UsernamesField.BEATS_NAME
+        );
 
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
-            new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            Settings.EMPTY,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            securityIndex,
+            threadPool
+        );
 
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
@@ -113,9 +131,14 @@ public class ReservedRealmTests extends ESTestCase {
         if (securityIndexExists) {
             when(securityIndex.indexExists()).thenReturn(true);
         }
-        final ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), settings, usersStore,
-                new AnonymousUser(settings), securityIndex, threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(settings),
+            securityIndex,
+            threadPool
+        );
         final User expected = randomReservedUser(true);
         final String principal = expected.principal();
 
@@ -124,7 +147,7 @@ public class ReservedRealmTests extends ESTestCase {
         final AuthenticationResult result = listener.actionGet();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.CONTINUE));
         assertNull(result.getUser());
-        verifyZeroInteractions(usersStore);
+        verifyNoMoreInteractions(usersStore);
     }
 
     public void testAuthenticationEnabledUserWithStoredPassword() throws Throwable {
@@ -137,8 +160,14 @@ public class ReservedRealmTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     private void verifySuccessfulAuthentication(boolean enabled) throws Exception {
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
-            new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            Settings.EMPTY,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            securityIndex,
+            threadPool
+        );
         final User expectedUser = randomReservedUser(enabled);
         final String principal = expectedUser.principal();
         final SecureString newPassword = new SecureString("foobar".toCharArray());
@@ -171,8 +200,10 @@ public class ReservedRealmTests extends ESTestCase {
         verifyNoMoreInteractions(usersStore);
 
         if (new KibanaUser(enabled).equals(expectedUser)) {
-            assertWarnings("The user [kibana] is deprecated and will be removed in a future version of Elasticsearch. " +
-                            "Please use the [kibana_system] user instead.");
+            assertWarnings(
+                "The user [kibana] is deprecated and will be removed in a future version of Elasticsearch. "
+                    + "Please use the [kibana_system] user instead."
+            );
         }
     }
 
@@ -187,9 +218,14 @@ public class ReservedRealmTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLookup() throws Exception {
-        final ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
-                new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            Settings.EMPTY,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            securityIndex,
+            threadPool
+        );
         final User expectedUser = randomReservedUser(true);
         final String principal = expectedUser.principal();
 
@@ -213,9 +249,14 @@ public class ReservedRealmTests extends ESTestCase {
 
     public void testLookupDisabled() throws Exception {
         Settings settings = Settings.builder().put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
-        final ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings),
-                securityIndex, threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(settings),
+            securityIndex,
+            threadPool
+        );
         final User expectedUser = randomReservedUser(true);
         final String principal = expectedUser.principal();
 
@@ -223,18 +264,22 @@ public class ReservedRealmTests extends ESTestCase {
         reservedRealm.doLookupUser(principal, assertListenerIsOnlyCalledOnce(listener));
         final User user = listener.actionGet();
         assertNull(user);
-        verifyZeroInteractions(usersStore);
+        verifyNoMoreInteractions(usersStore);
     }
-
 
     public void testLookupDisabledAnonymous() throws Exception {
         Settings settings = Settings.builder()
             .put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false)
             .put(AnonymousUser.ROLES_SETTING.getKey(), "anonymous")
             .build();
-        final ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings),
-                securityIndex, threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(settings),
+            securityIndex,
+            threadPool
+        );
         final User expectedUser = new AnonymousUser(settings);
         final String principal = expectedUser.principal();
 
@@ -245,9 +290,14 @@ public class ReservedRealmTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testLookupThrows() throws Exception {
-        final ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
-                new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            Settings.EMPTY,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            securityIndex,
+            threadPool
+        );
         final User expectedUser = randomReservedUser(true);
         final String principal = expectedUser.principal();
         when(securityIndex.indexExists()).thenReturn(true);
@@ -294,13 +344,28 @@ public class ReservedRealmTests extends ESTestCase {
     }
 
     public void testGetUsers() {
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
-            new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            Settings.EMPTY,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            securityIndex,
+            threadPool
+        );
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
-        assertThat(userFuture.actionGet(),
-            containsInAnyOrder(new ElasticUser(true), new KibanaUser(true), new KibanaSystemUser(true),
-                new LogstashSystemUser(true), new BeatsSystemUser(true), new APMSystemUser(true), new RemoteMonitoringUser(true)));
+        assertThat(
+            userFuture.actionGet(),
+            containsInAnyOrder(
+                new ElasticUser(true),
+                new KibanaUser(true),
+                new KibanaSystemUser(true),
+                new LogstashSystemUser(true),
+                new BeatsSystemUser(true),
+                new APMSystemUser(true),
+                new RemoteMonitoringUser(true)
+            )
+        );
     }
 
     public void testGetUsersDisabled() {
@@ -310,8 +375,14 @@ public class ReservedRealmTests extends ESTestCase {
             .put(AnonymousUser.ROLES_SETTING.getKey(), anonymousEnabled ? "user" : "")
             .build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser,
-            securityIndex, threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            anonymousUser,
+            securityIndex,
+            threadPool
+        );
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
         if (anonymousEnabled) {
@@ -329,8 +400,14 @@ public class ReservedRealmTests extends ESTestCase {
         char[] hash = hasher.hash(password);
         ReservedUserInfo userInfo = new ReservedUserInfo(hash, true);
         mockGetAllReservedUserInfo(usersStore, Collections.singletonMap("elastic", userInfo));
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore,
-            new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            Settings.EMPTY,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            securityIndex,
+            threadPool
+        );
 
         if (randomBoolean()) {
             PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
@@ -361,8 +438,14 @@ public class ReservedRealmTests extends ESTestCase {
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
         when(securityIndex.indexExists()).thenReturn(true);
 
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
-            new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            securityIndex,
+            threadPool
+        );
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
         doAnswer((i) -> {
@@ -371,9 +454,10 @@ public class ReservedRealmTests extends ESTestCase {
             callback.onResponse(null);
             return null;
         }).when(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
-                mockSecureSettings.getString("bootstrap.password")),
-            listener);
+        reservedRealm.doAuthenticate(
+            new UsernamePasswordToken(new ElasticUser(true).principal(), mockSecureSettings.getString("bootstrap.password")),
+            listener
+        );
         final AuthenticationResult result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
     }
@@ -384,8 +468,14 @@ public class ReservedRealmTests extends ESTestCase {
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
         when(securityIndex.indexExists()).thenReturn(true);
 
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
-            new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            securityIndex,
+            threadPool
+        );
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
         SecureString password = new SecureString("password".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
@@ -398,8 +488,10 @@ public class ReservedRealmTests extends ESTestCase {
             callback.onResponse(userInfo);
             return null;
         }).when(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
-            mockSecureSettings.getString("bootstrap.password")), listener);
+        reservedRealm.doAuthenticate(
+            new UsernamePasswordToken(new ElasticUser(true).principal(), mockSecureSettings.getString("bootstrap.password")),
+            listener
+        );
         assertFailedAuthentication(listener, "elastic");
         // now try with the real password
         listener = new PlainActionFuture<>();
@@ -414,13 +506,20 @@ public class ReservedRealmTests extends ESTestCase {
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
         when(securityIndex.indexExists()).thenReturn(false);
 
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
-            new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            securityIndex,
+            threadPool
+        );
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
-        reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(),
-                mockSecureSettings.getString("bootstrap.password")),
-            listener);
+        reservedRealm.doAuthenticate(
+            new UsernamePasswordToken(new ElasticUser(true).principal(), mockSecureSettings.getString("bootstrap.password")),
+            listener
+        );
         final AuthenticationResult result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
     }
@@ -432,12 +531,24 @@ public class ReservedRealmTests extends ESTestCase {
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
         when(securityIndex.indexExists()).thenReturn(true);
 
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
-            new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            securityIndex,
+            threadPool
+        );
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
-        final String principal = randomFrom(KibanaUser.NAME, KibanaSystemUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME,
-            APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        final String principal = randomFrom(
+            KibanaUser.NAME,
+            KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME,
+            APMSystemUser.NAME,
+            RemoteMonitoringUser.NAME
+        );
         doAnswer((i) -> {
             ActionListener<?> callback = (ActionListener<?>) i.getArguments()[1];
             callback.onResponse(null);
@@ -455,20 +566,39 @@ public class ReservedRealmTests extends ESTestCase {
         Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
         when(securityIndex.indexExists()).thenReturn(false);
 
-        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
-            new AnonymousUser(Settings.EMPTY), securityIndex, threadPool);
+        final ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(Settings.EMPTY),
+            securityIndex,
+            threadPool
+        );
         PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
 
-        final String principal = randomFrom(KibanaUser.NAME, KibanaSystemUser.NAME, LogstashSystemUser.NAME, BeatsSystemUser.NAME,
-            APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        final String principal = randomFrom(
+            KibanaUser.NAME,
+            KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME,
+            APMSystemUser.NAME,
+            RemoteMonitoringUser.NAME
+        );
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, mockSecureSettings.getString("bootstrap.password")), listener);
         final AuthenticationResult result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
     }
 
     private User randomReservedUser(boolean enabled) {
-        return randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new KibanaSystemUser(enabled),
-            new LogstashSystemUser(enabled), new BeatsSystemUser(enabled), new APMSystemUser(enabled), new RemoteMonitoringUser(enabled));
+        return randomFrom(
+            new ElasticUser(enabled),
+            new KibanaUser(enabled),
+            new KibanaSystemUser(enabled),
+            new LogstashSystemUser(enabled),
+            new BeatsSystemUser(enabled),
+            new APMSystemUser(enabled),
+            new RemoteMonitoringUser(enabled)
+        );
     }
 
     /*

@@ -25,4 +25,3 @@ public class RepositoryGcsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
         return createParameters();
     }
 }
-

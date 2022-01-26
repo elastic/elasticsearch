@@ -15,13 +15,13 @@ import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.Jdk;
 import org.elasticsearch.gradle.LazyPropertyList;
 import org.elasticsearch.gradle.LazyPropertyMap;
-import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.elasticsearch.gradle.util.Pair;
 import org.gradle.api.Action;
@@ -62,6 +62,7 @@ import java.io.LineNumberReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -104,7 +105,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final TimeUnit ADDITIONAL_CONFIG_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
         "path.repo",
-        "discovery.seed_providers"
+        "discovery.seed_providers",
+        "cluster.deprecation_indexing.enabled"
 
     );
 
@@ -142,8 +144,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final LazyPropertyMap<String, CharSequence> environment = new LazyPropertyMap<>("Environment", this);
     private final LazyPropertyList<CharSequence> jvmArgs = new LazyPropertyList<>("JVM arguments", this);
     private final LazyPropertyMap<String, File> extraConfigFiles = new LazyPropertyMap<>("Extra config files", this, FileEntry::new);
-    private final LazyPropertyList<File> extraJarFiles = new LazyPropertyList<>("Extra jar files", this);
+    private final LazyPropertyList<FileCollection> extraJarConfigurations = new LazyPropertyList<>("Extra jar files", this);
     private final List<Map<String, String>> credentials = new ArrayList<>();
+    private final List<File> roleFiles = new ArrayList<>();
     final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
 
     private final Path confPathRepo;
@@ -571,16 +574,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
         }
 
-        if (credentials.isEmpty() == false) {
-            logToProcessStdout("Setting up " + credentials.size() + " users");
-
-            credentials.forEach(
-                paramMap -> runElasticsearchBinScript(
-                    getVersion().onOrAfter("6.3.0") ? "elasticsearch-users" : "x-pack/users",
-                    paramMap.entrySet().stream().flatMap(entry -> Stream.of(entry.getKey(), entry.getValue())).toArray(String[]::new)
-                )
-            );
-        }
+        configureSecurity();
 
         if (cliSetup.isEmpty() == false) {
             logToProcessStdout("Running " + cliSetup.size() + " setup commands");
@@ -602,7 +596,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // using original location can be too long due to MAX_PATH restrictions on windows CI
         // TODO revisit when moving to shorter paths on CI by using Teamcity
         return OS.current() != OS.WINDOWS
-            && extraJarFiles.size() == 0
+            && extraJarConfigurations.size() == 0
             && modules.size() == 0
             && plugins.size() == 0
             && requiresAddingXPack() == false;
@@ -668,10 +662,18 @@ public class ElasticsearchNode implements TestClusterConfiguration {
      * //TODO: Remove this when system modules are available
      */
     private void copyExtraJars() {
+        List<File> extraJarFiles = this.extraJarConfigurations.stream()
+            .flatMap(fileCollection -> fileCollection.getFiles().stream())
+            .collect(Collectors.toList());
+
         if (extraJarFiles.isEmpty() == false) {
-            logToProcessStdout("Setting up " + extraJarFiles.size() + " additional jar dependencies");
+            logToProcessStdout("Setting up " + this.extraJarConfigurations.size() + " additional jar dependencies");
         }
         extraJarFiles.forEach(from -> {
+            if (from.getName().endsWith(".jar") == false) {
+                throw new IllegalArgumentException("extra jar file " + from.toString() + " doesn't appear to be a JAR");
+            }
+
             Path destination = getDistroDir().resolve("lib").resolve(from.getName());
             try {
                 Files.copy(from.toPath(), destination, StandardCopyOption.REPLACE_EXISTING);
@@ -680,6 +682,39 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 throw new UncheckedIOException("Can't copy extra jar dependency " + from.getName() + " to " + destination.toString(), e);
             }
         });
+    }
+
+    private void configureSecurity() {
+        if (credentials.isEmpty() == false) {
+            logToProcessStdout("Setting up " + credentials.size() + " users");
+
+            credentials.forEach(
+                paramMap -> runElasticsearchBinScript(
+                    getVersion().onOrAfter("6.3.0") ? "elasticsearch-users" : "x-pack/users",
+                    paramMap.entrySet().stream().flatMap(entry -> Stream.of(entry.getKey(), entry.getValue())).toArray(String[]::new)
+                )
+            );
+        }
+        if (roleFiles.isEmpty() == false) {
+            logToProcessStdout("Setting up roles.yml");
+
+            Path dst = configFile.getParent().resolve("roles.yml");
+            roleFiles.forEach(from -> {
+                if (Files.exists(from.toPath()) == false) {
+                    throw new TestClustersException(
+                        "Can't create roles.yml config file from " + from + " for " + this + " as it does not exist"
+                    );
+                }
+                try {
+                    final Path source = from.toPath();
+                    final String content = Files.readString(source, StandardCharsets.UTF_8);
+                    Files.writeString(dst, content + System.lineSeparator(), StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+                    LOGGER.info("Appended roles file {} to {}", source, dst);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Can't append roles file " + from + " to " + dst, e);
+                }
+            });
+        }
     }
 
     private void installModules() {
@@ -720,11 +755,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
-    public void extraJarFile(File from) {
-        if (from.toString().endsWith(".jar") == false) {
-            throw new IllegalArgumentException("extra jar file " + from.toString() + " doesn't appear to be a JAR");
-        }
-        extraJarFiles.add(from);
+    public void extraJarFiles(FileCollection from) {
+        extraJarConfigurations.add(from);
     }
 
     @Override
@@ -741,6 +773,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         cred.put("-p", userSpec.getOrDefault("password", "x-pack-test-password"));
         cred.put("-r", userSpec.getOrDefault("role", "superuser"));
         credentials.add(cred);
+    }
+
+    @Override
+    public void rolesFile(File rolesYml) {
+        roleFiles.add(rolesYml);
     }
 
     private void runElasticsearchBinScriptWithInput(String input, String tool, CharSequence... args) {
@@ -1207,9 +1244,18 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                         throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
                     }
                     syncMethod.accept(destination, source);
-
                 }
             });
+        } catch (UncheckedIOException e) {
+            if (e.getCause() instanceof NoSuchFileException) {
+                NoSuchFileException cause = (NoSuchFileException) e.getCause();
+                // Ignore these files that are sometimes left behind by the JVM
+                if (cause.getFile() == null || cause.getFile().contains(".attach_pid") == false) {
+                    throw new UncheckedIOException(cause);
+                }
+            } else {
+                throw e;
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("Can't walk source " + sourceRoot, e);
         }
@@ -1393,6 +1439,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             files.add(distribution.getExtracted().getAsFileTree().matching(patternFilter));
         }
         return files;
+    }
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public List<File> getRoleFiles() {
+        return roleFiles;
     }
 
     @Nested

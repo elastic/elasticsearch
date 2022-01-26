@@ -86,7 +86,7 @@ public class NGramFeatureExtractor implements FeatureExtractor {
             double weight = (double) value / (double) countSum;
             // We need to use the special hashing so that we choose the appropriate weight+ quantile
             // when building the feature vector.
-            int id = (int)(hashing.hash(key) % dimensionId);
+            int id = (int) (hashing.hash(key) % dimensionId);
 
             results[index++] = new ContinuousFeatureValue(id, weight);
         }

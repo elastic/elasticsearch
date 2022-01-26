@@ -32,18 +32,20 @@ import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("geo_point_field", Factory.class);
 
-    public static final GeoPointFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (GeoPointFieldScript.LeafFactory) ctx -> new GeoPointFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
+    public static final Factory PARSE_FROM_SOURCE = new Factory() {
+        @Override
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
+            return ctx -> new GeoPointFieldScript(field, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    emitFromSource();
+                }
+            };
+        }
 
         @Override
-        public void execute() {
-            emitFromSource();
+        public boolean isResultDeterministic() {
+            return true;
         }
     };
 
@@ -105,13 +107,13 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) value;
             if (list.size() > 0 && list.get(0) instanceof Number) {
-                //[2, 1]: two values but one single point, return it as a list or each value will be seen as a different geopoint.
+                // [2, 1]: two values but one single point, return it as a list or each value will be seen as a different geopoint.
                 return Collections.singletonList(list);
             }
-            //e.g. [ [2,1], {lat:2, lon:1} ]
+            // e.g. [ [2,1], {lat:2, lon:1} ]
             return list;
         }
-        //e.g. {lat: 2, lon: 1}
+        // e.g. {lat: 2, lon: 1}
         return Collections.singletonList(value);
     }
 
@@ -135,8 +137,8 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         if (point != null) {
             try {
                 GeoUtils.parseGeoPoint(point, scratch, true);
-            } catch(Exception e) {
-                //ignore
+            } catch (Exception e) {
+                // ignore
             }
             emit(scratch.lat(), scratch.lon());
         }

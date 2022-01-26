@@ -32,8 +32,9 @@ public final class NonNegativeScoresSimilarity extends Similarity {
         } else if ("false".equals(enforcePositiveScores)) {
             ENFORCE_POSITIVE_SCORES = false;
         } else {
-            throw new IllegalArgumentException(ES_ENFORCE_POSITIVE_SCORES + " may only be unset or set to [false], but got [" +
-                    enforcePositiveScores + "]");
+            throw new IllegalArgumentException(
+                ES_ENFORCE_POSITIVE_SCORES + " may only be unset or set to [false], but got [" + enforcePositiveScores + "]"
+            );
         }
     }
 
@@ -62,8 +63,10 @@ public final class NonNegativeScoresSimilarity extends Similarity {
                 float score = inScorer.score(freq, norm);
                 if (score < 0f) {
                     if (ENFORCE_POSITIVE_SCORES) {
-                        throw new IllegalArgumentException("Similarities must not produce negative scores, but got:\n" +
-                                inScorer.explain(Explanation.match(freq, "term frequency"), norm));
+                        throw new IllegalArgumentException(
+                            "Similarities must not produce negative scores, but got:\n"
+                                + inScorer.explain(Explanation.match(freq, "term frequency"), norm)
+                        );
                     } else {
                         return 0f;
                     }
@@ -75,8 +78,7 @@ public final class NonNegativeScoresSimilarity extends Similarity {
             public Explanation explain(Explanation freq, long norm) {
                 Explanation expl = inScorer.explain(freq, norm);
                 if (expl.isMatch() && expl.getValue().floatValue() < 0) {
-                    expl = Explanation.match(0f, "max of:",
-                            expl, Explanation.match(0f, "Minimum allowed score"));
+                    expl = Explanation.match(0f, "max of:", expl, Explanation.match(0f, "Minimum allowed score"));
                 }
                 return expl;
             }

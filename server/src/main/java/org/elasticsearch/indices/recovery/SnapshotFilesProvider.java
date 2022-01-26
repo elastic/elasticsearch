@@ -31,11 +31,13 @@ public class SnapshotFilesProvider {
         this.repositoriesService = Objects.requireNonNull(repositoriesService);
     }
 
-    public InputStream getInputStreamForSnapshotFile(String repositoryName,
-                                                     IndexId indexId,
-                                                     ShardId shardId,
-                                                     BlobStoreIndexShardSnapshot.FileInfo fileInfo,
-                                                     LongConsumer rateLimiterListener) {
+    public InputStream getInputStreamForSnapshotFile(
+        String repositoryName,
+        IndexId indexId,
+        ShardId shardId,
+        BlobStoreIndexShardSnapshot.FileInfo fileInfo,
+        LongConsumer rateLimiterListener
+    ) {
         BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repositoriesService.repository(repositoryName);
         StoreFileMetadata storeFileMetadata = fileInfo.metadata();
         final InputStream inputStream;

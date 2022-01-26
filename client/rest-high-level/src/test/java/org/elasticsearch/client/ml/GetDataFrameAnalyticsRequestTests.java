@@ -22,7 +22,9 @@ public class GetDataFrameAnalyticsRequestTests extends ESTestCase {
     }
 
     public void testValidate_Failure() {
-        assertThat(new GetDataFrameAnalyticsRequest(new String[0]).validate().get().getMessage(),
-            containsString("data frame analytics id must not be null"));
+        assertThat(
+            new GetDataFrameAnalyticsRequest(new String[0]).validate().get().getMessage(),
+            containsString("data frame analytics id must not be null")
+        );
     }
 }

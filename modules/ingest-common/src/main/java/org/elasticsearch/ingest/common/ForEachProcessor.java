@@ -71,13 +71,20 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
             List<?> list = (List<?>) o;
             innerExecuteList(0, new ArrayList<>(list), new ArrayList<>(list.size()), ingestDocument, handler);
         } else {
-            throw new IllegalArgumentException("field [" + field + "] of type [" + o.getClass().getName() + "] cannot be cast to a " +
-                "list or map");
+            throw new IllegalArgumentException(
+                "field [" + field + "] of type [" + o.getClass().getName() + "] cannot be cast to a " + "list or map"
+            );
         }
     }
 
-    void innerExecuteMap(int keyIndex, Map<?, ?> map, List<?> keys, Map<Object, Object> newValues, IngestDocument document,
-                         BiConsumer<IngestDocument, Exception> handler) {
+    void innerExecuteMap(
+        int keyIndex,
+        Map<?, ?> map,
+        List<?> keys,
+        Map<Object, Object> newValues,
+        IngestDocument document,
+        BiConsumer<IngestDocument, Exception> handler
+    ) {
         for (; keyIndex < keys.size(); keyIndex++) {
             AtomicBoolean shouldContinueHere = new AtomicBoolean();
             String key = (String) keys.get(keyIndex);
@@ -109,8 +116,13 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
         }
     }
 
-    void innerExecuteList(int index, List<?> values, List<Object> newValues, IngestDocument document,
-                          BiConsumer<IngestDocument, Exception> handler) {
+    void innerExecuteList(
+        int index,
+        List<?> values,
+        List<Object> newValues,
+        IngestDocument document,
+        BiConsumer<IngestDocument, Exception> handler
+    ) {
         for (; index < values.size(); index++) {
             AtomicBoolean shouldContinueHere = new AtomicBoolean();
             Object value = values.get(index);
@@ -163,8 +175,8 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
         }
 
         @Override
-        public ForEachProcessor create(Map<String, Processor.Factory> factories, String tag,
-                                       String description, Map<String, Object> config) throws Exception {
+        public ForEachProcessor create(Map<String, Processor.Factory> factories, String tag, String description, Map<String, Object> config)
+            throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
             boolean ignoreMissing = readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
             Map<String, Map<String, Object>> processorConfig = readMap(TYPE, tag, config, "processor");
@@ -173,8 +185,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
                 throw newConfigurationException(TYPE, tag, "processor", "Must specify exactly one processor type");
             }
             Map.Entry<String, Map<String, Object>> entry = entries.iterator().next();
-            Processor processor =
-                ConfigurationUtils.readProcessor(factories, scriptService, entry.getKey(), entry.getValue());
+            Processor processor = ConfigurationUtils.readProcessor(factories, scriptService, entry.getKey(), entry.getValue());
             return new ForEachProcessor(tag, description, field, processor, ignoreMissing);
         }
     }

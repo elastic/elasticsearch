@@ -50,7 +50,13 @@ public final class Intervals {
      * for exposing it in ODBC.
      */
     public enum TimeUnit {
-        YEAR, MONTH, DAY, HOUR, MINUTE, SECOND, MILLISECOND;
+        YEAR,
+        MONTH,
+        DAY,
+        HOUR,
+        MINUTE,
+        SECOND,
+        MILLISECOND;
     }
 
     private Intervals() {}
@@ -199,7 +205,6 @@ public final class Intervals {
         }
     }
 
-
     //
     // String parsers
     //
@@ -302,16 +307,24 @@ public final class Intervals {
                     if (token.optional) {
                         break;
                     }
-                    throw new ParsingException(source, invalidIntervalMessage(string) + ": incorrect format, expecting {}",
-                            Strings.collectionToDelimitedString(tokens, ""));
+                    throw new ParsingException(
+                        source,
+                        invalidIntervalMessage(string) + ": incorrect format, expecting {}",
+                        Strings.collectionToDelimitedString(tokens, "")
+                    );
                 }
 
                 // char token
                 if (token.ch != 0) {
                     char found = string.charAt(startToken);
                     if (found != token.ch) {
-                        throw new ParsingException(source, invalidIntervalMessage(string) + ": expected [{}] (at [{}]) but found [{}]",
-                                token.ch, startToken, found);
+                        throw new ParsingException(
+                            source,
+                            invalidIntervalMessage(string) + ": expected [{}] (at [{}]) but found [{}]",
+                            token.ch,
+                            startToken,
+                            found
+                        );
                     }
                     startToken++;
                 }
@@ -322,25 +335,33 @@ public final class Intervals {
                     }
 
                     if (endToken == startToken) {
-                        throw new ParsingException(source,
-                                invalidIntervalMessage(string) + ": expected digit (at [{}]) but found [{}]",
-                                endToken, string.charAt(endToken));
+                        throw new ParsingException(
+                            source,
+                            invalidIntervalMessage(string) + ": expected digit (at [{}]) but found [{}]",
+                            endToken,
+                            string.charAt(endToken)
+                        );
                     }
 
                     String number = string.substring(startToken, endToken);
                     try {
                         long v = StringUtils.parseLong(number);
                         if (token.maxValue > 0 && v > token.maxValue) {
-                            throw new ParsingException(source,
-                                    invalidIntervalMessage(string)
-                                            + ": [{}] unit has illegal value [{}], expected a positive number up to [{}]",
-                                    units.get(unitIndex).name(), v, token.maxValue);
+                            throw new ParsingException(
+                                source,
+                                invalidIntervalMessage(string)
+                                    + ": [{}] unit has illegal value [{}], expected a positive number up to [{}]",
+                                units.get(unitIndex).name(),
+                                v,
+                                token.maxValue
+                            );
                         }
                         if (v < 0) {
-                            throw new ParsingException(source,
-                                    invalidIntervalMessage(string)
-                                            + ": negative value [{}] not allowed (negate the entire interval instead)",
-                                    v);
+                            throw new ParsingException(
+                                source,
+                                invalidIntervalMessage(string) + ": negative value [{}] not allowed (negate the entire interval instead)",
+                                v
+                            );
                         }
                         if (units.get(unitIndex) == TimeUnit.MILLISECOND && number.length() < 3) {
                             // normalize the number past DOT to millis
@@ -355,8 +376,11 @@ public final class Intervals {
             }
 
             if (endToken <= string.length() - 1) {
-                throw new ParsingException(source, invalidIntervalMessage(string) + ": unexpected trailing characters found [{}]",
-                        string.substring(endToken));
+                throw new ParsingException(
+                    source,
+                    invalidIntervalMessage(string) + ": unexpected trailing characters found [{}]",
+                    string.substring(endToken)
+                );
             }
 
             TemporalAmount interval = units.get(0) == TimeUnit.YEAR || units.get(0) == TimeUnit.MONTH ? Period.ZERO : Duration.ZERO;
@@ -414,35 +438,35 @@ public final class Intervals {
         PARSERS.put(INTERVAL_DAY, new ParserBuilder(INTERVAL_DAY).unit(TimeUnit.DAY).build());
         PARSERS.put(INTERVAL_HOUR, new ParserBuilder(INTERVAL_HOUR).unit(TimeUnit.HOUR).build());
         PARSERS.put(INTERVAL_MINUTE, new ParserBuilder(INTERVAL_MINUTE).unit(TimeUnit.MINUTE).build());
-        PARSERS.put(INTERVAL_SECOND, new ParserBuilder(INTERVAL_SECOND)
-                 .unit(TimeUnit.SECOND)
-                 .optional()
-                 .separator(DOT).unit(TimeUnit.MILLISECOND, MAX_MILLI)
-                 .build());
+        PARSERS.put(
+            INTERVAL_SECOND,
+            new ParserBuilder(INTERVAL_SECOND).unit(TimeUnit.SECOND).optional().separator(DOT).unit(TimeUnit.MILLISECOND, MAX_MILLI).build()
+        );
 
         // patterns
-        PARSERS.put(INTERVAL_YEAR_TO_MONTH, new ParserBuilder(INTERVAL_YEAR_TO_MONTH)
-                .unit(TimeUnit.YEAR)
-                .separator(MINUS)
-                .unit(TimeUnit.MONTH, MAX_MONTH)
-                .build());
+        PARSERS.put(
+            INTERVAL_YEAR_TO_MONTH,
+            new ParserBuilder(INTERVAL_YEAR_TO_MONTH).unit(TimeUnit.YEAR).separator(MINUS).unit(TimeUnit.MONTH, MAX_MONTH).build()
+        );
 
-        PARSERS.put(INTERVAL_DAY_TO_HOUR, new ParserBuilder(INTERVAL_DAY_TO_HOUR)
-                .unit(TimeUnit.DAY)
-                .separator(SPACE)
-                .unit(TimeUnit.HOUR, MAX_HOUR)
-                .build());
+        PARSERS.put(
+            INTERVAL_DAY_TO_HOUR,
+            new ParserBuilder(INTERVAL_DAY_TO_HOUR).unit(TimeUnit.DAY).separator(SPACE).unit(TimeUnit.HOUR, MAX_HOUR).build()
+        );
 
-        PARSERS.put(INTERVAL_DAY_TO_MINUTE, new ParserBuilder(INTERVAL_DAY_TO_MINUTE)
-                .unit(TimeUnit.DAY)
+        PARSERS.put(
+            INTERVAL_DAY_TO_MINUTE,
+            new ParserBuilder(INTERVAL_DAY_TO_MINUTE).unit(TimeUnit.DAY)
                 .separator(SPACE)
                 .unit(TimeUnit.HOUR, MAX_HOUR)
                 .separator(COLON)
                 .unit(TimeUnit.MINUTE, MAX_MINUTE)
-                .build());
+                .build()
+        );
 
-        PARSERS.put(INTERVAL_DAY_TO_SECOND, new ParserBuilder(INTERVAL_DAY_TO_SECOND)
-                .unit(TimeUnit.DAY)
+        PARSERS.put(
+            INTERVAL_DAY_TO_SECOND,
+            new ParserBuilder(INTERVAL_DAY_TO_SECOND).unit(TimeUnit.DAY)
                 .separator(SPACE)
                 .unit(TimeUnit.HOUR, MAX_HOUR)
                 .separator(COLON)
@@ -450,32 +474,39 @@ public final class Intervals {
                 .separator(COLON)
                 .unit(TimeUnit.SECOND, MAX_SECOND)
                 .optional()
-                .separator(DOT).unit(TimeUnit.MILLISECOND, MAX_MILLI)
-                .build());
+                .separator(DOT)
+                .unit(TimeUnit.MILLISECOND, MAX_MILLI)
+                .build()
+        );
 
-        PARSERS.put(INTERVAL_HOUR_TO_MINUTE, new ParserBuilder(INTERVAL_HOUR_TO_MINUTE)
-                .unit(TimeUnit.HOUR)
-                .separator(COLON)
-                .unit(TimeUnit.MINUTE, MAX_MINUTE)
-                .build());
+        PARSERS.put(
+            INTERVAL_HOUR_TO_MINUTE,
+            new ParserBuilder(INTERVAL_HOUR_TO_MINUTE).unit(TimeUnit.HOUR).separator(COLON).unit(TimeUnit.MINUTE, MAX_MINUTE).build()
+        );
 
-        PARSERS.put(INTERVAL_HOUR_TO_SECOND, new ParserBuilder(INTERVAL_HOUR_TO_SECOND)
-                .unit(TimeUnit.HOUR)
+        PARSERS.put(
+            INTERVAL_HOUR_TO_SECOND,
+            new ParserBuilder(INTERVAL_HOUR_TO_SECOND).unit(TimeUnit.HOUR)
                 .separator(COLON)
                 .unit(TimeUnit.MINUTE, MAX_MINUTE)
                 .separator(COLON)
                 .unit(TimeUnit.SECOND, MAX_SECOND)
                 .optional()
-                .separator(DOT).unit(TimeUnit.MILLISECOND, MAX_MILLI)
-                .build());
+                .separator(DOT)
+                .unit(TimeUnit.MILLISECOND, MAX_MILLI)
+                .build()
+        );
 
-        PARSERS.put(INTERVAL_MINUTE_TO_SECOND, new ParserBuilder(INTERVAL_MINUTE_TO_SECOND)
-                .unit(TimeUnit.MINUTE)
+        PARSERS.put(
+            INTERVAL_MINUTE_TO_SECOND,
+            new ParserBuilder(INTERVAL_MINUTE_TO_SECOND).unit(TimeUnit.MINUTE)
                 .separator(COLON)
                 .unit(TimeUnit.SECOND, MAX_SECOND)
                 .optional()
-                .separator(DOT).unit(TimeUnit.MILLISECOND, MAX_MILLI)
-                .build());
+                .separator(DOT)
+                .unit(TimeUnit.MILLISECOND, MAX_MILLI)
+                .build()
+        );
     }
 
     public static TemporalAmount parseInterval(Source source, String value, DataType intervalType) {

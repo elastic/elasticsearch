@@ -17,8 +17,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
@@ -61,12 +61,14 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
 
     public static final String TEST_USER_NAME = "test_user";
     public static final Hasher HASHER = getFastStoredHashAlgoForTests();
-    public static final String TEST_PASSWORD_HASHED =
-        new String(HASHER.hash(new SecureString(TEST_PASSWORD.toCharArray())));
+    public static final String TEST_PASSWORD_HASHED = new String(HASHER.hash(new SecureString(TEST_PASSWORD.toCharArray())));
     public static final RequestOptions SECURITY_REQUEST_OPTIONS = RequestOptions.DEFAULT.toBuilder()
-        .addHeader("Authorization",
-            "Basic " + Base64.getEncoder().encodeToString(
-                (TEST_USER_NAME + ":" + SecuritySettingsSourceField.TEST_PASSWORD).getBytes(StandardCharsets.UTF_8)))
+        .addHeader(
+            "Authorization",
+            "Basic "
+                + Base64.getEncoder()
+                    .encodeToString((TEST_USER_NAME + ":" + SecuritySettingsSourceField.TEST_PASSWORD).getBytes(StandardCharsets.UTF_8))
+        )
         .build();
     public static final String TEST_ROLE = "user";
     public static final String TEST_SUPERUSER = "test_superuser";
@@ -74,23 +76,40 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     public static final String DEFAULT_TRANSPORT_CLIENT_ROLE = "transport_client";
     public static final String DEFAULT_TRANSPORT_CLIENT_USER_NAME = "test_trans_client_user";
 
-    public static final String CONFIG_STANDARD_USER =
-            TEST_USER_NAME + ":" + TEST_PASSWORD_HASHED + "\n" +
-            DEFAULT_TRANSPORT_CLIENT_USER_NAME + ":" + TEST_PASSWORD_HASHED + "\n" +
-            TEST_SUPERUSER + ":" + TEST_PASSWORD_HASHED + "\n";
+    public static final String CONFIG_STANDARD_USER = TEST_USER_NAME
+        + ":"
+        + TEST_PASSWORD_HASHED
+        + "\n"
+        + DEFAULT_TRANSPORT_CLIENT_USER_NAME
+        + ":"
+        + TEST_PASSWORD_HASHED
+        + "\n"
+        + TEST_SUPERUSER
+        + ":"
+        + TEST_PASSWORD_HASHED
+        + "\n";
 
-    public static final String CONFIG_STANDARD_USER_ROLES =
-            TEST_ROLE + ":" + TEST_USER_NAME + "," + DEFAULT_TRANSPORT_CLIENT_USER_NAME + "\n" +
-            DEFAULT_TRANSPORT_CLIENT_ROLE + ":" + DEFAULT_TRANSPORT_CLIENT_USER_NAME + "\n" +
-            "superuser:" + TEST_SUPERUSER + "\n";
+    public static final String CONFIG_STANDARD_USER_ROLES = TEST_ROLE
+        + ":"
+        + TEST_USER_NAME
+        + ","
+        + DEFAULT_TRANSPORT_CLIENT_USER_NAME
+        + "\n"
+        + DEFAULT_TRANSPORT_CLIENT_ROLE
+        + ":"
+        + DEFAULT_TRANSPORT_CLIENT_USER_NAME
+        + "\n"
+        + "superuser:"
+        + TEST_SUPERUSER
+        + "\n";
 
-    public static final String CONFIG_ROLE_ALLOW_ALL =
-            TEST_ROLE + ":\n" +
-                    "  cluster: [ ALL ]\n" +
-                    "  indices:\n" +
-                    "    - names: '*'\n" +
-                    "      allow_restricted_indices: true\n" +
-                    "      privileges: [ ALL ]\n";
+    public static final String CONFIG_ROLE_ALLOW_ALL = TEST_ROLE
+        + ":\n"
+        + "  cluster: [ ALL ]\n"
+        + "  indices:\n"
+        + "    - names: '*'\n"
+        + "      allow_restricted_indices: true\n"
+        + "      privileges: [ ALL ]\n";
 
     private final Path parentFolder;
     private final String subfolderPrefix;
@@ -138,20 +157,20 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         writeFile(xpackConf, "service_tokens", configServiceTokens());
 
         Settings.Builder builder = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), home)
-                .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
-                .put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
-                //TODO: for now isolate security tests from watcher (randomize this later)
-                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
-                .put(XPackSettings.AUDIT_ENABLED.getKey(), randomBoolean())
-                .put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), randomBoolean())
-                .put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), randomBoolean())
-                .put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), randomBoolean())
-                .put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), randomBoolean())
-                .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".file.order", 0)
-                .put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".index.order", "1")
-                .put("xpack.license.self_generated.type", "trial");
+            .put(Environment.PATH_HOME_SETTING.getKey(), home)
+            .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
+            .put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
+            // TODO: for now isolate security tests from watcher (randomize this later)
+            .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
+            .put(XPackSettings.AUDIT_ENABLED.getKey(), randomBoolean())
+            .put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), randomBoolean())
+            .put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), randomBoolean())
+            .put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), randomBoolean())
+            .put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), randomBoolean())
+            .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".file.order", 0)
+            .put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".index.order", "1")
+            .put("xpack.license.self_generated.type", "trial");
         if (inFipsJvm()) {
             builder.put("xpack.security.ssl.diagnose.trust", false);
         }
@@ -171,11 +190,15 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         addDefaultSecurityTransportType(builder, Settings.EMPTY);
 
         if (randomBoolean()) {
-            builder.put(SecurityField.USER_SETTING.getKey(),
-                    transportClientUsername() + ":" + new String(transportClientPassword().getChars()));
+            builder.put(
+                SecurityField.USER_SETTING.getKey(),
+                transportClientUsername() + ":" + new String(transportClientPassword().getChars())
+            );
         } else {
-            builder.put(ThreadContext.PREFIX + ".Authorization", basicAuthHeaderValue(transportClientUsername(),
-                    transportClientPassword()));
+            builder.put(
+                ThreadContext.PREFIX + ".Authorization",
+                basicAuthHeaderValue(transportClientUsername(), transportClientPassword())
+            );
         }
         return builder.build();
     }
@@ -186,11 +209,15 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         }
     }
 
-
     @Override
     public Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateSecurity.class, Netty4Plugin.class, ReindexPlugin.class, CommonAnalysisPlugin.class,
-            InternalSettingsPlugin.class);
+        return Arrays.asList(
+            LocalStateSecurity.class,
+            Netty4Plugin.class,
+            ReindexPlugin.class,
+            CommonAnalysisPlugin.class,
+            InternalSettingsPlugin.class
+        );
     }
 
     @Override
@@ -236,16 +263,23 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     }
 
     public static void addSSLSettingsForNodePEMFiles(Settings.Builder builder, String prefix, boolean hostnameVerificationEnabled) {
-        addSSLSettingsForPEMFiles(builder, prefix,
-            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem", "testnode",
+        addSSLSettingsForPEMFiles(
+            builder,
+            prefix,
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
+            "testnode",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.crt",
+            Arrays.asList(
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.crt",
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/active-directory-ca.crt",
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/openldap.crt",
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"),
-            hostnameVerificationEnabled, false);
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"
+            ),
+            hostnameVerificationEnabled,
+            false
+        );
     }
 
     private void addNodeSSLSettings(Settings.Builder builder) {
@@ -254,9 +288,14 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
             if (usePEM) {
                 addSSLSettingsForNodePEMFiles(builder, "xpack.security.transport.", hostnameVerificationEnabled);
             } else {
-                addSSLSettingsForStore(builder, "xpack.security.transport.",
-                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode",
-                    hostnameVerificationEnabled, false);
+                addSSLSettingsForStore(
+                    builder,
+                    "xpack.security.transport.",
+                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks",
+                    "testnode",
+                    hostnameVerificationEnabled,
+                    false
+                );
             }
         } else if (randomBoolean()) {
             builder.put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), false);
@@ -266,16 +305,29 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     public void addClientSSLSettings(Settings.Builder builder, String prefix) {
         builder.put("xpack.security.transport.ssl.enabled", sslEnabled);
         if (usePEM) {
-            addSSLSettingsForPEMFiles(builder, prefix,
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem", "testclient",
+            addSSLSettingsForPEMFiles(
+                builder,
+                prefix,
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem",
+                "testclient",
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
-                Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+                Arrays.asList(
+                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
                     "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
-                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"),
-                hostnameVerificationEnabled, true);
+                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"
+                ),
+                hostnameVerificationEnabled,
+                true
+            );
         } else {
-            addSSLSettingsForStore(builder, prefix, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks",
-                "testclient", hostnameVerificationEnabled, true);
+            addSSLSettingsForStore(
+                builder,
+                prefix,
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks",
+                "testclient",
+                hostnameVerificationEnabled,
+                true
+            );
         }
     }
 
@@ -289,8 +341,14 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         addSSLSettingsForStore(builder, prefix, resourcePathToStore, password, true, true);
     }
 
-    private static void addSSLSettingsForStore(Settings.Builder builder, String prefix, String resourcePathToStore, String password,
-                                               boolean hostnameVerificationEnabled, boolean transportClient) {
+    private static void addSSLSettingsForStore(
+        Settings.Builder builder,
+        String prefix,
+        String resourcePathToStore,
+        String password,
+        boolean hostnameVerificationEnabled,
+        boolean transportClient
+    ) {
         Path store = resolveResourcePath(resourcePathToStore);
         builder.put(prefix + "ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
         builder.put(prefix + "ssl.keystore.path", store);
@@ -299,8 +357,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
             builder.put(prefix + "ssl.keystore.password", password);
         } else {
             final String finalPrefix = prefix;
-            addSecureSettings(builder, secureSettings ->
-                secureSettings.setString(finalPrefix + "ssl.keystore.secure_password", password));
+            addSecureSettings(builder, secureSettings -> secureSettings.setString(finalPrefix + "ssl.keystore.secure_password", password));
         }
 
         if (randomBoolean()) {
@@ -310,8 +367,10 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
                 builder.put(prefix + "ssl.truststore.password", password);
             } else {
                 final String finalPrefix = prefix;
-                addSecureSettings(builder, secureSettings ->
-                    secureSettings.setString(finalPrefix + "ssl.truststore.secure_password", password));
+                addSecureSettings(
+                    builder,
+                    secureSettings -> secureSettings.setString(finalPrefix + "ssl.truststore.secure_password", password)
+                );
             }
         }
     }
@@ -327,8 +386,13 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
      *                            SSL connections.
      * @param trustedCertificates A list of PEM formatted certificates that will be trusted.
      */
-    public static void addSSLSettingsForPEMFiles(Settings.Builder builder, String keyPath, String password,
-                                                 String certificatePath, List<String> trustedCertificates) {
+    public static void addSSLSettingsForPEMFiles(
+        Settings.Builder builder,
+        String keyPath,
+        String password,
+        String certificatePath,
+        List<String> trustedCertificates
+    ) {
         addSSLSettingsForPEMFiles(builder, "", keyPath, password, certificatePath, trustedCertificates, true, true);
     }
 
@@ -344,32 +408,45 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
      * @param prefix              The settings prefix to use before ssl setting names
      * @param trustedCertificates A list of PEM formatted certificates that will be trusted.
      */
-    public static void addSSLSettingsForPEMFiles(Settings.Builder builder, String keyPath, String password,
-                                                 String certificatePath, String prefix, List<String> trustedCertificates) {
+    public static void addSSLSettingsForPEMFiles(
+        Settings.Builder builder,
+        String keyPath,
+        String password,
+        String certificatePath,
+        String prefix,
+        List<String> trustedCertificates
+    ) {
         addSSLSettingsForPEMFiles(builder, prefix, keyPath, password, certificatePath, trustedCertificates, true, true);
     }
 
-    private static void addSSLSettingsForPEMFiles(Settings.Builder builder, String prefix, String keyPath, String password,
-                                                  String certificatePath, List<String> trustedCertificates,
-                                                  boolean hostnameVerificationEnabled, boolean transportClient) {
+    private static void addSSLSettingsForPEMFiles(
+        Settings.Builder builder,
+        String prefix,
+        String keyPath,
+        String password,
+        String certificatePath,
+        List<String> trustedCertificates,
+        boolean hostnameVerificationEnabled,
+        boolean transportClient
+    ) {
         if (prefix.equals("")) {
             prefix = "xpack.security.transport.";
         }
         builder.put(prefix + "ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
-        builder.put(prefix + "ssl.key", resolveResourcePath(keyPath))
-                .put(prefix + "ssl.certificate", resolveResourcePath(certificatePath));
+        builder.put(prefix + "ssl.key", resolveResourcePath(keyPath)).put(prefix + "ssl.certificate", resolveResourcePath(certificatePath));
         if (transportClient) {
             // continue using insecure settings for clients until we figure out what to do there...
             builder.put(prefix + "ssl.key_passphrase", password);
         } else {
             final String finalPrefix = prefix;
-            addSecureSettings(builder, secureSettings ->
-                secureSettings.setString(finalPrefix + "ssl.secure_key_passphrase", password));
+            addSecureSettings(builder, secureSettings -> secureSettings.setString(finalPrefix + "ssl.secure_key_passphrase", password));
         }
 
         if (trustedCertificates.isEmpty() == false) {
-            builder.put(prefix + "ssl.certificate_authorities",
-                    Strings.arrayToCommaDelimitedString(resolvePathsToString(trustedCertificates)));
+            builder.put(
+                prefix + "ssl.certificate_authorities",
+                Strings.arrayToCommaDelimitedString(resolvePathsToString(trustedCertificates))
+            );
         }
     }
 
@@ -382,8 +459,9 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
             settingsSetter.accept(mockSecureSettings);
             builder.setSecureSettings(mockSecureSettings);
         } else {
-            throw new AssertionError("Test settings builder must contain MockSecureSettings, " +
-                "but has [" + secureSettings.getClass().getName() + "]");
+            throw new AssertionError(
+                "Test settings builder must contain MockSecureSettings, " + "but has [" + secureSettings.getClass().getName() + "]"
+            );
         }
     }
 

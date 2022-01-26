@@ -159,7 +159,7 @@ The settings which control logging can be updated <<dynamic-cluster-setting,dyna
 -------------------------------
 PUT /_cluster/settings
 {
-  "transient": {
+  "persistent": {
     "logger.org.elasticsearch.indices.recovery": "DEBUG"
   }
 }
@@ -201,3 +201,21 @@ left the cluster, for example), are impacted by this setting.
      This setting controls how often assignment checks are performed to react to
      these factors. The default is 30 seconds. The minimum permitted value is 10
      seconds.
+
+
+[[enforcing-a-default-tier-preference]]
+===== Enforcing a default _tier_preference
+
+Newly created indices have <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>>
+automatically assigned <<data-tier-allocation, by default>>.
+This can be overridden by setting the `_tier_preference` to `null`
+via the <<indices-create-index,create index>> API or using an <<index-templates,index template>>.
+
+In 8.0, it will not be possible to bypass this behavior by setting the
+`_tier_preference` to `null` -- all newly created indices will always
+have an associated `_tier_preference`.
+
+`cluster.routing.allocation.enforce_default_tier_preference`::
+     (<<dynamic-cluster-setting,Dynamic>>)
+     Enforce that newly created indices must always have a non-null `_tier_preference`,
+     bypassing request or template settings. Defaults to `false`.

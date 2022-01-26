@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ql.expression.function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 
-
 public class DefaultFunctionTypeRegistry implements FunctionTypeRegistry {
 
     public static final DefaultFunctionTypeRegistry INSTANCE = new DefaultFunctionTypeRegistry();

@@ -28,22 +28,110 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ValidationTests extends ESTestCase {
 
-    private static final Character[] ALLOWED_CHARS = Validation.VALID_NAME_CHARS.toArray(
-        new Character[Validation.VALID_NAME_CHARS.size()]
-    );
+    private static final Character[] ALLOWED_CHARS = Validation.VALID_NAME_CHARS.toArray(new Character[Validation.VALID_NAME_CHARS.size()]);
 
     private static final Set<Character> VALID_SERVICE_ACCOUNT_TOKEN_NAME_CHARS = org.elasticsearch.core.Set.of(
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
-        'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-        'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-        '-', '_'
+        '0',
+        '1',
+        '2',
+        '3',
+        '4',
+        '5',
+        '6',
+        '7',
+        '8',
+        '9',
+        'A',
+        'B',
+        'C',
+        'D',
+        'E',
+        'F',
+        'G',
+        'H',
+        'I',
+        'J',
+        'K',
+        'L',
+        'M',
+        'N',
+        'O',
+        'P',
+        'Q',
+        'R',
+        'S',
+        'T',
+        'U',
+        'V',
+        'W',
+        'X',
+        'Y',
+        'Z',
+        'a',
+        'b',
+        'c',
+        'd',
+        'e',
+        'f',
+        'g',
+        'h',
+        'i',
+        'j',
+        'k',
+        'l',
+        'm',
+        'n',
+        'o',
+        'p',
+        'q',
+        'r',
+        's',
+        't',
+        'u',
+        'v',
+        'w',
+        'x',
+        'y',
+        'z',
+        '-',
+        '_'
     );
 
     private static final Set<Character> INVALID_SERVICE_ACCOUNT_TOKEN_NAME_CHARS = org.elasticsearch.core.Set.of(
-        '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '.', '/', ';', '<', '=', '>', '?', '@', '[',
-        '\\', ']', '^', '`', '{', '|', '}', '~', ' ', '\t', '\n', '\r');
+        '!',
+        '"',
+        '#',
+        '$',
+        '%',
+        '&',
+        '\'',
+        '(',
+        ')',
+        '*',
+        '+',
+        ',',
+        '.',
+        '/',
+        ';',
+        '<',
+        '=',
+        '>',
+        '?',
+        '@',
+        '[',
+        '\\',
+        ']',
+        '^',
+        '`',
+        '{',
+        '|',
+        '}',
+        '~',
+        ' ',
+        '\t',
+        '\n',
+        '\r'
+    );
 
     public void testUsernameValid() throws Exception {
         int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.MAX_NAME_LENGTH);
@@ -191,11 +279,7 @@ public class ValidationTests extends ESTestCase {
     }
 
     public static String randomTokenName() {
-        final Character[] chars = randomArray(
-            1,
-            256,
-            Character[]::new,
-            () -> randomFrom(VALID_SERVICE_ACCOUNT_TOKEN_NAME_CHARS));
+        final Character[] chars = randomArray(1, 256, Character[]::new, () -> randomFrom(VALID_SERVICE_ACCOUNT_TOKEN_NAME_CHARS));
         final String name = Arrays.stream(chars).map(String::valueOf).collect(Collectors.joining());
         return name.startsWith("_") ? randomAlphaOfLength(1) + name.substring(1) : name;
     }

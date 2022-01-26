@@ -31,9 +31,10 @@ public interface ValueFetcher {
     * should not be relied on.
     *
     * @param lookup a lookup structure over the document's source.
+    * @param ignoredValues a mutable list to collect any ignored values as they were originally presented in source
     * @return a list a standardized field values.
     */
-    List<Object> fetchValues(SourceLookup lookup) throws IOException;
+    List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) throws IOException;
 
     /**
      * Update the leaf reader used to fetch values.

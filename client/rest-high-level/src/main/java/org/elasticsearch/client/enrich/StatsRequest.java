@@ -9,5 +9,4 @@ package org.elasticsearch.client.enrich;
 
 import org.elasticsearch.client.Validatable;
 
-public final class StatsRequest implements Validatable {
-}
+public final class StatsRequest implements Validatable {}

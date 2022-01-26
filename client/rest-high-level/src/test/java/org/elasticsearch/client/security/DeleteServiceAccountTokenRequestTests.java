@@ -27,8 +27,12 @@ public class DeleteServiceAccountTokenRequestTests extends ESTestCase {
         assertNull(request1.getRefreshPolicy());
 
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
-        final DeleteServiceAccountTokenRequest request2 =
-            new DeleteServiceAccountTokenRequest(namespace, serviceName, tokenName, refreshPolicy);
+        final DeleteServiceAccountTokenRequest request2 = new DeleteServiceAccountTokenRequest(
+            namespace,
+            serviceName,
+            tokenName,
+            refreshPolicy
+        );
         assertThat(request2.getNamespace(), equalTo(namespace));
         assertThat(request2.getServiceName(), equalTo(serviceName));
         assertThat(request2.getTokenName(), equalTo(tokenName));
@@ -41,13 +45,23 @@ public class DeleteServiceAccountTokenRequestTests extends ESTestCase {
         final String tokenName = randomAlphaOfLengthBetween(3, 8);
         final RefreshPolicy refreshPolicy = randomBoolean() ? randomFrom(RefreshPolicy.values()) : null;
 
-        final DeleteServiceAccountTokenRequest request =
-            new DeleteServiceAccountTokenRequest(namespace, serviceName, tokenName, refreshPolicy);
+        final DeleteServiceAccountTokenRequest request = new DeleteServiceAccountTokenRequest(
+            namespace,
+            serviceName,
+            tokenName,
+            refreshPolicy
+        );
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(request,
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            request,
             original -> new DeleteServiceAccountTokenRequest(
-                request.getNamespace(), request.getServiceName(), request.getTokenName(), request.getRefreshPolicy()),
-            this::mutateInstance);
+                request.getNamespace(),
+                request.getServiceName(),
+                request.getTokenName(),
+                request.getRefreshPolicy()
+            ),
+            this::mutateInstance
+        );
     }
 
     private DeleteServiceAccountTokenRequest mutateInstance(DeleteServiceAccountTokenRequest request) {
@@ -57,25 +71,29 @@ public class DeleteServiceAccountTokenRequestTests extends ESTestCase {
                     randomValueOtherThan(request.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
                     request.getServiceName(),
                     request.getTokenName(),
-                    request.getRefreshPolicy());
+                    request.getRefreshPolicy()
+                );
             case 1:
                 return new DeleteServiceAccountTokenRequest(
                     request.getNamespace(),
                     randomValueOtherThan(request.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)),
                     request.getTokenName(),
-                    request.getRefreshPolicy());
+                    request.getRefreshPolicy()
+                );
             case 2:
                 return new DeleteServiceAccountTokenRequest(
                     request.getNamespace(),
                     request.getServiceName(),
                     randomValueOtherThan(request.getTokenName(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    request.getRefreshPolicy());
+                    request.getRefreshPolicy()
+                );
             default:
                 return new DeleteServiceAccountTokenRequest(
                     request.getNamespace(),
                     request.getServiceName(),
                     request.getTokenName(),
-                    randomValueOtherThan(request.getRefreshPolicy(), () -> randomFrom(RefreshPolicy.values())));
+                    randomValueOtherThan(request.getRefreshPolicy(), () -> randomFrom(RefreshPolicy.values()))
+                );
         }
     }
 

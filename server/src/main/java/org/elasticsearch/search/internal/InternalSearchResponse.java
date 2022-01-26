@@ -12,11 +12,11 @@ import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.io.IOException;
 
@@ -32,9 +32,15 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
         return new InternalSearchResponse(SearchHits.empty(withTotalHits), null, null, null, false, null, 1);
     }
 
-    public InternalSearchResponse(SearchHits hits, InternalAggregations aggregations, Suggest suggest,
-                                  SearchProfileResults profileResults, boolean timedOut, Boolean terminatedEarly,
-                                  int numReducePhases) {
+    public InternalSearchResponse(
+        SearchHits hits,
+        InternalAggregations aggregations,
+        Suggest suggest,
+        SearchProfileResults profileResults,
+        boolean timedOut,
+        Boolean terminatedEarly,
+        int numReducePhases
+    ) {
         super(hits, aggregations, suggest, timedOut, terminatedEarly, profileResults, numReducePhases);
     }
 
@@ -53,7 +59,7 @@ public class InternalSearchResponse extends SearchResponseSections implements Wr
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         hits.writeTo(out);
-        out.writeOptionalWriteable((InternalAggregations)aggregations);
+        out.writeOptionalWriteable((InternalAggregations) aggregations);
         out.writeOptionalWriteable(suggest);
         out.writeBoolean(timedOut);
         out.writeOptionalBoolean(terminatedEarly);

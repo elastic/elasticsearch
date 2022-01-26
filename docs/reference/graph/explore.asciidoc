@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[graph-explore-api]]
 == Graph explore API
 

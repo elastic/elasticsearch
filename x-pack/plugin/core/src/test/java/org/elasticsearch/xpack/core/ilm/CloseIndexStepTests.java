@@ -64,8 +64,11 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
     }
 
     public void testPerformAction() {
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
 
         CloseIndexStep step = createRandomInstance();
 
@@ -79,9 +82,10 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
             CloseIndexRequest request = (CloseIndexRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<CloseIndexResponse> listener = (ActionListener<CloseIndexResponse>) invocation.getArguments()[1];
-            assertThat(request.indices(), equalTo(new String[]{indexMetadata.getIndex().getName()}));
-            listener.onResponse(new CloseIndexResponse(true, true,
-                Collections.singletonList(new CloseIndexResponse.IndexResult(indexMetadata.getIndex()))));
+            assertThat(request.indices(), equalTo(new String[] { indexMetadata.getIndex().getName() }));
+            listener.onResponse(
+                new CloseIndexResponse(true, true, Collections.singletonList(new CloseIndexResponse.IndexResult(indexMetadata.getIndex())))
+            );
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
@@ -106,10 +110,12 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
         Mockito.verify(indicesClient, Mockito.only()).close(Mockito.any(), Mockito.any());
     }
 
-
     public void testPerformActionFailure() {
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
 
         CloseIndexStep step = createRandomInstance();
         Exception exception = new RuntimeException();
@@ -123,13 +129,18 @@ public class CloseIndexStepTests extends AbstractStepTestCase<CloseIndexStep> {
             CloseIndexRequest request = (CloseIndexRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<CloseIndexResponse> listener = (ActionListener<CloseIndexResponse>) invocation.getArguments()[1];
-            assertThat(request.indices(), equalTo(new String[]{indexMetadata.getIndex().getName()}));
+            assertThat(request.indices(), equalTo(new String[] { indexMetadata.getIndex().getName() }));
             listener.onFailure(exception);
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
-            f -> step.performAction(indexMetadata, null, null, f))));
+        assertSame(
+            exception,
+            expectThrows(
+                Exception.class,
+                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f))
+            )
+        );
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();

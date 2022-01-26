@@ -43,6 +43,11 @@ public class ExampleSecurityExtension implements SecurityExtension {
     }
 
     @Override
+    public String extensionName() {
+        return "example";
+    }
+
+    @Override
     public Map<String, Realm.Factory> getRealms(SecurityComponents components) {
         final Map<String, Realm.Factory> map = new HashMap<>();
         map.put(CustomRealm.TYPE, CustomRealm::new);
@@ -56,8 +61,7 @@ public class ExampleSecurityExtension implements SecurityExtension {
     }
 
     @Override
-    public List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>
-    getRolesProviders(SecurityComponents components) {
+    public List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> getRolesProviders(SecurityComponents components) {
         CustomInMemoryRolesProvider rp1 = new CustomInMemoryRolesProvider(Collections.singletonMap(ROLE_A, "read"));
         Map<String, String> roles = new HashMap<>();
         roles.put(ROLE_A, "all");

@@ -207,13 +207,8 @@ Which should look like:
 
 ==== Missing values
 
-The `missing` parameter defines how documents that are missing a value should be treated.
-The default behavior is different for `value` and `weight`:
-
-By default, if the `value` field is missing the document is ignored and the aggregation moves on to the next document.
-If the `weight` field is missing, it is assumed to have a weight of `1` (like a normal average).
-
-Both of these defaults can be overridden with the `missing` parameter:
+By default, the aggregation excludes documents with a missing or `null` value for the `value` or `weight` field. Use the
+ `missing` parameter to specify a default value for these documents instead.
 
 [source,console]
 --------------------------------------------------

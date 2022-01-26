@@ -60,9 +60,7 @@ public class NioServerSocketChannel extends NioChannel {
 
     @Override
     public String toString() {
-        return "NioServerSocketChannel{" +
-            "localAddress=" + getLocalAddress() +
-            '}';
+        return "NioServerSocketChannel{" + "localAddress=" + getLocalAddress() + '}';
     }
 
     private void attemptToSetLocalAddress() {

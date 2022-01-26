@@ -9,8 +9,8 @@
 package org.elasticsearch.client.security.user.privileges;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,8 +39,11 @@ public class IndicesPrivilegesTests extends AbstractXContentTestCase<IndicesPriv
     }
 
     public void testToXContentWithNullFieldSecurity() {
-        final IndicesPrivileges privileges = IndicesPrivileges.builder().indices("abc").privileges("all")
-                .allowRestrictedIndices(randomBoolean()).build();
+        final IndicesPrivileges privileges = IndicesPrivileges.builder()
+            .indices("abc")
+            .privileges("all")
+            .allowRestrictedIndices(randomBoolean())
+            .build();
         final String json = Strings.toString(privileges);
         assertThat(json, not(containsString("field_security")));
     }
@@ -73,7 +76,8 @@ public class IndicesPrivilegesTests extends AbstractXContentTestCase<IndicesPriv
     @Override
     protected IndicesPrivileges createTestInstance() {
         return createNewRandom(
-                randomBoolean() ? null : "{ " + randomAlphaOfLengthBetween(1, 4) + " : " + randomAlphaOfLengthBetween(1, 4) + " }");
+            randomBoolean() ? null : "{ " + randomAlphaOfLengthBetween(1, 4) + " : " + randomAlphaOfLengthBetween(1, 4) + " }"
+        );
     }
 
     @Override

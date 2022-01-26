@@ -105,17 +105,15 @@ public class ClusterBlockTests extends ESTestCase {
 
     public void testRemoveIndexBlockWithId() {
         final ClusterBlocks.Builder builder = ClusterBlocks.builder();
-        builder.addIndexBlock("index-1",
-            new ClusterBlock(1, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
-        builder.addIndexBlock("index-1",
-            new ClusterBlock(2, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
-        builder.addIndexBlock("index-1",
-            new ClusterBlock(3, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
-        builder.addIndexBlock("index-1",
-            new ClusterBlock(3, "other uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
+        builder.addIndexBlock("index-1", new ClusterBlock(1, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
+        builder.addIndexBlock("index-1", new ClusterBlock(2, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
+        builder.addIndexBlock("index-1", new ClusterBlock(3, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
+        builder.addIndexBlock(
+            "index-1",
+            new ClusterBlock(3, "other uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL))
+        );
 
-        builder.addIndexBlock("index-2",
-            new ClusterBlock(3, "uuid3", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
+        builder.addIndexBlock("index-2", new ClusterBlock(3, "uuid3", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
 
         ClusterBlocks clusterBlocks = builder.build();
         assertThat(clusterBlocks.indices().get("index-1").size(), equalTo(4));
@@ -162,8 +160,16 @@ public class ClusterBlockTests extends ESTestCase {
     private ClusterBlock randomClusterBlock(final Version version) {
         final String uuid = (version.onOrAfter(Version.V_6_7_0) && randomBoolean()) ? UUIDs.randomBase64UUID() : null;
         final List<ClusterBlockLevel> levels = Arrays.asList(ClusterBlockLevel.values());
-        return new ClusterBlock(randomInt(), uuid, "cluster block #" + randomInt(), randomBoolean(), randomBoolean(), randomBoolean(),
-            randomFrom(RestStatus.values()), copyOf(randomSubsetOf(randomIntBetween(1, levels.size()), levels)));
+        return new ClusterBlock(
+            randomInt(),
+            uuid,
+            "cluster block #" + randomInt(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomFrom(RestStatus.values()),
+            copyOf(randomSubsetOf(randomIntBetween(1, levels.size()), levels))
+        );
     }
 
     private void assertClusterBlockEquals(final ClusterBlock expected, final ClusterBlock actual) {

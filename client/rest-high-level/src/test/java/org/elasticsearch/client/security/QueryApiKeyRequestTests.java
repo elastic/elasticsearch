@@ -42,17 +42,25 @@ public class QueryApiKeyRequestTests extends ESTestCase {
     }
 
     public void testEqualsHashCode() {
-        final QueryApiKeyRequest request = new QueryApiKeyRequest(randomQueryBuilder(),
+        final QueryApiKeyRequest request = new QueryApiKeyRequest(
+            randomQueryBuilder(),
             randomIntBetween(0, 100),
             randomIntBetween(0, 100),
             randomFieldSortBuilders(),
-            randomSearchAfterBuilder());
+            randomSearchAfterBuilder()
+        );
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(request, original -> new QueryApiKeyRequest(original.getQueryBuilder(),
-            original.getFrom(),
-            original.getSize(),
-            original.getFieldSortBuilders(),
-            original.getSearchAfterBuilder()), this::mutateInstance);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            request,
+            original -> new QueryApiKeyRequest(
+                original.getQueryBuilder(),
+                original.getFrom(),
+                original.getSize(),
+                original.getFieldSortBuilders(),
+                original.getSearchAfterBuilder()
+            ),
+            this::mutateInstance
+        );
     }
 
     public void testValidation() {
@@ -72,35 +80,45 @@ public class QueryApiKeyRequestTests extends ESTestCase {
     private QueryApiKeyRequest mutateInstance(QueryApiKeyRequest request) {
         switch (randomIntBetween(0, 5)) {
             case 0:
-                return new QueryApiKeyRequest(randomValueOtherThan(request.getQueryBuilder(), QueryApiKeyRequestTests::randomQueryBuilder),
+                return new QueryApiKeyRequest(
+                    randomValueOtherThan(request.getQueryBuilder(), QueryApiKeyRequestTests::randomQueryBuilder),
                     request.getFrom(),
                     request.getSize(),
                     request.getFieldSortBuilders(),
-                    request.getSearchAfterBuilder());
+                    request.getSearchAfterBuilder()
+                );
             case 1:
-                return new QueryApiKeyRequest(request.getQueryBuilder(),
+                return new QueryApiKeyRequest(
+                    request.getQueryBuilder(),
                     request.getFrom() + 1,
                     request.getSize(),
                     request.getFieldSortBuilders(),
-                    request.getSearchAfterBuilder());
+                    request.getSearchAfterBuilder()
+                );
             case 2:
-                return new QueryApiKeyRequest(request.getQueryBuilder(),
+                return new QueryApiKeyRequest(
+                    request.getQueryBuilder(),
                     request.getFrom(),
                     request.getSize() + 1,
                     request.getFieldSortBuilders(),
-                    request.getSearchAfterBuilder());
+                    request.getSearchAfterBuilder()
+                );
             case 3:
-                return new QueryApiKeyRequest(request.getQueryBuilder(),
+                return new QueryApiKeyRequest(
+                    request.getQueryBuilder(),
                     request.getFrom(),
                     request.getSize(),
                     randomValueOtherThan(request.getFieldSortBuilders(), QueryApiKeyRequestTests::randomFieldSortBuilders),
-                    request.getSearchAfterBuilder());
+                    request.getSearchAfterBuilder()
+                );
             default:
-                return new QueryApiKeyRequest(request.getQueryBuilder(),
+                return new QueryApiKeyRequest(
+                    request.getQueryBuilder(),
                     request.getFrom(),
                     request.getSize(),
                     request.getFieldSortBuilders(),
-                    randomValueOtherThan(request.getSearchAfterBuilder(), QueryApiKeyRequestTests::randomSearchAfterBuilder));
+                    randomValueOtherThan(request.getSearchAfterBuilder(), QueryApiKeyRequestTests::randomSearchAfterBuilder)
+                );
 
         }
     }
@@ -110,15 +128,19 @@ public class QueryApiKeyRequestTests extends ESTestCase {
             case 0:
                 return QueryBuilders.matchAllQuery();
             case 1:
-                return QueryBuilders.termQuery(randomAlphaOfLengthBetween(3, 8),
-                    randomFrom(randomAlphaOfLength(8), randomInt(), randomLong(), randomDouble(), randomFloat()));
+                return QueryBuilders.termQuery(
+                    randomAlphaOfLengthBetween(3, 8),
+                    randomFrom(randomAlphaOfLength(8), randomInt(), randomLong(), randomDouble(), randomFloat())
+                );
             case 2:
                 return QueryBuilders.idsQuery().addIds(randomArray(1, 5, String[]::new, () -> randomAlphaOfLength(20)));
             case 3:
                 return QueryBuilders.prefixQuery(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
             case 4:
-                return QueryBuilders.wildcardQuery(randomAlphaOfLengthBetween(3, 8),
-                    randomAlphaOfLengthBetween(0, 3) + "*" + randomAlphaOfLengthBetween(0, 3));
+                return QueryBuilders.wildcardQuery(
+                    randomAlphaOfLengthBetween(3, 8),
+                    randomAlphaOfLengthBetween(0, 3) + "*" + randomAlphaOfLengthBetween(0, 3)
+                );
             case 5:
                 return QueryBuilders.rangeQuery(randomAlphaOfLengthBetween(3, 8)).from(randomNonNegativeLong()).to(randomNonNegativeLong());
             default:

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.util;
 
-
 /** Utility methods to do byte-level encoding. These methods are biased towards little-endian byte order because it is the most
  *  common byte order and reading several bytes at once may be optimizable in the future with the help of sun.mist.Unsafe. */
 public enum ByteUtils {

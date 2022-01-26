@@ -10,11 +10,11 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
@@ -55,7 +55,7 @@ public class RecyclingBytesStreamOutput extends BytesStream {
         final int overflowSize = size - buffer.length;
         assert overflowSize > 0 : "no need to ensureCapacity(" + size + ") with buffer of size [" + buffer.length + "]";
         assert position >= buffer.length
-                : "no need to ensureCapacity(" + size + ") with buffer of size [" + buffer.length + "] at position [" + position + "]";
+            : "no need to ensureCapacity(" + size + ") with buffer of size [" + buffer.length + "] at position [" + position + "]";
         if (overflow == null) {
             overflow = bigArrays.newByteArray(overflowSize, false);
         } else if (overflowSize > overflow.size()) {
@@ -82,8 +82,7 @@ public class RecyclingBytesStreamOutput extends BytesStream {
     }
 
     @Override
-    public void flush() {
-    }
+    public void flush() {}
 
     @Override
     public void close() throws IOException {
@@ -130,8 +129,9 @@ public class RecyclingBytesStreamOutput extends BytesStream {
             return new BytesArray(buffer, 0, position);
         } else {
             return CompositeBytesReference.of(
-                    new BytesArray(buffer, 0, buffer.length),
-                    BytesReference.fromByteArray(overflow, position - buffer.length));
+                new BytesArray(buffer, 0, buffer.length),
+                BytesReference.fromByteArray(overflow, position - buffer.length)
+            );
         }
     }
 }

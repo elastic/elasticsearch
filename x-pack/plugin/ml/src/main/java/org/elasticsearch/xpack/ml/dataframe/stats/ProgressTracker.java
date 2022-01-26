@@ -128,8 +128,10 @@ public class ProgressTracker {
     }
 
     public List<PhaseProgress> report() {
-        return Collections.unmodifiableList(Arrays.stream(phasesInOrder)
-            .map(phase -> new PhaseProgress(phase, progressPercentPerPhase.get(phase)))
-            .collect(Collectors.toList()));
+        return Collections.unmodifiableList(
+            Arrays.stream(phasesInOrder)
+                .map(phase -> new PhaseProgress(phase, progressPercentPerPhase.get(phase)))
+                .collect(Collectors.toList())
+        );
     }
 }

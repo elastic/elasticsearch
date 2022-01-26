@@ -160,10 +160,19 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         Object destinationPort,
         Object icmpType,
         Object icmpCode,
-        int seed) {
+        int seed
+    ) {
 
-        Flow flow = buildFlow(sourceIpAddrString, destIpAddrString, ianaNumber, () -> transport, () -> sourcePort, () -> destinationPort,
-            icmpType, icmpCode);
+        Flow flow = buildFlow(
+            sourceIpAddrString,
+            destIpAddrString,
+            ianaNumber,
+            () -> transport,
+            () -> sourcePort,
+            () -> destinationPort,
+            icmpType,
+            icmpCode
+        );
 
         if (flow == null) {
             throw new IllegalArgumentException("unable to construct flow from document");
@@ -180,13 +189,21 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         Object sourcePort,
         Object destinationPort,
         Object icmpType,
-        Object icmpCode) {
+        Object icmpCode
+    ) {
         return apply(sourceIpAddrString, destIpAddrString, ianaNumber, transport, sourcePort, destinationPort, icmpType, icmpCode, 0);
     }
 
-    private static Flow buildFlow(String sourceIpAddrString, String destIpAddrString, Object ianaNumber,
-        Supplier<Object> transport, Supplier<Object> sourcePort, Supplier<Object> destinationPort,
-        Object icmpType, Object icmpCode) {
+    private static Flow buildFlow(
+        String sourceIpAddrString,
+        String destIpAddrString,
+        Object ianaNumber,
+        Supplier<Object> transport,
+        Supplier<Object> sourcePort,
+        Supplier<Object> destinationPort,
+        Object icmpType,
+        Object icmpCode
+    ) {
         if (sourceIpAddrString == null) {
             return null;
         }

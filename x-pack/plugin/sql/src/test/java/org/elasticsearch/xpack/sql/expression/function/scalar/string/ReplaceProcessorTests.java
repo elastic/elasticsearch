@@ -22,9 +22,10 @@ public class ReplaceProcessorTests extends AbstractWireSerializingTestCase<Repla
     @Override
     protected ReplaceFunctionProcessor createTestInstance() {
         return new ReplaceFunctionProcessor(
-                new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
-                new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
-                new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)));
+            new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
+            new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
+            new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128))
+        );
     }
 
     @Override
@@ -38,8 +39,7 @@ public class ReplaceProcessorTests extends AbstractWireSerializingTestCase<Repla
     }
 
     public void testReplaceFunctionWithValidInput() {
-        assertEquals("foobazbaz",
-                new Replace(EMPTY, l("foobarbar"), l("bar"), l("baz")).makePipe().asProcessor().process(null));
+        assertEquals("foobazbaz", new Replace(EMPTY, l("foobarbar"), l("bar"), l("baz")).makePipe().asProcessor().process(null));
         assertEquals("foobXrbXr", new Replace(EMPTY, l("foobarbar"), l('a'), l('X')).makePipe().asProcessor().process(null));
         assertEquals("z", new Replace(EMPTY, l('f'), l('f'), l('z')).makePipe().asProcessor().process(null));
     }
@@ -52,14 +52,20 @@ public class ReplaceProcessorTests extends AbstractWireSerializingTestCase<Repla
     }
 
     public void testReplaceFunctionInputsValidation() {
-        SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Replace(EMPTY, l(5), l("bar"), l("baz")).makePipe().asProcessor().process(null));
+        SqlIllegalArgumentException siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Replace(EMPTY, l(5), l("bar"), l("baz")).makePipe().asProcessor().process(null)
+        );
         assertEquals("A string/char is required; received [5]", siae.getMessage());
-        siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Replace(EMPTY, l("foobarbar"), l(4), l("baz")).makePipe().asProcessor().process(null));
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Replace(EMPTY, l("foobarbar"), l(4), l("baz")).makePipe().asProcessor().process(null)
+        );
         assertEquals("A string/char is required; received [4]", siae.getMessage());
-        siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Replace(EMPTY, l("foobarbar"), l("bar"), l(3)).makePipe().asProcessor().process(null));
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Replace(EMPTY, l("foobarbar"), l("bar"), l(3)).makePipe().asProcessor().process(null)
+        );
         assertEquals("A string/char is required; received [3]", siae.getMessage());
     }
 }

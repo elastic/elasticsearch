@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.sql.execution.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.type.Schema;
@@ -41,7 +41,7 @@ public class QuerierTests extends ESTestCase {
         List<List<?>> results = queue.asList();
 
         assertEquals(10, results.size());
-        for (int i = 0; i < 10; i ++) {
+        for (int i = 0; i < 10; i++) {
             assertEquals(i, results.get(i).get(0));
         }
     }
@@ -56,7 +56,7 @@ public class QuerierTests extends ESTestCase {
         List<List<?>> results = queue.asList();
 
         assertEquals(10, results.size());
-        for (int i = 0; i < 10; i ++) {
+        for (int i = 0; i < 10; i++) {
             assertEquals(50 - i, results.get(i).get(0));
         }
     }
@@ -99,13 +99,13 @@ public class QuerierTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public void testAggSorting_FourFields() {
-        List<Comparator> comparators = Arrays.<Comparator> asList(
-                Comparator.naturalOrder(),
-                Comparator.naturalOrder(),
-                Comparator.reverseOrder(),
-                Comparator.naturalOrder()
+        List<Comparator> comparators = Arrays.<Comparator>asList(
+            Comparator.naturalOrder(),
+            Comparator.naturalOrder(),
+            Comparator.reverseOrder(),
+            Comparator.naturalOrder()
         );
         List<Tuple<Integer, Comparator>> tuples = new ArrayList<>(4);
         tuples.add(new Tuple<>(0, null));
@@ -227,8 +227,7 @@ public class QuerierTests extends ESTestCase {
             }
 
             @Override
-            protected void doReset() {
-            }
+            protected void doReset() {}
 
             @Override
             public Schema schema() {
@@ -239,12 +238,13 @@ public class QuerierTests extends ESTestCase {
             public int size() {
                 return dataSize; // irrelevant
             }
-        };
+        }
+        ;
 
-        Cursor.Page page =
-            new Cursor.Page(
-                new TestResultRowSet<NamedWriteable>(Collections.singletonList(randomHitExtractor(0)), new BitSet(), dataSize),
-                Cursor.EMPTY);
+        Cursor.Page page = new Cursor.Page(
+            new TestResultRowSet<NamedWriteable>(Collections.singletonList(randomHitExtractor(0)), new BitSet(), dataSize),
+            Cursor.EMPTY
+        );
 
         AtomicInteger responses = new AtomicInteger();
         AtomicInteger failures = new AtomicInteger();

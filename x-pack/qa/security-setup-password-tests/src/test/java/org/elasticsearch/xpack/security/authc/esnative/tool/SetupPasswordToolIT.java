@@ -12,13 +12,13 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -41,9 +41,7 @@ public class SetupPasswordToolIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @SuppressWarnings("unchecked")
@@ -56,9 +54,9 @@ public class SetupPasswordToolIT extends ESRestTestCase {
         Response nodesResponse = client().performRequest(new Request("GET", "/_nodes/http"));
         Map<String, Object> nodesMap = entityAsMap(nodesResponse);
 
-        Map<String,Object> nodes = (Map<String,Object>) nodesMap.get("nodes");
-        Map<String, Object> firstNode = (Map<String,Object>) nodes.entrySet().iterator().next().getValue();
-        Map<String, Object> firstNodeHttp = (Map<String,Object>) firstNode.get("http");
+        Map<String, Object> nodes = (Map<String, Object>) nodesMap.get("nodes");
+        Map<String, Object> firstNode = (Map<String, Object>) nodes.entrySet().iterator().next().getValue();
+        Map<String, Object> firstNodeHttp = (Map<String, Object>) firstNode.get("http");
         String nodePublishAddress = (String) firstNodeHttp.get("publish_address");
         final int lastColonIndex = nodePublishAddress.lastIndexOf(':');
         InetAddress actualPublishAddress = InetAddresses.forString(nodePublishAddress.substring(0, lastColonIndex));
@@ -66,8 +64,9 @@ public class SetupPasswordToolIT extends ESRestTestCase {
         final int port = Integer.valueOf(nodePublishAddress.substring(lastColonIndex + 1));
 
         List<String> lines = Files.readAllLines(configPath.resolve("elasticsearch.yml"));
-        lines = lines.stream().filter(s -> s.startsWith("http.port") == false && s.startsWith("http.publish_port") == false)
-                .collect(Collectors.toList());
+        lines = lines.stream()
+            .filter(s -> s.startsWith("http.port") == false && s.startsWith("http.publish_port") == false)
+            .collect(Collectors.toList());
         lines.add(randomFrom("http.port", "http.publish_port") + ": " + port);
         if (expectedPublishAddress.equals(actualPublishAddress) == false) {
             lines.add("http.publish_address: " + InetAddresses.toAddrString(actualPublishAddress));
@@ -102,8 +101,8 @@ public class SetupPasswordToolIT extends ESRestTestCase {
 
         assertEquals(7, userPasswordMap.size());
         userPasswordMap.entrySet().forEach(entry -> {
-            final String basicHeader = "Basic " +
-                    Base64.getEncoder().encodeToString((entry.getKey() + ":" + entry.getValue()).getBytes(StandardCharsets.UTF_8));
+            final String basicHeader = "Basic "
+                + Base64.getEncoder().encodeToString((entry.getKey() + ":" + entry.getValue()).getBytes(StandardCharsets.UTF_8));
             try {
                 Request request = new Request("GET", "/_security/_authenticate");
                 RequestOptions.Builder options = request.getOptions().toBuilder();

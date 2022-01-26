@@ -55,13 +55,16 @@ public class PlainHighlighter implements Highlighter {
             fieldContext.cache.put(CACHE_KEY, new HashMap<>());
         }
         @SuppressWarnings("unchecked")
-        Map<MappedFieldType, org.apache.lucene.search.highlight.Highlighter> cache =
-            (Map<MappedFieldType, org.apache.lucene.search.highlight.Highlighter>) fieldContext.cache.get(CACHE_KEY);
+        Map<MappedFieldType, org.apache.lucene.search.highlight.Highlighter> cache = (Map<
+            MappedFieldType,
+            org.apache.lucene.search.highlight.Highlighter>) fieldContext.cache.get(CACHE_KEY);
 
         org.apache.lucene.search.highlight.Highlighter entry = cache.get(fieldType);
         if (entry == null) {
-            QueryScorer queryScorer = new CustomQueryScorer(fieldContext.query,
-                    field.fieldOptions().requireFieldMatch() ? fieldType.name() : null);
+            QueryScorer queryScorer = new CustomQueryScorer(
+                fieldContext.query,
+                field.fieldOptions().requireFieldMatch() ? fieldType.name() : null
+            );
             queryScorer.setExpandMultiTermQuery(true);
             Fragmenter fragmenter;
             if (field.fieldOptions().numberOfFragments() == 0) {
@@ -73,8 +76,9 @@ public class PlainHighlighter implements Highlighter {
             } else if ("span".equals(field.fieldOptions().fragmenter())) {
                 fragmenter = new SimpleSpanFragmenter(queryScorer, field.fieldOptions().fragmentCharSize());
             } else {
-                throw new IllegalArgumentException("unknown fragmenter option [" + field.fieldOptions().fragmenter()
-                        + "] for the field [" + fieldContext.fieldName + "]");
+                throw new IllegalArgumentException(
+                    "unknown fragmenter option [" + field.fieldOptions().fragmenter() + "] for the field [" + fieldContext.fieldName + "]"
+                );
             }
             Formatter formatter = new SimpleHTMLFormatter(field.fieldOptions().preTags()[0], field.fieldOptions().postTags()[0]);
 
@@ -97,25 +101,43 @@ public class PlainHighlighter implements Highlighter {
             queryMaxAnalyzedOffset
         );
 
-        textsToHighlight
-            = HighlightUtils.loadFieldValues(fieldType, context.getSearchExecutionContext(), hitContext, fieldContext.forceSource);
+        textsToHighlight = HighlightUtils.loadFieldValues(
+            fieldType,
+            context.getSearchExecutionContext(),
+            hitContext,
+            fieldContext.forceSource
+        );
 
         for (Object textToHighlight : textsToHighlight) {
             String text = convertFieldValue(fieldType, textToHighlight);
             int textLength = text.length();
             if ((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset > maxAnalyzedOffset) && (textLength > maxAnalyzedOffset)) {
                 throw new IllegalArgumentException(
-                    "The length [" + textLength + "] of field [" + field +"] in doc[" + hitContext.hit().getId() + "]/index["
-                        + context.getIndexName() +"] exceeds the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] "
-                        + "limit [" + maxAnalyzedOffset + "]. To avoid this error, set the query parameter ["
-                        + MAX_ANALYZED_OFFSET_FIELD.toString() + "] to a value less than index setting [" + maxAnalyzedOffset + "] and "
+                    "The length ["
+                        + textLength
+                        + "] of field ["
+                        + field
+                        + "] in doc["
+                        + hitContext.hit().getId()
+                        + "]/index["
+                        + context.getIndexName()
+                        + "] exceeds the ["
+                        + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey()
+                        + "] "
+                        + "limit ["
+                        + maxAnalyzedOffset
+                        + "]. To avoid this error, set the query parameter ["
+                        + MAX_ANALYZED_OFFSET_FIELD.toString()
+                        + "] to a value less than index setting ["
+                        + maxAnalyzedOffset
+                        + "] and "
                         + "this will tolerate long field values by truncating them."
                 );
             }
 
             try (TokenStream tokenStream = analyzer.tokenStream(fieldType.name(), text)) {
                 if (tokenStream.hasAttribute(CharTermAttribute.class) == false
-                        || tokenStream.hasAttribute(OffsetAttribute.class) == false) {
+                    || tokenStream.hasAttribute(OffsetAttribute.class) == false) {
                     // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
                     continue;
                 }
@@ -177,7 +199,7 @@ public class PlainHighlighter implements Highlighter {
     }
 
     private static int findGoodEndForNoHighlightExcerpt(int noMatchSize, Analyzer analyzer, String fieldName, String contents)
-            throws IOException {
+        throws IOException {
         try (TokenStream tokenStream = analyzer.tokenStream(fieldName, contents)) {
             if (tokenStream.hasAttribute(OffsetAttribute.class) == false) {
                 // Can't split on term boundaries without offsets

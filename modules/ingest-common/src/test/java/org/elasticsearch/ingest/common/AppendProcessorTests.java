@@ -212,9 +212,13 @@ public class AppendProcessorTests extends ESTestCase {
     }
 
     private static Processor createAppendProcessor(String fieldName, Object fieldValue, boolean allowDuplicates) {
-        return new AppendProcessor(randomAlphaOfLength(10),
-            null, new TestTemplateService.MockTemplateScript.Factory(fieldName),
-            ValueSource.wrap(fieldValue, TestTemplateService.instance()), allowDuplicates);
+        return new AppendProcessor(
+            randomAlphaOfLength(10),
+            null,
+            new TestTemplateService.MockTemplateScript.Factory(fieldName),
+            ValueSource.wrap(fieldValue, TestTemplateService.instance()),
+            allowDuplicates
+        );
     }
 
     private enum Scalar {
@@ -223,27 +227,32 @@ public class AppendProcessorTests extends ESTestCase {
             Object randomValue() {
                 return randomInt();
             }
-        }, DOUBLE {
+        },
+        DOUBLE {
             @Override
             Object randomValue() {
                 return randomDouble();
             }
-        }, FLOAT {
+        },
+        FLOAT {
             @Override
             Object randomValue() {
                 return randomFloat();
             }
-        }, BOOLEAN {
+        },
+        BOOLEAN {
             @Override
             Object randomValue() {
                 return randomBoolean();
             }
-        }, STRING {
+        },
+        STRING {
             @Override
             Object randomValue() {
                 return randomAlphaOfLengthBetween(1, 10);
             }
-        }, MAP {
+        },
+        MAP {
             @Override
             Object randomValue() {
                 int numItems = randomIntBetween(1, 10);
@@ -253,7 +262,8 @@ public class AppendProcessorTests extends ESTestCase {
                 }
                 return map;
             }
-        }, NULL {
+        },
+        NULL {
             @Override
             Object randomValue() {
                 return null;

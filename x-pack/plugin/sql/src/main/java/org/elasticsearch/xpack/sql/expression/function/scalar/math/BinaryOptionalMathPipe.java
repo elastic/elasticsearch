@@ -105,8 +105,6 @@ public class BinaryOptionalMathPipe extends Pipe {
         }
 
         BinaryOptionalMathPipe other = (BinaryOptionalMathPipe) obj;
-        return Objects.equals(left, other.left)
-                && Objects.equals(right, other.right)
-                && Objects.equals(operation, other.operation);
+        return Objects.equals(left, other.left) && Objects.equals(right, other.right) && Objects.equals(operation, other.operation);
     }
 }

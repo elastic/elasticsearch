@@ -8,10 +8,10 @@
 
 package org.elasticsearch.client.node;
 
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.AbstractClientHeadersTestCase;
@@ -37,8 +37,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
         Settings settings = HEADER_SETTINGS;
         Actions actions = new Actions(settings, threadPool, testedActions);
         NodeClient client = new NodeClient(settings, threadPool);
-        client.initialize(actions, () -> "test", null,
-            new NamedWriteableRegistry(Collections.emptyList()));
+        client.initialize(actions, () -> "test", null, new NamedWriteableRegistry(Collections.emptyList()));
         return client;
     }
 
@@ -56,8 +55,12 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     private static class InternalTransportAction extends TransportAction<ActionRequest, ActionResponse> {
 
         private InternalTransportAction(Settings settings, String actionName, ThreadPool threadPool) {
-            super(actionName, EMPTY_FILTERS, mock(Transport.Connection.class),
-                new TaskManager(settings, threadPool, Collections.emptySet()));
+            super(
+                actionName,
+                EMPTY_FILTERS,
+                mock(Transport.Connection.class),
+                new TaskManager(settings, threadPool, Collections.emptySet())
+            );
         }
 
         @Override
@@ -65,6 +68,5 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
             listener.onFailure(new InternalException(actionName));
         }
     }
-
 
 }

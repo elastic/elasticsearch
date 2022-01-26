@@ -9,8 +9,8 @@
 package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -50,11 +50,12 @@ public final class ForgetFollowerRequest implements ToXContentObject, Validatabl
      * @param leaderIndex         the name of the leader index
      */
     public ForgetFollowerRequest(
-            final String followerCluster,
-            final String followerIndex,
-            final String followerIndexUUID,
-            final String leaderRemoteCluster,
-            final String leaderIndex) {
+        final String followerCluster,
+        final String followerIndex,
+        final String followerIndexUUID,
+        final String leaderRemoteCluster,
+        final String leaderIndex
+    ) {
         this.followerCluster = Objects.requireNonNull(followerCluster);
         this.followerIndex = Objects.requireNonNull(followerIndex);
         this.followerIndexUUID = Objects.requireNonNull(followerIndexUUID);

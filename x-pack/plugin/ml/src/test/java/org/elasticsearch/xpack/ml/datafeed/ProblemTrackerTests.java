@@ -39,8 +39,11 @@ public class ProblemTrackerTests extends ESTestCase {
     }
 
     public void testReportExtractionProblem_GivenSearchPhaseExecutionException() {
-        SearchPhaseExecutionException searchPhaseExecutionException = new SearchPhaseExecutionException("test-phase",
-            "partial shards failure", new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchException("for the cause!")) });
+        SearchPhaseExecutionException searchPhaseExecutionException = new SearchPhaseExecutionException(
+            "test-phase",
+            "partial shards failure",
+            new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchException("for the cause!")) }
+        );
 
         problemTracker.reportExtractionProblem(new DatafeedJob.ExtractionProblemException(0L, searchPhaseExecutionException));
 

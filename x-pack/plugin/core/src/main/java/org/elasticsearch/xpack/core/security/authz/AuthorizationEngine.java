@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
@@ -132,9 +132,13 @@ public interface AuthorizationEngine {
      *                            alias or index
      * @param listener the listener to be notified of the authorization result
      */
-    void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                              AsyncSupplier<ResolvedIndices> indicesAsyncSupplier, Map<String, IndexAbstraction> aliasOrIndexLookup,
-                              ActionListener<IndexAuthorizationResult> listener);
+    void authorizeIndexAction(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
+        Map<String, IndexAbstraction> aliasOrIndexLookup,
+        ActionListener<IndexAuthorizationResult> listener
+    );
 
     /**
      * Asynchronously loads a set of alias and index names for which the user is authorized
@@ -148,9 +152,12 @@ public interface AuthorizationEngine {
      *                            alias or index
      * @param listener the listener to be notified of the authorization result
      */
-    void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                               Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener);
-
+    void loadAuthorizedIndices(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        Map<String, IndexAbstraction> indicesLookup,
+        ActionListener<Set<String>> listener
+    );
 
     /**
      * Asynchronously checks that the permissions a user would have for a given list of names do
@@ -169,8 +176,12 @@ public interface AuthorizationEngine {
      *                            the name in the key would have.
      * @param listener the listener to be notified of the authorization result
      */
-    void validateIndexPermissionsAreSubset(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                           Map<String, List<String>> indexNameToNewNames, ActionListener<AuthorizationResult> listener);
+    void validateIndexPermissionsAreSubset(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        Map<String, List<String>> indexNameToNewNames,
+        ActionListener<AuthorizationResult> listener
+    );
 
     /**
      * Checks the current user's privileges against those that being requested to check in the
@@ -184,9 +195,13 @@ public interface AuthorizationEngine {
      * @param applicationPrivilegeDescriptors a collection of application privilege descriptors
      * @param listener the listener to be notified of the has privileges response
      */
-    void checkPrivileges(Authentication authentication, AuthorizationInfo authorizationInfo, HasPrivilegesRequest hasPrivilegesRequest,
-                         Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
-                         ActionListener<HasPrivilegesResponse> listener);
+    void checkPrivileges(
+        Authentication authentication,
+        AuthorizationInfo authorizationInfo,
+        HasPrivilegesRequest hasPrivilegesRequest,
+        Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
+        ActionListener<HasPrivilegesResponse> listener
+    );
 
     /**
      * Retrieve's the current user's privileges in a standard format that can be rendered via an
@@ -198,8 +213,12 @@ public interface AuthorizationEngine {
      * @param request the request for retrieving the user's privileges
      * @param listener the listener to be notified of the has privileges response
      */
-    void getUserPrivileges(Authentication authentication, AuthorizationInfo authorizationInfo, GetUserPrivilegesRequest request,
-                           ActionListener<GetUserPrivilegesResponse> listener);
+    void getUserPrivileges(
+        Authentication authentication,
+        AuthorizationInfo authorizationInfo,
+        GetUserPrivilegesRequest request,
+        ActionListener<GetUserPrivilegesResponse> listener
+    );
 
     /**
      * Interface for objects that contains the information needed to authorize a request
@@ -383,7 +402,6 @@ public interface AuthorizationEngine {
             return indicesAccessControl;
         }
     }
-
 
     final class AuthorizationContext {
         private final String action;

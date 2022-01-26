@@ -64,8 +64,13 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private volatile boolean processKilled;
     private volatile boolean isReady;
 
-    protected AbstractNativeProcess(String jobId, ProcessPipes processPipes,
-                                    int numberOfFields, List<Path> filesToDelete, Consumer<String> onProcessCrash) {
+    protected AbstractNativeProcess(
+        String jobId,
+        ProcessPipes processPipes,
+        int numberOfFields,
+        List<Path> filesToDelete,
+        Consumer<String> onProcessCrash
+    ) {
         this.jobId = jobId;
         this.processPipes = processPipes;
         this.startTime = ZonedDateTime.now();
@@ -126,8 +131,8 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         String errors = cppLogHandler().getErrors();
         long pid = cppLogHandler().tryGetPid();
 
-        String fullError = pid > 0 ?
-            String.format(Locale.ROOT, "[%s] %s/%d process stopped unexpectedly: %s", jobId, getName(), pid, errors)
+        String fullError = pid > 0
+            ? String.format(Locale.ROOT, "[%s] %s/%d process stopped unexpectedly: %s", jobId, getName(), pid, errors)
             : String.format(Locale.ROOT, "[%s] %s process stopped unexpectedly before logging started: %s", jobId, getName(), errors);
 
         LOGGER.error(fullError);

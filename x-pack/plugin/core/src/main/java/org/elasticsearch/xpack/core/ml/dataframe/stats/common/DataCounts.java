@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.common;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.Fields;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
@@ -31,8 +31,11 @@ public class DataCounts implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<DataCounts, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<DataCounts, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<DataCounts, Void> parser = new ConstructingObjectParser<>(TYPE_VALUE, ignoreUnknownFields,
-            a -> new DataCounts((String) a[0], (long) a[1], (long) a[2], (long) a[3]));
+        ConstructingObjectParser<DataCounts, Void> parser = new ConstructingObjectParser<>(
+            TYPE_VALUE,
+            ignoreUnknownFields,
+            a -> new DataCounts((String) a[0], (long) a[1], (long) a[2], (long) a[3])
+        );
 
         parser.declareString((bucket, s) -> {}, Fields.TYPE);
         parser.declareString(ConstructingObjectParser.constructorArg(), Fields.JOB_ID);

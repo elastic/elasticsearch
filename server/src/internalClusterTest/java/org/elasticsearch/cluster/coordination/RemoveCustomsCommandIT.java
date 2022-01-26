@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import joptsimple.OptionSet;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
@@ -29,9 +30,12 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         Environment environment = TestEnvironment.newEnvironment(
-            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        expectThrows(() -> removeCustoms(environment, true, new String[]{ "index-graveyard" }),
-            ElasticsearchNodeCommand.ABORTED_BY_USER_MSG);
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build()
+        );
+        expectThrows(
+            () -> removeCustoms(environment, true, new String[] { "index-graveyard" }),
+            ElasticsearchNodeCommand.ABORTED_BY_USER_MSG
+        );
     }
 
     public void testRemoveCustomsSuccessful() throws Exception {
@@ -45,12 +49,13 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         Environment environment = TestEnvironment.newEnvironment(
-            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        MockTerminal terminal = removeCustoms(environment, false,
-            randomBoolean() ?
-                new String[]{ "index-graveyard" } :
-                new String[]{ "index-*" }
-            );
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build()
+        );
+        MockTerminal terminal = removeCustoms(
+            environment,
+            false,
+            randomBoolean() ? new String[] { "index-graveyard" } : new String[] { "index-*" }
+        );
         assertThat(terminal.getOutput(), containsString(RemoveCustomsCommand.CUSTOMS_REMOVED_MSG));
         assertThat(terminal.getOutput(), containsString("The following customs will be removed:"));
         assertThat(terminal.getOutput(), containsString("index-graveyard"));
@@ -70,11 +75,16 @@ public class RemoveCustomsCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         Environment environment = TestEnvironment.newEnvironment(
-            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        UserException ex = expectThrows(UserException.class, () -> removeCustoms(environment, false,
-            new String[]{ "index-greveyard-with-typos" }));
-        assertThat(ex.getMessage(), containsString("No custom metadata matching [index-greveyard-with-typos] were " +
-            "found on this node"));
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build()
+        );
+        UserException ex = expectThrows(
+            UserException.class,
+            () -> removeCustoms(environment, false, new String[] { "index-greveyard-with-typos" })
+        );
+        assertThat(
+            ex.getMessage(),
+            containsString("No custom metadata matching [index-greveyard-with-typos] were " + "found on this node")
+        );
     }
 
     private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, boolean abort, String... args)

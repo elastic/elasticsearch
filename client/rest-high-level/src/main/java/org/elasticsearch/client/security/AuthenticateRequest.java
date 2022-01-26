@@ -20,8 +20,7 @@ public final class AuthenticateRequest implements Validatable {
 
     public static final AuthenticateRequest INSTANCE = new AuthenticateRequest();
 
-    private AuthenticateRequest() {
-    }
+    private AuthenticateRequest() {}
 
     public Request getRequest() {
         return new Request(HttpGet.METHOD_NAME, "/_security/_authenticate");

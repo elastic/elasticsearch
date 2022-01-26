@@ -31,9 +31,7 @@ public class RestRecoveryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_recovery"),
-            new Route(GET, "/{index}/_recovery")));
+        return unmodifiableList(asList(new Route(GET, "/_recovery"), new Route(GET, "/{index}/_recovery")));
     }
 
     @Override
@@ -53,8 +51,8 @@ public class RestRecoveryAction extends BaseRestHandler {
         recoveryRequest.detailed(request.paramAsBoolean("detailed", false));
         recoveryRequest.activeOnly(request.paramAsBoolean("active_only", false));
         recoveryRequest.indicesOptions(IndicesOptions.fromRequest(request, recoveryRequest.indicesOptions()));
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel())
-                .admin().indices().recoveries(recoveryRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .indices()
+            .recoveries(recoveryRequest, new RestToXContentListener<>(channel));
     }
 }
-

@@ -83,9 +83,6 @@ public class RestSqlIT extends RestSqlTestCase {
         request.setOptions(options);
         StringEntity stringEntity = new StringEntity(query("select * from test").toString(), ContentType.APPLICATION_JSON);
         request.setEntity(stringEntity);
-        expectBadRequest(
-            () -> toMap(client().performRequest(request), "plain"),
-            containsString("invalid format [application/fff]")
-        );
+        expectBadRequest(() -> toMap(client().performRequest(request), "plain"), containsString("invalid format [application/fff]"));
     }
 }

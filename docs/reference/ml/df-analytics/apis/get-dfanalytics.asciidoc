@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[get-dfanalytics]]
 = Get {dfanalytics-jobs} API
 [subs="attributes"]

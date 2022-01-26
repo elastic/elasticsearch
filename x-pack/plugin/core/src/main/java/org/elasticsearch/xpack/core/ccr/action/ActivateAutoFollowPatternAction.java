@@ -73,8 +73,7 @@ public class ActivateAutoFollowPatternAction extends ActionType<AcknowledgedResp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return active == request.active
-                && Objects.equals(name, request.name);
+            return active == request.active && Objects.equals(name, request.name);
         }
 
         @Override

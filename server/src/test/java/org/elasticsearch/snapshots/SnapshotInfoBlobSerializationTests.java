@@ -10,9 +10,9 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.AbstractWireTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 

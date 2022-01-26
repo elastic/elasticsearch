@@ -10,15 +10,15 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -36,9 +36,11 @@ public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> imple
     private static final ParseField METADATA = new ParseField("_meta");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ComponentTemplate, Void> PARSER =
-        new ConstructingObjectParser<>("component_template", false,
-            a -> new ComponentTemplate((Template) a[0], (Long) a[1], (Map<String, Object>) a[2]));
+    public static final ConstructingObjectParser<ComponentTemplate, Void> PARSER = new ConstructingObjectParser<>(
+        "component_template",
+        false,
+        a -> new ComponentTemplate((Template) a[0], (Long) a[1], (Map<String, Object>) a[2])
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), Template.PARSER, TEMPLATE);
@@ -116,9 +118,9 @@ public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> imple
             return false;
         }
         ComponentTemplate other = (ComponentTemplate) obj;
-        return Objects.equals(template, other.template) &&
-            Objects.equals(version, other.version) &&
-            Objects.equals(metadata, other.metadata);
+        return Objects.equals(template, other.template)
+            && Objects.equals(version, other.version)
+            && Objects.equals(metadata, other.metadata);
     }
 
     @Override
@@ -129,7 +131,7 @@ public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> imple
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(TEMPLATE.getPreferredName(), this.template);
+        builder.field(TEMPLATE.getPreferredName(), this.template, params);
         if (this.version != null) {
             builder.field(VERSION.getPreferredName(), this.version);
         }

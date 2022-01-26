@@ -40,11 +40,19 @@ public class LimitedCharSequence implements CharSequence {
     }
 
     public String details() {
-        return (pattern != null ? "pattern: [" +  pattern.pattern() + "], " : "") +
-            "limit factor: [" + limitFactor + "], " +
-            "char limit: [" + counter.charAtLimit + "], " +
-            "count: [" + counter.count + "], " +
-            "wrapped: [" + snippet(MAX_STR_LENGTH) + "]";
+        return (pattern != null ? "pattern: [" + pattern.pattern() + "], " : "")
+            + "limit factor: ["
+            + limitFactor
+            + "], "
+            + "char limit: ["
+            + counter.charAtLimit
+            + "], "
+            + "count: ["
+            + counter.count
+            + "], "
+            + "wrapped: ["
+            + snippet(MAX_STR_LENGTH)
+            + "]";
     }
 
     /**
@@ -52,15 +60,21 @@ public class LimitedCharSequence implements CharSequence {
      */
     String snippet(int maxStrLength) {
         if (maxStrLength < SNIPPET.length() * 6) {
-            throw new IllegalArgumentException("max str length must be large enough to include three snippets and three context chars, " +
-                "at least [" + SNIPPET.length() * 6 +"], not [" + maxStrLength + "]");
+            throw new IllegalArgumentException(
+                "max str length must be large enough to include three snippets and three context chars, "
+                    + "at least ["
+                    + SNIPPET.length() * 6
+                    + "], not ["
+                    + maxStrLength
+                    + "]"
+            );
         }
 
         if (wrapped.length() <= maxStrLength) {
             return wrapped.toString();
         }
 
-        return wrapped.subSequence(0, maxStrLength - SNIPPET.length()) + "..." ;
+        return wrapped.subSequence(0, maxStrLength - SNIPPET.length()) + "...";
     }
 
     @Override
@@ -72,9 +86,14 @@ public class LimitedCharSequence implements CharSequence {
     public char charAt(int index) {
         counter.count++;
         if (counter.hitLimit()) {
-            throw new CircuitBreakingException("[scripting] Regular expression considered too many characters, " + details() +
-            ", this limit can be changed by changed by the [" + CompilerSettings.REGEX_LIMIT_FACTOR.getKey() + "] setting",
-                CircuitBreaker.Durability.TRANSIENT);
+            throw new CircuitBreakingException(
+                "[scripting] Regular expression considered too many characters, "
+                    + details()
+                    + ", this limit can be changed by changed by the ["
+                    + CompilerSettings.REGEX_LIMIT_FACTOR.getKey()
+                    + "] setting",
+                CircuitBreaker.Durability.TRANSIENT
+            );
         }
         return wrapped.charAt(index);
     }

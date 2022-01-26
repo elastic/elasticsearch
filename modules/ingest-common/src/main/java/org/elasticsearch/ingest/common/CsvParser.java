@@ -18,7 +18,10 @@ final class CsvParser {
     private static final char TAB = '\t';
 
     private enum State {
-        START, UNQUOTED, QUOTED, QUOTED_END
+        START,
+        UNQUOTED,
+        QUOTED,
+        QUOTED_END
     }
 
     private final char quote;
@@ -70,7 +73,7 @@ final class CsvParser {
             }
         }
 
-        //we've reached end of string, we need to handle last field
+        // we've reached end of string, we need to handle last field
         switch (state) {
             case UNQUOTED:
                 setField(length);

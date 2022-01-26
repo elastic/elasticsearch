@@ -51,8 +51,12 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         final String indexName = "test";
         final String synonymAnalyzerName = "synonym_analyzer";
         final String synonymGraphAnalyzerName = "synonym_graph_analyzer";
-        assertAcked(client().admin().indices().prepareCreate(indexName)
-                .setSettings(Settings.builder()
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
                         .put("index.number_of_shards", 5)
                         .put("index.number_of_replicas", 0)
                         .put("analysis.analyzer." + synonymAnalyzerName + ".tokenizer", "standard")
@@ -64,8 +68,10 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
                         .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName)
                         .put("analysis.filter.synonym_graph_filter.type", "synonym_graph")
                         .put("analysis.filter.synonym_graph_filter.updateable", "true")
-                        .put("analysis.filter.synonym_graph_filter.synonyms_path", synonymsFileName))
-                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=" + synonymAnalyzerName));
+                        .put("analysis.filter.synonym_graph_filter.synonyms_path", synonymsFileName)
+                )
+                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=" + synonymAnalyzerName)
+        );
 
         client().prepareIndex(indexName, "_doc", "1").setSource("field", "Foo").get();
         assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().actionGet());
@@ -87,12 +93,15 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         }
 
         // now update synonyms file and trigger reloading
-        try (PrintWriter out = new PrintWriter(
-                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
+        try (
+            PrintWriter out = new PrintWriter(
+                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8)
+            )
+        ) {
             out.println("foo, baz, buzz");
         }
         ReloadAnalyzersResponse reloadResponse = client().execute(ReloadAnalyzerAction.INSTANCE, new ReloadAnalyzersRequest(indexName))
-                .actionGet();
+            .actionGet();
         assertNoFailures(reloadResponse);
         Set<String> reloadedAnalyzers = reloadResponse.getReloadDetails().get(indexName).getReloadedAnalyzers();
         assertEquals(2, reloadedAnalyzers.size());
@@ -123,8 +132,12 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
 
         final String indexName = "test";
         final String synonymAnalyzerName = "synonym_in_multiplexer_analyzer";
-        assertAcked(client().admin().indices().prepareCreate(indexName)
-                .setSettings(Settings.builder()
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
                         .put("index.number_of_shards", 5)
                         .put("index.number_of_replicas", 0)
                         .put("analysis.analyzer." + synonymAnalyzerName + ".tokenizer", "whitespace")
@@ -133,8 +146,10 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
                         .put("analysis.filter.synonym_filter.updateable", "true")
                         .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName)
                         .put("analysis.filter.my_multiplexer.type", "multiplexer")
-                        .putList("analysis.filter.my_multiplexer.filters", "synonym_filter"))
-                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=" + synonymAnalyzerName));
+                        .putList("analysis.filter.my_multiplexer.filters", "synonym_filter")
+                )
+                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=" + synonymAnalyzerName)
+        );
 
         client().prepareIndex(indexName, "_doc", "1").setSource("field", "foo").get();
         assertNoFailures(client().admin().indices().prepareRefresh(indexName).execute().actionGet());
@@ -152,12 +167,15 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         assertTrue(tokens.contains("baz"));
 
         // now update synonyms file and trigger reloading
-        try (PrintWriter out = new PrintWriter(
-                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
+        try (
+            PrintWriter out = new PrintWriter(
+                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8)
+            )
+        ) {
             out.println("foo, baz, buzz");
         }
         ReloadAnalyzersResponse reloadResponse = client().execute(ReloadAnalyzerAction.INSTANCE, new ReloadAnalyzersRequest(indexName))
-                .actionGet();
+            .actionGet();
         assertNoFailures(reloadResponse);
         Set<String> reloadedAnalyzers = reloadResponse.getReloadDetails().get(indexName).getReloadedAnalyzers();
         assertEquals(1, reloadedAnalyzers.size());
@@ -188,31 +206,50 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         if (Files.exists(synonymsFile) == false) {
             Files.createFile(synonymsFile);
         }
-        try (PrintWriter out = new PrintWriter(
-                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
+        try (
+            PrintWriter out = new PrintWriter(
+                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8)
+            )
+        ) {
             out.println("foo, baz");
         }
 
         final String indexName = "test";
         final String analyzerName = "my_synonym_analyzer";
 
-        MapperException ex = expectThrows(MapperException.class, () -> client().admin().indices().prepareCreate(indexName)
-                .setSettings(Settings.builder()
+        MapperException ex = expectThrows(
+            MapperException.class,
+            () -> client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
                         .put("index.number_of_shards", 5)
                         .put("index.number_of_replicas", 0)
                         .put("analysis.analyzer." + analyzerName + ".tokenizer", "standard")
                         .putList("analysis.analyzer." + analyzerName + ".filter", "lowercase", "synonym_filter")
                         .put("analysis.filter.synonym_filter.type", "synonym")
                         .put("analysis.filter.synonym_filter.updateable", "true")
-                        .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName))
-                .addMapping("_doc", "field", "type=text,analyzer=" + analyzerName).get());
+                        .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName)
+                )
+                .addMapping("_doc", "field", "type=text,analyzer=" + analyzerName)
+                .get()
+        );
 
-        assertEquals("Failed to parse mapping [_doc]: analyzer [my_synonym_analyzer] "
-                + "contains filters [synonym_filter] that are not allowed to run in index time mode.", ex.getMessage());
+        assertEquals(
+            "Failed to parse mapping [_doc]: analyzer [my_synonym_analyzer] "
+                + "contains filters [synonym_filter] that are not allowed to run in index time mode.",
+            ex.getMessage()
+        );
 
         // same for synonym filters in multiplexer chain
-        ex = expectThrows(MapperException.class,
-                () -> client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
+        ex = expectThrows(
+            MapperException.class,
+            () -> client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
                         .put("index.number_of_shards", 5)
                         .put("index.number_of_replicas", 0)
                         .put("analysis.analyzer." + analyzerName + ".tokenizer", "whitespace")
@@ -221,11 +258,17 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
                         .put("analysis.filter.synonym_filter.updateable", "true")
                         .put("analysis.filter.synonym_filter.synonyms_path", synonymsFileName)
                         .put("analysis.filter.my_multiplexer.type", "multiplexer")
-                        .putList("analysis.filter.my_multiplexer.filters", "synonym_filter"))
-                        .addMapping("_doc", "field", "type=text,analyzer=" + analyzerName).get());
+                        .putList("analysis.filter.my_multiplexer.filters", "synonym_filter")
+                )
+                .addMapping("_doc", "field", "type=text,analyzer=" + analyzerName)
+                .get()
+        );
 
-        assertEquals("Failed to parse mapping [_doc]: analyzer [my_synonym_analyzer] "
-                + "contains filters [my_multiplexer] that are not allowed to run in index time mode.", ex.getMessage());
+        assertEquals(
+            "Failed to parse mapping [_doc]: analyzer [my_synonym_analyzer] "
+                + "contains filters [my_multiplexer] that are not allowed to run in index time mode.",
+            ex.getMessage()
+        );
     }
 
     public void testKeywordMarkerUpdateable() throws IOException {
@@ -234,16 +277,22 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
 
         final String indexName = "test";
         final String analyzerName = "keyword_maker_analyzer";
-        assertAcked(client().admin().indices().prepareCreate(indexName)
-                .setSettings(Settings.builder()
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
                         .put("index.number_of_shards", 5)
                         .put("index.number_of_replicas", 0)
                         .put("analysis.analyzer." + analyzerName + ".tokenizer", "whitespace")
                         .putList("analysis.analyzer." + analyzerName + ".filter", "keyword_marker_filter", "stemmer")
                         .put("analysis.filter.keyword_marker_filter.type", "keyword_marker")
                         .put("analysis.filter.keyword_marker_filter.updateable", "true")
-                        .put("analysis.filter.keyword_marker_filter.keywords_path", fileName))
-                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=" + analyzerName));
+                        .put("analysis.filter.keyword_marker_filter.keywords_path", fileName)
+                )
+                .addMapping("_doc", "field", "type=text,analyzer=standard,search_analyzer=" + analyzerName)
+        );
 
         AnalyzeAction.Response analysisResponse = client().admin()
             .indices()
@@ -255,14 +304,17 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         assertEquals("jump", tokens.get(1).getTerm());
 
         // now update keyword marker file and trigger reloading
-        try (PrintWriter out = new PrintWriter(
-                new OutputStreamWriter(Files.newOutputStream(file, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
+        try (
+            PrintWriter out = new PrintWriter(
+                new OutputStreamWriter(Files.newOutputStream(file, StandardOpenOption.WRITE), StandardCharsets.UTF_8)
+            )
+        ) {
             out.println("running");
             out.println("jumping");
         }
 
         ReloadAnalyzersResponse reloadResponse = client().execute(ReloadAnalyzerAction.INSTANCE, new ReloadAnalyzersRequest(indexName))
-                .actionGet();
+            .actionGet();
         assertNoFailures(reloadResponse);
         Set<String> reloadedAnalyzers = reloadResponse.getReloadDetails().get(indexName).getReloadedAnalyzers();
         assertEquals(1, reloadedAnalyzers.size());
@@ -283,8 +335,11 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
         if (Files.exists(file) == false) {
             Files.createFile(file);
         }
-        try (PrintWriter out = new PrintWriter(
-                new OutputStreamWriter(Files.newOutputStream(file, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
+        try (
+            PrintWriter out = new PrintWriter(
+                new OutputStreamWriter(Files.newOutputStream(file, StandardOpenOption.WRITE), StandardCharsets.UTF_8)
+            )
+        ) {
             for (String item : content) {
                 out.println(item);
             }

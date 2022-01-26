@@ -21,7 +21,7 @@ import java.util.Objects;
  * Pattern converter to format the trace id provided in the traceparent header into JSON fields <code>trace.id</code>.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "TraceIdConverter")
-@ConverterKeys({"trace_id"})
+@ConverterKeys({ "trace_id" })
 public final class TraceIdConverter extends LogEventPatternConverter {
     /**
      * Called by log4j2 to initialize this converter.
@@ -45,14 +45,13 @@ public final class TraceIdConverter extends LogEventPatternConverter {
     /**
      * Formats the trace.id into json fields.
      *
-     * @param event - a log event is ignored in this method as it uses the clusterId value
-     *              from <code>NodeAndClusterIdStateListener</code> to format
+     * @param event - a log event is ignored in this method  as it uses the value from ThreadContext
      */
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
         String traceId = getTraceId();
         if (traceId != null) {
-            toAppendTo.append("\"trace.id\": \"" + traceId + "\"");
+            toAppendTo.append(traceId);
         }
     }
 

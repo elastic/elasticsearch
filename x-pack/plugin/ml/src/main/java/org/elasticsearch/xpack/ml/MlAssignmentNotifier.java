@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.util.Objects;
 
-
 public class MlAssignmentNotifier implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(MlAssignmentNotifier.class);
 
@@ -36,8 +35,13 @@ public class MlAssignmentNotifier implements ClusterStateListener {
     private final MlConfigMigrator mlConfigMigrator;
     private final ThreadPool threadPool;
 
-    MlAssignmentNotifier(AnomalyDetectionAuditor anomalyDetectionAuditor, DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor,
-                         ThreadPool threadPool, MlConfigMigrator mlConfigMigrator, ClusterService clusterService) {
+    MlAssignmentNotifier(
+        AnomalyDetectionAuditor anomalyDetectionAuditor,
+        DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor,
+        ThreadPool threadPool,
+        MlConfigMigrator mlConfigMigrator,
+        ClusterService clusterService
+    ) {
         this.anomalyDetectionAuditor = anomalyDetectionAuditor;
         this.dataFrameAnalyticsAuditor = dataFrameAnalyticsAuditor;
         this.mlConfigMigrator = mlConfigMigrator;
@@ -56,13 +60,13 @@ public class MlAssignmentNotifier implements ClusterStateListener {
             return;
         }
 
-        mlConfigMigrator.migrateConfigs(event.state(), ActionListener.wrap(
-                response -> threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(event)),
-                e -> {
-                    logger.error("error migrating ml configurations", e);
-                    threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(event));
-                }
-        ));
+        mlConfigMigrator.migrateConfigs(
+            event.state(),
+            ActionListener.wrap(response -> threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(event)), e -> {
+                logger.error("error migrating ml configurations", e);
+                threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(event));
+            })
+        );
     }
 
     private void auditChangesToMlTasks(ClusterChangedEvent event) {
@@ -90,8 +94,12 @@ public class MlAssignmentNotifier implements ClusterStateListener {
         auditMlTasks(nodes, tasks, tasks, true);
     }
 
-    private void auditMlTasks(DiscoveryNodes nodes, PersistentTasksCustomMetadata previousTasks, PersistentTasksCustomMetadata currentTasks,
-                              boolean alwaysAuditUnassigned) {
+    private void auditMlTasks(
+        DiscoveryNodes nodes,
+        PersistentTasksCustomMetadata previousTasks,
+        PersistentTasksCustomMetadata currentTasks,
+        boolean alwaysAuditUnassigned
+    ) {
 
         for (PersistentTask<?> currentTask : currentTasks.tasks()) {
             Assignment currentAssignment = currentTask.getAssignment();
@@ -99,8 +107,7 @@ public class MlAssignmentNotifier implements ClusterStateListener {
             Assignment previousAssignment = previousTask != null ? previousTask.getAssignment() : null;
 
             boolean isTaskAssigned = (currentAssignment.getExecutorNode() != null);
-            if (Objects.equals(currentAssignment, previousAssignment) &&
-                (isTaskAssigned || alwaysAuditUnassigned == false)) {
+            if (Objects.equals(currentAssignment, previousAssignment) && (isTaskAssigned || alwaysAuditUnassigned == false)) {
                 continue;
             }
 
@@ -110,8 +117,10 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                     DiscoveryNode node = nodes.get(currentAssignment.getExecutorNode());
                     anomalyDetectionAuditor.info(jobId, "Opening job on node [" + node.toString() + "]");
                 } else {
-                    anomalyDetectionAuditor.warning(jobId,
-                        "No node found to open job. Reasons [" + currentAssignment.getExplanation() + "]");
+                    anomalyDetectionAuditor.warning(
+                        jobId,
+                        "No node found to open job. Reasons [" + currentAssignment.getExplanation() + "]"
+                    );
                 }
             } else if (MlTasks.DATAFEED_TASK_NAME.equals(currentTask.getTaskName())) {
                 StartDatafeedAction.DatafeedParams datafeedParams = (StartDatafeedAction.DatafeedParams) currentTask.getParams();
@@ -119,12 +128,17 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                 if (isTaskAssigned) {
                     DiscoveryNode node = nodes.get(currentAssignment.getExecutorNode());
                     if (jobId != null) {
-                        anomalyDetectionAuditor.info(jobId,
-                            "Starting datafeed [" + datafeedParams.getDatafeedId() + "] on node [" + node + "]");
+                        anomalyDetectionAuditor.info(
+                            jobId,
+                            "Starting datafeed [" + datafeedParams.getDatafeedId() + "] on node [" + node + "]"
+                        );
                     }
                 } else {
-                    String msg = "No node found to start datafeed [" + datafeedParams.getDatafeedId() +"]. Reasons [" +
-                        currentAssignment.getExplanation() + "]";
+                    String msg = "No node found to start datafeed ["
+                        + datafeedParams.getDatafeedId()
+                        + "]. Reasons ["
+                        + currentAssignment.getExplanation()
+                        + "]";
                     if (alwaysAuditUnassigned == false) {
                         logger.warn("[{}] {}", jobId, msg);
                     }
@@ -138,8 +152,10 @@ public class MlAssignmentNotifier implements ClusterStateListener {
                     DiscoveryNode node = nodes.get(currentAssignment.getExecutorNode());
                     dataFrameAnalyticsAuditor.info(id, "Starting analytics on node [" + node.toString() + "]");
                 } else {
-                    dataFrameAnalyticsAuditor.warning(id,
-                        "No node found to start analytics. Reasons [" + currentAssignment.getExplanation() + "]");
+                    dataFrameAnalyticsAuditor.warning(
+                        id,
+                        "No node found to start analytics. Reasons [" + currentAssignment.getExplanation() + "]"
+                    );
                 }
             }
         }

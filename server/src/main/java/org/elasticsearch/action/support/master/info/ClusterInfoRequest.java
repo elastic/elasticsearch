@@ -18,7 +18,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Request>> extends MasterNodeReadRequest<Request>
-        implements IndicesRequest.Replaceable {
+    implements
+        IndicesRequest.Replaceable {
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
 
@@ -27,8 +28,7 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
-    public ClusterInfoRequest() {
-    }
+    public ClusterInfoRequest() {}
 
     public ClusterInfoRequest(StreamInput in) throws IOException {
         super(in);

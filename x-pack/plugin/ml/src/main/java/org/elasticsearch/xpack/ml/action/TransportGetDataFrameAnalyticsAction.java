@@ -10,15 +10,15 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.AbstractTransportGetResourcesAction;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
@@ -27,14 +27,26 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
-public class TransportGetDataFrameAnalyticsAction extends AbstractTransportGetResourcesAction<DataFrameAnalyticsConfig,
-        GetDataFrameAnalyticsAction.Request, GetDataFrameAnalyticsAction.Response> {
+public class TransportGetDataFrameAnalyticsAction extends AbstractTransportGetResourcesAction<
+    DataFrameAnalyticsConfig,
+    GetDataFrameAnalyticsAction.Request,
+    GetDataFrameAnalyticsAction.Response> {
 
     @Inject
-    public TransportGetDataFrameAnalyticsAction(TransportService transportService, ActionFilters actionFilters, Client client,
-                                                NamedXContentRegistry xContentRegistry) {
-        super(GetDataFrameAnalyticsAction.NAME, transportService, actionFilters, GetDataFrameAnalyticsAction.Request::new, client,
-            xContentRegistry);
+    public TransportGetDataFrameAnalyticsAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Client client,
+        NamedXContentRegistry xContentRegistry
+    ) {
+        super(
+            GetDataFrameAnalyticsAction.NAME,
+            transportService,
+            actionFilters,
+            GetDataFrameAnalyticsAction.Request::new,
+            client,
+            xContentRegistry
+        );
     }
 
     @Override
@@ -58,12 +70,15 @@ public class TransportGetDataFrameAnalyticsAction extends AbstractTransportGetRe
     }
 
     @Override
-    protected void doExecute(Task task, GetDataFrameAnalyticsAction.Request request,
-                             ActionListener<GetDataFrameAnalyticsAction.Response> listener) {
-        searchResources(request, ActionListener.wrap(
-            queryPage -> listener.onResponse(new GetDataFrameAnalyticsAction.Response(queryPage)),
-            listener::onFailure
-        ));
+    protected void doExecute(
+        Task task,
+        GetDataFrameAnalyticsAction.Request request,
+        ActionListener<GetDataFrameAnalyticsAction.Response> listener
+    ) {
+        searchResources(
+            request,
+            ActionListener.wrap(queryPage -> listener.onResponse(new GetDataFrameAnalyticsAction.Response(queryPage)), listener::onFailure)
+        );
     }
 
     @Nullable

@@ -8,13 +8,13 @@
 
 package org.elasticsearch.script.expression;
 
-import java.util.Collection;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+
+import java.util.Collection;
 
 public class ExpressionPlugin extends Plugin implements ScriptPlugin {
 

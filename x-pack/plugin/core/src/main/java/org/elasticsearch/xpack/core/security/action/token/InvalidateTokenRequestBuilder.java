@@ -12,8 +12,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Request builder that is used to populate a {@link InvalidateTokenRequest}
  */
-public final class InvalidateTokenRequestBuilder
-        extends ActionRequestBuilder<InvalidateTokenRequest, InvalidateTokenResponse> {
+public final class InvalidateTokenRequestBuilder extends ActionRequestBuilder<InvalidateTokenRequest, InvalidateTokenResponse> {
 
     public InvalidateTokenRequestBuilder(ElasticsearchClient client) {
         super(client, InvalidateTokenAction.INSTANCE, new InvalidateTokenRequest());

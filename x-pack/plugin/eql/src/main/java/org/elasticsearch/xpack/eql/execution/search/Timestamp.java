@@ -15,7 +15,7 @@ import static java.time.temporal.ChronoUnit.NANOS;
 public abstract class Timestamp {
     static final long MILLIS_PER_SECOND = 1_000L;
     static final long NANOS_PER_MILLI = 1_000_000L;
-    private static final long[] MICROS_MULTIPLIER = {0L, 100_000L, 10_000L, 1_000L, 1_00L, 10L};
+    private static final long[] MICROS_MULTIPLIER = { 0L, 100_000L, 10_000L, 1_000L, 1_00L, 10L };
 
     private String source;
 
@@ -32,8 +32,9 @@ public abstract class Timestamp {
         if (dotIndex > 0) {
             long millis = Long.parseLong(milliseconds.substring(0, dotIndex));
             int digits = milliseconds.length() - dotIndex - 1;
-            long micros = (digits >= 6) ? Long.parseLong(milliseconds.substring(dotIndex + 1, dotIndex + 1 + 6)) :
-                Long.parseLong(milliseconds.substring(dotIndex + 1)) * MICROS_MULTIPLIER[digits];
+            long micros = (digits >= 6)
+                ? Long.parseLong(milliseconds.substring(dotIndex + 1, dotIndex + 1 + 6))
+                : Long.parseLong(milliseconds.substring(dotIndex + 1)) * MICROS_MULTIPLIER[digits];
             timestamp = new NanosTimestamp(millis, micros);
         } else {
             timestamp = new MillisTimestamp(Long.parseLong(milliseconds));

@@ -40,15 +40,24 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
 
     @Inject
     public TransportAutoPutMappingAction(
-            final TransportService transportService,
-            final ClusterService clusterService,
-            final ThreadPool threadPool,
-            final MetadataMappingService metadataMappingService,
-            final ActionFilters actionFilters,
-            final IndexNameExpressionResolver indexNameExpressionResolver,
-            final SystemIndices systemIndices) {
-        super(AutoPutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutMappingRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+        final TransportService transportService,
+        final ClusterService clusterService,
+        final ThreadPool threadPool,
+        final MetadataMappingService metadataMappingService,
+        final ActionFilters actionFilters,
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final SystemIndices systemIndices
+    ) {
+        super(
+            AutoPutMappingAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutMappingRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.metadataMappingService = metadataMappingService;
         this.systemIndices = systemIndices;
     }
@@ -64,14 +73,17 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
 
     @Override
     protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
-        String[] indices = new String[] {request.getConcreteIndex().getName()};
+        String[] indices = new String[] { request.getConcreteIndex().getName() };
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices);
     }
 
     @Override
-    protected void masterOperation(final PutMappingRequest request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
-        final Index[] concreteIndices = new Index[] {request.getConcreteIndex()};
+    protected void masterOperation(
+        final PutMappingRequest request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
+        final Index[] concreteIndices = new Index[] { request.getConcreteIndex() };
 
         final String message = TransportPutMappingAction.checkForSystemIndexViolations(systemIndices, concreteIndices, request);
         if (message != null) {

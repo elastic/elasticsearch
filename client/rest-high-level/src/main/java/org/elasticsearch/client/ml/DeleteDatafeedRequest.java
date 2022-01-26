@@ -44,7 +44,7 @@ public class DeleteDatafeedRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-       return null;
+        return null;
     }
 
     @Override

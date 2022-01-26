@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 
 import java.util.IdentityHashMap;
@@ -35,8 +36,7 @@ public interface ClusterStateTaskExecutor<T> {
      *
      * @param clusterStatePublicationEvent the change event for this cluster state publication, containing both old and new states
      */
-    default void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
-    }
+    default void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {}
 
     /**
      * Builds a concise description of a list of tasks (to be used in logging etc.).
@@ -46,7 +46,16 @@ public interface ClusterStateTaskExecutor<T> {
      * This allows groupd task description but the submitting source.
      */
     default String describeTasks(List<T> tasks) {
-        return String.join(", ", tasks.stream().map(t -> (CharSequence)t.toString()).filter(t -> t.length() > 0)::iterator);
+        final StringBuilder output = new StringBuilder();
+        Strings.collectionToDelimitedStringWithLimit(
+            (Iterable<String>) () -> tasks.stream().map(Object::toString).filter(s -> s.isEmpty() == false).iterator(),
+            ", ",
+            "",
+            "",
+            1024,
+            output
+        );
+        return output.toString();
     }
 
     /**
@@ -108,8 +117,7 @@ public interface ClusterStateTaskExecutor<T> {
             }
 
             ClusterTasksResult<T> build(ClusterTasksResult<T> result, ClusterState previousState) {
-                return new ClusterTasksResult<>(result.resultingState == null ? previousState : result.resultingState,
-                    executionResults);
+                return new ClusterTasksResult<>(result.resultingState == null ? previousState : result.resultingState, executionResults);
             }
         }
     }

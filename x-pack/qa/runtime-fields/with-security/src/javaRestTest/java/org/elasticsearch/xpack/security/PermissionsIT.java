@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
+@SuppressWarnings("removal")
 public class PermissionsIT extends ESRestTestCase {
 
     private static HighLevelClient highLevelClient;

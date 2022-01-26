@@ -8,6 +8,7 @@
 package org.elasticsearch.rest.action.cat;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -29,9 +30,7 @@ public class RestAliasAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_cat/aliases"),
-            new Route(GET, "/_cat/aliases/{alias}")));
+        return unmodifiableList(asList(new Route(GET, "/_cat/aliases"), new Route(GET, "/_cat/aliases/{alias}")));
     }
 
     @Override
@@ -46,9 +45,9 @@ public class RestAliasAction extends AbstractCatAction {
 
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
-        final GetAliasesRequest getAliasesRequest = request.hasParam("alias") ?
-                new GetAliasesRequest(Strings.commaDelimitedListToStringArray(request.param("alias"))) :
-                new GetAliasesRequest();
+        final GetAliasesRequest getAliasesRequest = request.hasParam("alias")
+            ? new GetAliasesRequest(Strings.commaDelimitedListToStringArray(request.param("alias")))
+            : new GetAliasesRequest();
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
 

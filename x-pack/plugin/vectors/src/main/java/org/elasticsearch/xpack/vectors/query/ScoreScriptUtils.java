@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.util.BytesRef;
@@ -28,11 +27,11 @@ import static org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder.sortSp
 
 public class ScoreScriptUtils {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ScoreScriptUtils.class);
-    static final String DEPRECATION_MESSAGE = "The vector functions of the form function(query, doc['field']) are deprecated, and " +
-        "the form function(query, 'field') should be used instead. For example, cosineSimilarity(query, doc['field']) is replaced by " +
-        "cosineSimilarity(query, 'field').";
+    static final String DEPRECATION_MESSAGE = "The vector functions of the form function(query, doc['field']) are deprecated, and "
+        + "the form function(query, 'field') should be used instead. For example, cosineSimilarity(query, doc['field']) is replaced by "
+        + "cosineSimilarity(query, 'field').";
 
-    //**************FUNCTIONS FOR DENSE VECTORS
+    // **************FUNCTIONS FOR DENSE VECTORS
     // Functions are implemented as classes to accept a hidden parameter scoreScript that contains some index settings.
     // Also, constructors for some functions accept queryVector to calculate and cache queryVectorMagnitude only once
     // per script execution for all documents.
@@ -42,9 +41,7 @@ public class ScoreScriptUtils {
         final float[] queryVector;
         final VectorScriptDocValues.DenseVectorScriptDocValues docValues;
 
-        public DenseVectorFunction(ScoreScript scoreScript,
-                                   List<Number> queryVector,
-                                   Object field) {
+        public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector, Object field) {
             this(scoreScript, queryVector, field, false);
         }
 
@@ -55,10 +52,7 @@ public class ScoreScriptUtils {
          * @param queryVector The query vector.
          * @param normalizeQuery Whether the provided query should be normalized to unit length.
          */
-        public DenseVectorFunction(ScoreScript scoreScript,
-                                   List<Number> queryVector,
-                                   Object field,
-                                   boolean normalizeQuery) {
+        public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector, Object field, boolean normalizeQuery) {
             this.scoreScript = scoreScript;
             if (field instanceof String) {
                 String fieldName = (String) field;
@@ -67,13 +61,19 @@ public class ScoreScriptUtils {
                 docValues = (DenseVectorScriptDocValues) field;
                 deprecationLogger.critical(DeprecationCategory.SCRIPTING, "vector_function_signature", DEPRECATION_MESSAGE);
             } else {
-                throw new IllegalArgumentException("For vector functions, the 'field' argument must be of type String or " +
-                    "VectorScriptDocValues");
+                throw new IllegalArgumentException(
+                    "For vector functions, the 'field' argument must be of type String or " + "VectorScriptDocValues"
+                );
             }
 
-            if (docValues.dims() != queryVector.size()){
-                throw new IllegalArgumentException("The query vector has a different number of dimensions [" +
-                    queryVector.size() + "] than the document vectors [" + docValues.dims() + "].");
+            if (docValues.dims() != queryVector.size()) {
+                throw new IllegalArgumentException(
+                    "The query vector has a different number of dimensions ["
+                        + queryVector.size()
+                        + "] than the document vectors ["
+                        + docValues.dims()
+                        + "]."
+                );
             }
 
             this.queryVector = new float[queryVector.size()];
@@ -183,7 +183,7 @@ public class ScoreScriptUtils {
         }
     }
 
-    //**************FUNCTIONS FOR SPARSE VECTORS
+    // **************FUNCTIONS FOR SPARSE VECTORS
     // Functions are implemented as classes to accept a hidden parameter scoreScript that contains some index settings.
     // Also, constructors for some functions accept queryVector to calculate and cache queryVectorMagnitude only once
     // per script execution for all documents.
@@ -197,11 +197,9 @@ public class ScoreScriptUtils {
 
         // prepare queryVector once per script execution
         // queryVector represents a map of dimensions to values
-        public SparseVectorFunction(ScoreScript scoreScript,
-                                    Map<String, Number> queryVector,
-                                    Object field) {
+        public SparseVectorFunction(ScoreScript scoreScript, Map<String, Number> queryVector, Object field) {
             this.scoreScript = scoreScript;
-            //break vector into two arrays dims and values
+            // break vector into two arrays dims and values
             int n = queryVector.size();
             queryValues = new float[n];
             queryDims = new int[n];
@@ -225,12 +223,12 @@ public class ScoreScriptUtils {
                 docValues = (SparseVectorScriptDocValues) field;
                 deprecationLogger.critical(DeprecationCategory.SCRIPTING, "vector_function_signature", DEPRECATION_MESSAGE);
             } else {
-                throw new IllegalArgumentException("For vector functions, the 'field' argument must be of type String or " +
-                    "VectorScriptDocValues");
+                throw new IllegalArgumentException(
+                    "For vector functions, the 'field' argument must be of type String or " + "VectorScriptDocValues"
+                );
             }
 
-            deprecationLogger.critical(DeprecationCategory.MAPPINGS, "sparse_vector_function",
-                SparseVectorFieldMapper.DEPRECATION_MESSAGE);
+            deprecationLogger.critical(DeprecationCategory.MAPPINGS, "sparse_vector_function", SparseVectorFieldMapper.DEPRECATION_MESSAGE);
         }
 
         BytesRef getEncodedVector() {
@@ -250,7 +248,7 @@ public class ScoreScriptUtils {
 
     // Calculate l1 norm (Manhattan distance) between a query's sparse vector and documents' sparse vectors
     public static final class L1NormSparse extends SparseVectorFunction {
-        public L1NormSparse(ScoreScript scoreScript,Map<String, Number> queryVector, Object docVector) {
+        public L1NormSparse(ScoreScript scoreScript, Map<String, Number> queryVector, Object docVector) {
             super(scoreScript, queryVector, docVector);
         }
 
@@ -290,7 +288,7 @@ public class ScoreScriptUtils {
     // Calculate l2 norm (Euclidean distance) between a query's sparse vector and documents' sparse vectors
     public static final class L2NormSparse extends SparseVectorFunction {
         public L2NormSparse(ScoreScript scoreScript, Map<String, Number> queryVector, Object docVector) {
-           super(scoreScript, queryVector, docVector);
+            super(scoreScript, queryVector, docVector);
         }
 
         public double l2normSparse() {
@@ -322,7 +320,7 @@ public class ScoreScriptUtils {
                 queryIndex++;
             }
             while (docIndex < docDims.length) {
-                l2norm += values[docIndex]* values[docIndex]; // 0 for missing query dims
+                l2norm += values[docIndex] * values[docIndex]; // 0 for missing query dims
                 docIndex++;
             }
             return Math.sqrt(l2norm);
@@ -332,7 +330,7 @@ public class ScoreScriptUtils {
     // Calculate a dot product between a query's sparse vector and documents' sparse vectors
     public static final class DotProductSparse extends SparseVectorFunction {
         public DotProductSparse(ScoreScript scoreScript, Map<String, Number> queryVector, Object docVector) {
-           super(scoreScript, queryVector, docVector);
+            super(scoreScript, queryVector, docVector);
         }
 
         public double dotProductSparse() {
@@ -351,8 +349,8 @@ public class ScoreScriptUtils {
         public CosineSimilaritySparse(ScoreScript scoreScript, Map<String, Number> queryVector, Object docVector) {
             super(scoreScript, queryVector, docVector);
             double dotProduct = 0;
-            for (int i = 0; i< queryDims.length; i++) {
-                dotProduct +=  queryValues[i] *  queryValues[i];
+            for (int i = 0; i < queryDims.length; i++) {
+                dotProduct += queryValues[i] * queryValues[i];
             }
             this.queryVectorMagnitude = Math.sqrt(dotProduct);
         }

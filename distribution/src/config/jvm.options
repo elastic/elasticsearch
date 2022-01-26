@@ -71,6 +71,10 @@
 # specified
 -XX:+HeapDumpOnOutOfMemoryError
 
+# exit right after heap dump on out of memory error. Recommended to also use
+# on java 8 for supported versions (8u92+).
+9-:-XX:+ExitOnOutOfMemoryError
+
 # specify an alternative path for heap dumps; ensure the directory exists and
 # has sufficient space
 @heap.dump.path@

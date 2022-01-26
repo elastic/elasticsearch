@@ -9,13 +9,13 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -37,10 +37,7 @@ public abstract class AbstractRequestTestCase<C extends ToXContent, S> extends E
         final BytesReference bytes = toShuffledXContent(clientTestInstance, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
 
         final XContent xContent = XContentFactory.xContent(xContentType);
-        final XContentParser parser = xContent.createParser(
-            xContentRegistry(),
-            LoggingDeprecationHandler.INSTANCE,
-            bytes.streamInput());
+        final XContentParser parser = xContent.createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, bytes.streamInput());
         final S serverInstance = doParseToServerInstance(parser);
         assertInstances(serverInstance, clientTestInstance);
     }

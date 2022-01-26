@@ -37,9 +37,7 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_segments"),
-            new Route(GET, "/{index}/_segments")));
+        return unmodifiableList(asList(new Route(GET, "/_segments"), new Route(GET, "/{index}/_segments")));
     }
 
     @Override
@@ -50,12 +48,17 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(
-                Strings.splitStringByCommaToArray(request.param("index")));
+            Strings.splitStringByCommaToArray(request.param("index"))
+        );
         indicesSegmentsRequest.verbose(request.paramAsBoolean("verbose", false));
         indicesSegmentsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesSegmentsRequest.indicesOptions()));
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin().indices().segments(
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .indices()
+            .segments(
                 indicesSegmentsRequest,
-                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request)
-                    .map(r -> StatusToXContentObject.withStatus(RestStatus.OK, r)));
+                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request).map(
+                    r -> StatusToXContentObject.withStatus(RestStatus.OK, r)
+                )
+            );
     }
 }

@@ -66,8 +66,10 @@ public class CorsHandlerTests extends ESTestCase {
         final CorsHandler.Config corsConfig = CorsHandler.buildConfig(settings);
         assertTrue(corsConfig.isAnyOriginSupported());
         assertEquals(headers, corsConfig.allowedRequestHeaders());
-        assertEquals(methods.stream().map(s -> s.toUpperCase(Locale.ENGLISH)).collect(Collectors.toSet()),
-            corsConfig.allowedRequestMethods().stream().map(RestRequest.Method::name).collect(Collectors.toSet()));
+        assertEquals(
+            methods.stream().map(s -> s.toUpperCase(Locale.ENGLISH)).collect(Collectors.toSet()),
+            corsConfig.allowedRequestMethods().stream().map(RestRequest.Method::name).collect(Collectors.toSet())
+        );
     }
 
     public void testCorsConfigWithDefaults() {
@@ -85,9 +87,7 @@ public class CorsHandlerTests extends ESTestCase {
     }
 
     public void testHandleInboundNonCorsRequest() {
-        Settings settings = Settings.builder()
-            .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
-            .build();
+        Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true).build();
         CorsHandler corsHandler = CorsHandler.fromSettings(settings);
         TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
         HttpResponse httpResponse = corsHandler.handleInbound(request);
@@ -176,10 +176,8 @@ public class CorsHandlerTests extends ESTestCase {
         assertThat(httpResponse.status(), equalTo(RestStatus.OK));
         Map<String, List<String>> headers = httpResponse.headers();
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), containsInAnyOrder("*"));
-        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_METHODS),
-            containsInAnyOrder("HEAD", "OPTIONS", "GET", "DELETE"));
-        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS),
-            containsInAnyOrder("Content-Type", "Content-Length"));
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_METHODS), containsInAnyOrder("HEAD", "OPTIONS", "GET", "DELETE"));
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS), containsInAnyOrder("Content-Type", "Content-Length"));
         assertNull(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS));
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_MAX_AGE), containsInAnyOrder("1728000"));
         assertNotNull(headers.get(CorsHandler.DATE));
@@ -203,10 +201,11 @@ public class CorsHandlerTests extends ESTestCase {
         // Since credentials are allowed, we echo the origin
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), containsInAnyOrder("valid-origin"));
         assertThat(headers.get(CorsHandler.VARY), containsInAnyOrder(CorsHandler.ORIGIN));
-        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_METHODS),
-            containsInAnyOrder("HEAD", "OPTIONS", "GET", "DELETE", "POST"));
-        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS),
-            containsInAnyOrder("X-Requested-With", "Content-Type", "Content-Length"));
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_METHODS), containsInAnyOrder("HEAD", "OPTIONS", "GET", "DELETE", "POST"));
+        assertThat(
+            headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS),
+            containsInAnyOrder("X-Requested-With", "Content-Type", "Content-Length")
+        );
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS), containsInAnyOrder("true"));
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_MAX_AGE), containsInAnyOrder("1728000"));
         assertNotNull(headers.get(CorsHandler.DATE));
@@ -230,10 +229,11 @@ public class CorsHandlerTests extends ESTestCase {
         // Since credentials are allowed, we echo the origin
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), containsInAnyOrder("valid-origin"));
         assertThat(headers.get(CorsHandler.VARY), containsInAnyOrder(CorsHandler.ORIGIN));
-        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_METHODS),
-            containsInAnyOrder("HEAD", "OPTIONS", "GET", "DELETE", "POST"));
-        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS),
-            containsInAnyOrder("X-Requested-With", "Content-Type", "Content-Length"));
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_METHODS), containsInAnyOrder("HEAD", "OPTIONS", "GET", "DELETE", "POST"));
+        assertThat(
+            headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS),
+            containsInAnyOrder("X-Requested-With", "Content-Type", "Content-Length")
+        );
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS), containsInAnyOrder("true"));
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_MAX_AGE), containsInAnyOrder("1728000"));
         assertNotNull(headers.get(CorsHandler.DATE));

@@ -76,6 +76,10 @@ export ES_JAVA_HOME
 export JAVA_HOME
 export ES_PATH_CONF
 
+if [ -n "$LIBFFI_TMPDIR" ]; then
+  export LIBFFI_TMPDIR
+fi
+
 if [ ! -x "$DAEMON" ]; then
 	echo "The elasticsearch startup script does not exists or it is not executable, tried: $DAEMON"
 	exit 1

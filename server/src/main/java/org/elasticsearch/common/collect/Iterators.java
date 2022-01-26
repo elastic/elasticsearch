@@ -59,7 +59,7 @@ public class Iterators {
             }
             for (int i = 0; i < iterators.length; i++) {
                 if (iterators[i] == null) {
-                    throw new NullPointerException("iterators[" + i  + "]");
+                    throw new NullPointerException("iterators[" + i + "]");
                 }
             }
             this.iterators = iterators;

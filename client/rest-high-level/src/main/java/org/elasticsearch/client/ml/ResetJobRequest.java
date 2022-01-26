@@ -52,7 +52,7 @@ public class ResetJobRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-       return null;
+        return null;
     }
 
     @Override

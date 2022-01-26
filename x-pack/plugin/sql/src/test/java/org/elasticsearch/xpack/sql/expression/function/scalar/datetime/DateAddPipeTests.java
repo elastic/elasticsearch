@@ -39,13 +39,8 @@ public class DateAddPipeTests extends AbstractNodeTestCase<DateAddPipe, Pipe> {
     }
 
     public static DateAddPipe randomDateAddPipe() {
-        return (DateAddPipe) new DateAdd(
-                randomSource(),
-                randomStringLiteral(),
-                randomIntLiteral(),
-                randomDatetimeLiteral(),
-                randomZone())
-                .makePipe();
+        return (DateAddPipe) new DateAdd(randomSource(), randomStringLiteral(), randomIntLiteral(), randomDatetimeLiteral(), randomZone())
+            .makePipe();
     }
 
     @Override
@@ -55,26 +50,13 @@ public class DateAddPipeTests extends AbstractNodeTestCase<DateAddPipe, Pipe> {
         DateAddPipe b1 = randomInstance();
 
         Expression newExpression = randomValueOtherThan(b1.expression(), this::randomDateAddPipeExpression);
-        DateAddPipe newB = new DateAddPipe(
-                b1.source(),
-                newExpression,
-                b1.first(),
-                b1.second(),
-                b1.third(),
-                b1.zoneId());
+        DateAddPipe newB = new DateAddPipe(b1.source(), newExpression, b1.first(), b1.second(), b1.third(), b1.zoneId());
         assertEquals(newB, b1.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, b1.expression()) ? newExpression : v));
 
         DateAddPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), SourceTests::randomSource);
-        newB = new DateAddPipe(
-            newLoc,
-            b2.expression(),
-            b2.first(),
-            b2.second(),
-            b2.third(),
-            b2.zoneId());
-        assertEquals(newB,
-            b2.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b2.source()) ? newLoc : v));
+        newB = new DateAddPipe(newLoc, b2.expression(), b2.first(), b2.second(), b2.third(), b2.zoneId());
+        assertEquals(newB, b2.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b2.source()) ? newLoc : v));
     }
 
     @Override
@@ -84,7 +66,7 @@ public class DateAddPipeTests extends AbstractNodeTestCase<DateAddPipe, Pipe> {
         Pipe newSecond = pipe(((Expression) randomValueOtherThan(b.second(), FunctionTestUtils::randomIntLiteral)));
         Pipe newThird = pipe(((Expression) randomValueOtherThan(b.third(), FunctionTestUtils::randomDatetimeLiteral)));
         ZoneId newZoneId = randomValueOtherThan(b.zoneId(), ESTestCase::randomZone);
-        DateAddPipe newB = new DateAddPipe( b.source(), b.expression(), b.first(), b.second(), b.third(), newZoneId);
+        DateAddPipe newB = new DateAddPipe(b.source(), b.expression(), b.first(), b.second(), b.third(), newZoneId);
 
         ThreeArgsDateTimePipe transformed = newB.replaceChildren(newFirst, b.second(), b.third());
         assertEquals(transformed.source(), b.source());
@@ -116,26 +98,46 @@ public class DateAddPipeTests extends AbstractNodeTestCase<DateAddPipe, Pipe> {
     @Override
     protected DateAddPipe mutate(DateAddPipe instance) {
         List<Function<DateAddPipe, DateAddPipe>> randoms = new ArrayList<>();
-        randoms.add(f -> new DateAddPipe(f.source(), f.expression(),
+        randoms.add(
+            f -> new DateAddPipe(
+                f.source(),
+                f.expression(),
                 pipe(((Expression) randomValueOtherThan(f.first(), FunctionTestUtils::randomStringLiteral))),
                 f.second(),
                 f.third(),
-                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
-        randoms.add(f -> new DateAddPipe(f.source(), f.expression(),
+                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)
+            )
+        );
+        randoms.add(
+            f -> new DateAddPipe(
+                f.source(),
+                f.expression(),
                 f.first(),
                 pipe(((Expression) randomValueOtherThan(f.second(), FunctionTestUtils::randomIntLiteral))),
                 f.third(),
-                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
-        randoms.add(f -> new DateAddPipe(f.source(), f.expression(),
+                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)
+            )
+        );
+        randoms.add(
+            f -> new DateAddPipe(
+                f.source(),
+                f.expression(),
                 f.first(),
                 f.second(),
                 pipe(((Expression) randomValueOtherThan(f.third(), FunctionTestUtils::randomDatetimeLiteral))),
-            randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
-        randoms.add(f -> new DateAddPipe(f.source(), f.expression(),
+                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)
+            )
+        );
+        randoms.add(
+            f -> new DateAddPipe(
+                f.source(),
+                f.expression(),
                 pipe(((Expression) randomValueOtherThan(f.first(), FunctionTestUtils::randomStringLiteral))),
                 pipe(((Expression) randomValueOtherThan(f.second(), FunctionTestUtils::randomIntLiteral))),
                 pipe(((Expression) randomValueOtherThan(f.third(), FunctionTestUtils::randomDatetimeLiteral))),
-                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)));
+                randomValueOtherThan(f.zoneId(), ESTestCase::randomZone)
+            )
+        );
 
         return randomFrom(randoms).apply(instance);
     }
@@ -148,6 +150,7 @@ public class DateAddPipeTests extends AbstractNodeTestCase<DateAddPipe, Pipe> {
             instance.first(),
             instance.second(),
             instance.third(),
-            instance.zoneId());
+            instance.zoneId()
+        );
     }
 }

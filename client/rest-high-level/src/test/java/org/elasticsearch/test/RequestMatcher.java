@@ -36,10 +36,6 @@ public class RequestMatcher extends BaseMatcher<Request> {
 
     @Override
     public void describeTo(Description description) {
-        description
-            .appendText("request to ")
-            .appendText(method)
-            .appendText(" ")
-            .appendText(endpoint);
+        description.appendText("request to ").appendText(method).appendText(" ").appendText(endpoint);
     }
 }

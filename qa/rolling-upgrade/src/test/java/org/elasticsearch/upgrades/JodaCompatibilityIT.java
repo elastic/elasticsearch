@@ -15,8 +15,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.search.DocValueFormat;
 import org.junit.BeforeClass;
 
@@ -48,9 +48,8 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
 public class JodaCompatibilityIT extends AbstractRollingTestCase {
 
     @BeforeClass
-    public static void init(){
-        assumeTrue("upgrading from 7.0-7.6 will fail parsing joda formats",
-            UPGRADE_FROM_VERSION.before(Version.V_7_0_0));
+    public static void init() {
+        assumeTrue("upgrading from 7.0-7.6 will fail parsing joda formats", UPGRADE_FROM_VERSION.before(Version.V_7_0_0));
     }
 
     public void testJodaBackedDocValueAndDateFields() throws Exception {
@@ -79,7 +78,7 @@ public class JodaCompatibilityIT extends AbstractRollingTestCase {
 
                 search = searchWithAgg("joda_time");
                 search.setOptions(ignoreWarnings());
-                //making sure all nodes were used for search
+                // making sure all nodes were used for search
                 performOnAllNodes(search, r -> assertResponseHasAllDocuments(r));
                 break;
         }
@@ -107,7 +106,7 @@ public class JodaCompatibilityIT extends AbstractRollingTestCase {
                 postNewDoc("java_time", 4);
 
                 search = searchWithAgg("java_time");
-                //making sure all nodes were used for search
+                // making sure all nodes were used for search
                 performOnAllNodes(search, r -> assertResponseHasAllDocuments(r));
 
                 break;
@@ -134,38 +133,42 @@ public class JodaCompatibilityIT extends AbstractRollingTestCase {
     private void assertResponseHasAllDocuments(Response searchResp) {
         assertEquals(HttpStatus.SC_OK, searchResp.getStatusLine().getStatusCode());
         try {
-            assertEquals(removeWhiteSpace("{" +
-                    "  \"_shards\": {" +
-                    "    \"total\": 3," +
-                    "    \"successful\": 3" +
-                    "  },"+
-                    "  \"hits\": {" +
-                    "    \"total\": 4," +
-                    "    \"hits\": [" +
-                    "      {" +
-                    "        \"_source\": {" +
-                    "          \"datetime\": \"2020-01-01T00:00:01+01:00\"" +
-                    "        }" +
-                    "      }," +
-                    "      {" +
-                    "        \"_source\": {" +
-                    "          \"datetime\": \"2020-01-01T00:00:02+01:00\"" +
-                    "        }" +
-                    "      }," +
-                    "      {" +
-                    "        \"_source\": {" +
-                    "          \"datetime\": \"2020-01-01T00:00:03+01:00\"" +
-                    "        }" +
-                    "      }," +
-                    "      {" +
-                    "        \"_source\": {" +
-                    "          \"datetime\": \"2020-01-01T00:00:04+01:00\"" +
-                    "        }" +
-                    "      }" +
-                    "    ]" +
-                    "  }" +
-                    "}"),
-                EntityUtils.toString(searchResp.getEntity(), StandardCharsets.UTF_8));
+            assertEquals(
+                removeWhiteSpace(
+                    "{"
+                        + "  \"_shards\": {"
+                        + "    \"total\": 3,"
+                        + "    \"successful\": 3"
+                        + "  },"
+                        + "  \"hits\": {"
+                        + "    \"total\": 4,"
+                        + "    \"hits\": ["
+                        + "      {"
+                        + "        \"_source\": {"
+                        + "          \"datetime\": \"2020-01-01T00:00:01+01:00\""
+                        + "        }"
+                        + "      },"
+                        + "      {"
+                        + "        \"_source\": {"
+                        + "          \"datetime\": \"2020-01-01T00:00:02+01:00\""
+                        + "        }"
+                        + "      },"
+                        + "      {"
+                        + "        \"_source\": {"
+                        + "          \"datetime\": \"2020-01-01T00:00:03+01:00\""
+                        + "        }"
+                        + "      },"
+                        + "      {"
+                        + "        \"_source\": {"
+                        + "          \"datetime\": \"2020-01-01T00:00:04+01:00\""
+                        + "        }"
+                        + "      }"
+                        + "    ]"
+                        + "  }"
+                        + "}"
+                ),
+                EntityUtils.toString(searchResp.getEntity(), StandardCharsets.UTF_8)
+            );
         } catch (IOException e) {
             throw new AssertionError("Exception during response parising", e);
         }
@@ -176,82 +179,85 @@ public class JodaCompatibilityIT extends AbstractRollingTestCase {
     }
 
     private Request dateRangeSearch(String endpoint) {
-        Request search = new Request("GET", endpoint+"/_search");
+        Request search = new Request("GET", endpoint + "/_search");
         search.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         search.addParameter("filter_path", "hits.total,hits.hits._source.datetime,_shards.total,_shards.successful");
-        search.setJsonEntity("" +
-                "{\n" +
-                "  \"track_total_hits\": true,\n" +
-                "  \"sort\": \"datetime\",\n" +
-                "  \"query\": {\n" +
-                "    \"range\": {\n" +
-                "      \"datetime\": {\n" +
-                "        \"gte\": \"2020-01-01T00:00:00+01:00\",\n" +
-                "        \"lte\": \"2020-01-02T00:00:00+01:00\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}\n"
+        search.setJsonEntity(
+            ""
+                + "{\n"
+                + "  \"track_total_hits\": true,\n"
+                + "  \"sort\": \"datetime\",\n"
+                + "  \"query\": {\n"
+                + "    \"range\": {\n"
+                + "      \"datetime\": {\n"
+                + "        \"gte\": \"2020-01-01T00:00:00+01:00\",\n"
+                + "        \"lte\": \"2020-01-02T00:00:00+01:00\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "  }\n"
+                + "}\n"
         );
         return search;
     }
 
     private Request searchWithAgg(String endpoint) throws IOException {
-        Request search = new Request("GET", endpoint+"/_search");
+        Request search = new Request("GET", endpoint + "/_search");
         search.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         search.addParameter("filter_path", "hits.total,hits.hits._source.datetime,_shards.total,_shards.successful");
 
-        search.setJsonEntity("{\n" +
-            "  \"track_total_hits\": true,\n" +
-            "  \"sort\": \"datetime\",\n" +
-            "  \"query\": {\n" +
-            "    \"range\": {\n" +
-            "      \"datetime\": {\n" +
-            "        \"gte\": \"2020-01-01T00:00:00+01:00\",\n" +
-            "        \"lte\": \"2020-01-02T00:00:00+01:00\"\n" +
-            "      }\n" +
-            "    }\n" +
-            "  },\n" +
-            "  \"aggs\" : {\n" +
-            "    \"docs_per_year\" : {\n" +
-            "      \"date_histogram\" : {\n" +
-            "        \"field\" : \"date\",\n" +
-            "        \"calendar_interval\" : \"year\"\n" +
-            "      }\n" +
-            "    }\n" +
-            "  }\n" +
-            "}\n"
+        search.setJsonEntity(
+            "{\n"
+                + "  \"track_total_hits\": true,\n"
+                + "  \"sort\": \"datetime\",\n"
+                + "  \"query\": {\n"
+                + "    \"range\": {\n"
+                + "      \"datetime\": {\n"
+                + "        \"gte\": \"2020-01-01T00:00:00+01:00\",\n"
+                + "        \"lte\": \"2020-01-02T00:00:00+01:00\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "  },\n"
+                + "  \"aggs\" : {\n"
+                + "    \"docs_per_year\" : {\n"
+                + "      \"date_histogram\" : {\n"
+                + "        \"field\" : \"date\",\n"
+                + "        \"calendar_interval\" : \"year\"\n"
+                + "      }\n"
+                + "    }\n"
+                + "  }\n"
+                + "}\n"
         );
         return search;
     }
+
     private Request indexWithDateField(String indexName, String format) {
         Request createTestIndex = new Request("PUT", indexName);
         createTestIndex.addParameter("include_type_name", "false");
-        createTestIndex.setJsonEntity("{\n" +
-            "  \"settings\": {\n" +
-            "    \"index.number_of_shards\": 3\n" +
-            "  },\n" +
-            "  \"mappings\": {\n" +
-            "      \"properties\": {\n" +
-            "        \"datetime\": {\n" +
-            "          \"type\": \"date\",\n" +
-            "          \"format\": \"" + format + "\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "  }\n" +
-            "}"
+        createTestIndex.setJsonEntity(
+            "{\n"
+                + "  \"settings\": {\n"
+                + "    \"index.number_of_shards\": 3\n"
+                + "  },\n"
+                + "  \"mappings\": {\n"
+                + "      \"properties\": {\n"
+                + "        \"datetime\": {\n"
+                + "          \"type\": \"date\",\n"
+                + "          \"format\": \""
+                + format
+                + "\"\n"
+                + "        }\n"
+                + "      }\n"
+                + "  }\n"
+                + "}"
         );
         return createTestIndex;
     }
 
     private void postNewDoc(String endpoint, int minute) throws IOException {
-        Request putDoc = new Request("POST", endpoint+"/_doc");
+        Request putDoc = new Request("POST", endpoint + "/_doc");
         putDoc.addParameter("refresh", "true");
         putDoc.addParameter("wait_for_active_shards", "all");
-        putDoc.setJsonEntity("{\n" +
-            "  \"datetime\": \"2020-01-01T00:00:0" + minute + "+01:00\"\n" +
-            "}"
-        );
+        putDoc.setJsonEntity("{\n" + "  \"datetime\": \"2020-01-01T00:00:0" + minute + "+01:00\"\n" + "}");
         Response resp = client().performRequest(putDoc);
         assertEquals(HttpStatus.SC_CREATED, resp.getStatusLine().getStatusCode());
     }

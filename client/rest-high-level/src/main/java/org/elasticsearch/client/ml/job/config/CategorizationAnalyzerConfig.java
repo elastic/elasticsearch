@@ -8,12 +8,12 @@
 package org.elasticsearch.client.ml.job.config;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -90,39 +90,60 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (CHAR_FILTERS.match(currentFieldName, parser.getDeprecationHandler())
-                        && token == XContentParser.Token.START_ARRAY) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (token == XContentParser.Token.VALUE_STRING) {
-                            builder.addCharFilter(parser.text());
-                        } else if (token == XContentParser.Token.START_OBJECT) {
-                            builder.addCharFilter(parser.map());
-                        } else {
-                            throw new IllegalArgumentException("[" + currentFieldName + "] in [" + CATEGORIZATION_ANALYZER +
-                                    "] array element should contain char_filter's name or settings [" + token + "]");
+                    && token == XContentParser.Token.START_ARRAY) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token == XContentParser.Token.VALUE_STRING) {
+                                builder.addCharFilter(parser.text());
+                            } else if (token == XContentParser.Token.START_OBJECT) {
+                                builder.addCharFilter(parser.map());
+                            } else {
+                                throw new IllegalArgumentException(
+                                    "["
+                                        + currentFieldName
+                                        + "] in ["
+                                        + CATEGORIZATION_ANALYZER
+                                        + "] array element should contain char_filter's name or settings ["
+                                        + token
+                                        + "]"
+                                );
+                            }
                         }
-                    }
-                } else if (TOKENIZER.match(currentFieldName, parser.getDeprecationHandler())) {
-                    if (token == XContentParser.Token.VALUE_STRING) {
-                        builder.setTokenizer(parser.text());
-                    } else if (token == XContentParser.Token.START_OBJECT) {
-                        builder.setTokenizer(parser.map());
-                    } else {
-                        throw new IllegalArgumentException("[" + currentFieldName + "] in [" + CATEGORIZATION_ANALYZER +
-                                "] should be tokenizer's name or settings [" + token + "]");
-                    }
-                } else if (TOKEN_FILTERS.match(currentFieldName, parser.getDeprecationHandler())
-                        && token == XContentParser.Token.START_ARRAY) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    } else if (TOKENIZER.match(currentFieldName, parser.getDeprecationHandler())) {
                         if (token == XContentParser.Token.VALUE_STRING) {
-                            builder.addTokenFilter(parser.text());
+                            builder.setTokenizer(parser.text());
                         } else if (token == XContentParser.Token.START_OBJECT) {
-                            builder.addTokenFilter(parser.map());
+                            builder.setTokenizer(parser.map());
                         } else {
-                            throw new IllegalArgumentException("[" + currentFieldName + "] in [" + CATEGORIZATION_ANALYZER +
-                                    "] array element should contain token_filter's name or settings [" + token + "]");
+                            throw new IllegalArgumentException(
+                                "["
+                                    + currentFieldName
+                                    + "] in ["
+                                    + CATEGORIZATION_ANALYZER
+                                    + "] should be tokenizer's name or settings ["
+                                    + token
+                                    + "]"
+                            );
                         }
-                    }
-                }
+                    } else if (TOKEN_FILTERS.match(currentFieldName, parser.getDeprecationHandler())
+                        && token == XContentParser.Token.START_ARRAY) {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                if (token == XContentParser.Token.VALUE_STRING) {
+                                    builder.addTokenFilter(parser.text());
+                                } else if (token == XContentParser.Token.START_OBJECT) {
+                                    builder.addTokenFilter(parser.map());
+                                } else {
+                                    throw new IllegalArgumentException(
+                                        "["
+                                            + currentFieldName
+                                            + "] in ["
+                                            + CATEGORIZATION_ANALYZER
+                                            + "] array element should contain token_filter's name or settings ["
+                                            + token
+                                            + "]"
+                                    );
+                                }
+                            }
+                        }
             }
         }
 
@@ -170,8 +191,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NameOrDefinition that = (NameOrDefinition) o;
-            return Objects.equals(name, that.name) &&
-                    Objects.equals(definition, that.definition);
+            return Objects.equals(name, that.name) && Objects.equals(definition, that.definition);
         }
 
         @Override
@@ -194,8 +214,12 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment {
     private final NameOrDefinition tokenizer;
     private final List<NameOrDefinition> tokenFilters;
 
-    private CategorizationAnalyzerConfig(String analyzer, List<NameOrDefinition> charFilters, NameOrDefinition tokenizer,
-                                         List<NameOrDefinition> tokenFilters) {
+    private CategorizationAnalyzerConfig(
+        String analyzer,
+        List<NameOrDefinition> charFilters,
+        NameOrDefinition tokenizer,
+        List<NameOrDefinition> tokenFilters
+    ) {
         this.analyzer = analyzer;
         this.charFilters = Collections.unmodifiableList(charFilters);
         this.tokenizer = tokenizer;
@@ -251,10 +275,10 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         CategorizationAnalyzerConfig that = (CategorizationAnalyzerConfig) o;
-        return Objects.equals(analyzer, that.analyzer) &&
-                Objects.equals(charFilters, that.charFilters) &&
-                Objects.equals(tokenizer, that.tokenizer) &&
-                Objects.equals(tokenFilters, that.tokenFilters);
+        return Objects.equals(analyzer, that.analyzer)
+            && Objects.equals(charFilters, that.charFilters)
+            && Objects.equals(tokenizer, that.tokenizer)
+            && Objects.equals(tokenFilters, that.tokenFilters);
     }
 
     @Override
@@ -269,8 +293,7 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment {
         private NameOrDefinition tokenizer;
         private List<NameOrDefinition> tokenFilters = new ArrayList<>();
 
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder(CategorizationAnalyzerConfig categorizationAnalyzerConfig) {
             this.analyzer = categorizationAnalyzerConfig.analyzer;

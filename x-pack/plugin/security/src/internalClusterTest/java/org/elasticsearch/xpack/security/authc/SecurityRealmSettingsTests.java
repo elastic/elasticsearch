@@ -55,8 +55,7 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
             OpenIdConnectTestCase.writeJwkSetToFile(jwkSet);
 
             final Settings existingSettings = super.nodeSettings(nodeOrdinal, otherSettings);
-            MockSecureSettings mockSecureSettings =
-                (MockSecureSettings) Settings.builder().put(existingSettings).getSecureSettings();
+            MockSecureSettings mockSecureSettings = (MockSecureSettings) Settings.builder().put(existingSettings).getSecureSettings();
             mockSecureSettings.setString("xpack.security.authc.realms.oidc.oidc1.rp.client_secret", randomAlphaOfLength(12));
             settings = Settings.builder()
                 .put(existingSettings.filter(s -> s.startsWith("xpack.security.authc.realms.") == false), false)
@@ -98,8 +97,11 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
             .stream()
             .map(RealmConfig.RealmIdentifier::getType)
             .collect(Collectors.toSet());
-        assertThat("One or more realm type are not configured " + configuredRealmTypes,
-            configuredRealmTypes, Matchers.containsInAnyOrder(InternalRealms.getConfigurableRealmsTypes().toArray(Strings.EMPTY_ARRAY)));
+        assertThat(
+            "One or more realm type are not configured " + configuredRealmTypes,
+            configuredRealmTypes,
+            Matchers.containsInAnyOrder(InternalRealms.getConfigurableRealmsTypes().toArray(Strings.EMPTY_ARRAY))
+        );
 
         return settings;
     }

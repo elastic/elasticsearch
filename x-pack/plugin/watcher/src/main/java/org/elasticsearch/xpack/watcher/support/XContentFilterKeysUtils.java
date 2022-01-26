@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -15,14 +15,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentParser.Token.END_ARRAY;
-import static org.elasticsearch.common.xcontent.XContentParser.Token.END_OBJECT;
-import static org.elasticsearch.common.xcontent.XContentParser.Token.START_OBJECT;
+import static org.elasticsearch.xcontent.XContentParser.Token.END_ARRAY;
+import static org.elasticsearch.xcontent.XContentParser.Token.END_OBJECT;
+import static org.elasticsearch.xcontent.XContentParser.Token.START_OBJECT;
 
 public final class XContentFilterKeysUtils {
 
-    private XContentFilterKeysUtils() {
-    }
+    private XContentFilterKeysUtils() {}
 
     public static Map<String, Object> filterMapOrdered(Set<String> keys, XContentParser parser) throws IOException {
         try {

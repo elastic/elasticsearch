@@ -52,8 +52,7 @@ public class OverallBucketsAggregator implements OverallBucketsProcessor {
 
     private OverallBucket outputBucket() {
         List<OverallBucket.JobInfo> jobs = new ArrayList<>(maxScoreByJob.size());
-        maxScoreByJob.entrySet().stream().forEach(entry -> jobs.add(
-                new OverallBucket.JobInfo(entry.getKey(), entry.getValue())));
+        maxScoreByJob.entrySet().stream().forEach(entry -> jobs.add(new OverallBucket.JobInfo(entry.getKey(), entry.getValue())));
         return new OverallBucket(new Date(startTime), bucketSpanSeconds, maxOverallScore, jobs, isInterim);
     }
 

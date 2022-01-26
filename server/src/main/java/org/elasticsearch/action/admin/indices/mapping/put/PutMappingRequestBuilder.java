@@ -12,17 +12,19 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 
 /**
  * Builder for a put mapping request
  */
-public class PutMappingRequestBuilder
-    extends AcknowledgedRequestBuilder<PutMappingRequest, AcknowledgedResponse, PutMappingRequestBuilder> {
+public class PutMappingRequestBuilder extends AcknowledgedRequestBuilder<
+    PutMappingRequest,
+    AcknowledgedResponse,
+    PutMappingRequestBuilder> {
 
     public PutMappingRequestBuilder(ElasticsearchClient client, PutMappingAction action) {
         super(client, action, new PutMappingRequest());

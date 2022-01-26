@@ -25,8 +25,12 @@ public class RemoteClusterRegistry {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final ClusterService clusterService;
 
-    public RemoteClusterRegistry(RemoteClusterService remoteClusterService, IndicesOptions indicesOptions, ClusterService clusterService,
-                                 IndexNameExpressionResolver indexNameExpressionResolver) {
+    public RemoteClusterRegistry(
+        RemoteClusterService remoteClusterService,
+        IndicesOptions indicesOptions,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
         this.remoteClusterService = remoteClusterService;
         this.indicesOptions = indicesOptions;
         this.clusterService = clusterService;
@@ -35,7 +39,7 @@ public class RemoteClusterRegistry {
 
     public Set<String> versionIncompatibleClusters(String indexPattern) {
         Set<String> incompatibleClusters = new TreeSet<>();
-        for (String clusterAlias: clusterAliases(Strings.splitStringByCommaToArray(indexPattern), true)) {
+        for (String clusterAlias : clusterAliases(Strings.splitStringByCommaToArray(indexPattern), true)) {
             Version clusterVersion = remoteClusterService.getConnection(clusterAlias).getVersion();
             if (clusterVersion.equals(Version.CURRENT) == false) { // TODO: should newer clusters be eventually allowed?
                 incompatibleClusters.add(clusterAlias);
@@ -45,8 +49,11 @@ public class RemoteClusterRegistry {
     }
 
     public Set<String> clusterAliases(String[] indices, boolean discardLocal) {
-        Set<String> clusters = remoteClusterService.groupIndices(indicesOptions, indices,
-            idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterService.state())).keySet();
+        Set<String> clusters = remoteClusterService.groupIndices(
+            indicesOptions,
+            indices,
+            idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterService.state())
+        ).keySet();
         if (discardLocal) {
             clusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         }

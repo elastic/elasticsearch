@@ -31,8 +31,12 @@ public final class BenchmarkRunner {
     @SuppressForbidden(reason = "system out is ok for a command line tool")
     public void run() {
         SampleRecorder recorder = new SampleRecorder(iterations);
-        System.out.printf("Running %s with %d warmup iterations and %d iterations.%n",
-            task.getClass().getSimpleName(), warmupIterations, iterations);
+        System.out.printf(
+            "Running %s with %d warmup iterations and %d iterations.%n",
+            task.getClass().getSimpleName(),
+            warmupIterations,
+            iterations
+        );
 
         try {
             task.setUp(recorder);
@@ -54,14 +58,26 @@ public final class BenchmarkRunner {
 
         for (Metrics metrics : summaryMetrics) {
             String throughput = String.format(Locale.ROOT, "Throughput [ops/s]: %f", metrics.throughput);
-            String serviceTimes = String.format(Locale.ROOT,
+            String serviceTimes = String.format(
+                Locale.ROOT,
                 "Service time [ms]: p50 = %f, p90 = %f, p95 = %f, p99 = %f, p99.9 = %f, p99.99 = %f",
-                metrics.serviceTimeP50, metrics.serviceTimeP90, metrics.serviceTimeP95,
-                metrics.serviceTimeP99, metrics.serviceTimeP999, metrics.serviceTimeP9999);
-            String latencies = String.format(Locale.ROOT,
+                metrics.serviceTimeP50,
+                metrics.serviceTimeP90,
+                metrics.serviceTimeP95,
+                metrics.serviceTimeP99,
+                metrics.serviceTimeP999,
+                metrics.serviceTimeP9999
+            );
+            String latencies = String.format(
+                Locale.ROOT,
                 "Latency [ms]:      p50 = %f, p90 = %f, p95 = %f, p99 = %f, p99.9 = %f, p99.99 = %f",
-                metrics.latencyP50, metrics.latencyP90, metrics.latencyP95,
-                metrics.latencyP99, metrics.latencyP999, metrics.latencyP9999);
+                metrics.latencyP50,
+                metrics.latencyP90,
+                metrics.latencyP95,
+                metrics.latencyP99,
+                metrics.latencyP999,
+                metrics.latencyP9999
+            );
 
             int lineLength = Math.max(serviceTimes.length(), latencies.length());
 

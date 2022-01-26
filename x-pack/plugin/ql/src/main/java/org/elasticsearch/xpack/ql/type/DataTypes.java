@@ -20,7 +20,7 @@ import static java.util.stream.Collectors.toMap;
 
 public final class DataTypes {
 
-    // @formatter:off
+    // tag::noformat
     public static final DataType UNSUPPORTED      = new DataType("UNSUPPORTED", null, 0,                 false, false, false);
 
     public static final DataType NULL             = new DataType("null",              0,                 false, false, false);
@@ -48,33 +48,30 @@ public final class DataTypes {
     // complex types
     public static final DataType OBJECT           = new DataType("object",            0,                 false, false, false);
     public static final DataType NESTED           = new DataType("nested",            0,                 false, false, false);
-    //@formatter:on
+    //end::noformat
 
     private static final Collection<DataType> TYPES = Arrays.asList(
-            UNSUPPORTED,
-            NULL,
-            BOOLEAN,
-            BYTE,
-            SHORT,
-            INTEGER,
-            LONG,
-            DOUBLE,
-            FLOAT,
-            HALF_FLOAT,
-            SCALED_FLOAT,
-            KEYWORD,
-            TEXT,
-            DATETIME,
-            IP,
-            BINARY,
-            OBJECT,
-            NESTED)
-            .stream()
-            .sorted(Comparator.comparing(DataType::typeName))
-            .collect(toList());
+        UNSUPPORTED,
+        NULL,
+        BOOLEAN,
+        BYTE,
+        SHORT,
+        INTEGER,
+        LONG,
+        DOUBLE,
+        FLOAT,
+        HALF_FLOAT,
+        SCALED_FLOAT,
+        KEYWORD,
+        TEXT,
+        DATETIME,
+        IP,
+        BINARY,
+        OBJECT,
+        NESTED
+    ).stream().sorted(Comparator.comparing(DataType::typeName)).collect(toList());
 
-    private static final Map<String, DataType> NAME_TO_TYPE = unmodifiableMap(TYPES.stream()
-            .collect(toMap(DataType::typeName, t -> t)));
+    private static final Map<String, DataType> NAME_TO_TYPE = unmodifiableMap(TYPES.stream().collect(toMap(DataType::typeName, t -> t)));
 
     private static Map<String, DataType> ES_TO_TYPE;
 
@@ -166,11 +163,10 @@ public final class DataTypes {
         if (left == right) {
             return true;
         } else {
-            return
-                (left == NULL || right == NULL)
-                    || (isString(left) && isString(right))
-                    || (left.isNumeric() && right.isNumeric())
-                    || (isDateTime(left) && isDateTime(right));
+            return (left == NULL || right == NULL)
+                || (isString(left) && isString(right))
+                || (left.isNumeric() && right.isNumeric())
+                || (isDateTime(left) && isDateTime(right));
         }
     }
 }

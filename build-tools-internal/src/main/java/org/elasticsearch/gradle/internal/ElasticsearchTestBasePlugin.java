@@ -9,14 +9,15 @@
 package org.elasticsearch.gradle.internal;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
+
 import org.elasticsearch.gradle.OS;
-import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
-import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
-import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
-import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.internal.test.SimpleCommandLineArgumentProvider;
+import org.elasticsearch.gradle.test.GradleTestPolicySetupPlugin;
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
@@ -97,6 +98,9 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                             "--add-opens=java.base/java.time=ALL-UNNAMED",
                             "--add-opens=java.management/java.lang.management=ALL-UNNAMED"
                         );
+                    }
+                    if (BuildParams.getRuntimeJavaVersion().isCompatibleWith(JavaVersion.VERSION_18)) {
+                        test.jvmArgs("-Djava.security.manager=allow");
                     }
                 }
             });
@@ -193,7 +197,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
                     FileCollection mainRuntime = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME).getRuntimeClasspath();
                     // Add any "shadow" dependencies. These are dependencies that are *not* bundled into the shadow JAR
-                    Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME());
+                    Configuration shadowConfig = project.getConfigurations().getByName(ShadowBasePlugin.CONFIGURATION_NAME);
                     // Add the shadow JAR artifact itself
                     FileCollection shadowJar = project.files(project.getTasks().named("shadowJar"));
                     FileCollection testRuntime = sourceSets.getByName(SourceSet.TEST_SOURCE_SET_NAME).getRuntimeClasspath();

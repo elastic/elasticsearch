@@ -29,9 +29,9 @@ public class RestGetTransformAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS),
-            new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID)));
+        return unmodifiableList(
+            asList(new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS), new Route(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID))
+        );
     }
 
     @Override
@@ -43,8 +43,11 @@ public class RestGetTransformAction extends BaseRestHandler {
         request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), true));
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             request.setPageParams(
-                new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+                new PageParams(
+                    restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)
+                )
+            );
         }
         return channel -> client.execute(GetTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

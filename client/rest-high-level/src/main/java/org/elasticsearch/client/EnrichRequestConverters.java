@@ -25,8 +25,7 @@ import static org.elasticsearch.client.RequestConverters.createEntity;
 final class EnrichRequestConverters {
 
     static Request putPolicy(PutPolicyRequest putPolicyRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_enrich", "policy")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_enrich", "policy")
             .addPathPart(putPolicyRequest.getName())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -35,31 +34,26 @@ final class EnrichRequestConverters {
     }
 
     static Request deletePolicy(DeletePolicyRequest deletePolicyRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_enrich", "policy")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_enrich", "policy")
             .addPathPart(deletePolicyRequest.getName())
             .build();
         return new Request(HttpDelete.METHOD_NAME, endpoint);
     }
 
     static Request getPolicy(GetPolicyRequest getPolicyRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_enrich", "policy")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_enrich", "policy")
             .addCommaSeparatedPathParts(getPolicyRequest.getNames())
             .build();
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
     static Request stats(StatsRequest statsRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_enrich", "_stats")
-            .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_enrich", "_stats").build();
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
     static Request executePolicy(ExecutePolicyRequest executePolicyRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_enrich", "policy")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_enrich", "policy")
             .addPathPart(executePolicyRequest.getName())
             .addPathPartAsIs("_execute")
             .build();

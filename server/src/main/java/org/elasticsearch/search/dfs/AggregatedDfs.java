@@ -8,9 +8,9 @@
 
 package org.elasticsearch.search.dfs;
 
-
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
@@ -53,8 +53,11 @@ public class AggregatedDfs implements Writeable {
         maxDoc = in.readVLong();
     }
 
-    public AggregatedDfs(ObjectObjectHashMap<Term, TermStatistics> termStatistics,
-            ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics, long maxDoc) {
+    public AggregatedDfs(
+        ObjectObjectHashMap<Term, TermStatistics> termStatistics,
+        ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics,
+        long maxDoc
+    ) {
         this.termStatistics = termStatistics;
         this.fieldStatistics = fieldStatistics;
         this.maxDoc = maxDoc;

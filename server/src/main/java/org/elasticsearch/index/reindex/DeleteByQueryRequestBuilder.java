@@ -13,16 +13,13 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class DeleteByQueryRequestBuilder extends
-        AbstractBulkByScrollRequestBuilder<DeleteByQueryRequest, DeleteByQueryRequestBuilder> {
+public class DeleteByQueryRequestBuilder extends AbstractBulkByScrollRequestBuilder<DeleteByQueryRequest, DeleteByQueryRequestBuilder> {
 
     public DeleteByQueryRequestBuilder(ElasticsearchClient client, ActionType<BulkByScrollResponse> action) {
         this(client, action, new SearchRequestBuilder(client, SearchAction.INSTANCE));
     }
 
-    private DeleteByQueryRequestBuilder(ElasticsearchClient client,
-                                        ActionType<BulkByScrollResponse> action,
-                                        SearchRequestBuilder search) {
+    private DeleteByQueryRequestBuilder(ElasticsearchClient client, ActionType<BulkByScrollResponse> action, SearchRequestBuilder search) {
         super(client, action, search, new DeleteByQueryRequest(search.request()));
     }
 

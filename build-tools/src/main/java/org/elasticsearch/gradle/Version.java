@@ -39,7 +39,9 @@ public final class Version implements Comparable<Version> {
 
     private static final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)(?:-(alpha\\d+|beta\\d+|rc\\d+|SNAPSHOT))?");
 
-    private static final Pattern relaxedPattern = Pattern.compile("v?(\\d+)\\.(\\d+)\\.(\\d+)(?:-([a-zA-Z0-9_]+(?:-[a-zA-Z0-9]+)*))?");
+    private static final Pattern relaxedPattern = Pattern.compile(
+        "v?(\\d+)\\.(\\d+)\\.(\\d+)(?:[\\-+]+([a-zA-Z0-9_]+(?:-[a-zA-Z0-9]+)*))?"
+    );
 
     public Version(int major, int minor, int revision) {
         this(major, minor, revision, null);

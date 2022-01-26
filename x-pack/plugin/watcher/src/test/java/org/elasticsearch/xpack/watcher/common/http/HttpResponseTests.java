@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.watcher.common.http;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -20,7 +20,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.hasEntry;
@@ -42,7 +42,7 @@ public class HttpResponseTests extends ESTestCase {
         final HttpResponse response;
         if (randomBoolean() && headers.isEmpty() && body == null) {
             response = new HttpResponse(status);
-        } else if (body != null ){
+        } else if (body != null) {
             switch (randomIntBetween(0, 2)) {
                 case 0:
                     response = new HttpResponse(status, body, headers);
@@ -65,7 +65,7 @@ public class HttpResponseTests extends ESTestCase {
                 case 2:
                     response = new HttpResponse(status, (BytesReference) null, headers);
                     break;
-                default: //3
+                default: // 3
                     response = new HttpResponse(status, headers);
                     break;
             }

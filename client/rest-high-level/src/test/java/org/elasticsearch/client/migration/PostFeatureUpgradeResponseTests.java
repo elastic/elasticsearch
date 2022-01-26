@@ -10,8 +10,8 @@ package org.elasticsearch.client.migration;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -24,7 +24,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class PostFeatureUpgradeResponseTests extends AbstractResponseTestCase<
-    org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse, PostFeatureUpgradeResponse> {
+    org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse,
+    PostFeatureUpgradeResponse> {
 
     /** Our constructor should convert nulls to empty lists */
     public void testConstructorHandlesNullLists() {
@@ -35,14 +36,17 @@ public class PostFeatureUpgradeResponseTests extends AbstractResponseTestCase<
 
     @Override
     protected org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse createServerTestInstance(
-        XContentType xContentType) {
+        XContentType xContentType
+    ) {
         if (randomBoolean()) {
             return new org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse(
                 true,
-                randomList(5,
+                randomList(
+                    5,
                     () -> new org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse.Feature(
                         randomAlphaOfLengthBetween(5, 15)
-                    )),
+                    )
+                ),
                 null,
                 null
             );
@@ -51,7 +55,8 @@ public class PostFeatureUpgradeResponseTests extends AbstractResponseTestCase<
                 false,
                 Collections.emptyList(),
                 randomAlphaOfLengthBetween(10, 20),
-                new ElasticsearchException(randomAlphaOfLengthBetween(10, 20)));
+                new ElasticsearchException(randomAlphaOfLengthBetween(10, 20))
+            );
         }
     }
 
@@ -63,15 +68,17 @@ public class PostFeatureUpgradeResponseTests extends AbstractResponseTestCase<
     @Override
     protected void assertInstances(
         org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse serverTestInstance,
-        PostFeatureUpgradeResponse clientInstance) {
+        PostFeatureUpgradeResponse clientInstance
+    ) {
 
         assertThat(clientInstance.isAccepted(), equalTo(serverTestInstance.isAccepted()));
 
         assertThat(clientInstance.getFeatures(), hasSize(serverTestInstance.getFeatures().size()));
 
         for (int i = 0; i < clientInstance.getFeatures().size(); i++) {
-            org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse.Feature serverFeature
-                = serverTestInstance.getFeatures().get(i);
+            org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse.Feature serverFeature = serverTestInstance
+                .getFeatures()
+                .get(i);
             PostFeatureUpgradeResponse.Feature clientFeature = clientInstance.getFeatures().get(i);
 
             assertThat(clientFeature.getFeatureName(), equalTo(serverFeature.getFeatureName()));
@@ -83,8 +90,10 @@ public class PostFeatureUpgradeResponseTests extends AbstractResponseTestCase<
             assertThat(clientInstance.getElasticsearchException(), nullValue());
         } else {
             assertThat(clientInstance.getElasticsearchException(), notNullValue());
-            assertThat(clientInstance.getElasticsearchException().getMessage(),
-                containsString(serverTestInstance.getElasticsearchException().getMessage()));
+            assertThat(
+                clientInstance.getElasticsearchException().getMessage(),
+                containsString(serverTestInstance.getElasticsearchException().getMessage())
+            );
         }
     }
 }

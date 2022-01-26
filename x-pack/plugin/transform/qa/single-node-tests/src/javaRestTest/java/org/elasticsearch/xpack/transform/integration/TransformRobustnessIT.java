@@ -119,9 +119,14 @@ public class TransformRobustnessIT extends TransformRestTestCase {
 
     private void beEvilAndDeleteTheTransformIndex() throws IOException {
         final Request deleteRequest = new Request("DELETE", TransformInternalIndexConstants.LATEST_INDEX_NAME);
-        deleteRequest.setOptions(expectWarnings("this request accesses system indices: [" +
-            TransformInternalIndexConstants.LATEST_INDEX_NAME + "], but in a future major version, direct access to system indices will " +
-            "be prevented by default"));
+        deleteRequest.setOptions(
+            expectWarnings(
+                "this request accesses system indices: ["
+                    + TransformInternalIndexConstants.LATEST_INDEX_NAME
+                    + "], but in a future major version, direct access to system indices will "
+                    + "be prevented by default"
+            )
+        );
         adminClient().performRequest(deleteRequest);
     }
 }

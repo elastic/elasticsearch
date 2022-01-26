@@ -8,7 +8,6 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * Side Public License, v 1.
  */
 
-apply plugin: 'nebula.optional-base'
 apply plugin: 'elasticsearch.publish'
 
 archivesBaseName = 'elasticsearch-core'
@@ -31,19 +30,19 @@ if (!isEclipse) {
     java11Implementation sourceSets.main.output
   }
 
-  compileJava11Java {
+  tasks.named("compileJava11Java").configure {
     sourceCompatibility = 11
     targetCompatibility = 11
   }
 
-  forbiddenApisJava11 {
+  tasks.named("forbiddenApisJava11").configure {
     if (BuildParams.runtimeJavaVersion < JavaVersion.VERSION_11) {
       targetCompatibility = JavaVersion.VERSION_11.getMajorVersion()
     }
     replaceSignatureFiles 'jdk-signatures'
   }
 
-  jar {
+  tasks.named("jar").configure {
     metaInf {
       into 'versions/11'
       from sourceSets.java11.output

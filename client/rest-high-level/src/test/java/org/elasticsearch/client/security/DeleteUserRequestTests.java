@@ -28,14 +28,18 @@ public class DeleteUserRequestTests extends ESTestCase {
     }
 
     public void testDeleteUserRequestThrowsExceptionForNullName() {
-        final NullPointerException ile =
-            expectThrows(NullPointerException.class, () -> new DeleteUserRequest(null, randomFrom(RefreshPolicy.values())));
+        final NullPointerException ile = expectThrows(
+            NullPointerException.class,
+            () -> new DeleteUserRequest(null, randomFrom(RefreshPolicy.values()))
+        );
         assertThat(ile.getMessage(), equalTo("user name is required"));
     }
 
     public void testDeleteUserRequestThrowsExceptionForNullRefreshPolicy() {
-        final NullPointerException ile =
-            expectThrows(NullPointerException.class, () -> new DeleteUserRequest(randomAlphaOfLength(10), null));
+        final NullPointerException ile = expectThrows(
+            NullPointerException.class,
+            () -> new DeleteUserRequest(randomAlphaOfLength(10), null)
+        );
         assertThat(ile.getMessage(), equalTo("refresh policy is required"));
     }
 
@@ -45,13 +49,16 @@ public class DeleteUserRequestTests extends ESTestCase {
         final DeleteUserRequest deleteUserRequest = new DeleteUserRequest(name, refreshPolicy);
         assertNotNull(deleteUserRequest);
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(deleteUserRequest, (original) -> {
-            return new DeleteUserRequest(original.getName(), original.getRefreshPolicy());
-        });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            deleteUserRequest,
+            (original) -> { return new DeleteUserRequest(original.getName(), original.getRefreshPolicy()); }
+        );
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(deleteUserRequest, (original) -> {
-            return new DeleteUserRequest(original.getName(), original.getRefreshPolicy());
-        }, DeleteUserRequestTests::mutateTestItem);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            deleteUserRequest,
+            (original) -> { return new DeleteUserRequest(original.getName(), original.getRefreshPolicy()); },
+            DeleteUserRequestTests::mutateTestItem
+        );
 
     }
 
@@ -59,8 +66,9 @@ public class DeleteUserRequestTests extends ESTestCase {
         if (randomBoolean()) {
             return new DeleteUserRequest(randomAlphaOfLength(10), original.getRefreshPolicy());
         } else {
-            List<RefreshPolicy> values = Arrays.stream(RefreshPolicy.values()).filter(rp -> rp != original.getRefreshPolicy()).collect(
-                    Collectors.toList());
+            List<RefreshPolicy> values = Arrays.stream(RefreshPolicy.values())
+                .filter(rp -> rp != original.getRefreshPolicy())
+                .collect(Collectors.toList());
             return new DeleteUserRequest(original.getName(), randomFrom(values));
         }
     }

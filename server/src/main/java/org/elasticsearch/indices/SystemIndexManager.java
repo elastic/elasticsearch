@@ -29,11 +29,14 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -47,6 +50,16 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETT
  */
 public class SystemIndexManager implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(SystemIndexManager.class);
+
+    public static final Set<String> MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST;
+    static {
+        Set<String> allowlist = new HashSet<>();
+        // Add all the blocks, we need to be able to clear those
+        for (IndexMetadata.APIBlock blockType : IndexMetadata.APIBlock.values()) {
+            allowlist.add(blockType.settingName());
+        }
+        MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST = Collections.unmodifiableSet(allowlist);
+    }
 
     private final SystemIndices systemIndices;
     private final Client client;
@@ -165,6 +178,9 @@ public class SystemIndexManager implements ClusterStateListener {
                 indexDescription
             );
             return UpgradeStatus.NEEDS_UPGRADE;
+        } else if (indexState.hasExpectedType == false) {
+            logger.debug("Index {} does not have type [{}], so needs to be upgraded", indexDescription, descriptor.getIndexType());
+            return UpgradeStatus.NEEDS_UPGRADE;
         } else if (indexState.mappingUpToDate) {
             logger.trace("Index {} is up-to-date, no action required", indexDescription);
             return UpgradeStatus.UP_TO_DATE;
@@ -222,6 +238,7 @@ public class SystemIndexManager implements ClusterStateListener {
 
         final boolean isIndexUpToDate = INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == descriptor.getIndexFormat();
 
+        final boolean hasExpectedType = hasExpectedType(descriptor, indexMetadata);
         final boolean isMappingIsUpToDate = checkIndexMappingUpToDate(descriptor, indexMetadata);
         final String concreteIndexName = indexMetadata.getIndex().getName();
 
@@ -240,7 +257,7 @@ public class SystemIndexManager implements ClusterStateListener {
             indexHealth = new ClusterIndexHealth(indexMetadata, routingTable).getStatus();
         }
 
-        return new State(indexState, indexHealth, isIndexUpToDate, isMappingIsUpToDate);
+        return new State(indexState, indexHealth, isIndexUpToDate, isMappingIsUpToDate, hasExpectedType);
     }
 
     /**
@@ -254,6 +271,19 @@ public class SystemIndexManager implements ClusterStateListener {
         }
 
         return Version.CURRENT.onOrBefore(readMappingVersion(descriptor, mappingMetadata));
+    }
+
+    /**
+     * Checks whether an index's type matches what the descriptor says. For 7.x indices all types
+     * are "_doc", but a mismatch can occur if the index was created in 6.x with a different type.
+     */
+    private boolean hasExpectedType(SystemIndexDescriptor descriptor, IndexMetadata indexMetadata) {
+        final MappingMetadata mappingMetadata = indexMetadata.mapping();
+        if (mappingMetadata == null) {
+            return false;
+        }
+
+        return descriptor.getIndexType().equals(mappingMetadata.type());
     }
 
     /**
@@ -296,12 +326,20 @@ public class SystemIndexManager implements ClusterStateListener {
         final ClusterHealthStatus indexHealth;
         final boolean isIndexUpToDate;
         final boolean mappingUpToDate;
+        final boolean hasExpectedType;
 
-        State(IndexMetadata.State indexState, ClusterHealthStatus indexHealth, boolean isIndexUpToDate, boolean mappingUpToDate) {
+        State(
+            IndexMetadata.State indexState,
+            ClusterHealthStatus indexHealth,
+            boolean isIndexUpToDate,
+            boolean mappingUpToDate,
+            boolean hasExpectedType
+        ) {
             this.indexState = indexState;
             this.indexHealth = indexHealth;
             this.isIndexUpToDate = isIndexUpToDate;
             this.mappingUpToDate = mappingUpToDate;
+            this.hasExpectedType = hasExpectedType;
         }
     }
 }

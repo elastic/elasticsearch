@@ -37,21 +37,27 @@ public class SparseVectorFunctionTests extends ESTestCase {
     @Before
     public void setUpVectors() {
         field = "vector";
-        docVectorDims = new int[] {2, 10, 50, 113, 4545};
-        docVectorValues = new float[] {230.0f, 300.33f, -34.8988f, 15.555f, -200.0f};
-        queryVector = new HashMap<String, Number>() {{
-            put("2", 0.5);
-            put("10", 111.3);
-            put("50", -13.0);
-            put("113", 14.8);
-            put("4545", -156.0);
-        }};
+        docVectorDims = new int[] { 2, 10, 50, 113, 4545 };
+        docVectorValues = new float[] { 230.0f, 300.33f, -34.8988f, 15.555f, -200.0f };
+        queryVector = new HashMap<String, Number>() {
+            {
+                put("2", 0.5);
+                put("10", 111.3);
+                put("50", -13.0);
+                put("113", 14.8);
+                put("4545", -156.0);
+            }
+        };
     }
 
     public void testSparseVectorFunctions() {
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
-            BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(indexVersion,
-                docVectorDims, docVectorValues, docVectorDims.length);
+            BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(
+                indexVersion,
+                docVectorDims,
+                docVectorValues,
+                docVectorDims.length
+            );
             SparseVectorScriptDocValues docValues = mock(SparseVectorScriptDocValues.class);
             when(docValues.getEncodedValue()).thenReturn(encodedDocVector);
             when(docValues.indexVersion()).thenReturn(indexVersion);
@@ -114,10 +120,14 @@ public class SparseVectorFunctionTests extends ESTestCase {
         String field = "vector";
 
         // Document vector's biggest dimension > query vector's biggest dimension
-        int[] docVectorDims = {2, 10, 50, 113, 4545, 4546};
-        float[] docVectorValues = {230.0f, 300.33f, -34.8988f, 15.555f, -200.0f, 11.5f};
+        int[] docVectorDims = { 2, 10, 50, 113, 4545, 4546 };
+        float[] docVectorValues = { 230.0f, 300.33f, -34.8988f, 15.555f, -200.0f, 11.5f };
         BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(
-            Version.CURRENT, docVectorDims, docVectorValues, docVectorDims.length);
+            Version.CURRENT,
+            docVectorDims,
+            docVectorValues,
+            docVectorDims.length
+        );
         VectorScriptDocValues.SparseVectorScriptDocValues dvs = mock(VectorScriptDocValues.SparseVectorScriptDocValues.class);
         when(dvs.getEncodedValue()).thenReturn(encodedDocVector);
         when(dvs.indexVersion()).thenReturn(Version.CURRENT);
@@ -125,14 +135,16 @@ public class SparseVectorFunctionTests extends ESTestCase {
         ScoreScript scoreScript = mock(ScoreScript.class);
         when(scoreScript.getDoc()).thenReturn(Collections.singletonMap(field, dvs));
 
-        Map<String, Number> queryVector = new HashMap<String, Number>() {{
-            put("2", 0.5);
-            put("10", 111.3);
-            put("50", -13.0);
-            put("113", 14.8);
-            put("114", -20.5);
-            put("4545", -156.0);
-        }};
+        Map<String, Number> queryVector = new HashMap<String, Number>() {
+            {
+                put("2", 0.5);
+                put("10", 111.3);
+                put("50", -13.0);
+                put("113", 14.8);
+                put("114", -20.5);
+                put("4545", -156.0);
+            }
+        };
 
         // test dotProductSparse
         DotProductSparse docProductSparse = new DotProductSparse(scoreScript, queryVector, field);
@@ -163,10 +175,14 @@ public class SparseVectorFunctionTests extends ESTestCase {
         String field = "vector";
 
         // Document vector's biggest dimension < query vector's biggest dimension
-        int[] docVectorDims = {2, 10, 50, 113, 4545, 4546};
-        float[] docVectorValues = {230.0f, 300.33f, -34.8988f, 15.555f, -200.0f, 11.5f};
+        int[] docVectorDims = { 2, 10, 50, 113, 4545, 4546 };
+        float[] docVectorValues = { 230.0f, 300.33f, -34.8988f, 15.555f, -200.0f, 11.5f };
         BytesRef encodedDocVector = VectorEncoderDecoder.encodeSparseVector(
-            Version.CURRENT, docVectorDims, docVectorValues, docVectorDims.length);
+            Version.CURRENT,
+            docVectorDims,
+            docVectorValues,
+            docVectorDims.length
+        );
         VectorScriptDocValues.SparseVectorScriptDocValues dvs = mock(VectorScriptDocValues.SparseVectorScriptDocValues.class);
         when(dvs.getEncodedValue()).thenReturn(encodedDocVector);
         when(dvs.indexVersion()).thenReturn(Version.CURRENT);
@@ -174,14 +190,16 @@ public class SparseVectorFunctionTests extends ESTestCase {
         ScoreScript scoreScript = mock(ScoreScript.class);
         when(scoreScript.getDoc()).thenReturn(Collections.singletonMap(field, dvs));
 
-        Map<String, Number> queryVector = new HashMap<String, Number>() {{
-            put("2", 0.5);
-            put("10", 111.3);
-            put("50", -13.0);
-            put("113", 14.8);
-            put("4545", -156.0);
-            put("4548", -20.5);
-        }};
+        Map<String, Number> queryVector = new HashMap<String, Number>() {
+            {
+                put("2", 0.5);
+                put("10", 111.3);
+                put("50", -13.0);
+                put("113", 14.8);
+                put("4545", -156.0);
+                put("4548", -20.5);
+            }
+        };
 
         // test dotProductSparse
         DotProductSparse docProductSparse = new DotProductSparse(scoreScript, queryVector, field);

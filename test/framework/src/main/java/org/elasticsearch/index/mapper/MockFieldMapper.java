@@ -27,14 +27,10 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     public MockFieldMapper(MappedFieldType fieldType, Map<String, NamedAnalyzer> indexAnalyzers) {
-        super(findSimpleName(fieldType.name()), fieldType, indexAnalyzers,
-            MultiFields.empty(), new CopyTo.Builder().build(), false, null);
+        super(findSimpleName(fieldType.name()), fieldType, indexAnalyzers, MultiFields.empty(), new CopyTo.Builder().build(), false, null);
     }
 
-    public MockFieldMapper(String fullName,
-                           MappedFieldType fieldType,
-                           MultiFields multifields,
-                           CopyTo copyTo) {
+    public MockFieldMapper(String fullName, MappedFieldType fieldType, MultiFields multifields, CopyTo copyTo) {
         super(findSimpleName(fullName), fieldType, multifields, copyTo);
     }
 
@@ -70,8 +66,7 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(DocumentParserContext context) {
-    }
+    protected void parseCreateField(DocumentParserContext context) {}
 
     public static class Builder extends FieldMapper.Builder {
         private final MappedFieldType fieldType;

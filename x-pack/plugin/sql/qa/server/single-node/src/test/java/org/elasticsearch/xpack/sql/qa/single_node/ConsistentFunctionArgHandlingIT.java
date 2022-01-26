@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.sql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.core.CheckedConsumer;
+
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
 
 import java.io.IOException;

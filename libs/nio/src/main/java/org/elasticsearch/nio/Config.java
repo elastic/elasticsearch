@@ -34,9 +34,18 @@ public abstract class Config {
         private final InetSocketAddress remoteAddress;
         private final boolean isAccepted;
 
-        public Socket(boolean tcpNoDelay, boolean tcpKeepAlive, int tcpKeepIdle, int tcpKeepInterval, int tcpKeepCount,
-                      boolean tcpReuseAddress, int tcpSendBufferSize, int tcpReceiveBufferSize,
-                      InetSocketAddress remoteAddress, boolean isAccepted) {
+        public Socket(
+            boolean tcpNoDelay,
+            boolean tcpKeepAlive,
+            int tcpKeepIdle,
+            int tcpKeepInterval,
+            int tcpKeepCount,
+            boolean tcpReuseAddress,
+            int tcpSendBufferSize,
+            int tcpReceiveBufferSize,
+            InetSocketAddress remoteAddress,
+            boolean isAccepted
+        ) {
             super(tcpReuseAddress);
             this.tcpNoDelay = tcpNoDelay;
             this.tcpKeepAlive = tcpKeepAlive;

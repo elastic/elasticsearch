@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -43,8 +44,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -466,6 +467,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         PutRollupJobAction.Request request = new PutRollupJobAction.Request(config);
         TransportPutRollupJobAction.checkForDeprecatedTZ(request);
         assertWarnings(
+            Level.WARN,
             "Creating Rollup job [foo] with timezone [Japan], but [Japan] has been deprecated by the IANA.  " + "Use [Asia/Tokyo] instead."
         );
     }

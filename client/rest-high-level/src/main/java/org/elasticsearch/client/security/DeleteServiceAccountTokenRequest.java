@@ -24,8 +24,7 @@ public class DeleteServiceAccountTokenRequest implements Validatable {
     @Nullable
     private final RefreshPolicy refreshPolicy;
 
-    public DeleteServiceAccountTokenRequest(String namespace, String serviceName, String tokenName,
-                                            @Nullable RefreshPolicy refreshPolicy) {
+    public DeleteServiceAccountTokenRequest(String namespace, String serviceName, String tokenName, @Nullable RefreshPolicy refreshPolicy) {
         this.namespace = Objects.requireNonNull(namespace, "namespace is required");
         this.serviceName = Objects.requireNonNull(serviceName, "service-name is required");
         this.tokenName = Objects.requireNonNull(tokenName, "token name is required");
@@ -54,13 +53,13 @@ public class DeleteServiceAccountTokenRequest implements Validatable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         DeleteServiceAccountTokenRequest that = (DeleteServiceAccountTokenRequest) o;
-        return namespace.equals(that.namespace) && serviceName.equals(that.serviceName)
-            && tokenName.equals(that.tokenName) && refreshPolicy == that.refreshPolicy;
+        return namespace.equals(that.namespace)
+            && serviceName.equals(that.serviceName)
+            && tokenName.equals(that.tokenName)
+            && refreshPolicy == that.refreshPolicy;
     }
 
     @Override

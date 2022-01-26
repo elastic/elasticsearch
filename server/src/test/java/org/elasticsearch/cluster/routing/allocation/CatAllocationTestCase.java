@@ -36,6 +36,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
 /**
@@ -55,9 +56,11 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         try (BufferedReader reader = Files.newBufferedReader(getCatPath(), StandardCharsets.UTF_8)) {
             String line = null;
             // regexp FTW
-            Pattern pattern = Pattern.compile("^(.+)\\s+(\\d)\\s+([rp])\\s+(STARTED|RELOCATING|INITIALIZING|UNASSIGNED)" +
-                "\\s+\\d+\\s+[0-9.a-z]+\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+).*$");
-            while((line = reader.readLine()) != null) {
+            Pattern pattern = Pattern.compile(
+                "^(.+)\\s+(\\d)\\s+([rp])\\s+(STARTED|RELOCATING|INITIALIZING|UNASSIGNED)"
+                    + "\\s+\\d+\\s+[0-9.a-z]+\\s+(\\d+\\.\\d+\\.\\d+\\.\\d+).*$"
+            );
+            while ((line = reader.readLine()) != null) {
                 final Matcher matcher;
                 if ((matcher = pattern.matcher(line)).matches()) {
                     final String index = matcher.group(1);
@@ -84,9 +87,11 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         logger.info("Building initial routing table");
         Metadata.Builder builder = Metadata.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        for(Idx idx : indices.values()) {
-            IndexMetadata.Builder idxMetaBuilder = IndexMetadata.builder(idx.name).settings(settings(Version.CURRENT))
-                .numberOfShards(idx.numShards()).numberOfReplicas(idx.numReplicas());
+        for (Idx idx : indices.values()) {
+            IndexMetadata.Builder idxMetaBuilder = IndexMetadata.builder(idx.name)
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(idx.numShards())
+                .numberOfReplicas(idx.numReplicas());
             for (ShardRouting shardRouting : idx.routing) {
                 if (shardRouting.active()) {
                     Set<String> allocationIds = idxMetaBuilder.getInSyncAllocationIds(shardRouting.id());
@@ -110,7 +115,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
                 }
                 shardIdToRouting.put(r.getId(), refData);
             }
-            for (IndexShardRoutingTable t: shardIdToRouting.values()) {
+            for (IndexShardRoutingTable t : shardIdToRouting.values()) {
                 tableBuilder.addIndexShard(t);
             }
             IndexRoutingTable table = tableBuilder.build();
@@ -123,8 +128,9 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         for (String node : nodes) {
             builderDiscoNodes.add(newNode(node));
         }
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(routingTable).nodes(builderDiscoNodes.build()).build();
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metadata(metadata).routingTable(routingTable).nodes(builderDiscoNodes.build()).build();
         if (balanceFirst()) {
             clusterState = rebalance(clusterState);
         }
@@ -138,12 +144,11 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
     }
 
     private ClusterState rebalance(ClusterState clusterState) {
-        AllocationService strategy = createAllocationService(Settings.builder()
-                .build());
+        AllocationService strategy = createAllocationService(Settings.builder().build());
         clusterState = strategy.reroute(clusterState, "reroute");
         int numRelocations = 0;
         while (true) {
-            List<ShardRouting> initializing = clusterState.routingTable().shardsWithState(INITIALIZING);
+            List<ShardRouting> initializing = shardsWithState(clusterState.getRoutingNodes(), INITIALIZING);
             if (initializing.isEmpty()) {
                 break;
             }
@@ -155,8 +160,6 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         return clusterState;
     }
 
-
-
     public class Idx {
         final String name;
         final List<ShardRouting> routing = new ArrayList<>();
@@ -165,7 +168,6 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
             this.name = name;
         }
 
-
         public void add(ShardRouting r) {
             routing.add(r);
         }
@@ -173,7 +175,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         public int numReplicas() {
             int count = 0;
             for (ShardRouting msr : routing) {
-                if (msr.primary() == false && msr.id()==0) {
+                if (msr.primary() == false && msr.id() == 0) {
                     count++;
                 }
             }
@@ -184,7 +186,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
             int max = 0;
             for (ShardRouting msr : routing) {
                 if (msr.primary()) {
-                    max = Math.max(msr.getId()+1, max);
+                    max = Math.max(msr.getId() + 1, max);
                 }
             }
             return max;

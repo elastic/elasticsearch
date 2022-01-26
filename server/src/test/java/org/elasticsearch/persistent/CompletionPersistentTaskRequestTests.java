@@ -38,7 +38,12 @@ public class CompletionPersistentTaskRequestTests extends AbstractWireSerializin
         StreamOutput out = mock(StreamOutput.class);
         when(out.getVersion()).thenReturn(Version.V_7_14_0);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
-        assertThat(e.getMessage(), equalTo("attempt to abort a persistent task locally in a cluster that contains a node that is too "
-            + "old: found node version [7.14.0], minimum required [7.15.0]"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "attempt to abort a persistent task locally in a cluster that contains a node that is too "
+                    + "old: found node version [7.14.0], minimum required [7.15.0]"
+            )
+        );
     }
 }

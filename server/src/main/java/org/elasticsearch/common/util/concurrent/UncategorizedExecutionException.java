@@ -19,7 +19,7 @@ public class UncategorizedExecutionException extends ElasticsearchException {
         super(msg, cause);
     }
 
-    public UncategorizedExecutionException(StreamInput in) throws IOException{
+    public UncategorizedExecutionException(StreamInput in) throws IOException {
         super(in);
     }
 }

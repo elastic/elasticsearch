@@ -44,9 +44,7 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_snapshot"),
-            new Route(GET, "/_snapshot/{repository}")));
+        return unmodifiableList(asList(new Route(GET, "/_snapshot"), new Route(GET, "/_snapshot/{repository}")));
     }
 
     @Override
@@ -56,9 +54,7 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
         getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
         settingsFilter.addFilterSettingParams(request);
-        return channel ->
-                client.admin().cluster().getRepositories(getRepositoriesRequest,
-                    new RestToXContentListener<>(channel));
+        return channel -> client.admin().cluster().getRepositories(getRepositoriesRequest, new RestToXContentListener<>(channel));
     }
 
     @Override

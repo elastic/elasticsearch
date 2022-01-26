@@ -61,9 +61,10 @@ public class OperationRoutingTests extends ESTestCase {
                     nodes.add("missing_" + i);
                 }
             }
-            final ShardIterator it =
-                    new OperationRouting(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
-                            .getShards(clusterService.state(), indexName, 0, "_prefer_nodes:" + String.join(",", nodes));
+            final ShardIterator it = new OperationRouting(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            ).getShards(clusterService.state(), indexName, 0, "_prefer_nodes:" + String.join(",", nodes));
             final List<ShardRouting> all = new ArrayList<>();
             ShardRouting shard;
             while ((shard = it.nextOrNull()) != null) {
@@ -96,8 +97,10 @@ public class OperationRoutingTests extends ESTestCase {
         ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(indexNames, numShards, numReplicas);
         final int numRepeatedSearches = 4;
         List<ShardRouting> sessionsfirstSearch = null;
-        OperationRouting opRouting = new OperationRouting(Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        OperationRouting opRouting = new OperationRouting(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         String sessionKey = randomAlphaOfLength(10);
         for (int i = 0; i < numRepeatedSearches; i++) {
             List<ShardRouting> searchedShards = new ArrayList<>(numShards);
@@ -164,9 +167,10 @@ public class OperationRoutingTests extends ESTestCase {
                 }
             }
             if (expected.size() > 0) {
-                final ShardIterator it =
-                    new OperationRouting(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
-                        .getShards(clusterService.state(), indexName, 0, "_only_nodes:" + String.join(",", nodes));
+                final ShardIterator it = new OperationRouting(
+                    Settings.EMPTY,
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                ).getShards(clusterService.state(), indexName, 0, "_only_nodes:" + String.join(",", nodes));
                 final List<ShardRouting> only = new ArrayList<>();
                 ShardRouting shard;
                 while ((shard = it.nextOrNull()) != null) {
@@ -178,19 +182,24 @@ public class OperationRoutingTests extends ESTestCase {
                 final IllegalArgumentException e = expectThrows(
                     IllegalArgumentException.class,
                     () -> new OperationRouting(
-                            Settings.EMPTY,
-                            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
-                        .getShards(cs.state(), indexName, 0, "_only_nodes:" + String.join(",", nodes)));
+                        Settings.EMPTY,
+                        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                    ).getShards(cs.state(), indexName, 0, "_only_nodes:" + String.join(",", nodes))
+                );
                 if (nodes.size() == 1) {
                     assertThat(
                         e,
-                        hasToString(containsString(
-                            "no data nodes with criteria [" + String.join(",", nodes) + "] found for shard: [test][0]")));
+                        hasToString(
+                            containsString("no data nodes with criteria [" + String.join(",", nodes) + "] found for shard: [test][0]")
+                        )
+                    );
                 } else {
                     assertThat(
                         e,
-                        hasToString(containsString(
-                            "no data nodes with criterion [" + String.join(",", nodes) + "] found for shard: [test][0]")));
+                        hasToString(
+                            containsString("no data nodes with criterion [" + String.join(",", nodes) + "] found for shard: [test][0]")
+                        )
+                    );
                 }
             }
         } finally {
@@ -208,15 +217,23 @@ public class OperationRoutingTests extends ESTestCase {
             indexNames[i] = "test" + i;
         }
         ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(indexNames, numShards, numReplicas);
-        OperationRouting opRouting = new OperationRouting(Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        OperationRouting opRouting = new OperationRouting(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         opRouting.setUseAdaptiveReplicaSelection(true);
         List<ShardRouting> searchedShards = new ArrayList<>(numShards);
         TestThreadPool threadPool = new TestThreadPool("test");
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
-        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state,
-                indexNames, null, null, collector, new HashMap<>());
+        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
+            state,
+            indexNames,
+            null,
+            null,
+            collector,
+            new HashMap<>()
+        );
 
         assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
 
@@ -286,15 +303,23 @@ public class OperationRoutingTests extends ESTestCase {
         }
 
         ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(indexNames, numShards, numReplicas);
-        OperationRouting opRouting = new OperationRouting(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        OperationRouting opRouting = new OperationRouting(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         opRouting.setUseAdaptiveReplicaSelection(true);
         TestThreadPool threadPool = new TestThreadPool("test");
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
         ResponseCollectorService collector = new ResponseCollectorService(clusterService);
-        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state,
-            indexNames, null, null, collector, new HashMap<>());
+        GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
+            state,
+            indexNames,
+            null,
+            null,
+            collector,
+            new HashMap<>()
+        );
         assertThat("One group per index shard", groupIterator.size(), equalTo(numIndices * numShards));
 
         // We have two nodes, where the second has more load
@@ -309,9 +334,12 @@ public class OperationRoutingTests extends ESTestCase {
 
             int responseTime = 50 + randomInt(5);
             int serviceTime = 40 + randomInt(5);
-            collector.addNodeStatistics("node_0", 1,
+            collector.addNodeStatistics(
+                "node_0",
+                1,
                 TimeValue.timeValueMillis(responseTime).nanos(),
-                TimeValue.timeValueMillis(serviceTime).nanos());
+                TimeValue.timeValueMillis(serviceTime).nanos()
+            );
         }
 
         // Check that we try the second when the first node slows down more
@@ -334,8 +362,10 @@ public class OperationRoutingTests extends ESTestCase {
         }
 
         ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(indexNames, numShards, numReplicas);
-        OperationRouting opRouting = new OperationRouting(Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        OperationRouting opRouting = new OperationRouting(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         opRouting.setUseAdaptiveReplicaSelection(true);
         TestThreadPool threadPool = new TestThreadPool("test");
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
@@ -349,7 +379,13 @@ public class OperationRoutingTests extends ESTestCase {
 
         // Check that we choose to search over both nodes
         GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(
-            state, indexNames, null, null, collector, outstandingRequests);
+            state,
+            indexNames,
+            null,
+            null,
+            collector,
+            outstandingRequests
+        );
 
         Set<String> nodeIds = new HashSet<>();
         nodeIds.add(groupIterator.get(0).nextOrNull().currentNodeId());
@@ -363,8 +399,7 @@ public class OperationRoutingTests extends ESTestCase {
         outstandingRequests = new HashMap<>();
 
         // Check that we always choose the second node
-        groupIterator = opRouting.searchShards(
-            state, indexNames, null, null, collector, outstandingRequests);
+        groupIterator = opRouting.searchShards(state, indexNames, null, null, collector, outstandingRequests);
 
         nodeIds = new HashSet<>();
         nodeIds.add(groupIterator.get(0).nextOrNull().currentNodeId());

@@ -29,8 +29,12 @@ class PhraseSuggestionContext extends SuggestionContext {
     static final float DEFAULT_RWE_ERRORLIKELIHOOD = 0.95f;
     static final float DEFAULT_MAX_ERRORS = 0.5f;
     static final String DEFAULT_SEPARATOR = " ";
-    static final WordScorer.WordScorerFactory DEFAULT_SCORER = (IndexReader reader, Terms terms, String field, double realWordLikelihood,
-            BytesRef separator) -> new StupidBackoffScorer(reader, terms, field, realWordLikelihood, separator, 0.4f);
+    static final WordScorer.WordScorerFactory DEFAULT_SCORER = (
+        IndexReader reader,
+        Terms terms,
+        String field,
+        double realWordLikelihood,
+        BytesRef separator) -> new StupidBackoffScorer(reader, terms, field, realWordLikelihood, separator, 0.4f);
 
     private float maxErrors = DEFAULT_MAX_ERRORS;
     private BytesRef separator = new BytesRef(DEFAULT_SEPARATOR);
@@ -80,7 +84,7 @@ class PhraseSuggestionContext extends SuggestionContext {
     }
 
     public List<DirectCandidateGenerator> generators() {
-        return this.generators ;
+        return this.generators;
     }
 
     public void setGramSize(int gramSize) {
@@ -150,7 +154,7 @@ class PhraseSuggestionContext extends SuggestionContext {
     }
 
     public void setRequireUnigram(boolean requireUnigram) {
-        this.requireUnigram  = requireUnigram;
+        this.requireUnigram = requireUnigram;
     }
 
     public boolean getRequireUnigram() {

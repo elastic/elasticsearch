@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -34,16 +34,20 @@ public class Influence implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<Influence, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<Influence, Void> LENIENT_PARSER = createParser(true);
 
-    @SuppressWarnings({ "unchecked"})
+    @SuppressWarnings({ "unchecked" })
     private static ConstructingObjectParser<Influence, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<Influence, Void> parser = new ConstructingObjectParser<>(INFLUENCER.getPreferredName(),
-                ignoreUnknownFields, a -> new Influence((String) a[0], (List<String>) a[1]));
+        ConstructingObjectParser<Influence, Void> parser = new ConstructingObjectParser<>(
+            INFLUENCER.getPreferredName(),
+            ignoreUnknownFields,
+            a -> new Influence((String) a[0], (List<String>) a[1])
+        );
 
         parser.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_NAME);
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_VALUES);
 
         return parser;
     }
+
     private String field;
     private List<String> fieldValues;
 

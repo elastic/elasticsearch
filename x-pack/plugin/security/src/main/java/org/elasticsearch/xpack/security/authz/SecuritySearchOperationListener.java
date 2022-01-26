@@ -58,8 +58,8 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
             readerContext.putInContext(AuthenticationField.AUTHENTICATION_KEY, securityContext.getAuthentication());
             // store the DLS and FLS permissions of the initial search request that created the scroll
             // this is then used to assert the DLS/FLS permission for the scroll search action
-            IndicesAccessControl indicesAccessControl =
-                    securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            IndicesAccessControl indicesAccessControl = securityContext.getThreadContext()
+                .getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             assert indicesAccessControl != null : "thread context does not contain index access control";
             readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
         }
@@ -77,16 +77,25 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
                 final Authentication current = securityContext.getAuthentication();
                 final ThreadContext threadContext = securityContext.getThreadContext();
                 final String action = threadContext.getTransient(ORIGINATING_ACTION_KEY);
-                ensureAuthenticatedUserIsSame(originalAuth, current, auditTrailService, readerContext.id(), action, request,
-                        AuditUtil.extractRequestId(threadContext), threadContext.getTransient(AUTHORIZATION_INFO_KEY));
+                ensureAuthenticatedUserIsSame(
+                    originalAuth,
+                    current,
+                    auditTrailService,
+                    readerContext.id(),
+                    action,
+                    request,
+                    AuditUtil.extractRequestId(threadContext),
+                    threadContext.getTransient(AUTHORIZATION_INFO_KEY)
+                );
                 // piggyback on context validation to assert the DLS/FLS permissions on the thread context of the scroll search handler
                 if (null == securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY)) {
                     // fill in the DLS and FLS permissions for the scroll search action from the scroll context
-                    IndicesAccessControl scrollIndicesAccessControl =
-                        readerContext.getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                    IndicesAccessControl scrollIndicesAccessControl = readerContext.getFromContext(
+                        AuthorizationServiceField.INDICES_PERMISSIONS_KEY
+                    );
                     assert scrollIndicesAccessControl != null : "scroll does not contain index access control";
-                    securityContext.getThreadContext().putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
-                            scrollIndicesAccessControl);
+                    securityContext.getThreadContext()
+                        .putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, scrollIndicesAccessControl);
                 }
             }
         }
@@ -104,11 +113,12 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
 
     void ensureIndicesAccessControlForScrollThreadContext(ReaderContext readerContext) {
         if (licenseState.isSecurityEnabled() && readerContext.scrollContext() != null) {
-            IndicesAccessControl threadIndicesAccessControl =
-                    securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            IndicesAccessControl threadIndicesAccessControl = securityContext.getThreadContext()
+                .getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             if (null == threadIndicesAccessControl) {
-                throw new ElasticsearchSecurityException("Unexpected null indices access control for search context ["
-                    + readerContext.id() + "]");
+                throw new ElasticsearchSecurityException(
+                    "Unexpected null indices access control for search context [" + readerContext.id() + "]"
+                );
             }
         }
     }
@@ -119,9 +129,16 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
      * be the same. Some things that could differ include the roles, the name of the authenticating
      * (or lookup) realm. To work around this we compare the username and the originating realm type.
      */
-    static void ensureAuthenticatedUserIsSame(Authentication original, Authentication current, AuditTrailService auditTrailService,
-                                              ShardSearchContextId id, String action, TransportRequest request, String requestId,
-                                              AuthorizationInfo authorizationInfo) {
+    static void ensureAuthenticatedUserIsSame(
+        Authentication original,
+        Authentication current,
+        AuditTrailService auditTrailService,
+        ShardSearchContextId id,
+        String action,
+        TransportRequest request,
+        String requestId,
+        AuthorizationInfo authorizationInfo
+    ) {
         final boolean sameUser = original.canAccessResourcesOf(current);
         if (sameUser == false) {
             auditTrailService.get().accessDenied(requestId, current, action, request, authorizationInfo);

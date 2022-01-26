@@ -52,16 +52,18 @@ public class SourceOnlySnapshotTests extends ESTestCase {
     public void testSourceOnlyRandom() throws IOException {
         try (Directory dir = newDirectory(); BaseDirectoryWrapper targetDir = newDirectory()) {
             SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
-            IndexWriterConfig indexWriterConfig = newIndexWriterConfig().setIndexDeletionPolicy
-                (deletionPolicy).setSoftDeletesField(random().nextBoolean() ? null : Lucene.SOFT_DELETES_FIELD);
+            IndexWriterConfig indexWriterConfig = newIndexWriterConfig().setIndexDeletionPolicy(deletionPolicy)
+                .setSoftDeletesField(random().nextBoolean() ? null : Lucene.SOFT_DELETES_FIELD);
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), dir, indexWriterConfig, false)) {
                 final String softDeletesField = writer.w.getConfig().getSoftDeletesField();
                 // we either use the soft deletes directly or manually delete them to test the additional delete functionality
                 boolean modifyDeletedDocs = softDeletesField != null && randomBoolean();
                 targetDir.setCheckIndexOnClose(false);
                 final SourceOnlySnapshot.LinkedFilesDirectory wrappedDir = new SourceOnlySnapshot.LinkedFilesDirectory(targetDir);
-                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(wrappedDir,
-                    modifyDeletedDocs ? () -> new DocValuesFieldExistsQuery(softDeletesField) : null) {
+                SourceOnlySnapshot snapshoter = new SourceOnlySnapshot(
+                    wrappedDir,
+                    modifyDeletedDocs ? () -> new DocValuesFieldExistsQuery(softDeletesField) : null
+                ) {
                     @Override
                     DirectoryReader wrapReader(DirectoryReader reader) throws IOException {
                         return modifyDeletedDocs ? reader : super.wrapReader(reader);
@@ -96,12 +98,14 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                 IndexCommit snapshot = deletionPolicy.snapshot();
                 try {
                     snapshoter.syncSnapshot(snapshot);
-                    try (DirectoryReader snapReader = snapshoter.wrapReader(DirectoryReader.open(wrappedDir));
-                         DirectoryReader wrappedReader = snapshoter.wrapReader(DirectoryReader.open(snapshot))) {
-                         DirectoryReader reader = modifyDeletedDocs
-                             ? new SoftDeletesDirectoryReaderWrapper(wrappedReader, softDeletesField) :
-                             new DropFullDeletedSegmentsReader(wrappedReader);
-                         logger.warn(snapReader + " " + reader);
+                    try (
+                        DirectoryReader snapReader = snapshoter.wrapReader(DirectoryReader.open(wrappedDir));
+                        DirectoryReader wrappedReader = snapshoter.wrapReader(DirectoryReader.open(snapshot))
+                    ) {
+                        DirectoryReader reader = modifyDeletedDocs
+                            ? new SoftDeletesDirectoryReaderWrapper(wrappedReader, softDeletesField)
+                            : new DropFullDeletedSegmentsReader(wrappedReader);
+                        logger.warn(snapReader + " " + reader);
                         assertEquals(snapReader.maxDoc(), reader.maxDoc());
                         assertEquals(snapReader.numDocs(), reader.numDocs());
                         for (int i = 0; i < snapReader.maxDoc(); i++) {
@@ -141,14 +145,17 @@ public class SourceOnlySnapshotTests extends ESTestCase {
     public void testSrcOnlySnap() throws IOException {
         try (Directory dir = newDirectory()) {
             SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
-            IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig()
-                .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                .setIndexDeletionPolicy(deletionPolicy).setMergePolicy(new FilterMergePolicy(NoMergePolicy.INSTANCE) {
-                    @Override
-                    public boolean useCompoundFile(SegmentInfos infos, SegmentCommitInfo mergedInfo, MergeContext mergeContext) {
-                        return randomBoolean();
-                    }
-                }));
+            IndexWriter writer = new IndexWriter(
+                dir,
+                newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+                    .setIndexDeletionPolicy(deletionPolicy)
+                    .setMergePolicy(new FilterMergePolicy(NoMergePolicy.INSTANCE) {
+                        @Override
+                        public boolean useCompoundFile(SegmentInfos infos, SegmentCommitInfo mergedInfo, MergeContext mergeContext) {
+                            return randomBoolean();
+                        }
+                    })
+            );
             Document doc = new Document();
             doc.add(new StringField("id", "1", Field.Store.YES));
             doc.add(new TextField("text", "the quick brown fox", Field.Store.NO));
@@ -231,7 +238,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                             fail("unexpected extension: " + extension);
                     }
                 }
-                try(DirectoryReader snapReader = DirectoryReader.open(wrappedDir)) {
+                try (DirectoryReader snapReader = DirectoryReader.open(wrappedDir)) {
                     assertEquals(snapReader.maxDoc(), 5);
                     assertEquals(snapReader.numDocs(), 4);
                 }
@@ -257,7 +264,7 @@ public class SourceOnlySnapshotTests extends ESTestCase {
                             fail("unexpected extension: " + extension);
                     }
                 }
-                try(DirectoryReader snapReader = DirectoryReader.open(wrappedDir)) {
+                try (DirectoryReader snapReader = DirectoryReader.open(wrappedDir)) {
                     assertEquals(snapReader.maxDoc(), 5);
                     assertEquals(snapReader.numDocs(), 3);
                 }
@@ -272,19 +279,22 @@ public class SourceOnlySnapshotTests extends ESTestCase {
     public void testFullyDeletedSegments() throws IOException {
         try (Directory dir = newDirectory()) {
             SnapshotDeletionPolicy deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
-            IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig()
-                .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                .setIndexDeletionPolicy(deletionPolicy).setMergePolicy(new FilterMergePolicy(NoMergePolicy.INSTANCE) {
-                    @Override
-                    public boolean useCompoundFile(SegmentInfos infos, SegmentCommitInfo mergedInfo, MergeContext mergeContext) {
-                        return randomBoolean();
-                    }
+            IndexWriter writer = new IndexWriter(
+                dir,
+                newIndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+                    .setIndexDeletionPolicy(deletionPolicy)
+                    .setMergePolicy(new FilterMergePolicy(NoMergePolicy.INSTANCE) {
+                        @Override
+                        public boolean useCompoundFile(SegmentInfos infos, SegmentCommitInfo mergedInfo, MergeContext mergeContext) {
+                            return randomBoolean();
+                        }
 
-                    @Override
-                    public boolean keepFullyDeletedSegment(IOSupplier<CodecReader> readerIOSupplier) throws IOException {
-                        return true;
-                    }
-                }));
+                        @Override
+                        public boolean keepFullyDeletedSegment(IOSupplier<CodecReader> readerIOSupplier) throws IOException {
+                            return true;
+                        }
+                    })
+            );
             Document doc = new Document();
             doc.add(new StringField("id", "1", Field.Store.YES));
             doc.add(new TextField("text", "the quick brown fox", Field.Store.NO));

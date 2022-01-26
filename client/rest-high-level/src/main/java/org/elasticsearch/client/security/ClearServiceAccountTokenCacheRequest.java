@@ -46,10 +46,8 @@ public final class ClearServiceAccountTokenCacheRequest implements Validatable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         ClearServiceAccountTokenCacheRequest that = (ClearServiceAccountTokenCacheRequest) o;
         return namespace.equals(that.namespace) && serviceName.equals(that.serviceName) && Arrays.equals(tokenNames, that.tokenNames);
     }

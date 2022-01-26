@@ -63,23 +63,19 @@ public class RetryTests extends ESIntegTestCase {
 
     @After
     public void forceUnblockAllExecutors() {
-        for (CyclicBarrier barrier: blockedExecutors) {
+        for (CyclicBarrier barrier : blockedExecutors) {
             barrier.reset();
         }
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(
-                ReindexPlugin.class,
-                Netty4Plugin.class);
+        return Arrays.asList(ReindexPlugin.class, Netty4Plugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(
-                ReindexPlugin.class,
-                Netty4Plugin.class);
+        return Arrays.asList(ReindexPlugin.class, Netty4Plugin.class);
     }
 
     /**
@@ -97,16 +93,17 @@ public class RetryTests extends ESIntegTestCase {
 
     final Settings nodeSettings() {
         return Settings.builder()
-                // whitelist reindexing from the HTTP host we're going to use
-                .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*")
-                .build();
+            // whitelist reindexing from the HTTP host we're going to use
+            .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*")
+            .build();
     }
 
     public void testReindex() throws Exception {
         testCase(
-                ReindexAction.NAME,
-                client -> new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source("source").destination("dest"),
-                matcher().created(DOC_COUNT));
+            ReindexAction.NAME,
+            client -> new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source("source").destination("dest"),
+            matcher().created(DOC_COUNT)
+        );
     }
 
     public void testReindexFromRemote() throws Exception {
@@ -124,51 +121,66 @@ public class RetryTests extends ESIntegTestCase {
             assertNotNull(masterNode);
 
             TransportAddress address = masterNode.getInfo(HttpInfo.class).getAddress().publishAddress();
-            RemoteInfo remote =
-                new RemoteInfo("http", address.getAddress(), address.getPort(), null,
-                    new BytesArray("{\"match_all\":{}}"), null, null, emptyMap(),
-                    RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
-            ReindexRequestBuilder request = new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source("source").destination("dest")
-                    .setRemoteInfo(remote);
+            RemoteInfo remote = new RemoteInfo(
+                "http",
+                address.getAddress(),
+                address.getPort(),
+                null,
+                new BytesArray("{\"match_all\":{}}"),
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            );
+            ReindexRequestBuilder request = new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source("source")
+                .destination("dest")
+                .setRemoteInfo(remote);
             return request;
         };
         testCase(ReindexAction.NAME, function, matcher().created(DOC_COUNT));
     }
 
     public void testUpdateByQuery() throws Exception {
-        testCase(UpdateByQueryAction.NAME, client -> new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE).source("source"),
-                matcher().updated(DOC_COUNT));
+        testCase(
+            UpdateByQueryAction.NAME,
+            client -> new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE).source("source"),
+            matcher().updated(DOC_COUNT)
+        );
     }
 
     public void testDeleteByQuery() throws Exception {
-        testCase(DeleteByQueryAction.NAME, client -> new DeleteByQueryRequestBuilder(client, DeleteByQueryAction.INSTANCE).source("source")
-                .filter(QueryBuilders.matchAllQuery()), matcher().deleted(DOC_COUNT));
+        testCase(
+            DeleteByQueryAction.NAME,
+            client -> new DeleteByQueryRequestBuilder(client, DeleteByQueryAction.INSTANCE).source("source")
+                .filter(QueryBuilders.matchAllQuery()),
+            matcher().deleted(DOC_COUNT)
+        );
     }
 
     private void testCase(
-            String action,
-            Function<Client, AbstractBulkByScrollRequestBuilder<?, ?>> request,
-            BulkIndexByScrollResponseMatcher matcher)
-            throws Exception {
+        String action,
+        Function<Client, AbstractBulkByScrollRequestBuilder<?, ?>> request,
+        BulkIndexByScrollResponseMatcher matcher
+    ) throws Exception {
         /*
          * These test cases work by stuffing the bulk queue of a single node and
          * making sure that we read and write from that node.
          */
 
         final Settings nodeSettings = Settings.builder()
-                // use pools of size 1 so we can block them
-                .put("thread_pool.write.size", 1)
-                // use queues of size 1 because size 0 is broken and because bulk requests need the queue to function
-                .put("thread_pool.write.queue_size", 1)
-                .put("node.attr.color", "blue")
-                .build();
+            // use pools of size 1 so we can block them
+            .put("thread_pool.write.size", 1)
+            // use queues of size 1 because size 0 is broken and because bulk requests need the queue to function
+            .put("thread_pool.write.queue_size", 1)
+            .put("node.attr.color", "blue")
+            .build();
         final String node = internalCluster().startDataOnlyNode(nodeSettings);
-        final Settings indexSettings =
-                Settings.builder()
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 0)
-                        .put("index.routing.allocation.include.color", "blue")
-                        .build();
+        final Settings indexSettings = Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.routing.allocation.include.color", "blue")
+            .build();
 
         // Create the source index on the node with small thread pools so we can block them.
         client().admin().indices().prepareCreate("source").setSettings(indexSettings).execute().actionGet();

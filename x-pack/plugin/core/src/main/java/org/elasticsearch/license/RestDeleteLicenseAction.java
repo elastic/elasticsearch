@@ -26,8 +26,7 @@ public class RestDeleteLicenseAction extends XPackRestHandler {
     @Override
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
-            Route.builder(DELETE, "/_license")
-                .replaces(DELETE, URI_BASE + "/license", RestApiVersion.V_7).build()
+            Route.builder(DELETE, "/_license").replaces(DELETE, URI_BASE + "/license", RestApiVersion.V_7).build()
         );
     }
 
@@ -42,7 +41,9 @@ public class RestDeleteLicenseAction extends XPackRestHandler {
         deleteLicenseRequest.timeout(request.paramAsTime("timeout", deleteLicenseRequest.timeout()));
         deleteLicenseRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteLicenseRequest.masterNodeTimeout()));
 
-        return channel -> client.es().admin().cluster().execute(DeleteLicenseAction.INSTANCE, deleteLicenseRequest,
-                new RestToXContentListener<>(channel));
+        return channel -> client.es()
+            .admin()
+            .cluster()
+            .execute(DeleteLicenseAction.INSTANCE, deleteLicenseRequest, new RestToXContentListener<>(channel));
     }
 }

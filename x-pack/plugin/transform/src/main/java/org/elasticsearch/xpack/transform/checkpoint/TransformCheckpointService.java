@@ -66,7 +66,13 @@ public class TransformCheckpointService {
         }
 
         return new DefaultCheckpointProvider(
-            clock, client, remoteClusterResolver, transformConfigManager, transformAuditor, transformConfig);
+            clock,
+            client,
+            remoteClusterResolver,
+            transformConfigManager,
+            transformAuditor,
+            transformConfig
+        );
     }
 
     /**

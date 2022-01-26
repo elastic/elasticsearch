@@ -57,10 +57,10 @@ public class DocumentConversionUtilsTests extends ESTestCase {
     );
 
     public void testConvertDocumentToIndexRequest_MissingId() {
-        Exception e =
-            expectThrows(
-                Exception.class,
-                () -> DocumentConversionUtils.convertDocumentToIndexRequest(null, Collections.emptyMap(), INDEX, PIPELINE));
+        Exception e = expectThrows(
+            Exception.class,
+            () -> DocumentConversionUtils.convertDocumentToIndexRequest(null, Collections.emptyMap(), INDEX, PIPELINE)
+        );
         assertThat(e.getMessage(), is(equalTo("Expected a document id but got null.")));
     }
 
@@ -93,30 +93,42 @@ public class DocumentConversionUtilsTests extends ESTestCase {
     }
 
     public void testExtractFieldMappings() {
-        FieldCapabilitiesResponse response =
-            new FieldCapabilitiesResponse(
-                new String[] { "some-index" },
-                new HashMap<String, Map<String, FieldCapabilities>>() {{
-                    put("field-1", new HashMap<String, FieldCapabilities>() {{
-                        put("keyword", createFieldCapabilities("field-1", "keyword"));
-                    }});
-                    put("field-2", new HashMap<String, FieldCapabilities>() {{
-                        put("long", createFieldCapabilities("field-2", "long"));
-                        put("keyword", createFieldCapabilities("field-2", "keyword"));
-                    }});
-                }});
+        FieldCapabilitiesResponse response = new FieldCapabilitiesResponse(
+            new String[] { "some-index" },
+            new HashMap<String, Map<String, FieldCapabilities>>() {
+                {
+                    put("field-1", new HashMap<String, FieldCapabilities>() {
+                        {
+                            put("keyword", createFieldCapabilities("field-1", "keyword"));
+                        }
+                    });
+                    put("field-2", new HashMap<String, FieldCapabilities>() {
+                        {
+                            put("long", createFieldCapabilities("field-2", "long"));
+                            put("keyword", createFieldCapabilities("field-2", "keyword"));
+                        }
+                    });
+                }
+            }
+        );
 
         assertThat(
             DocumentConversionUtils.extractFieldMappings(response),
-            allOf(
-                hasEntry("field-1", "keyword"),
-                hasEntry(is(equalTo("field-2")), is(oneOf("long", "keyword")))
-            )
+            allOf(hasEntry("field-1", "keyword"), hasEntry(is(equalTo("field-2")), is(oneOf("long", "keyword"))))
         );
     }
 
     private static FieldCapabilities createFieldCapabilities(String name, String type) {
         return new FieldCapabilities(
-            name, type, false, true, true, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, Collections.emptyMap());
+            name,
+            type,
+            false,
+            true,
+            true,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            Collections.emptyMap()
+        );
     }
 }

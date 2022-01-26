@@ -25,9 +25,10 @@ public abstract class AbstractBootstrapCheckTestCase extends ESTestCase {
 
     protected BootstrapContext createTestContext(Settings settings, Metadata metadata) {
         Path homePath = createTempDir();
-        Environment environment = new Environment(settings(Version.CURRENT)
-            .put(settings)
-            .put(Environment.PATH_HOME_SETTING.getKey(), homePath.toString()).build(), null);
+        Environment environment = new Environment(
+            settings(Version.CURRENT).put(settings).put(Environment.PATH_HOME_SETTING.getKey(), homePath.toString()).build(),
+            null
+        );
         return new BootstrapContext(environment, metadata);
     }
 }

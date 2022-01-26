@@ -32,10 +32,12 @@ public final class RamAccountingTermsEnum extends FilteredTermsEnum {
     private long totalBytes;
     private long flushBuffer;
 
-
-    public RamAccountingTermsEnum(TermsEnum termsEnum, CircuitBreaker breaker,
-                                  AbstractIndexOrdinalsFieldData.PerValueEstimator estimator,
-                                  String fieldName) {
+    public RamAccountingTermsEnum(
+        TermsEnum termsEnum,
+        CircuitBreaker breaker,
+        AbstractIndexOrdinalsFieldData.PerValueEstimator estimator,
+        String fieldName
+    ) {
         super(termsEnum);
         this.breaker = breaker;
         this.termsEnum = termsEnum;

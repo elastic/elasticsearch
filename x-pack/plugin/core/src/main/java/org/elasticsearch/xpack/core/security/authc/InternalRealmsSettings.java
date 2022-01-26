@@ -20,8 +20,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 public final class InternalRealmsSettings {
-    private InternalRealmsSettings() {
-    }
+    private InternalRealmsSettings() {}
 
     /**
      * Provides the {@link Setting setting configuration} for each <em>internal</em> realm type.

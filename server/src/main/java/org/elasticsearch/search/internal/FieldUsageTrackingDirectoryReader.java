@@ -63,15 +63,25 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
     public interface FieldUsageNotifier {
         void onTermsUsed(String field);
+
         void onPostingsUsed(String field);
+
         void onTermFrequenciesUsed(String field);
+
         void onPositionsUsed(String field);
+
         void onOffsetsUsed(String field);
+
         void onDocValuesUsed(String field);
+
         void onStoredFieldsUsed(String field);
+
         void onNormsUsed(String field);
+
         void onPayloadsUsed(String field);
+
         void onPointsUsed(String field);
+
         void onTermVectorsUsed(String field);
     }
 

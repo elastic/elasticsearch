@@ -50,13 +50,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
      * @param queueSize  the size of the backing queue, -1 for unbounded
      * @param deprecated whether or not the thread pool is deprecated
      */
-    FixedExecutorBuilder(
-        final Settings settings,
-        final String name,
-        final int size,
-        final int queueSize,
-        final boolean deprecated
-    ) {
+    FixedExecutorBuilder(final Settings settings, final String name, final int size, final int queueSize, final boolean deprecated) {
         this(settings, name, size, queueSize, "thread_pool." + name, deprecated);
     }
 
@@ -95,16 +89,16 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         final String sizeKey = settingsKey(prefix, "size");
         final Setting.Property[] properties;
         if (deprecated) {
-            properties = new Setting.Property[]{Setting.Property.NodeScope, Setting.Property.Deprecated};
+            properties = new Setting.Property[] { Setting.Property.NodeScope, Setting.Property.Deprecated };
         } else {
-            properties = new Setting.Property[]{Setting.Property.NodeScope};
+            properties = new Setting.Property[] { Setting.Property.NodeScope };
         }
-        this.sizeSetting =
-            new Setting<>(
-                sizeKey,
-                s -> Integer.toString(size),
-                s -> Setting.parseInt(s, 1, applyHardSizeLimit(settings, name), sizeKey),
-                properties);
+        this.sizeSetting = new Setting<>(
+            sizeKey,
+            s -> Integer.toString(size),
+            s -> Setting.parseInt(s, 1, applyHardSizeLimit(settings, name), sizeKey),
+            properties
+        );
         final String queueSizeKey = settingsKey(prefix, "queue_size");
         this.queueSizeSetting = Setting.intSetting(queueSizeKey, queueSize, properties);
     }
@@ -127,10 +121,21 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         int size = settings.size;
         int queueSize = settings.queueSize;
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));
-        final ExecutorService executor =
-                EsExecutors.newFixed(settings.nodeName + "/" + name(), size, queueSize, threadFactory, threadContext);
-        final ThreadPool.Info info =
-            new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.FIXED, size, size, null, queueSize < 0 ? null : new SizeValue(queueSize));
+        final ExecutorService executor = EsExecutors.newFixed(
+            settings.nodeName + "/" + name(),
+            size,
+            queueSize,
+            threadFactory,
+            threadContext
+        );
+        final ThreadPool.Info info = new ThreadPool.Info(
+            name(),
+            ThreadPool.ThreadPoolType.FIXED,
+            size,
+            size,
+            null,
+            queueSize < 0 ? null : new SizeValue(queueSize)
+        );
         return new ThreadPool.ExecutorHolder(executor, info);
     }
 
@@ -141,7 +146,8 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
             "name [%s], size [%d], queue size [%s]",
             info.getName(),
             info.getMax(),
-            info.getQueueSize() == null ? "unbounded" : info.getQueueSize());
+            info.getQueueSize() == null ? "unbounded" : info.getQueueSize()
+        );
     }
 
     static class FixedExecutorSettings extends ExecutorBuilder.ExecutorSettings {

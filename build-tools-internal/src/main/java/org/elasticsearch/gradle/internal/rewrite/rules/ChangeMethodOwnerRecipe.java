@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.rewrite.rules;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+
 import org.openrewrite.Recipe;
 import org.openrewrite.internal.lang.NonNull;
 
@@ -20,12 +21,13 @@ public class ChangeMethodOwnerRecipe extends Recipe {
     }
 
     @JsonCreator
-    public ChangeMethodOwnerRecipe(@NonNull @JsonProperty("originFullQualifiedClassname") String originFullQualifiedClassname,
-                                   @NonNull @JsonProperty("methodName") String methodName,
-                                   @NonNull @JsonProperty("targetFullQualifiedClassname") String targetFullQualifiedClassname) {
+    public ChangeMethodOwnerRecipe(
+        @NonNull @JsonProperty("originFullQualifiedClassname") String originFullQualifiedClassname,
+        @NonNull @JsonProperty("methodName") String methodName,
+        @NonNull @JsonProperty("targetFullQualifiedClassname") String targetFullQualifiedClassname
+    ) {
         doNext(new FullQualifiedChangeMethodOwnerRecipe(originFullQualifiedClassname, methodName, targetFullQualifiedClassname));
         doNext(new FixFullQualifiedReferenceRecipe(targetFullQualifiedClassname, true));
     }
 
 }
-

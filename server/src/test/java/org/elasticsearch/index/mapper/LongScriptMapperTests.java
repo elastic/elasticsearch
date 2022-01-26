@@ -49,9 +49,7 @@ public class LongScriptMapperTests extends MapperScriptTestCase<LongFieldScript.
 
     @Override
     protected LongFieldScript.Factory errorThrowingScript() {
-        return factory(s -> {
-            throw new UnsupportedOperationException("Oops");
-        });
+        return factory(s -> { throw new UnsupportedOperationException("Oops"); });
     }
 
     @Override

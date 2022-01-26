@@ -19,7 +19,24 @@
   add as many newlines here as necessary to improve legibility.
 */ %>
 
-<% if (docker_base == "ubi") { %>
+<% if (docker_base == 'iron_bank') { %>
+################################################################################
+# Build stage 0 `builder`:
+# Extract Elasticsearch artifact
+################################################################################
+
+ARG BASE_REGISTRY=registry1.dso.mil
+ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
+ARG BASE_TAG=8.5
+
+FROM ${base_image} AS builder
+
+# `tini` is a tiny but valid init for containers. This is used to cleanly
+# control how ES and any child processes are shut down.
+COPY tini /bin/tini
+RUN chmod 0555 /bin/tini
+
+<% } else { %>
 ################################################################################
 # Build stage 0 `builder`:
 # Extract Elasticsearch artifact
@@ -27,7 +44,11 @@
 FROM ${base_image} AS builder
 
 # Install required packages to extract the Elasticsearch distribution
+<% if (docker_base == 'default') { %>
+RUN <%= retry.loop(package_manager, "${package_manager} update && DEBIAN_FRONTEND=noninteractive ${package_manager} install -y curl ") %>
+<% } else { %>
 RUN <%= retry.loop(package_manager, "${package_manager} install -y findutils tar gzip") %>
+<% } %>
 
 # `tini` is a tiny but valid init for containers. This is used to cleanly
 # control how ES and any child processes are shut down.
@@ -48,110 +69,6 @@ RUN set -eux ; \\
     rm \${tini_bin}.sha256sum ; \\
     mv \${tini_bin} /bin/tini ; \\
     chmod 0555 /bin/tini
-
-<% } else if (docker_base == 'iron_bank') { %>
-################################################################################
-# Build stage 0 `builder`:
-# Extract Elasticsearch artifact
-################################################################################
-
-ARG BASE_REGISTRY=registry1.dso.mil
-ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
-ARG BASE_TAG=8.4
-
-FROM ${base_image} AS builder
-
-# `tini` is a tiny but valid init for containers. This is used to cleanly
-# control how ES and any child processes are shut down.
-COPY tini /bin/tini
-RUN chmod 0555 /bin/tini
-
-<% } else { %>
-
-<% /* CentOS builds are actaully a custom base image with a minimal set of dependencies */ %>
-
-################################################################################
-# Step 1. Create a minimal root filesystem directory. This will form the basis
-# for our image.
-################################################################################
-FROM ${base_image} AS rootfs
-
-ENV TINI_VERSION 0.19.0
-
-# Start off with an up-to-date system
-RUN ${package_manager} update --setopt=tsflags=nodocs -y
-
-# Create a directory into which we will install files
-RUN mkdir /rootfs
-
-# Create required devices
-RUN mkdir -m 755 /rootfs/dev && \\
-    mknod -m 600 /rootfs/dev/console c 5 1 && \\
-    mknod -m 600 /rootfs/dev/initctl p && \\
-    mknod -m 666 /rootfs/dev/full c 1 7 && \\
-    mknod -m 666 /rootfs/dev/null c 1 3 && \\
-    mknod -m 666 /rootfs/dev/ptmx c 5 2 && \\
-    mknod -m 666 /rootfs/dev/random c 1 8 && \\
-    mknod -m 666 /rootfs/dev/tty c 5 0 && \\
-    mknod -m 666 /rootfs/dev/tty0 c 4 0 && \\
-    mknod -m 666 /rootfs/dev/urandom c 1 9 && \\
-    mknod -m 666 /rootfs/dev/zero c 1 5
-
-# Install a minimal set of dependencies, and some for Elasticsearch
-RUN ${package_manager} --installroot=/rootfs --releasever=/ --setopt=tsflags=nodocs \\
-      --setopt=group_package_types=mandatory -y  \\
-      install bash curl findutils nc procps-ng shadow-utils tar unzip yum zip
-
-# `tini` is a tiny but valid init for containers. This is used to cleanly
-# control how ES and any child processes are shut down.
-#
-# The tini GitHub page gives instructions for verifying the binary using
-# gpg, but the keyservers are slow to return the key and this can fail the
-# build. Instead, we check the binary against the published checksum.
-RUN set -e ; \\
-    TINI_BIN="" ; \\
-    case "\$(arch)" in \\
-        aarch64) \\
-            TINI_BIN='tini-arm64' ; \\
-            ;; \\
-        x86_64) \\
-            TINI_BIN='tini-amd64' ; \\
-            ;; \\
-        *) echo >&2 "Unsupported architecture \$(arch)" ; exit 1 ;; \\
-    esac ; \\
-    curl --retry 10 -S -L -O "https://github.com/krallin/tini/releases/download/v0.19.0/\${TINI_BIN}" ; \\
-    curl --retry 10 -S -L -O "https://github.com/krallin/tini/releases/download/v0.19.0/\${TINI_BIN}.sha256sum" ; \\
-    sha256sum -c "\${TINI_BIN}.sha256sum" ; \\
-    rm "\${TINI_BIN}.sha256sum" ; \\
-    mv "\${TINI_BIN}" /rootfs/bin/tini ; \\
-    chmod 0555 /rootfs/bin/tini
-
-RUN echo "NETWORKING=yes" > /rootfs/etc/sysconfig/network && \\
-    echo "HOSTNAME=localhost.localdomain" >> /rootfs/etc/sysconfig/network
-
-# Cleanup the filesystem
-RUN ${package_manager} --installroot=/rootfs -y clean all && \\
-    cd /rootfs && \\
-    rm -rf \\
-        sbin/sln \\
-        usr/{{lib,share}/locale,{lib,lib64}/gconv,bin/localedef,sbin/build-locale-archive} \\
-        usr/share/{man,doc,info,gnome/help} \\
-        usr/share/cracklib \\
-        usr/share/i18n \\
-        var/cache/yum && \\
-    mkdir -p --mode=0755 var/cache/yum
-
-# ldconfig
-RUN rm -rf /rootfs/etc/ld.so.cache /rootfs/var/cache/ldconfig && \\
-    mkdir -p --mode=0755 /rootfs/var/cache/ldconfig
-
-# Ensure that there are no files with setuid or setgid, in order to mitigate "stackclash" attacks.
-RUN find /rootfs -xdev -perm -4000 -exec chmod ug-s {} +
-
-################################################################################
-# Step 2. Fetch the Elasticsearch distribution and configure it for Docker
-################################################################################
-FROM ${base_image} AS builder
 
 <% } %>
 
@@ -196,29 +113,6 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     chmod 0775 bin config config/jvm.options.d data logs plugins && \\
     find config -type f -exec chmod 0664 {} +
 
-<% if (docker_base == "cloud") { %>
-# Preinstall common plugins
-COPY repository-s3-${version}.zip repository-gcs-${version}.zip repository-azure-${version}.zip /tmp/
-RUN bin/elasticsearch-plugin install --batch \\
-    file:/tmp/repository-s3-${version}.zip \\
-    file:/tmp/repository-gcs-${version}.zip \\
-    file:/tmp/repository-azure-${version}.zip
-
-<% /*  I tried to use `ADD` here, but I couldn't force it to do what I wanted */ %>
-COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/
-RUN mkdir -p /opt/filebeat /opt/metricbeat && \\
-    tar xf /tmp/filebeat-${version}.tar.gz -C /opt/filebeat --strip-components=1 && \\
-    tar xf /tmp/metricbeat-${version}.tar.gz -C /opt/metricbeat --strip-components=1
-
-# Add plugins infrastructure
-RUN mkdir -p /opt/plugins/archive
-COPY bin/plugin-wrapper.sh /opt/plugins
-# These are the correct permissions for both the directories and the script
-RUN chmod -R 0555 /opt/plugins
-<% } %>
-
-<% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
-
 ################################################################################
 # Build stage 1 (the actual Elasticsearch image):
 #
@@ -228,64 +122,62 @@ RUN chmod -R 0555 /opt/plugins
 
 FROM ${base_image}
 
-<% if (docker_base == "ubi") { %>
+<% if (docker_base == "iron_bank") { %>
+<%
+/* Reviews of the Iron Bank Dockerfile said that they preferred simpler */
+/* scripting so this version doesn't have the retry loop featured below. */
+%>
+RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
+    ${package_manager} install --setopt=tsflags=nodocs -y \\
+      nc shadow-utils zip findutils unzip procps-ng && \\
+    ${package_manager} clean all
+
+<% } else if (docker_base == "default") { %>
+
+# Change default shell to bash, then install required packages with retries.
+RUN yes no | dpkg-reconfigure dash && \\
+    <%= retry.loop(
+    package_manager,
+      "export DEBIAN_FRONTEND=noninteractive && \n" +
+      "      ${package_manager} update && \n" +
+      "      ${package_manager} upgrade -y && \n" +
+      "      ${package_manager} install -y --no-install-recommends \n" +
+      "        ca-certificates curl netcat p11-kit unzip vim-tiny zip && \n" +
+      "      ${package_manager} clean && \n" +
+      "      rm -rf /var/lib/apt/lists/*"
+  ) %>
+
+<% } else { %>
 
 RUN <%= retry.loop(
     package_manager,
       "${package_manager} update --setopt=tsflags=nodocs -y && \n" +
       "      ${package_manager} install --setopt=tsflags=nodocs -y \n" +
-      "      nc shadow-utils tar zip unzip findutils procps-ng && \n" +
+      "        nc shadow-utils tar zip unzip findutils procps-ng && \n" +
       "      ${package_manager} clean all"
     ) %>
 
-<% } else { %>
-
-<%
-/* Reviews of the Iron Bank Dockerfile said that they preferred simpler */
-/* scripting so this version doesn't have the retry loop featured above. */
-%>
-RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
-    ${package_manager} install --setopt=tsflags=nodocs -y \\
-      nc shadow-utils tar zip findutils unzip procps-ng && \\
-    ${package_manager} clean all
-
 <% } %>
 
-RUN groupadd -g 1000 elasticsearch && \\
-    adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
-    chmod 0755 /usr/share/elasticsearch && \\
-    chown -R 0:0 /usr/share/elasticsearch
 
+<% if (docker_base == "default") { %>
+RUN groupadd -g 1000 elasticsearch && \\
+    adduser --uid 1000 --gid 1000 --home /usr/share/elasticsearch elasticsearch && \\
+    adduser elasticsearch root && \\
+    chown -R 0:0 /usr/share/elasticsearch
 <% } else { %>
-
-################################################################################
-# Stage 3. Build the final image, using the rootfs above as the basis, and
-# copying in the Elasticsearch distribution
-################################################################################
-FROM scratch
-
-# Setup the initial filesystem.
-COPY --from=rootfs /rootfs /
-
 RUN groupadd -g 1000 elasticsearch && \\
     adduser -u 1000 -g 1000 -G 0 -d /usr/share/elasticsearch elasticsearch && \\
     chmod 0755 /usr/share/elasticsearch && \\
     chown -R 0:0 /usr/share/elasticsearch
-
 <% } %>
 
 ENV ELASTIC_CONTAINER true
 
 WORKDIR /usr/share/elasticsearch
+
 COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
-
-<% if (docker_base == "ubi" || docker_base == "iron_bank") { %>
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
-<% } %>
-
-<% if (docker_base == 'cloud') { %>
-COPY --from=builder --chown=0:0 /opt /opt
-<% } %>
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
 
@@ -305,9 +197,17 @@ COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod g=u /etc/passwd && \\
     chmod 0555 /usr/local/bin/docker-entrypoint.sh && \\
     find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
-    ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts && \\
     chmod 0775 /usr/share/elasticsearch && \\
     chown elasticsearch bin config config/jvm.options.d data logs plugins
+
+<% if (docker_base == 'default') { %>
+# Update "cacerts" bundle to use Ubuntu's CA certificates (and make sure it
+# stays up-to-date with changes to Ubuntu's store)
+COPY bin/docker-openjdk /etc/ca-certificates/update.d/docker-openjdk
+RUN /etc/ca-certificates/update.d/docker-openjdk
+<% } else { %>
+RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
+<% } %>
 
 EXPOSE 9200 9300
 
@@ -354,20 +254,11 @@ COPY LICENSE /licenses/LICENSE.addendum
 USER elasticsearch:root
 <% } %>
 
-<% if (docker_base == "cloud") { %>
-ENTRYPOINT ["/bin/tini", "--"]
-CMD ["/app/elasticsearch.sh"]
-# Generate a stub command that will be overwritten at runtime
-RUN mkdir /app && \\
-    echo -e '#!/bin/sh\\nexec /usr/local/bin/docker-entrypoint.sh eswrapper' > /app/elasticsearch.sh && \\
-    chmod 0555 /app/elasticsearch.sh
-<% } else { %>
 # Our actual entrypoint is `tini`, a minimal but functional init program. It
 # calls the entrypoint we provide, while correctly forwarding signals.
 ENTRYPOINT ["/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 # Dummy overridable parameter parsed by entrypoint
 CMD ["eswrapper"]
-<% } %>
 
 <% if (docker_base == 'iron_bank') { %>
 HEALTHCHECK --interval=10s --timeout=5s --start-period=1m --retries=5 CMD curl -I -f --max-time 5 http://localhost:9200 || exit 1

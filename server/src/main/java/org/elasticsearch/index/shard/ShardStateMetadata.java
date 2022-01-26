@@ -11,11 +11,11 @@ package org.elasticsearch.index.shard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.gateway.MetadataStateFormat;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -55,7 +55,7 @@ public final class ShardStateMetadata {
             return false;
         }
         if (indexUUID.equals(that.indexUUID) == false) {
-          return false;
+            return false;
         }
         if (Objects.equals(allocationId, that.allocationId) == false) {
             return false;
@@ -77,8 +77,9 @@ public final class ShardStateMetadata {
         return "primary [" + primary + "], allocation [" + allocationId + "]";
     }
 
-    public static final MetadataStateFormat<ShardStateMetadata> FORMAT =
-        new MetadataStateFormat<ShardStateMetadata>(SHARD_STATE_FILE_PREFIX) {
+    public static final MetadataStateFormat<ShardStateMetadata> FORMAT = new MetadataStateFormat<ShardStateMetadata>(
+        SHARD_STATE_FILE_PREFIX
+    ) {
 
         @Override
         protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream) throws IOException {

@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.watcher.actions.logging;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.SuppressLoggerChecks;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -30,7 +30,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -59,9 +59,7 @@ public class LoggingActionTests extends ESTestCase {
         final ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         JodaCompatibleZonedDateTime jodaJavaNow = new JodaCompatibleZonedDateTime(now.toInstant(), ZoneOffset.UTC);
 
-        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContextBuilder("_watch_id")
-                .time("_watch_id", now)
-                .buildMock();
+        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContextBuilder("_watch_id").time("_watch_id", now).buildMock();
 
         Map<String, Object> triggerModel = new HashMap<>();
         triggerModel.put("scheduled_time", jodaJavaNow);
@@ -81,8 +79,6 @@ public class LoggingActionTests extends ESTestCase {
         LoggingAction action = new LoggingAction(template, level, "_category");
         ExecutableLoggingAction executable = new ExecutableLoggingAction(action, logger, actionLogger, engine);
         when(engine.render(template, expectedModel)).thenReturn(text);
-
-
 
         Action.Result result = executable.execute("_id", ctx, new Payload.Simple());
         verifyLogger(actionLogger, level, text);
@@ -173,8 +169,7 @@ public class LoggingActionTests extends ESTestCase {
     public void testParserFailure() throws Exception {
         LoggingActionFactory parser = new LoggingActionFactory(engine);
 
-        XContentBuilder builder = jsonBuilder()
-                .startObject().endObject();
+        XContentBuilder builder = jsonBuilder().startObject().endObject();
 
         XContentParser xContentParser = createParser(builder);
         xContentParser.nextToken();

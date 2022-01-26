@@ -11,7 +11,7 @@ import org.elasticsearch.test.eql.EqlDateNanosSpecTestCase;
 
 public class EqlDateNanosIT extends EqlDateNanosSpecTestCase {
 
-    public EqlDateNanosIT(String query, String name, long[] eventIds) {
-        super(query, name, eventIds);
+    public EqlDateNanosIT(String query, String name, long[] eventIds, String[] joinKeys) {
+        super(query, name, eventIds, joinKeys);
     }
 }

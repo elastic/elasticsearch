@@ -16,8 +16,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Builder for close index request
  */
-public class CloseIndexRequestBuilder
-    extends AcknowledgedRequestBuilder<CloseIndexRequest, CloseIndexResponse, CloseIndexRequestBuilder> {
+public class CloseIndexRequestBuilder extends AcknowledgedRequestBuilder<CloseIndexRequest, CloseIndexResponse, CloseIndexRequestBuilder> {
 
     public CloseIndexRequestBuilder(ElasticsearchClient client, CloseIndexAction action) {
         super(client, action, new CloseIndexRequest());

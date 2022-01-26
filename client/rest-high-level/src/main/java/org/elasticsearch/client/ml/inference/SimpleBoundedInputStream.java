@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.client.ml.inference;
 
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
@@ -29,7 +28,6 @@ final class SimpleBoundedInputStream extends InputStream {
         }
         this.maxBytes = maxBytes;
     }
-
 
     /**
      * A simple wrapper around the injected input stream that restricts the total number of bytes able to be read.

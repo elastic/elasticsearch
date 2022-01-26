@@ -39,16 +39,14 @@ import static org.elasticsearch.analysis.common.WordDelimiterTokenFilterFactory.
 
 public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-            DeprecationLogger.getLogger(WordDelimiterGraphTokenFilterFactory.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(WordDelimiterGraphTokenFilterFactory.class);
 
     private final byte[] charTypeTable;
     private final int flags;
     private final CharArraySet protoWords;
     private final boolean adjustOffsets;
 
-    public WordDelimiterGraphTokenFilterFactory(IndexSettings indexSettings, Environment env,
-            String name, Settings settings) {
+    public WordDelimiterGraphTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
         // Sample Format for the type table:
@@ -100,10 +98,12 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
     public TokenFilterFactory getSynonymFilter() {
         if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
             throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
-        }
-        else {
-            DEPRECATION_LOGGER.critical(DeprecationCategory.ANALYSIS, "synonym_tokenfilters",
-                "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0");
+        } else {
+            DEPRECATION_LOGGER.critical(
+                DeprecationCategory.ANALYSIS,
+                "synonym_tokenfilters",
+                "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0"
+            );
             return this;
         }
     }

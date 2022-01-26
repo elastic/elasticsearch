@@ -63,14 +63,16 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     public static final String ENABLED_DEPRECATION_MESSAGE =
-        "Disabling _field_names is not necessary because it no longer carries a large index overhead. Support for the `enabled` " +
-        "setting will be removed in a future major version. Please remove it from your mappings and templates.";
-
+        "Disabling _field_names is not necessary because it no longer carries a large index overhead. Support for the `enabled` "
+            + "setting will be removed in a future major version. Please remove it from your mappings and templates.";
 
     static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Explicit<Boolean>> enabled
-            = updateableBoolParam("enabled", m -> toType(m).enabled, Defaults.ENABLED.value());
+        private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam(
+            "enabled",
+            m -> toType(m).enabled,
+            Defaults.ENABLED.value()
+        );
 
         private final Version indexVersionCreated;
 
@@ -139,8 +141,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             if (isEnabled() == false) {
                 throw new IllegalStateException("Cannot run [exists] queries if the [_field_names] field is disabled");
             }
-            deprecationLogger.critical(DeprecationCategory.MAPPINGS, "terms_query_on_field_names",
-                "terms query on the _field_names field is deprecated and will be removed, use exists query instead");
+            deprecationLogger.warn(
+                DeprecationCategory.MAPPINGS,
+                "terms_query_on_field_names",
+                "terms query on the _field_names field is deprecated and will be removed, use exists query instead"
+            );
             return super.termQuery(value, context);
         }
     }
@@ -184,15 +189,15 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                     document.add(new Field(fieldType().name(), path, Defaults.FIELD_TYPE));
                 }
             }
-        } else {
-            if (enabled.value() == false) {
-                return;
-            }
-            for (String field : context.getFieldNames()) {
-                assert noDocValues(field, context) : "Field " + field + " should not have docvalues";
-                context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
-            }
         }
+    }
+
+    public void addFieldNames(DocumentParserContext context, String field) {
+        if (enabled.value() == false) {
+            return;
+        }
+        assert noDocValues(field, context) : "Field " + field + " should not have docvalues";
+        context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
     }
 
     private static boolean noDocValues(String field, DocumentParserContext context) {

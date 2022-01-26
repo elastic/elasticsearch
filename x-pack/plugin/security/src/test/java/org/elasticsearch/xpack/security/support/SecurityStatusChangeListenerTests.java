@@ -49,44 +49,60 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
         when(licenseState.isSecurityEnabled()).thenReturn(true);
 
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.GOLD);
-        logAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
-            "initial change",
-            listener.getClass().getName(),
-            Level.INFO,
-            "Active license is now [GOLD]; Security is enabled"
-        ));
+        logAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "initial change",
+                listener.getClass().getName(),
+                Level.INFO,
+                "Active license is now [GOLD]; Security is enabled"
+            )
+        );
         listener.licenseStateChanged();
 
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.PLATINUM);
-        logAppender.addExpectation(new MockLogAppender.UnseenEventExpectation(
-            "no-op change",
-            listener.getClass().getName(),
-            Level.INFO,
-            "Active license is now [PLATINUM]; Security is enabled"
-        ));
-        logAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
-            "built-in security features are not enabled",
-            listener.getClass().getName(),
-            Level.WARN,
-            "Elasticsearch built-in security features are not enabled. Without authentication, your cluster could be accessible " +
-                "to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
-                Version.CURRENT.minor + "/security-minimal-setup.html to enable security."
-        ));
+        logAppender.addExpectation(
+            new MockLogAppender.UnseenEventExpectation(
+                "no-op change",
+                listener.getClass().getName(),
+                Level.INFO,
+                "Active license is now [PLATINUM]; Security is enabled"
+            )
+        );
+        logAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "built-in security features are not enabled",
+                listener.getClass().getName(),
+                Level.WARN,
+                "Elasticsearch built-in security features are not enabled. Without authentication, your cluster could be accessible "
+                    + "to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/"
+                    + Version.CURRENT.major
+                    + "."
+                    + Version.CURRENT.minor
+                    + "/security-minimal-setup.html to enable security."
+            )
+        );
         when(licenseState.isSecurityEnabled()).thenReturn(false);
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
-        logAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
-            "change to basic",
-            listener.getClass().getName(),
-            Level.INFO,
-            "Active license is now [BASIC]; Security is disabled"
-        ));
+        logAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "change to basic",
+                listener.getClass().getName(),
+                Level.INFO,
+                "Active license is now [BASIC]; Security is disabled"
+            )
+        );
         listener.licenseStateChanged();
-        assertWarnings("The default behavior of disabling security on basic"
-            + " licenses is deprecated. In a later version of Elasticsearch, the value of [xpack.security.enabled] will "
-            + "default to \"true\" , regardless of the license level. "
-            + "See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
-            Version.CURRENT.minor + "/security-minimal-setup.html to enable security, "
-            + "or explicitly disable security by setting [xpack.security.enabled] to false in elasticsearch.yml");
+        assertWarnings(
+            "The default behavior of disabling security on basic"
+                + " licenses is deprecated. In a later version of Elasticsearch, the value of [xpack.security.enabled] will "
+                + "default to \"true\" , regardless of the license level. "
+                + "See https://www.elastic.co/guide/en/elasticsearch/reference/"
+                + Version.CURRENT.major
+                + "."
+                + Version.CURRENT.minor
+                + "/security-minimal-setup.html to enable security, "
+                + "or explicitly disable security by setting [xpack.security.enabled] to false in elasticsearch.yml"
+        );
 
         logAppender.assertAllExpectationsMatched();
     }
@@ -95,44 +111,60 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
         when(licenseState.isSecurityEnabled()).thenReturn(false);
 
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.TRIAL);
-        logAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
-            "initial change",
-            listener.getClass().getName(),
-            Level.INFO,
-            "Active license is now [TRIAL]; Security is disabled"
-        ));
-        logAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
-            "built-in security features are not enabled",
-            listener.getClass().getName(),
-            Level.WARN,
-            "Elasticsearch built-in security features are not enabled. Without authentication, your cluster could be accessible " +
-                "to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
-                Version.CURRENT.minor + "/security-minimal-setup.html to enable security."
-        ));
+        logAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "initial change",
+                listener.getClass().getName(),
+                Level.INFO,
+                "Active license is now [TRIAL]; Security is disabled"
+            )
+        );
+        logAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "built-in security features are not enabled",
+                listener.getClass().getName(),
+                Level.WARN,
+                "Elasticsearch built-in security features are not enabled. Without authentication, your cluster could be accessible "
+                    + "to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/"
+                    + Version.CURRENT.major
+                    + "."
+                    + Version.CURRENT.minor
+                    + "/security-minimal-setup.html to enable security."
+            )
+        );
         listener.licenseStateChanged();
-        assertWarnings("The default behavior of disabling security on trial"
-            + " licenses is deprecated. In a later version of Elasticsearch, the value of [xpack.security.enabled] will "
-            + "default to \"true\" , regardless of the license level. "
-            + "See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
-            Version.CURRENT.minor +"/security-minimal-setup.html to enable security, "
-            + "or explicitly disable security by setting [xpack.security.enabled] to false in elasticsearch.yml");
+        assertWarnings(
+            "The default behavior of disabling security on trial"
+                + " licenses is deprecated. In a later version of Elasticsearch, the value of [xpack.security.enabled] will "
+                + "default to \"true\" , regardless of the license level. "
+                + "See https://www.elastic.co/guide/en/elasticsearch/reference/"
+                + Version.CURRENT.major
+                + "."
+                + Version.CURRENT.minor
+                + "/security-minimal-setup.html to enable security, "
+                + "or explicitly disable security by setting [xpack.security.enabled] to false in elasticsearch.yml"
+        );
 
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
-        logAppender.addExpectation(new MockLogAppender.UnseenEventExpectation(
-            "no-op change",
-            listener.getClass().getName(),
-            Level.INFO,
-            "Active license is now [BASIC]; Security is disabled"
-        ));
+        logAppender.addExpectation(
+            new MockLogAppender.UnseenEventExpectation(
+                "no-op change",
+                listener.getClass().getName(),
+                Level.INFO,
+                "Active license is now [BASIC]; Security is disabled"
+            )
+        );
 
         when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.PLATINUM);
-        logAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
-            "change to platinum",
-            listener.getClass().getName(),
-            Level.INFO,
-            "Active license is now [PLATINUM]; Security is enabled"
-        ));
+        logAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "change to platinum",
+                listener.getClass().getName(),
+                Level.INFO,
+                "Active license is now [PLATINUM]; Security is enabled"
+            )
+        );
         listener.licenseStateChanged();
 
         logAppender.assertAllExpectationsMatched();
@@ -142,12 +174,17 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
         when(licenseState.isSecurityEnabled()).thenReturn(false);
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.TRIAL);
         listener.licenseStateChanged();
-        assertWarnings("The default behavior of disabling security on trial"
-            + " licenses is deprecated. In a later version of Elasticsearch, the value of [xpack.security.enabled] will "
-            + "default to \"true\" , regardless of the license level. "
-            + "See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
-            Version.CURRENT.minor + "/security-minimal-setup.html to enable security, "
-            + "or explicitly disable security by setting [xpack.security.enabled] to false in elasticsearch.yml");
+        assertWarnings(
+            "The default behavior of disabling security on trial"
+                + " licenses is deprecated. In a later version of Elasticsearch, the value of [xpack.security.enabled] will "
+                + "default to \"true\" , regardless of the license level. "
+                + "See https://www.elastic.co/guide/en/elasticsearch/reference/"
+                + Version.CURRENT.major
+                + "."
+                + Version.CURRENT.minor
+                + "/security-minimal-setup.html to enable security, "
+                + "or explicitly disable security by setting [xpack.security.enabled] to false in elasticsearch.yml"
+        );
     }
 
 }

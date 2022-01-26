@@ -34,8 +34,7 @@ public class FinalizeJobExecutionAction extends ActionType<AcknowledgedResponse>
             this.jobIds = jobIds;
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -58,8 +57,7 @@ public class FinalizeJobExecutionAction extends ActionType<AcknowledgedResponse>
         }
     }
 
-    public static class RequestBuilder
-            extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, AcknowledgedResponse, RequestBuilder> {
 
         public RequestBuilder(ElasticsearchClient client, FinalizeJobExecutionAction action) {
             super(client, action, new Request());

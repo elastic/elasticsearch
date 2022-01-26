@@ -42,8 +42,7 @@ public class InterimResultsDeletedAfterReopeningJobIT extends MlNativeAutodetect
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setByFieldName("by_field");
 
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
-                Arrays.asList(detector.build()));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
         analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         Job.Builder job = new Job.Builder("interim-results-deleted-after-reopening-job-test");
@@ -109,8 +108,7 @@ public class InterimResultsDeletedAfterReopeningJobIT extends MlNativeAutodetect
 
     private void assertNoInterimResults(String jobId) {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        SearchResponse search = client().prepareSearch(indexName).setSize(1000)
-                .setQuery(QueryBuilders.termQuery("is_interim", true)).get();
+        SearchResponse search = client().prepareSearch(indexName).setSize(1000).setQuery(QueryBuilders.termQuery("is_interim", true)).get();
         assertThat(search.getHits().getTotalHits().value, equalTo(0L));
     }
 }

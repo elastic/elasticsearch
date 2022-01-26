@@ -14,13 +14,13 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -57,6 +57,11 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
         super(NAME, Response::new);
     }
 
+    // This needs to be a MasterNodeReadRequest even though the corresponding transport
+    // action is a HandledTransportAction so that in mixed version clusters it can be
+    // serialized to older nodes where the transport action was a MasterNodeReadAction.
+    // TODO: Make this a simple request in a future version where there is no possibility
+    // of this request being serialized to another node.
     public static class Request extends MasterNodeReadRequest<Request> {
 
         @Deprecated
@@ -227,7 +232,8 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                     builder.field(
                         TIMING_STATS,
                         timingStats,
-                        new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true")));
+                        new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true"))
+                    );
                 }
                 if (runningState != null) {
                     builder.field(RUNNING_STATE, runningState);
@@ -373,11 +379,11 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             }
 
             public Response build(PersistentTasksCustomMetadata tasksInProgress, ClusterState state) {
-                List<DatafeedStats> stats = statsBuilders.stream().map(statsBuilder-> {
+                List<DatafeedStats> stats = statsBuilders.stream().map(statsBuilder -> {
                     final String jobId = datafeedToJobId.get(statsBuilder.datafeedId);
-                    DatafeedTimingStats timingStats = jobId == null ?
-                        null :
-                        timingStatsMap.getOrDefault(jobId, new DatafeedTimingStats(jobId));
+                    DatafeedTimingStats timingStats = jobId == null
+                        ? null
+                        : timingStatsMap.getOrDefault(jobId, new DatafeedTimingStats(jobId));
                     PersistentTasksCustomMetadata.PersistentTask<?> maybeTask = MlTasks.getDatafeedTask(
                         statsBuilder.datafeedId,
                         tasksInProgress

@@ -10,8 +10,8 @@ package org.elasticsearch.action.admin.indices.segments;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;

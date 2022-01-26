@@ -15,7 +15,10 @@ abstract class ExpirationCallback {
 
     static final String EXPIRATION_JOB_PREFIX = ".license_expiration_job_";
 
-    public enum Orientation {PRE, POST}
+    public enum Orientation {
+        PRE,
+        POST
+    }
 
     /**
      * Callback that is triggered every <code>frequency</code> when
@@ -166,8 +169,13 @@ abstract class ExpirationCallback {
     public abstract void on(License license);
 
     public final String toString() {
-        return LoggerMessageFormat.format(null, "ExpirationCallback:(orientation [{}],  min [{}], max [{}], freq [{}])",
-                orientation.name(), TimeValue.timeValueMillis(min), TimeValue.timeValueMillis(max),
-                TimeValue.timeValueMillis(frequency));
+        return LoggerMessageFormat.format(
+            null,
+            "ExpirationCallback:(orientation [{}],  min [{}], max [{}], freq [{}])",
+            orientation.name(),
+            TimeValue.timeValueMillis(min),
+            TimeValue.timeValueMillis(max),
+            TimeValue.timeValueMillis(frequency)
+        );
     }
 }

@@ -58,14 +58,14 @@ public class LoggersTests extends ESTestCase {
         assertThat(appender.lastParameterizedMessage().getParameters(), arrayContaining(Arrays.asList("yes", "no")));
 
         ex = randomException();
-        testLogger.trace(() -> new ParameterizedMessage("a trace message; element = [{}]", new Object[]{null}), ex);
+        testLogger.trace(() -> new ParameterizedMessage("a trace message; element = [{}]", new Object[] { null }), ex);
         assertThat(appender.lastEvent.getLevel(), equalTo(Level.TRACE));
         assertThat(appender.lastEvent.getThrown(), equalTo(ex));
         assertThat(appender.lastParameterizedMessage().getFormattedMessage(), equalTo("a trace message; element = [null]"));
-        assertThat(appender.lastParameterizedMessage().getParameters(), arrayContaining(new Object[]{null}));
+        assertThat(appender.lastParameterizedMessage().getParameters(), arrayContaining(new Object[] { null }));
     }
 
-    private Throwable randomException(){
+    private Throwable randomException() {
         return randomFrom(
             new IOException("file not found"),
             new UnknownHostException("unknown hostname"),

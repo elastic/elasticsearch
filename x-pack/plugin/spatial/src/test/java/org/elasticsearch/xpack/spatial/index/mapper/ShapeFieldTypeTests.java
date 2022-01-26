@@ -19,20 +19,16 @@ import java.util.Map;
 public class ShapeFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new ShapeFieldMapper.Builder("field", false, true)
-            .build(MapperBuilderContext.ROOT)
-            .fieldType();
+        MappedFieldType mapper = new ShapeFieldMapper.Builder("field", false, true).build(MapperBuilderContext.ROOT).fieldType();
 
         Map<String, Object> jsonLineString = org.elasticsearch.core.Map.of(
-            "type", "LineString",
+            "type",
+            "LineString",
             "coordinates",
-            Arrays.asList(Arrays.asList(42.0, 27.1), Arrays.asList(30.0, 50.0)));
-        Map<String, Object> jsonPoint = org.elasticsearch.core.Map.of(
-            "type", "Point",
-            "coordinates", Arrays.asList(14.3, 15.0));
-        Map<String, Object> jsonMalformed = org.elasticsearch.core.Map.of(
-            "type", "Point",
-            "coordinates", "foo");
+            Arrays.asList(Arrays.asList(42.0, 27.1), Arrays.asList(30.0, 50.0))
+        );
+        Map<String, Object> jsonPoint = org.elasticsearch.core.Map.of("type", "Point", "coordinates", Arrays.asList(14.3, 15.0));
+        Map<String, Object> jsonMalformed = org.elasticsearch.core.Map.of("type", "Point", "coordinates", "foo");
         String wktLineString = "LINESTRING (42.0 27.1, 30.0 50.0)";
         String wktPoint = "POINT (14.3 15.0)";
         String wktMalformed = "POINT foo";

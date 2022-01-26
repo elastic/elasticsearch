@@ -35,7 +35,12 @@ import static org.elasticsearch.action.ActionListener.wrap;
 public class Explain extends Command {
 
     public enum Type {
-        PARSED, ANALYZED, OPTIMIZED, MAPPED, EXECUTABLE, ALL;
+        PARSED,
+        ANALYZED,
+        OPTIMIZED,
+        MAPPED,
+        EXECUTABLE,
+        ALL;
 
         public String printableName() {
             return Strings.capitalize(name().toLowerCase(Locale.ROOT));
@@ -43,7 +48,8 @@ public class Explain extends Command {
     }
 
     public enum Format {
-        TEXT, GRAPHVIZ
+        TEXT,
+        GRAPHVIZ
     }
 
     private final LogicalPlan plan;
@@ -123,8 +129,11 @@ public class Explain extends Command {
                     }
 
                     // Type.All
-                    listener.onResponse(Page.last(
-                            Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan))));
+                    listener.onResponse(
+                        Page.last(
+                            Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan))
+                        )
+                    );
                 }, listener::onFailure));
             }
 
@@ -153,8 +162,14 @@ public class Explain extends Command {
                                 return;
                             }
 
-                            listener.onResponse(Page.last(Rows.singleton(output(),
-                                    printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan))));
+                            listener.onResponse(
+                                Page.last(
+                                    Rows.singleton(
+                                        output(),
+                                        printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan)
+                                    )
+                                )
+                            );
                             return;
                         }
                         // mapped failed
@@ -163,15 +178,15 @@ public class Explain extends Command {
                             return;
                         }
 
-                        listener.onResponse(Page
-                                .last(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, null))));
+                        listener.onResponse(
+                            Page.last(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, null)))
+                        );
                     }, listener::onFailure));
                     // cannot continue
                 } else {
                     if (type != Type.ALL) {
                         listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, analyzedPlan))));
-                    }
-                    else {
+                    } else {
                         listener.onResponse(Page.last(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, null, null, null))));
                     }
                 }
@@ -179,8 +194,14 @@ public class Explain extends Command {
         }, listener::onFailure));
     }
 
-    private static String printPlans(Format format, LogicalPlan parsed, LogicalPlan analyzedPlan, LogicalPlan optimizedPlan,
-            PhysicalPlan mappedPlan, PhysicalPlan executionPlan) {
+    private static String printPlans(
+        Format format,
+        LogicalPlan parsed,
+        LogicalPlan analyzedPlan,
+        LogicalPlan optimizedPlan,
+        PhysicalPlan mappedPlan,
+        PhysicalPlan executionPlan
+    ) {
         if (format == Format.TEXT) {
             StringBuilder sb = new StringBuilder();
             sb.append("Parsed\n");
@@ -237,8 +258,8 @@ public class Explain extends Command {
         }
         Explain o = (Explain) obj;
         return Objects.equals(verify, o.verify)
-                && Objects.equals(format, o.format)
-                && Objects.equals(type, o.type)
-                && Objects.equals(plan, o.plan);
+            && Objects.equals(format, o.format)
+            && Objects.equals(type, o.type)
+            && Objects.equals(plan, o.plan);
     }
 }

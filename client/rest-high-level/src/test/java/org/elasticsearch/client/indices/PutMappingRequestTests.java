@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -49,8 +49,10 @@ public class PutMappingRequestTests extends AbstractXContentTestCase<PutMappingR
     @Override
     protected void assertEqualInstances(PutMappingRequest expected, PutMappingRequest actual) {
         if (actual.source() != null) {
-            try (XContentParser expectedJson = createParser(expected.xContentType().xContent(), expected.source());
-                    XContentParser actualJson = createParser(actual.xContentType().xContent(), actual.source())) {
+            try (
+                XContentParser expectedJson = createParser(expected.xContentType().xContent(), expected.source());
+                XContentParser actualJson = createParser(actual.xContentType().xContent(), actual.source())
+            ) {
                 assertEquals(expectedJson.mapOrdered(), actualJson.mapOrdered());
             } catch (IOException e) {
                 throw new RuntimeException(e);

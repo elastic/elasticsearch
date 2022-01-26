@@ -19,14 +19,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
@@ -43,32 +43,55 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_ORIGINATION_DATE;
 
-public class TransportExplainLifecycleAction
-        extends TransportClusterInfoAction<ExplainLifecycleRequest, ExplainLifecycleResponse> {
+public class TransportExplainLifecycleAction extends TransportClusterInfoAction<ExplainLifecycleRequest, ExplainLifecycleResponse> {
 
     private final NamedXContentRegistry xContentRegistry;
     private final IndexLifecycleService indexLifecycleService;
 
     @Inject
-    public TransportExplainLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                           NamedXContentRegistry xContentRegistry, IndexLifecycleService indexLifecycleService) {
-        super(ExplainLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, ExplainLifecycleRequest::new,
-            indexNameExpressionResolver, ExplainLifecycleResponse::new);
+    public TransportExplainLifecycleAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        NamedXContentRegistry xContentRegistry,
+        IndexLifecycleService indexLifecycleService
+    ) {
+        super(
+            ExplainLifecycleAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            ExplainLifecycleRequest::new,
+            indexNameExpressionResolver,
+            ExplainLifecycleResponse::new
+        );
         this.xContentRegistry = xContentRegistry;
         this.indexLifecycleService = indexLifecycleService;
     }
 
     @Override
-    protected void doMasterOperation(Task task, ExplainLifecycleRequest request, String[] concreteIndices, ClusterState state,
-                                     ActionListener<ExplainLifecycleResponse> listener) {
+    protected void doMasterOperation(
+        Task task,
+        ExplainLifecycleRequest request,
+        String[] concreteIndices,
+        ClusterState state,
+        ActionListener<ExplainLifecycleResponse> listener
+    ) {
         Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>();
         for (String index : concreteIndices) {
             IndexMetadata idxMetadata = state.metadata().index(index);
             final IndexLifecycleExplainResponse indexResponse;
             try {
-                indexResponse = getIndexLifecycleExplainResponse(idxMetadata, request.onlyErrors(), request.onlyManaged(),
-                    indexLifecycleService, xContentRegistry);
+                indexResponse = getIndexLifecycleExplainResponse(
+                    idxMetadata,
+                    request.onlyErrors(),
+                    request.onlyManaged(),
+                    indexLifecycleService,
+                    xContentRegistry
+                );
             } catch (IOException e) {
                 listener.onFailure(new ElasticsearchParseException("failed to parse phase definition for index [" + index + "]", e));
                 return;
@@ -82,9 +105,13 @@ public class TransportExplainLifecycleAction
     }
 
     @Nullable
-    static IndexLifecycleExplainResponse getIndexLifecycleExplainResponse(IndexMetadata indexMetadata, boolean onlyErrors,
-                                                                          boolean onlyManaged, IndexLifecycleService indexLifecycleService,
-                                                                          NamedXContentRegistry xContentRegistry) throws IOException {
+    static IndexLifecycleExplainResponse getIndexLifecycleExplainResponse(
+        IndexMetadata indexMetadata,
+        boolean onlyErrors,
+        boolean onlyManaged,
+        IndexLifecycleService indexLifecycleService,
+        NamedXContentRegistry xContentRegistry
+    ) throws IOException {
         Settings idxSettings = indexMetadata.getSettings();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
@@ -100,8 +127,13 @@ public class TransportExplainLifecycleAction
         String phaseDef = lifecycleState.getPhaseDefinition();
         PhaseExecutionInfo phaseExecutionInfo = null;
         if (Strings.isNullOrEmpty(phaseDef) == false) {
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, phaseDef)) {
+            try (
+                XContentParser parser = JsonXContent.jsonXContent.createParser(
+                    xContentRegistry,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    phaseDef
+                )
+            ) {
                 phaseExecutionInfo = PhaseExecutionInfo.parse(parser, currentPhase);
             }
         }
@@ -112,7 +144,9 @@ public class TransportExplainLifecycleAction
             if (onlyErrors == false
                 || (ErrorStep.NAME.equals(lifecycleState.getStep()) || indexLifecycleService.policyExists(policyName) == false)) {
                 Long originationDate = idxSettings.getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L);
-                indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(indexName, policyName,
+                indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(
+                    indexName,
+                    policyName,
                     originationDate != -1L ? originationDate : lifecycleState.getLifecycleDate(),
                     lifecycleState.getPhase(),
                     lifecycleState.getAction(),
@@ -127,7 +161,8 @@ public class TransportExplainLifecycleAction
                     lifecycleState.getSnapshotName(),
                     lifecycleState.getShrinkIndexName(),
                     stepInfoBytes,
-                    phaseExecutionInfo);
+                    phaseExecutionInfo
+                );
             } else {
                 indexResponse = null;
             }

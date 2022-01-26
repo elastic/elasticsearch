@@ -122,9 +122,9 @@ public class CompositeKeyExtractor implements BucketExtractor {
 
         CompositeKeyExtractor other = (CompositeKeyExtractor) obj;
         return Objects.equals(key, other.key)
-                && Objects.equals(property, other.property)
-                && Objects.equals(zoneId, other.zoneId)
-                && Objects.equals(isDateTimeBased, other.isDateTimeBased);
+            && Objects.equals(property, other.property)
+            && Objects.equals(zoneId, other.zoneId)
+            && Objects.equals(isDateTimeBased, other.isDateTimeBased);
     }
 
     @Override

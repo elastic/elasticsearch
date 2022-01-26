@@ -10,11 +10,10 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.phrase.WordScorer.WordScorerFactory;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -23,7 +22,7 @@ public abstract class SmoothingModel implements NamedWriteable, ToXContentFragme
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getWriteableName());
-        innerToXContent(builder,params);
+        innerToXContent(builder, params);
         builder.endObject();
         return builder;
     }
@@ -71,8 +70,10 @@ public abstract class SmoothingModel implements NamedWriteable, ToXContentFragme
                     throw new IllegalArgumentException("suggester[phrase] doesn't support object field [" + fieldName + "]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "[smoothing] unknown token [" + token + "] after [" + fieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[smoothing] unknown token [" + token + "] after [" + fieldName + "]"
+                );
             }
         }
         return model;

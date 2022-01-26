@@ -10,14 +10,14 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.utils.persistence.SearchAfterDocumentsIterator;
@@ -48,7 +48,7 @@ public class SearchAfterJobsIterator extends SearchAfterDocumentsIterator<Job.Bu
         if (lastJobId == null) {
             return null;
         } else {
-            return new Object[] {lastJobId};
+            return new Object[] { lastJobId };
         }
     }
 
@@ -59,9 +59,11 @@ public class SearchAfterJobsIterator extends SearchAfterDocumentsIterator<Job.Bu
 
     @Override
     protected Job.Builder map(SearchHit hit) {
-        try (InputStream stream = hit.getSourceRef().streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = hit.getSourceRef().streamInput();
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             return Job.LENIENT_PARSER.apply(parser, null);
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse job document [" + hit.getId() + "]", e);

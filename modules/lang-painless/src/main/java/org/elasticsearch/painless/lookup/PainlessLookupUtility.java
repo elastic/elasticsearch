@@ -101,9 +101,9 @@ public final class PainlessLookupUtility {
             int typeNameLength = canonicalTypeName.length();
 
             while (arrayIndex < typeNameLength) {
-                if (canonicalTypeName.charAt(arrayIndex) == '[' &&
-                    ++arrayIndex < typeNameLength  &&
-                    canonicalTypeName.charAt(arrayIndex++) == ']') {
+                if (canonicalTypeName.charAt(arrayIndex) == '['
+                    && ++arrayIndex < typeNameLength
+                    && canonicalTypeName.charAt(arrayIndex++) == ']') {
                     ++arrayDimensions;
                 } else {
                     return null;
@@ -319,15 +319,15 @@ public final class PainlessLookupUtility {
      * where {@code true} is returned if the type is a constant type and {@code false} otherwise.
      */
     public static boolean isConstantType(Class<?> type) {
-        return type == boolean.class ||
-               type == byte.class    ||
-               type == short.class   ||
-               type == char.class    ||
-               type == int.class     ||
-               type == long.class    ||
-               type == float.class   ||
-               type == double.class  ||
-               type == String.class;
+        return type == boolean.class
+            || type == byte.class
+            || type == short.class
+            || type == char.class
+            || type == int.class
+            || type == long.class
+            || type == float.class
+            || type == double.class
+            || type == String.class;
     }
 
     /**
@@ -360,7 +360,7 @@ public final class PainlessLookupUtility {
             return new Object[0];
         }
 
-        List<String> names = ((InjectConstantAnnotation)painlessMethod.annotations.get(InjectConstantAnnotation.class)).injects;
+        List<String> names = ((InjectConstantAnnotation) painlessMethod.annotations.get(InjectConstantAnnotation.class)).injects;
         Object[] injections = new Object[names.size()];
 
         for (int i = 0; i < names.size(); i++) {
@@ -368,8 +368,14 @@ public final class PainlessLookupUtility {
             Object constant = constants.get(name);
 
             if (constant == null) {
-                throw new IllegalStateException("constant [" + name + "] not found for injection into method " +
-                        "[" + buildPainlessMethodKey(painlessMethod.javaMethod.getName(), painlessMethod.typeParameters.size()) + "]");
+                throw new IllegalStateException(
+                    "constant ["
+                        + name
+                        + "] not found for injection into method "
+                        + "["
+                        + buildPainlessMethodKey(painlessMethod.javaMethod.getName(), painlessMethod.typeParameters.size())
+                        + "]"
+                );
             }
 
             injections[i] = constant;

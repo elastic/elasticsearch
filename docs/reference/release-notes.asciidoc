@@ -6,6 +6,13 @@
 
 This section summarizes the changes in each release.
 
+* <<release-notes-7.17.0>>
+* <<release-notes-7.16.3>>
+* <<release-notes-7.16.2>>
+* <<release-notes-7.16.1>>
+* <<release-notes-7.16.0>>
+* <<release-notes-7.15.2>>
+* <<release-notes-7.15.1>>
 * <<release-notes-7.15.0>>
 * <<release-notes-7.14.2>>
 * <<release-notes-7.14.1>>
@@ -54,6 +61,8 @@ This section summarizes the changes in each release.
 
 --
 
+include::release-notes/7.17.asciidoc[]
+include::release-notes/7.16.asciidoc[]
 include::release-notes/7.15.asciidoc[]
 include::release-notes/7.14.asciidoc[]
 include::release-notes/7.13.asciidoc[]

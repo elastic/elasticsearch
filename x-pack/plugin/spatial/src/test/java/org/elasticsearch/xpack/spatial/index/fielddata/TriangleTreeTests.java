@@ -41,7 +41,7 @@ public class TriangleTreeTests extends ESTestCase {
         assertThat(fieldList.size(), equalTo(visitor.counter));
     }
 
-    private static class TriangleCounterVisitor implements TriangleTreeReader.Visitor  {
+    private static class TriangleCounterVisitor implements TriangleTreeReader.Visitor {
 
         int counter;
 

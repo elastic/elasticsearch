@@ -9,9 +9,9 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -70,8 +70,11 @@ public class EvilSecurityTests extends ESTestCase {
 
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.resolve("home").toString());
-        settingsBuilder.putList(Environment.PATH_DATA_SETTING.getKey(), esHome.resolve("data1").toString(),
-                esHome.resolve("data2").toString());
+        settingsBuilder.putList(
+            Environment.PATH_DATA_SETTING.getKey(),
+            esHome.resolve("data1").toString(),
+            esHome.resolve("data2").toString()
+        );
         settingsBuilder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), esHome.resolve("custom").toString());
         settingsBuilder.put(Environment.PATH_LOGS_SETTING.getKey(), esHome.resolve("logs").toString());
         settingsBuilder.put(Environment.NODE_PIDFILE_SETTING.getKey(), esHome.resolve("test.pid").toString());
@@ -137,12 +140,10 @@ public class EvilSecurityTests extends ESTestCase {
             Files.createSymbolicLink(duplicate, data);
         }
 
-        final Settings settings =
-                Settings
-                        .builder()
-                        .put(Environment.PATH_HOME_SETTING.getKey(), home.toString())
-                        .putList(Environment.PATH_DATA_SETTING.getKey(), data.toString(), duplicate.toString())
-                        .build();
+        final Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), home.toString())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), data.toString(), duplicate.toString())
+            .build();
 
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Security.createPermissions(environment));

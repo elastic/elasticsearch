@@ -15,7 +15,6 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-
 public class EqlFoldSpecLoader {
     public static List<EqlFoldSpec> load(String path) throws Exception {
         try (InputStream is = EqlFoldSpecLoader.class.getResourceAsStream(path)) {

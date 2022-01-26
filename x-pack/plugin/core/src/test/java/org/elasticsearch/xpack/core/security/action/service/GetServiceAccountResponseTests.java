@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.core.security.action.service;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
@@ -34,17 +34,20 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
     @Override
     protected GetServiceAccountResponse createTestInstance() {
         final String principal = randomPrincipal();
-        return new GetServiceAccountResponse(randomBoolean()
-            ? new ServiceAccountInfo[]{new ServiceAccountInfo(principal, getRoleDescriptorFor(principal))}
-            : new ServiceAccountInfo[0]);
+        return new GetServiceAccountResponse(
+            randomBoolean()
+                ? new ServiceAccountInfo[] { new ServiceAccountInfo(principal, getRoleDescriptorFor(principal)) }
+                : new ServiceAccountInfo[0]
+        );
     }
 
     @Override
     protected GetServiceAccountResponse mutateInstance(GetServiceAccountResponse instance) throws IOException {
         if (instance.getServiceAccountInfos().length == 0) {
             final String principal = randomPrincipal();
-            return new GetServiceAccountResponse(new ServiceAccountInfo[]{
-                new ServiceAccountInfo(principal, getRoleDescriptorFor(principal))});
+            return new GetServiceAccountResponse(
+                new ServiceAccountInfo[] { new ServiceAccountInfo(principal, getRoleDescriptorFor(principal)) }
+            );
         } else {
             return new GetServiceAccountResponse(new ServiceAccountInfo[0]);
         }
@@ -55,9 +58,8 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
         final GetServiceAccountResponse response = createTestInstance();
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        final Map<String, Object> responseMap = XContentHelper.convertToMap(
-            BytesReference.bytes(builder),
-            false, builder.contentType()).v2();
+        final Map<String, Object> responseMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType())
+            .v2();
         final ServiceAccountInfo[] serviceAccountInfos = response.getServiceAccountInfos();
         if (serviceAccountInfos.length == 0) {
             assertThat(responseMap, anEmptyMap());
@@ -75,24 +77,33 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
     }
 
     private RoleDescriptor getRoleDescriptorFor(String name) {
-        return new RoleDescriptor(name,
+        return new RoleDescriptor(
+            name,
             new String[] { "monitor", "manage_own_api_key" },
             new RoleDescriptor.IndicesPrivileges[] {
-            RoleDescriptor.IndicesPrivileges.builder()
-                .indices("logs-*", "metrics-*", "traces-*")
-                .privileges("write", "create_index", "auto_configure").build() },
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-*", "metrics-*", "traces-*")
+                    .privileges("write", "create_index", "auto_configure")
+                    .build() },
             null,
             null,
             null,
             null,
-            null);
+            null
+        );
     }
 
     private void assertRoleDescriptorEquals(Map<String, Object> responseFragment, RoleDescriptor roleDescriptor) throws IOException {
         @SuppressWarnings("unchecked")
         final Map<String, Object> descriptorMap = (Map<String, Object>) responseFragment.get("role_descriptor");
-        assertThat(RoleDescriptor.parse(roleDescriptor.getName(),
-            XContentTestUtils.convertToXContent(descriptorMap, XContentType.JSON), false, XContentType.JSON),
-            equalTo(roleDescriptor));
+        assertThat(
+            RoleDescriptor.parse(
+                roleDescriptor.getName(),
+                XContentTestUtils.convertToXContent(descriptorMap, XContentType.JSON),
+                false,
+                XContentType.JSON
+            ),
+            equalTo(roleDescriptor)
+        );
     }
 }

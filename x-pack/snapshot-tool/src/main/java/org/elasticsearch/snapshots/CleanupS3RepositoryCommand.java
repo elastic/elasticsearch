@@ -8,6 +8,7 @@ package org.elasticsearch.snapshots;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Strings;
@@ -22,31 +23,28 @@ public class CleanupS3RepositoryCommand extends AbstractCleanupCommand {
     public CleanupS3RepositoryCommand() {
         super("Command to cleanup orphaned segment files from the S3 repository");
 
-        regionOption = parser.accepts("region", "S3 region")
-                .withRequiredArg();
+        regionOption = parser.accepts("region", "S3 region").withRequiredArg();
 
-        endpointOption = parser.accepts("endpoint", "S3 endpoint")
-                .withRequiredArg();
+        endpointOption = parser.accepts("endpoint", "S3 endpoint").withRequiredArg();
 
-        accessKeyOption = parser.accepts("access_key", "Access key")
-                .withRequiredArg();
+        accessKeyOption = parser.accepts("access_key", "Access key").withRequiredArg();
 
-        secretKeyOption = parser.accepts("secret_key", "Secret key")
-                .withRequiredArg();
+        secretKeyOption = parser.accepts("secret_key", "Secret key").withRequiredArg();
     }
 
     @Override
     protected AbstractRepository newRepository(Terminal terminal, OptionSet options) {
         return new S3Repository(
-                terminal,
-                safetyGapMillisOption.value(options),
-                parallelismOption.value(options),
-                bucketOption.value(options),
-                basePathOption.value(options),
-                accessKeyOption.value(options),
-                secretKeyOption.value(options),
-                endpointOption.value(options),
-                regionOption.value(options));
+            terminal,
+            safetyGapMillisOption.value(options),
+            parallelismOption.value(options),
+            bucketOption.value(options),
+            basePathOption.value(options),
+            accessKeyOption.value(options),
+            secretKeyOption.value(options),
+            endpointOption.value(options),
+            regionOption.value(options)
+        );
     }
 
     @Override

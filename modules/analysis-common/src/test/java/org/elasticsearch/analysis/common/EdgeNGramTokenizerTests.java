@@ -30,39 +30,44 @@ import java.util.Collections;
 public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
 
     private IndexAnalyzers buildAnalyzers(Version version, String tokenizer) throws IOException {
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
             .put("index.analysis.analyzer.my_analyzer.tokenizer", tokenizer)
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
-        return new AnalysisModule(TestEnvironment.newEnvironment(settings),
-            Collections.singletonList(new CommonAnalysisPlugin())).getAnalysisRegistry().build(idxSettings);
+        return new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(new CommonAnalysisPlugin()))
+            .getAnalysisRegistry()
+            .build(idxSettings);
     }
 
     public void testPreConfiguredTokenizer() throws IOException {
 
         // Before 7.3 we return ngrams of length 1 only
         {
-            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0,
-                VersionUtils.getPreviousVersion(Version.V_7_3_0));
+            Version version = VersionUtils.randomVersionBetween(
+                random(),
+                Version.V_7_0_0,
+                VersionUtils.getPreviousVersion(Version.V_7_3_0)
+            );
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edge_ngram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "test", new String[]{"t"});
+                assertAnalyzesTo(analyzer, "test", new String[] { "t" });
             }
         }
 
         // Check deprecated name as well
         {
-            Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0,
-                VersionUtils.getPreviousVersion(Version.V_7_3_0));
+            Version version = VersionUtils.randomVersionBetween(
+                random(),
+                Version.V_7_0_0,
+                VersionUtils.getPreviousVersion(Version.V_7_3_0)
+            );
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edgeNGram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "test", new String[]{"t"});
+                assertAnalyzesTo(analyzer, "test", new String[] { "t" });
             }
         }
 
@@ -71,18 +76,21 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
             try (IndexAnalyzers indexAnalyzers = buildAnalyzers(Version.CURRENT, "edge_ngram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "test", new String[]{"t", "te"});
+                assertAnalyzesTo(analyzer, "test", new String[] { "t", "te" });
             }
         }
 
         // Check deprecated name as well, needs version before 8.0 because throws IAE after that
         {
-            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(
+            try (
+                IndexAnalyzers indexAnalyzers = buildAnalyzers(
                     VersionUtils.randomVersionBetween(random(), Version.V_7_3_0, Version.CURRENT),
-                    "edgeNGram")) {
+                    "edgeNGram"
+                )
+            ) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
-                assertAnalyzesTo(analyzer, "test", new String[]{"t", "te"});
+                assertAnalyzesTo(analyzer, "test", new String[] { "t", "te" });
 
             }
         }
@@ -94,12 +102,19 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
         final String name = "engr";
         final Settings indexSettings = newAnalysisSettingsBuilder().put(IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey(), 2).build();
 
-        final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3)
-            .putList("token_chars", "letter", "custom").put("custom_token_chars","_-").build();
-        Tokenizer tokenizer = new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name,
-                settings).create();
+        final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2)
+            .put("max_gram", 3)
+            .putList("token_chars", "letter", "custom")
+            .put("custom_token_chars", "_-")
+            .build();
+        Tokenizer tokenizer = new EdgeNGramTokenizerFactory(
+            IndexSettingsModule.newIndexSettings(index, indexSettings),
+            null,
+            name,
+            settings
+        ).create();
         tokenizer.setReader(new StringReader("Abc -gh _jk =lm"));
-        assertTokenStreamContents(tokenizer, new String[] {"Ab", "Abc", "-g", "-gh", "_j", "_jk", "lm"});
+        assertTokenStreamContents(tokenizer, new String[] { "Ab", "Abc", "-g", "-gh", "_j", "_jk", "lm" });
     }
 
 }

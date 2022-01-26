@@ -16,8 +16,7 @@ import java.io.IOException;
 
 public class PendingClusterTasksRequest extends MasterNodeReadRequest<PendingClusterTasksRequest> {
 
-    public PendingClusterTasksRequest() {
-    }
+    public PendingClusterTasksRequest() {}
 
     public PendingClusterTasksRequest(StreamInput in) throws IOException {
         super(in);

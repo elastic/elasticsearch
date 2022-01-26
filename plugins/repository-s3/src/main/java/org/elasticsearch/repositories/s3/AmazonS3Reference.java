@@ -8,11 +8,10 @@
 
 package org.elasticsearch.repositories.s3;
 
-import org.elasticsearch.core.AbstractRefCounted;
-
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 
 /**

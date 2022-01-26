@@ -37,8 +37,12 @@ public class SuggestPhase {
             for (Map.Entry<String, SuggestionSearchContext.SuggestionContext> entry : suggest.suggestions().entrySet()) {
                 SuggestionSearchContext.SuggestionContext suggestion = entry.getValue();
                 Suggester<SuggestionContext> suggester = suggestion.getSuggester();
-                Suggestion<? extends Entry<? extends Option>> result =
-                    suggester.execute(entry.getKey(), suggestion, context.searcher(), spare);
+                Suggestion<? extends Entry<? extends Option>> result = suggester.execute(
+                    entry.getKey(),
+                    suggestion,
+                    context.searcher(),
+                    spare
+                );
                 if (result != null) {
                     assert entry.getKey().equals(result.name);
                     suggestions.add(result);
@@ -51,4 +55,3 @@ public class SuggestPhase {
     }
 
 }
-

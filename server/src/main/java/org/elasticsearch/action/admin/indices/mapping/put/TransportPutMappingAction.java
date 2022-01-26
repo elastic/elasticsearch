@@ -54,16 +54,25 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
 
     @Inject
     public TransportPutMappingAction(
-            final TransportService transportService,
-            final ClusterService clusterService,
-            final ThreadPool threadPool,
-            final MetadataMappingService metadataMappingService,
-            final ActionFilters actionFilters,
-            final IndexNameExpressionResolver indexNameExpressionResolver,
-            final RequestValidators<PutMappingRequest> requestValidators,
-            final SystemIndices systemIndices) {
-        super(PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, PutMappingRequest::new,
-            indexNameExpressionResolver, ThreadPool.Names.SAME);
+        final TransportService transportService,
+        final ClusterService clusterService,
+        final ThreadPool threadPool,
+        final MetadataMappingService metadataMappingService,
+        final ActionFilters actionFilters,
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final RequestValidators<PutMappingRequest> requestValidators,
+        final SystemIndices systemIndices
+    ) {
+        super(
+            PutMappingAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutMappingRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.metadataMappingService = metadataMappingService;
         this.requestValidators = Objects.requireNonNull(requestValidators);
         this.systemIndices = systemIndices;
@@ -75,14 +84,17 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         if (request.getConcreteIndex() == null) {
             indices = indexNameExpressionResolver.concreteIndexNames(state, request);
         } else {
-            indices = new String[] {request.getConcreteIndex().getName()};
+            indices = new String[] { request.getConcreteIndex().getName() };
         }
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices);
     }
 
     @Override
-    protected void masterOperation(final PutMappingRequest request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        final PutMappingRequest request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         try {
             final Index[] concreteIndices = resolveIndices(state, request, indexNameExpressionResolver);
 
@@ -99,8 +111,10 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
 
             performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
         } catch (IndexNotFoundException ex) {
-            logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}], type [{}]",
-                request.indices(), request.type()), ex);
+            logger.debug(
+                () -> new ParameterizedMessage("failed to put mappings on indices [{}], type [{}]", request.indices(), request.type()),
+                ex
+            );
             throw ex;
         }
     }
@@ -110,32 +124,41 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
             if (request.writeIndexOnly()) {
                 List<Index> indices = new ArrayList<>();
                 for (String indexExpression : request.indices()) {
-                    indices.add(iner.concreteWriteIndex(state, request.indicesOptions(), indexExpression,
-                        request.indicesOptions().allowNoIndices(), request.includeDataStreams()));
+                    indices.add(
+                        iner.concreteWriteIndex(
+                            state,
+                            request.indicesOptions(),
+                            indexExpression,
+                            request.indicesOptions().allowNoIndices(),
+                            request.includeDataStreams()
+                        )
+                    );
                 }
                 return indices.toArray(Index.EMPTY_ARRAY);
             } else {
                 return iner.concreteIndices(state, request);
             }
         } else {
-            return new Index[]{request.getConcreteIndex()};
+            return new Index[] { request.getConcreteIndex() };
         }
     }
 
-    static void performMappingUpdate(Index[] concreteIndices,
-                                     PutMappingRequest request,
-                                     ActionListener<AcknowledgedResponse> listener,
-                                     MetadataMappingService metadataMappingService) {
+    static void performMappingUpdate(
+        Index[] concreteIndices,
+        PutMappingRequest request,
+        ActionListener<AcknowledgedResponse> listener,
+        MetadataMappingService metadataMappingService
+    ) {
         final ActionListener<AcknowledgedResponse> wrappedListener = listener.delegateResponse((l, e) -> {
-            logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]",
-                    Arrays.asList(concreteIndices)), e);
+            logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]", Arrays.asList(concreteIndices)), e);
             l.onFailure(e);
         });
         final PutMappingClusterStateUpdateRequest updateRequest;
         try {
-            updateRequest = new PutMappingClusterStateUpdateRequest(request.source())
-                .indices(concreteIndices).type(request.type())
-                .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+            updateRequest = new PutMappingClusterStateUpdateRequest(request.source()).indices(concreteIndices)
+                .type(request.type())
+                .ackTimeout(request.timeout())
+                .masterNodeTimeout(request.masterNodeTimeout());
         } catch (IOException e) {
             wrappedListener.onFailure(e);
             return;
@@ -168,10 +191,16 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         }
 
         if (violations.isEmpty() == false) {
-            logger.debug(() -> new ParameterizedMessage("Updating mappings in {}"
-                + ": system indices can only use mappings from their descriptors,"
-                + " but the mappings in the request [{}] did not match those in the descriptor(s)."
-                + " This will not work in the next major version", violations, requestMappings));
+            logger.debug(
+                () -> new ParameterizedMessage(
+                    "Updating mappings in {}"
+                        + ": system indices can only use mappings from their descriptors,"
+                        + " but the mappings in the request [{}] did not match those in the descriptor(s)."
+                        + " This will not work in the next major version",
+                    violations,
+                    requestMappings
+                )
+            );
             return "Updating mappings in "
                 + violations
                 + ": system indices can only use mappings from their descriptors,"

@@ -14,9 +14,9 @@
     ignore_acceptor_hostname = true
     rdns = false
     # des3-cbc-sha1-kd is the only enctype available in fips 140-2
-    default_tgs_enctypes = des3-cbc-sha1-kd
-    default_tkt_enctypes = des3-cbc-sha1-kd
-    permitted_enctypes = des3-cbc-sha1-kd
+    default_tgs_enctypes = aes256-cts-hmac-sha1-96
+    default_tkt_enctypes = aes256-cts-hmac-sha1-96
+    permitted_enctypes = aes256-cts-hmac-sha1-96
     # udp_preference_limit = 1
     kdc_timeout = 3000
     canonicalize = true

@@ -58,7 +58,7 @@ public class PromoteDataStreamAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public String[] indices() {
-            return new String[]{name};
+            return new String[] { name };
         }
 
         @Override

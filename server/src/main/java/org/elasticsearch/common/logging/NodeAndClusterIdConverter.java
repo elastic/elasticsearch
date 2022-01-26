@@ -22,7 +22,7 @@ import java.util.Locale;
  * Keeping those two fields together assures that they will be atomically set and become visible in logs at the same time.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeAndClusterIdConverter")
-@ConverterKeys({"node_and_cluster_id"})
+@ConverterKeys({ "node_and_cluster_id" })
 public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
     private static final SetOnce<String> nodeAndClusterId = new SetOnce<>();
 
@@ -45,7 +45,7 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
      * @param clusterUUID a clusterId received from cluster state update
      */
     public static void setNodeIdAndClusterId(String nodeId, String clusterUUID) {
-         nodeAndClusterId.set(formatIds(clusterUUID, nodeId));
+        nodeAndClusterId.set(formatIds(clusterUUID, nodeId));
     }
 
     /**

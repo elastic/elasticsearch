@@ -87,16 +87,23 @@ public class ExplainLifecycleRequest extends ClusterInfoRequest<ExplainLifecycle
             return false;
         }
         ExplainLifecycleRequest other = (ExplainLifecycleRequest) obj;
-        return Objects.deepEquals(indices(), other.indices()) &&
-                Objects.equals(indicesOptions(), other.indicesOptions()) &&
-                Objects.equals(onlyErrors(), other.onlyErrors()) &&
-                Objects.equals(onlyManaged(), other.onlyManaged());
+        return Objects.deepEquals(indices(), other.indices())
+            && Objects.equals(indicesOptions(), other.indicesOptions())
+            && Objects.equals(onlyErrors(), other.onlyErrors())
+            && Objects.equals(onlyManaged(), other.onlyManaged());
     }
 
     @Override
     public String toString() {
-        return "ExplainLifecycleRequest [indices()=" + Arrays.toString(indices()) + ", indicesOptions()=" + indicesOptions() +
-            ", onlyErrors()=" + onlyErrors() + ", onlyManaged()=" + onlyManaged() + "]";
+        return "ExplainLifecycleRequest [indices()="
+            + Arrays.toString(indices())
+            + ", indicesOptions()="
+            + indicesOptions()
+            + ", onlyErrors()="
+            + onlyErrors()
+            + ", onlyManaged()="
+            + onlyManaged()
+            + "]";
     }
 
 }

@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -857,6 +858,18 @@ public class RateAggregatorTests extends AggregatorTestCase {
             )
         );
         assertEquals("The mode parameter is only supported with field or script", ex.getMessage());
+    }
+
+    public void testWithCustomDocCount() throws IOException {
+        testCase(new MatchAllDocsQuery(), "month", true, "month", null, iw -> {
+            iw.addDocument(doc("2010-03-12T01:07:45", new CustomTermFreqField("_doc_count", "_doc_count", 10)));
+            iw.addDocument(doc("2010-04-01T03:43:34"));
+            iw.addDocument(doc("2010-04-27T03:43:34", new CustomTermFreqField("_doc_count", "_doc_count", 5)));
+        }, dh -> {
+            assertThat(dh.getBuckets(), hasSize(2));
+            assertThat(((InternalRate) dh.getBuckets().get(0).getAggregations().asList().get(0)).value(), closeTo(10.0, 0.000001));
+            assertThat(((InternalRate) dh.getBuckets().get(1).getAggregations().asList().get(0)).value(), closeTo(6.0, 0.000001));
+        });
     }
 
     private static AbstractAggregationBuilder<?> randomValidMultiBucketAggBuilder(

@@ -29,8 +29,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     private ProfileResult profileResult;
 
-    public FetchSearchResult() {
-    }
+    public FetchSearchResult() {}
 
     public FetchSearchResult(ShardSearchContextId id, SearchShardTarget shardTarget) {
         this.contextId = id;

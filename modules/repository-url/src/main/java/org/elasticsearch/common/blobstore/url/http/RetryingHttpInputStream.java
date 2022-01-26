@@ -147,13 +147,29 @@ class RetryingHttpInputStream extends InputStream {
 
     private void maybeThrow(IOException e) throws IOException {
         if (retryCount >= maxRetries || e instanceof NoSuchFileException) {
-            logger.debug(new ParameterizedMessage("failed reading [{}] at offset [{}], retry [{}] of [{}], giving up",
-                blobURI, start + totalBytesRead, retryCount, maxRetries), e);
+            logger.debug(
+                new ParameterizedMessage(
+                    "failed reading [{}] at offset [{}], retry [{}] of [{}], giving up",
+                    blobURI,
+                    start + totalBytesRead,
+                    retryCount,
+                    maxRetries
+                ),
+                e
+            );
             throw addSuppressedFailures(e);
         }
 
-        logger.debug(new ParameterizedMessage("failed reading [{}] at offset [{}], retry [{}] of [{}], retrying",
-            blobURI, start + totalBytesRead, retryCount, maxRetries), e);
+        logger.debug(
+            new ParameterizedMessage(
+                "failed reading [{}] at offset [{}], retry [{}] of [{}], retrying",
+                blobURI,
+                start + totalBytesRead,
+                retryCount,
+                maxRetries
+            ),
+            e
+        );
 
         retryCount += 1;
         accumulateFailure(e);
@@ -216,8 +232,11 @@ class RetryingHttpInputStream extends InputStream {
                     if (statusCode != RestStatus.OK.getStatus() && statusCode != RestStatus.PARTIAL_CONTENT.getStatus()) {
                         String body = response.getBodyAsString(MAX_ERROR_MESSAGE_BODY_SIZE);
                         IOUtils.closeWhileHandlingException(response);
-                        throw new IOException(getErrorMessage("The server returned an invalid response:" +
-                            " Status code: [" + statusCode + "] - Body: " + body));
+                        throw new IOException(
+                            getErrorMessage(
+                                "The server returned an invalid response:" + " Status code: [" + statusCode + "] - Body: " + body
+                            )
+                        );
                     }
 
                     currentStreamLastOffset = Math.addExact(Math.addExact(start, totalBytesRead), getStreamLength(response));
@@ -258,9 +277,13 @@ class RetryingHttpInputStream extends InputStream {
 
                 assert upperBound >= lowerBound : "Incorrect Content-Range: lower bound > upper bound " + lowerBound + "-" + upperBound;
                 assert lowerBound == start + totalBytesRead : "Incorrect Content-Range: lower bound != specified lower bound";
-                assert upperBound == end || upperBound <= MAX_RANGE_VAL :
-                    "Incorrect Content-Range: the returned upper bound is incorrect, expected [" + end + "] " +
-                    "got [" + upperBound + "]";
+                assert upperBound == end || upperBound <= MAX_RANGE_VAL
+                    : "Incorrect Content-Range: the returned upper bound is incorrect, expected ["
+                        + end
+                        + "] "
+                        + "got ["
+                        + upperBound
+                        + "]";
 
                 return upperBound - lowerBound + 1;
             }

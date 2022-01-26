@@ -194,6 +194,7 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.http.protocol.HttpContext',
     'org.apache.http.protocol.HttpProcessor',
     'org.apache.http.protocol.HttpRequestExecutor',
+    'javax.jms.Message',
     // commons-logging provided dependencies
     'javax.servlet.ServletContextEvent',
     'javax.servlet.ServletContextListener'

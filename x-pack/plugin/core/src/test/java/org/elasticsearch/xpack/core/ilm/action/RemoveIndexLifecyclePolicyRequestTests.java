@@ -21,8 +21,16 @@ public class RemoveIndexLifecyclePolicyRequestTests extends AbstractWireSerializ
     protected Request createTestInstance() {
         Request request = new Request(generateRandomStringArray(20, 20, false));
         if (randomBoolean()) {
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+            IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
             request.indicesOptions(indicesOptions);
         }
         if (randomBoolean()) {
@@ -41,16 +49,29 @@ public class RemoveIndexLifecyclePolicyRequestTests extends AbstractWireSerializ
         String[] indices = instance.indices();
         IndicesOptions indicesOptions = instance.indicesOptions();
         switch (between(0, 1)) {
-        case 0:
-            indices = randomValueOtherThanMany(i -> Arrays.equals(i, instance.indices()),
-                    () -> generateRandomStringArray(20, 20, false));
-            break;
-        case 1:
-            indicesOptions = randomValueOtherThan(indicesOptions, () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),
-                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                indices = randomValueOtherThanMany(
+                    i -> Arrays.equals(i, instance.indices()),
+                    () -> generateRandomStringArray(20, 20, false)
+                );
+                break;
+            case 1:
+                indicesOptions = randomValueOtherThan(
+                    indicesOptions,
+                    () -> IndicesOptions.fromOptions(
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean(),
+                        randomBoolean()
+                    )
+                );
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         Request newRequest = new Request(indices);
         newRequest.indicesOptions(indicesOptions);
@@ -58,8 +79,7 @@ public class RemoveIndexLifecyclePolicyRequestTests extends AbstractWireSerializ
     }
 
     public void testNullIndices() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new Request((String[]) null));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new Request((String[]) null));
         assertEquals("indices cannot be null", exception.getMessage());
     }
 

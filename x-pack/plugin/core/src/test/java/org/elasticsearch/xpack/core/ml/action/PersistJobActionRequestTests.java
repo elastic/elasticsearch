@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-public class PersistJobActionRequestTests  extends AbstractWireSerializingTestCase<PersistJobAction.Request> {
+public class PersistJobActionRequestTests extends AbstractWireSerializingTestCase<PersistJobAction.Request> {
 
     @Override
     protected Writeable.Reader<PersistJobAction.Request> instanceReader() {

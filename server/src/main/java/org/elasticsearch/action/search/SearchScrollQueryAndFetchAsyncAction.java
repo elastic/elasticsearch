@@ -25,17 +25,27 @@ final class SearchScrollQueryAndFetchAsyncAction extends SearchScrollAsyncAction
     private final SearchTask task;
     private final AtomicArray<QueryFetchSearchResult> queryFetchResults;
 
-    SearchScrollQueryAndFetchAsyncAction(Logger logger, ClusterService clusterService, SearchTransportService searchTransportService,
-                                         SearchPhaseController searchPhaseController, SearchScrollRequest request, SearchTask task,
-                                         ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
+    SearchScrollQueryAndFetchAsyncAction(
+        Logger logger,
+        ClusterService clusterService,
+        SearchTransportService searchTransportService,
+        SearchPhaseController searchPhaseController,
+        SearchScrollRequest request,
+        SearchTask task,
+        ParsedScrollId scrollId,
+        ActionListener<SearchResponse> listener
+    ) {
         super(scrollId, logger, clusterService.state().nodes(), listener, searchPhaseController, request, searchTransportService);
         this.task = task;
         this.queryFetchResults = new AtomicArray<>(scrollId.getContext().length);
     }
 
     @Override
-    protected void executeInitialPhase(Transport.Connection connection, InternalScrollSearchRequest internalRequest,
-                                       SearchActionListener<ScrollQueryFetchSearchResult> searchActionListener) {
+    protected void executeInitialPhase(
+        Transport.Connection connection,
+        InternalScrollSearchRequest internalRequest,
+        SearchActionListener<ScrollQueryFetchSearchResult> searchActionListener
+    ) {
         searchTransportService.sendExecuteScrollFetch(connection, internalRequest, task, searchActionListener);
     }
 

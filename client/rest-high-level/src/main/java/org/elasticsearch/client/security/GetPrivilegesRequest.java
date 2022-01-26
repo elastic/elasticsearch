@@ -9,9 +9,9 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Arrays;
 import java.util.Objects;
@@ -69,8 +69,7 @@ public final class GetPrivilegesRequest implements Validatable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetPrivilegesRequest that = (GetPrivilegesRequest) o;
-        return Objects.equals(applicationName, that.applicationName) &&
-            Arrays.equals(privilegeNames, that.privilegeNames);
+        return Objects.equals(applicationName, that.applicationName) && Arrays.equals(privilegeNames, that.privilegeNames);
     }
 
     @Override

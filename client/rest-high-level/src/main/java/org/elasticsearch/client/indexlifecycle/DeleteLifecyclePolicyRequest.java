@@ -28,7 +28,6 @@ public class DeleteLifecyclePolicyRequest extends TimedRequest {
         return lifecyclePolicy;
     }
 
-
     @Override
     public boolean equals(Object o) {
         if (this == o) {

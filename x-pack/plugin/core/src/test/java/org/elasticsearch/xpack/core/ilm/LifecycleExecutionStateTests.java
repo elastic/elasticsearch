@@ -69,7 +69,8 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             original,
             toCopy -> LifecycleExecutionState.builder(toCopy).build(),
-            LifecycleExecutionStateTests::mutate);
+            LifecycleExecutionStateTests::mutate
+        );
     }
 
     public void testGetCurrentStepKey() {
@@ -97,8 +98,10 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         lifecycleState3.setPhase(phase);
         lifecycleState3.setAction(action);
         lifecycleState3.setStep(step);
-        AssertionError error3 = expectThrows(AssertionError.class,
-            () -> LifecycleExecutionState.getCurrentStepKey(lifecycleState3.build()));
+        AssertionError error3 = expectThrows(
+            AssertionError.class,
+            () -> LifecycleExecutionState.getCurrentStepKey(lifecycleState3.build())
+        );
         assertEquals("Current phase is not empty: " + phase, error3.getMessage());
 
         phase = null;
@@ -108,8 +111,10 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         lifecycleState4.setPhase(phase);
         lifecycleState4.setAction(action);
         lifecycleState4.setStep(step);
-        AssertionError error4 = expectThrows(AssertionError.class,
-            () -> LifecycleExecutionState.getCurrentStepKey(lifecycleState4.build()));
+        AssertionError error4 = expectThrows(
+            AssertionError.class,
+            () -> LifecycleExecutionState.getCurrentStepKey(lifecycleState4.build())
+        );
         assertEquals("Current action is not empty: " + action, error4.getMessage());
 
         phase = null;
@@ -119,8 +124,10 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         lifecycleState5.setPhase(phase);
         lifecycleState5.setAction(action);
         lifecycleState5.setStep(step);
-        AssertionError error5 = expectThrows(AssertionError.class,
-            () -> LifecycleExecutionState.getCurrentStepKey(lifecycleState5.build()));
+        AssertionError error5 = expectThrows(
+            AssertionError.class,
+            () -> LifecycleExecutionState.getCurrentStepKey(lifecycleState5.build())
+        );
         assertNull(error5.getMessage());
 
         phase = null;
@@ -130,8 +137,10 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         lifecycleState6.setPhase(phase);
         lifecycleState6.setAction(action);
         lifecycleState6.setStep(step);
-        AssertionError error6 = expectThrows(AssertionError.class,
-            () -> LifecycleExecutionState.getCurrentStepKey(lifecycleState6.build()));
+        AssertionError error6 = expectThrows(
+            AssertionError.class,
+            () -> LifecycleExecutionState.getCurrentStepKey(lifecycleState6.build())
+        );
         assertNull(error6.getMessage());
     }
 
@@ -172,12 +181,14 @@ public class LifecycleExecutionStateTests extends ESTestCase {
                 newState.setShrinkIndexName(randomValueOtherThan(toMutate.getShrinkIndexName(), () -> randomAlphaOfLengthBetween(5, 20)));
                 break;
             case 11:
-                newState.setSnapshotRepository(randomValueOtherThan(toMutate.getSnapshotRepository(),
-                    () -> randomAlphaOfLengthBetween(5, 20)));
+                newState.setSnapshotRepository(
+                    randomValueOtherThan(toMutate.getSnapshotRepository(), () -> randomAlphaOfLengthBetween(5, 20))
+                );
                 break;
             case 12:
-                newState.setSnapshotIndexName(randomValueOtherThan(toMutate.getSnapshotIndexName(),
-                    () -> randomAlphaOfLengthBetween(5, 20)));
+                newState.setSnapshotIndexName(
+                    randomValueOtherThan(toMutate.getSnapshotIndexName(), () -> randomAlphaOfLengthBetween(5, 20))
+                );
                 break;
             case 13:
                 newState.setSnapshotName(randomValueOtherThan(toMutate.getSnapshotName(), () -> randomAlphaOfLengthBetween(5, 20)));

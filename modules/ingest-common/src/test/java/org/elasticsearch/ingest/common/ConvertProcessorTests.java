@@ -91,7 +91,7 @@ public class ConvertProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("unable to convert [" + value + "] to integer"));
         }
     }
@@ -161,7 +161,7 @@ public class ConvertProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("unable to convert [" + value + "] to long"));
         }
     }
@@ -204,7 +204,7 @@ public class ConvertProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("unable to convert [" + value + "] to double"));
         }
     }
@@ -247,7 +247,7 @@ public class ConvertProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("unable to convert [" + value + "] to float"));
         }
     }
@@ -293,7 +293,7 @@ public class ConvertProcessorTests extends ESTestCase {
         if (randomBoolean()) {
             fieldValue = "string-" + randomAlphaOfLengthBetween(1, 10);
         } else {
-            //verify that only proper boolean values are supported and we are strict about it
+            // verify that only proper boolean values are supported and we are strict about it
             fieldValue = randomFrom("on", "off", "yes", "no", "0", "1");
         }
         ingestDocument.setFieldValue(fieldName, fieldValue);
@@ -302,7 +302,7 @@ public class ConvertProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(Exception e) {
+        } catch (Exception e) {
             assertThat(e.getMessage(), equalTo("[" + fieldValue + "] is not a boolean value, cannot convert to boolean"));
         }
     }
@@ -382,7 +382,7 @@ public class ConvertProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Object fieldValue;
         String expectedFieldValue;
-        switch(randomIntBetween(0, 2)) {
+        switch (randomIntBetween(0, 2)) {
             case 0:
                 float randomFloat = randomFloat();
                 fieldValue = randomFloat;
@@ -416,7 +416,7 @@ public class ConvertProcessorTests extends ESTestCase {
         for (int j = 0; j < numItems; j++) {
             Object randomValue;
             String randomValueString;
-            switch(randomIntBetween(0, 2)) {
+            switch (randomIntBetween(0, 2)) {
                 case 0:
                     float randomFloat = randomFloat();
                     randomValue = randomFloat;
@@ -500,7 +500,7 @@ public class ConvertProcessorTests extends ESTestCase {
 
     public void testAutoConvertNotString() throws Exception {
         Object randomValue;
-        switch(randomIntBetween(0, 2)) {
+        switch (randomIntBetween(0, 2)) {
             case 0:
                 float randomFloat = randomFloat();
                 randomValue = randomFloat;
@@ -535,8 +535,10 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchBoolean() throws Exception {
         boolean randomBoolean = randomBoolean();
         String booleanString = Boolean.toString(randomBoolean);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(),
-            Collections.singletonMap("field", booleanString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(
+            random(),
+            Collections.singletonMap("field", booleanString)
+        );
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -566,7 +568,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertDoubleNotMatched() throws Exception {
         double randomDouble = randomDouble();
         String randomString = Double.toString(randomDouble);
-        float randomFloat  = Float.parseFloat(randomString);
+        float randomFloat = Float.parseFloat(randomString);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomString));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);

@@ -47,8 +47,7 @@ final class Checkpoint {
 
     // size of 6.4.0 checkpoint
 
-    static final int V3_FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC)
-        + Integer.BYTES  // ops
+    static final int V3_FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC) + Integer.BYTES  // ops
         + Long.BYTES // offset
         + Long.BYTES // generation
         + Long.BYTES // minimum sequence number
@@ -59,8 +58,7 @@ final class Checkpoint {
         + CodecUtil.footerLength();
 
     // size of 6.0.0 checkpoint
-    static final int V2_FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC)
-        + Integer.BYTES  // ops
+    static final int V2_FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC) + Integer.BYTES  // ops
         + Long.BYTES // offset
         + Long.BYTES // generation
         + Long.BYTES // minimum sequence number
@@ -82,12 +80,20 @@ final class Checkpoint {
      * @param trimmedAboveSeqNo     all operations with seq# above trimmedAboveSeqNo should be ignored and not read from the
      *                              corresponding translog file. {@link SequenceNumbers#UNASSIGNED_SEQ_NO} is used to disable trimming.
      */
-    Checkpoint(long offset, int numOps, long generation, long minSeqNo, long maxSeqNo, long globalCheckpoint,
-               long minTranslogGeneration, long trimmedAboveSeqNo) {
+    Checkpoint(
+        long offset,
+        int numOps,
+        long generation,
+        long minSeqNo,
+        long maxSeqNo,
+        long globalCheckpoint,
+        long minTranslogGeneration,
+        long trimmedAboveSeqNo
+    ) {
         assert minSeqNo <= maxSeqNo : "minSeqNo [" + minSeqNo + "] is higher than maxSeqNo [" + maxSeqNo + "]";
         assert trimmedAboveSeqNo <= maxSeqNo : "trimmedAboveSeqNo [" + trimmedAboveSeqNo + "] is higher than maxSeqNo [" + maxSeqNo + "]";
-        assert minTranslogGeneration <= generation :
-            "minTranslogGen [" + minTranslogGeneration + "] is higher than generation [" + generation + "]";
+        assert minTranslogGeneration <= generation
+            : "minTranslogGen [" + minTranslogGeneration + "] is higher than generation [" + generation + "]";
         this.offset = offset;
         this.numOps = numOps;
         this.generation = generation;
@@ -120,8 +126,12 @@ final class Checkpoint {
         }
     }
 
-    static Checkpoint emptyTranslogCheckpoint(final long offset, final long generation, final long globalCheckpoint,
-                                              long minTranslogGeneration) {
+    static Checkpoint emptyTranslogCheckpoint(
+        final long offset,
+        final long generation,
+        final long globalCheckpoint,
+        long minTranslogGeneration
+    ) {
         final long minSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         final long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         final long trimmedAboveSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -154,16 +164,24 @@ final class Checkpoint {
 
     @Override
     public String toString() {
-        return "Checkpoint{" +
-            "offset=" + offset +
-            ", numOps=" + numOps +
-            ", generation=" + generation +
-            ", minSeqNo=" + minSeqNo +
-            ", maxSeqNo=" + maxSeqNo +
-            ", globalCheckpoint=" + globalCheckpoint +
-            ", minTranslogGeneration=" + minTranslogGeneration +
-            ", trimmedAboveSeqNo=" + trimmedAboveSeqNo +
-            '}';
+        return "Checkpoint{"
+            + "offset="
+            + offset
+            + ", numOps="
+            + numOps
+            + ", generation="
+            + generation
+            + ", minSeqNo="
+            + minSeqNo
+            + ", maxSeqNo="
+            + maxSeqNo
+            + ", globalCheckpoint="
+            + globalCheckpoint
+            + ", minTranslogGeneration="
+            + minTranslogGeneration
+            + ", trimmedAboveSeqNo="
+            + trimmedAboveSeqNo
+            + '}';
     }
 
     public static Checkpoint read(Path path) throws IOException {
@@ -214,16 +232,22 @@ final class Checkpoint {
             }
         };
         final String resourceDesc = "checkpoint(path=\"" + checkpointFile + "\", gen=" + checkpoint + ")";
-        try (OutputStreamIndexOutput indexOutput =
-                 new OutputStreamIndexOutput(resourceDesc, checkpointFile.toString(), byteOutputStream, V3_FILE_SIZE)) {
+        try (
+            OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
+                resourceDesc,
+                checkpointFile.toString(),
+                byteOutputStream,
+                V3_FILE_SIZE
+            )
+        ) {
             CodecUtil.writeHeader(indexOutput, CHECKPOINT_CODEC, CURRENT_VERSION);
             checkpoint.write(indexOutput);
             CodecUtil.writeFooter(indexOutput);
 
-            assert indexOutput.getFilePointer() == V3_FILE_SIZE :
-                "get you numbers straight; bytes written: " + indexOutput.getFilePointer() + ", buffer size: " + V3_FILE_SIZE;
-            assert indexOutput.getFilePointer() < 512 :
-                "checkpoint files have to be smaller than 512 bytes for atomic writes; size: " + indexOutput.getFilePointer();
+            assert indexOutput.getFilePointer() == V3_FILE_SIZE
+                : "get you numbers straight; bytes written: " + indexOutput.getFilePointer() + ", buffer size: " + V3_FILE_SIZE;
+            assert indexOutput.getFilePointer() < 512
+                : "checkpoint files have to be smaller than 512 bytes for atomic writes; size: " + indexOutput.getFilePointer();
         }
         return byteOutputStream.toByteArray();
     }

@@ -74,21 +74,25 @@ public class RestCatTransformAction extends AbstractCatAction {
             statsRequest.setPageParams(pageParams);
         }
 
-        return channel -> client.execute(GetTransformAction.INSTANCE,
+        return channel -> client.execute(
+            GetTransformAction.INSTANCE,
             request,
             new RestActionListener<GetTransformAction.Response>(channel) {
-            @Override
-            public void processResponse(GetTransformAction.Response response) {
-                client.execute(GetTransformStatsAction.INSTANCE,
-                    statsRequest,
-                    new RestResponseListener<GetTransformStatsAction.Response>(channel) {
-                    @Override
-                    public RestResponse buildResponse(GetTransformStatsAction.Response statsResponse) throws Exception {
-                        return RestTable.buildResponse(buildTable(response, statsResponse), channel);
-                    }
-                });
+                @Override
+                public void processResponse(GetTransformAction.Response response) {
+                    client.execute(
+                        GetTransformStatsAction.INSTANCE,
+                        statsRequest,
+                        new RestResponseListener<GetTransformStatsAction.Response>(channel) {
+                            @Override
+                            public RestResponse buildResponse(GetTransformStatsAction.Response statsResponse) throws Exception {
+                                return RestTable.buildResponse(buildTable(response, statsResponse), channel);
+                            }
+                        }
+                    );
+                }
             }
-        });
+        );
     }
 
     @Override

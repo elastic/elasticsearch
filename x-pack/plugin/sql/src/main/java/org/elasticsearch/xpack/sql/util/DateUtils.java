@@ -37,25 +37,17 @@ public final class DateUtils {
     public static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
     public static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000L;
 
-    private static final DateTimeFormatter ISO_LOCAL_TIME_OPTIONAL_TZ = new DateTimeFormatterBuilder()
-            .append(ISO_LOCAL_TIME)
-            .optionalStart()
-            .appendZoneOrOffsetId()
-            .toFormatter().withZone(UTC);
-    private static final DateTimeFormatter ISO_LOCAL_DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE = new DateTimeFormatterBuilder()
-            .append(ISO_LOCAL_DATE)
-            .optionalStart()
-            .appendLiteral(' ')
-            .append(ISO_LOCAL_TIME_OPTIONAL_TZ)
-            .optionalEnd()
-            .toFormatter().withZone(UTC);
-    private static final DateTimeFormatter ISO_LOCAL_DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL = new DateTimeFormatterBuilder()
-            .append(ISO_LOCAL_DATE)
-            .optionalStart()
-            .appendLiteral('T')
-            .append(ISO_LOCAL_TIME_OPTIONAL_TZ)
-            .optionalEnd()
-            .toFormatter().withZone(UTC);
+    private static final DateTimeFormatter ISO_LOCAL_TIME_OPTIONAL_TZ = new DateTimeFormatterBuilder().append(ISO_LOCAL_TIME)
+        .optionalStart()
+        .appendZoneOrOffsetId()
+        .toFormatter()
+        .withZone(UTC);
+    private static final DateTimeFormatter ISO_LOCAL_DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE = new DateTimeFormatterBuilder().append(
+        ISO_LOCAL_DATE
+    ).optionalStart().appendLiteral(' ').append(ISO_LOCAL_TIME_OPTIONAL_TZ).optionalEnd().toFormatter().withZone(UTC);
+    private static final DateTimeFormatter ISO_LOCAL_DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL = new DateTimeFormatterBuilder().append(
+        ISO_LOCAL_DATE
+    ).optionalStart().appendLiteral('T').append(ISO_LOCAL_TIME_OPTIONAL_TZ).optionalEnd().toFormatter().withZone(UTC);
 
     private static final DateFormatter UTC_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time").withZone(UTC);
     private static final int DEFAULT_PRECISION_FOR_CURRENT_FUNCTIONS = 3;
@@ -152,7 +144,7 @@ public final class DateUtils {
     }
 
     public static long minDayInterval(long l) {
-        if (l < DAY_IN_MILLIS ) {
+        if (l < DAY_IN_MILLIS) {
             return DAY_IN_MILLIS;
         }
         return l - (l % DAY_IN_MILLIS);
@@ -170,8 +162,11 @@ public final class DateUtils {
         }
 
         if (precision < 0 || precision > 9) {
-            throw new ParsingException(precisionExpression.source(), "precision needs to be between [0-9], received [{}]",
-                precisionExpression.sourceText());
+            throw new ParsingException(
+                precisionExpression.source(),
+                "precision needs to be between [0-9], received [{}]",
+                precisionExpression.sourceText()
+            );
         }
 
         // remove the remainder
@@ -204,8 +199,8 @@ public final class DateUtils {
     public static TemporalAccessor atTimeZone(TemporalAccessor ta, ZoneId zoneId) {
         if (ta instanceof LocalDateTime) {
             return atTimeZone((LocalDateTime) ta, zoneId);
-        } else if (ta instanceof ZonedDateTime){
-            return atTimeZone((ZonedDateTime)ta, zoneId);
+        } else if (ta instanceof ZonedDateTime) {
+            return atTimeZone((ZonedDateTime) ta, zoneId);
         } else if (ta instanceof OffsetTime) {
             return atTimeZone((OffsetTime) ta, zoneId);
         } else if (ta instanceof LocalTime) {
@@ -224,8 +219,8 @@ public final class DateUtils {
         }
         // Find the second `-` date separator and move 3 places past the dayOfYear to find the time separator
         // e.g. 2020-06-01T10:20:30....
-        //             ^
-        //           +3 = ^
+        // ^
+        // +3 = ^
         return timestampStr.indexOf('-', separatorIdx + 1) + 3;
     }
 }

@@ -51,8 +51,6 @@ public class DeleteInternalCcrRepositoryRequest extends ActionRequest {
 
     @Override
     public String toString() {
-        return "DeleteInternalRepositoryRequest{" +
-            "name='" + name + '\'' +
-            '}';
+        return "DeleteInternalRepositoryRequest{" + "name='" + name + '\'' + '}';
     }
 }

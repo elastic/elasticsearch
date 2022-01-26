@@ -14,7 +14,8 @@ import org.elasticsearch.xpack.ql.execution.search.AggRef;
 public class GroupByRef extends AggRef {
 
     public enum Property {
-        VALUE, COUNT;
+        VALUE,
+        COUNT;
     }
 
     private final String key;

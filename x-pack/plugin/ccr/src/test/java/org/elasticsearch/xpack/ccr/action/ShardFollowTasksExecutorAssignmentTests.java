@@ -44,11 +44,13 @@ public class ShardFollowTasksExecutorAssignmentTests extends ESTestCase {
         runAssignmentTest(
             newNode(
                 Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE),
-                VersionUtils.randomVersion(random())),
+                VersionUtils.randomVersion(random())
+            ),
             newNodes(
                 between(0, 8),
                 () -> Sets.newHashSet(randomSubsetOf(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE))),
-                Version.CURRENT),
+                Version.CURRENT
+            ),
             (theSpecial, assignment) -> {
                 assertTrue(assignment.isAssigned());
                 assertThat(assignment.getExecutorNode(), equalTo(theSpecial.getId()));
@@ -65,14 +67,18 @@ public class ShardFollowTasksExecutorAssignmentTests extends ESTestCase {
     }
 
     public void testNodeWithLegacyRolesOnly() {
-        final Version oldVersion = VersionUtils.randomVersionBetween(random(),
-            Version.V_6_0_0, VersionUtils.getPreviousVersion(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE_VERSION));
+        final Version oldVersion = VersionUtils.randomVersionBetween(
+            random(),
+            Version.V_6_0_0,
+            VersionUtils.getPreviousVersion(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE_VERSION)
+        );
         runAssignmentTest(
             newNode(Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE), oldVersion),
             newNodes(
                 between(0, 8),
                 () -> Sets.newHashSet(randomSubsetOf(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE))),
-                Version.CURRENT),
+                Version.CURRENT
+            ),
             (theSpecial, assignment) -> {
                 assertTrue(assignment.isAssigned());
                 assertThat(assignment.getExecutorNode(), equalTo(theSpecial.getId()));
@@ -81,14 +87,10 @@ public class ShardFollowTasksExecutorAssignmentTests extends ESTestCase {
     }
 
     private void runNoAssignmentTest(final Set<DiscoveryNodeRole> roles) {
-        runAssignmentTest(
-            newNode(roles, Version.CURRENT),
-            Collections.emptySet(),
-            (theSpecial, assignment) -> {
-                assertFalse(assignment.isAssigned());
-                assertThat(assignment.getExplanation(), equalTo("no nodes found with data and remote cluster client roles"));
-            }
-        );
+        runAssignmentTest(newNode(roles, Version.CURRENT), Collections.emptySet(), (theSpecial, assignment) -> {
+            assertFalse(assignment.isAssigned());
+            assertThat(assignment.getExplanation(), equalTo("no nodes found with data and remote cluster client roles"));
+        });
     }
 
     private void runAssignmentTest(
@@ -97,20 +99,28 @@ public class ShardFollowTasksExecutorAssignmentTests extends ESTestCase {
         final BiConsumer<DiscoveryNode, Assignment> consumer
     ) {
         final ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings())
-            .thenReturn(new ClusterSettings(Settings.EMPTY, Collections.singleton(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT)));
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Collections.singleton(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT))
+        );
         final SettingsModule settingsModule = mock(SettingsModule.class);
         when(settingsModule.getSettings()).thenReturn(Settings.EMPTY);
-        final ShardFollowTasksExecutor executor =
-            new ShardFollowTasksExecutor(mock(Client.class), mock(ThreadPool.class), clusterService, settingsModule);
+        final ShardFollowTasksExecutor executor = new ShardFollowTasksExecutor(
+            mock(Client.class),
+            mock(ThreadPool.class),
+            clusterService,
+            settingsModule
+        );
         final ClusterState.Builder clusterStateBuilder = ClusterState.builder(new ClusterName("test"));
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder().add(targetNode);
         for (DiscoveryNode node : otherNodes) {
             nodesBuilder.add(node);
         }
         clusterStateBuilder.nodes(nodesBuilder);
-        final Assignment assignment = executor.getAssignment(mock(ShardFollowTask.class),
-            clusterStateBuilder.nodes().getAllNodes(), clusterStateBuilder.build());
+        final Assignment assignment = executor.getAssignment(
+            mock(ShardFollowTask.class),
+            clusterStateBuilder.nodes().getAllNodes(),
+            clusterStateBuilder.build()
+        );
         consumer.accept(targetNode, assignment);
     }
 

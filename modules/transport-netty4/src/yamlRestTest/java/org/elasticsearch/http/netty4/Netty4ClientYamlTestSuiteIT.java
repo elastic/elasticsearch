@@ -26,6 +26,7 @@ public class Netty4ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     public static void muteInFips() {
         assumeFalse("We run with DEFAULT distribution in FIPS mode and default to security4 instead of netty4", inFipsJvm());
     }
+
     public Netty4ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }

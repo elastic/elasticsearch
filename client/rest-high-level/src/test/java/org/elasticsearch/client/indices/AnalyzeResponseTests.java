@@ -10,9 +10,9 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -30,20 +30,19 @@ public class AnalyzeResponseTests extends AbstractResponseTestCase<AnalyzeAction
             AnalyzeAction.CharFilteredText[] charfilters = null;
             AnalyzeAction.AnalyzeTokenList[] tokenfilters = null;
             if (randomBoolean()) {
-                charfilters = new AnalyzeAction.CharFilteredText[]{
-                    new AnalyzeAction.CharFilteredText("my_charfilter", new String[]{"one two"})
-                };
+                charfilters = new AnalyzeAction.CharFilteredText[] {
+                    new AnalyzeAction.CharFilteredText("my_charfilter", new String[] { "one two" }) };
             }
             if (randomBoolean()) {
-                tokenfilters = new AnalyzeAction.AnalyzeTokenList[]{
+                tokenfilters = new AnalyzeAction.AnalyzeTokenList[] {
                     new AnalyzeAction.AnalyzeTokenList("my_tokenfilter_1", tokens),
-                    new AnalyzeAction.AnalyzeTokenList("my_tokenfilter_2", tokens)
-                };
+                    new AnalyzeAction.AnalyzeTokenList("my_tokenfilter_2", tokens) };
             }
             AnalyzeAction.DetailAnalyzeResponse dar = new AnalyzeAction.DetailAnalyzeResponse(
                 charfilters,
                 new AnalyzeAction.AnalyzeTokenList("my_tokenizer", tokens),
-                tokenfilters);
+                tokenfilters
+            );
             return new AnalyzeAction.Response(null, dar);
         }
         return new AnalyzeAction.Response(Arrays.asList(tokens), null);
@@ -59,8 +58,7 @@ public class AnalyzeResponseTests extends AbstractResponseTestCase<AnalyzeAction
         if (serverTestInstance.detail() != null) {
             assertNotNull(clientInstance.detail());
             assertInstances(serverTestInstance.detail(), clientInstance.detail());
-        }
-        else {
+        } else {
             assertEquals(serverTestInstance.getTokens().size(), clientInstance.getTokens().size());
             for (int i = 0; i < serverTestInstance.getTokens().size(); i++) {
                 assertEqualTokens(serverTestInstance.getTokens().get(0), clientInstance.getTokens().get(0));
@@ -83,8 +81,7 @@ public class AnalyzeResponseTests extends AbstractResponseTestCase<AnalyzeAction
         assertInstances(serverResponse.tokenizer(), clientResponse.tokenizer());
         if (serverResponse.tokenfilters() == null) {
             assertNull(clientResponse.tokenfilters());
-        }
-        else {
+        } else {
             assertEquals(serverResponse.tokenfilters().length, clientResponse.tokenfilters().length);
             for (int i = 0; i < serverResponse.tokenfilters().length; i++) {
                 assertInstances(serverResponse.tokenfilters()[i], clientResponse.tokenfilters()[i]);
@@ -92,8 +89,7 @@ public class AnalyzeResponseTests extends AbstractResponseTestCase<AnalyzeAction
         }
         if (serverResponse.charfilters() == null) {
             assertNull(clientResponse.charfilters());
-        }
-        else {
+        } else {
             assertEquals(serverResponse.charfilters().length, clientResponse.charfilters().length);
             for (int i = 0; i < serverResponse.charfilters().length; i++) {
                 assertInstances(serverResponse.charfilters()[i], clientResponse.charfilters()[i]);
@@ -101,12 +97,10 @@ public class AnalyzeResponseTests extends AbstractResponseTestCase<AnalyzeAction
         }
     }
 
-    private static void assertInstances(AnalyzeAction.AnalyzeTokenList serverTokens,
-                                        DetailAnalyzeResponse.AnalyzeTokenList clientTokens) {
+    private static void assertInstances(AnalyzeAction.AnalyzeTokenList serverTokens, DetailAnalyzeResponse.AnalyzeTokenList clientTokens) {
         if (serverTokens == null) {
             assertNull(clientTokens);
-        }
-        else {
+        } else {
             assertEquals(serverTokens.getName(), clientTokens.getName());
             assertEquals(serverTokens.getTokens().length, clientTokens.getTokens().length);
             for (int i = 0; i < serverTokens.getTokens().length; i++) {

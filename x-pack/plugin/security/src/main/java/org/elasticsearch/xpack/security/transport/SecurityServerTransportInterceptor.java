@@ -61,8 +61,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private static final String TRANSPORT_TYPE_SETTING_KEY = "xpack.security.type";
     private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
 
-    public static final Setting.AffixSetting<String> TRANSPORT_TYPE_PROFILE_SETTING = Setting.affixKeySetting("transport.profiles.",
-            TRANSPORT_TYPE_SETTING_KEY, TRANSPORT_TYPE_SETTING_TEMPLATE);
+    public static final Setting.AffixSetting<String> TRANSPORT_TYPE_PROFILE_SETTING = Setting.affixKeySetting(
+        "transport.profiles.",
+        TRANSPORT_TYPE_SETTING_KEY,
+        TRANSPORT_TYPE_SETTING_TEMPLATE
+    );
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
@@ -76,15 +79,17 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
     private volatile boolean isStateNotRecovered = true;
 
-    public SecurityServerTransportInterceptor(Settings settings,
-                                              ThreadPool threadPool,
-                                              AuthenticationService authcService,
-                                              AuthorizationService authzService,
-                                              XPackLicenseState licenseState,
-                                              SSLService sslService,
-                                              SecurityContext securityContext,
-                                              DestructiveOperations destructiveOperations,
-                                              ClusterService clusterService) {
+    public SecurityServerTransportInterceptor(
+        Settings settings,
+        ThreadPool threadPool,
+        AuthenticationService authcService,
+        AuthorizationService authzService,
+        XPackLicenseState licenseState,
+        SSLService sslService,
+        SecurityContext securityContext,
+        DestructiveOperations destructiveOperations,
+        ClusterService clusterService
+    ) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.authcService = authcService;
@@ -101,8 +106,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     public AsyncSender interceptSender(AsyncSender sender) {
         return new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
-                                                                  TransportRequestOptions options, TransportResponseHandler<T> handler) {
+            public <T extends TransportResponse> void sendRequest(
+                Transport.Connection connection,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options,
+                TransportResponseHandler<T> handler
+            ) {
                 final boolean requireAuth = shouldRequireExistingAuthentication();
                 // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
                 // ourselves otherwise we wind up using a version newer than what we can actually send
@@ -111,23 +121,51 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 // Sometimes a system action gets executed like a internal create index request or update mappings request
                 // which means that the user is copied over to system actions so we need to change the user
                 if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
-                    securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
-                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
-                                    , handler), sender, requireAuth), minVersion);
+                    securityContext.executeAsUser(
+                        SystemUser.INSTANCE,
+                        (original) -> sendWithUser(
+                            connection,
+                            action,
+                            request,
+                            options,
+                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
+                            sender,
+                            requireAuth
+                        ),
+                        minVersion
+                    );
                 } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadPool.getThreadContext())) {
-                    AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadPool.getThreadContext(), securityContext,
-                            (original) -> sendWithUser(connection, action, request, options,
-                                    new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original)
-                                            , handler), sender, requireAuth));
-                } else if (securityContext.getAuthentication() != null &&
-                        securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
-                    // re-write the authentication since we want the authentication version to match the version of the connection
-                    securityContext.executeAfterRewritingAuthentication(original -> sendWithUser(connection, action, request, options,
-                        new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler), sender,
-                        requireAuth), minVersion);
-                } else {
-                    sendWithUser(connection, action, request, options, handler, sender, requireAuth);
-                }
+                    AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(
+                        threadPool.getThreadContext(),
+                        securityContext,
+                        (original) -> sendWithUser(
+                            connection,
+                            action,
+                            request,
+                            options,
+                            new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
+                            sender,
+                            requireAuth
+                        )
+                    );
+                } else if (securityContext.getAuthentication() != null
+                    && securityContext.getAuthentication().getVersion().equals(minVersion) == false) {
+                        // re-write the authentication since we want the authentication version to match the version of the connection
+                        securityContext.executeAfterRewritingAuthentication(
+                            original -> sendWithUser(
+                                connection,
+                                action,
+                                request,
+                                options,
+                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext().wrapRestorable(original), handler),
+                                sender,
+                                requireAuth
+                            ),
+                            minVersion
+                        );
+                    } else {
+                        sendWithUser(connection, action, request, options, handler, sender, requireAuth);
+                    }
             }
         };
     }
@@ -148,9 +186,15 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         return licenseState.isSecurityEnabled() && isStateNotRecovered == false;
     }
 
-    private <T extends TransportResponse> void sendWithUser(Transport.Connection connection, String action, TransportRequest request,
-                                                            TransportRequestOptions options, TransportResponseHandler<T> handler,
-                                                            AsyncSender sender, final boolean requireAuthentication) {
+    private <T extends TransportResponse> void sendWithUser(
+        Transport.Connection connection,
+        String action,
+        TransportRequest request,
+        TransportRequestOptions options,
+        TransportResponseHandler<T> handler,
+        AsyncSender sender,
+        final boolean requireAuthentication
+    ) {
         if (securityContext.getAuthentication() == null && requireAuthentication) {
             // we use an assertion here to ensure we catch this in our testing infrastructure, but leave the ISE for cases we do not catch
             // in tests and may be hit by a user
@@ -171,11 +215,22 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     }
 
     @Override
-    public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
-                                                                                    boolean forceExecution,
-                                                                                    TransportRequestHandler<T> actualHandler) {
-        return new ProfileSecuredRequestHandler<>(logger, action, forceExecution, executor, actualHandler, profileFilters,
-                licenseState, threadPool);
+    public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+        String action,
+        String executor,
+        boolean forceExecution,
+        TransportRequestHandler<T> actualHandler
+    ) {
+        return new ProfileSecuredRequestHandler<>(
+            logger,
+            action,
+            forceExecution,
+            executor,
+            actualHandler,
+            profileFilters,
+            licenseState,
+            threadPool
+        );
     }
 
     private Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
@@ -192,17 +247,37 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             final String type = transportType.get(settings);
             switch (type) {
                 case "client":
-                    profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService,
-                            threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled,
-                            securityContext, licenseState));
+                    profileFilters.put(
+                        entry.getKey(),
+                        new ServerTransportFilter.ClientProfile(
+                            authcService,
+                            authzService,
+                            threadPool.getThreadContext(),
+                            extractClientCert,
+                            destructiveOperations,
+                            reservedRealmEnabled,
+                            securityContext,
+                            licenseState
+                        )
+                    );
                     break;
                 case "node":
-                    profileFilters.put(entry.getKey(), new ServerTransportFilter.NodeProfile(authcService, authzService,
-                            threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled,
-                            securityContext, licenseState));
+                    profileFilters.put(
+                        entry.getKey(),
+                        new ServerTransportFilter.NodeProfile(
+                            authcService,
+                            authzService,
+                            threadPool.getThreadContext(),
+                            extractClientCert,
+                            destructiveOperations,
+                            reservedRealmEnabled,
+                            securityContext,
+                            licenseState
+                        )
+                    );
                     break;
                 default:
-                   throw new IllegalStateException("unknown profile type: " + type);
+                    throw new IllegalStateException("unknown profile type: " + type);
             }
         }
 
@@ -221,9 +296,16 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         private final boolean forceExecution;
         private final Logger logger;
 
-        ProfileSecuredRequestHandler(Logger logger, String action, boolean forceExecution, String executorName,
-                                     TransportRequestHandler<T> handler, Map<String, ServerTransportFilter> profileFilters,
-                                     XPackLicenseState licenseState, ThreadPool threadPool) {
+        ProfileSecuredRequestHandler(
+            Logger logger,
+            String action,
+            boolean forceExecution,
+            String executorName,
+            TransportRequestHandler<T> handler,
+            Map<String, ServerTransportFilter> profileFilters,
+            XPackLicenseState licenseState,
+            ThreadPool threadPool
+        ) {
             this.logger = logger;
             this.action = action;
             this.executorName = executorName;
@@ -268,11 +350,16 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         @Override
         public String toString() {
-            return "ProfileSecuredRequestHandler{" +
-                    "action='" + action + '\'' +
-                    ", executorName='" + executorName + '\'' +
-                    ", forceExecution=" + forceExecution +
-                    '}';
+            return "ProfileSecuredRequestHandler{"
+                + "action='"
+                + action
+                + '\''
+                + ", executorName='"
+                + executorName
+                + '\''
+                + ", forceExecution="
+                + forceExecution
+                + '}';
         }
 
         @Override

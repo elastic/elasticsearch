@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[getting-started-index-lifecycle-management]]
 == Tutorial: Automate rollover with {ilm-init}
 

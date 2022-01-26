@@ -93,25 +93,29 @@ public class Substring extends ScalarFunction {
         return asScriptFrom(inputScript, startScript, lengthScript);
     }
 
-    protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate startScript,
-            ScriptTemplate lengthScript) {
+    protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate startScript, ScriptTemplate lengthScript) {
         // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2,...)
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s,%s)"),
+        return new ScriptTemplate(
+            format(
+                Locale.ROOT,
+                formatTemplate("{sql}.%s(%s,%s,%s)"),
                 "substring",
                 inputScript.template(),
                 startScript.template(),
-                lengthScript.template()),
-                paramsBuilder()
-                    .script(inputScript.params()).script(startScript.params())
-                    .script(lengthScript.params())
-                    .build(), dataType());
+                lengthScript.template()
+            ),
+            paramsBuilder().script(inputScript.params()).script(startScript.params()).script(lengthScript.params()).build(),
+            dataType()
+        );
     }
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript("doc[{}].value"),
-                paramsBuilder().variable(field.exactAttribute().name()).build(),
-                dataType());
+        return new ScriptTemplate(
+            processScript("doc[{}].value"),
+            paramsBuilder().variable(field.exactAttribute().name()).build(),
+            dataType()
+        );
     }
 
     @Override

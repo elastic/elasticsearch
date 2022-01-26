@@ -5,9 +5,7 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.query;
-
 
 import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
@@ -21,8 +19,7 @@ import java.util.Map;
 
 public class DocValuesWhitelistExtension implements PainlessExtension {
 
-    private static final Whitelist WHITELIST =
-        WhitelistLoader.loadFromResourceFiles(DocValuesWhitelistExtension.class, "whitelist.txt");
+    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(DocValuesWhitelistExtension.class, "whitelist.txt");
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {

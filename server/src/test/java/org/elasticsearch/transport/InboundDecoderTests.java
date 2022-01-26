@@ -51,11 +51,26 @@ public class InboundDecoderTests extends ESTestCase {
         }
         OutboundMessage message;
         if (isRequest) {
-            message = new OutboundMessage.Request(threadContext, new String[0], new TestRequest(randomAlphaOfLength(100)),
-                Version.CURRENT, action, requestId, false, null);
+            message = new OutboundMessage.Request(
+                threadContext,
+                new String[0],
+                new TestRequest(randomAlphaOfLength(100)),
+                Version.CURRENT,
+                action,
+                requestId,
+                false,
+                null
+            );
         } else {
-            message = new OutboundMessage.Response(threadContext, Collections.emptySet(), new TestResponse(randomAlphaOfLength(100)),
-                Version.CURRENT, requestId, false, null);
+            message = new OutboundMessage.Response(
+                threadContext,
+                Collections.emptySet(),
+                new TestResponse(randomAlphaOfLength(100)),
+                Version.CURRENT,
+                requestId,
+                false,
+                null
+            );
         }
 
         final BytesReference totalBytes = message.serialize(new BytesStreamOutput());
@@ -107,8 +122,16 @@ public class InboundDecoderTests extends ESTestCase {
         final Version preHeaderVariableInt = Version.V_7_5_0;
         final String contentValue = randomAlphaOfLength(100);
         // 8.0 is only compatible with handshakes on a pre-variable int version
-        final OutboundMessage message = new OutboundMessage.Request(threadContext, new String[0], new TestRequest(contentValue),
-            preHeaderVariableInt, action, requestId, true, compressionScheme);
+        final OutboundMessage message = new OutboundMessage.Request(
+            threadContext,
+            new String[0],
+            new TestRequest(contentValue),
+            preHeaderVariableInt,
+            action,
+            requestId,
+            true,
+            compressionScheme
+        );
 
         final BytesReference totalBytes = message.serialize(new BytesStreamOutput());
         int partialHeaderSize = TcpHeader.headerSize(preHeaderVariableInt);
@@ -142,7 +165,7 @@ public class InboundDecoderTests extends ESTestCase {
             assertEquals(3, fragments.size());
             final Object body = fragments.get(1);
             assertThat(body, instanceOf(ReleasableBytesReference.class));
-            ((ReleasableBytesReference)body).close();
+            ((ReleasableBytesReference) body).close();
         }
         assertEquals(InboundDecoder.END_CONTENT, fragments.get(fragments.size() - 1));
         assertEquals(totalBytes.length() - bytesConsumed, bytesConsumed2);
@@ -155,8 +178,16 @@ public class InboundDecoderTests extends ESTestCase {
         final String headerValue = randomAlphaOfLength(20);
         threadContext.putHeader(headerKey, headerValue);
         Version handshakeCompat = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
-        OutboundMessage message = new OutboundMessage.Request(threadContext, new String[0], new TestRequest(randomAlphaOfLength(100)),
-            handshakeCompat, action, requestId, true, null);
+        OutboundMessage message = new OutboundMessage.Request(
+            threadContext,
+            new String[0],
+            new TestRequest(randomAlphaOfLength(100)),
+            handshakeCompat,
+            action,
+            requestId,
+            true,
+            null
+        );
 
         final BytesReference bytes = message.serialize(new BytesStreamOutput());
         int totalHeaderSize = TcpHeader.headerSize(handshakeCompat);
@@ -195,12 +226,27 @@ public class InboundDecoderTests extends ESTestCase {
         Compression.Scheme scheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
         if (isRequest) {
             transportMessage = new TestRequest(randomAlphaOfLength(100));
-            message = new OutboundMessage.Request(threadContext, new String[0], transportMessage, Version.CURRENT, action, requestId,
-                false, scheme);
+            message = new OutboundMessage.Request(
+                threadContext,
+                new String[0],
+                transportMessage,
+                Version.CURRENT,
+                action,
+                requestId,
+                false,
+                scheme
+            );
         } else {
             transportMessage = new TestResponse(randomAlphaOfLength(100));
-            message = new OutboundMessage.Response(threadContext, Collections.emptySet(), transportMessage, Version.CURRENT, requestId,
-                false, scheme);
+            message = new OutboundMessage.Response(
+                threadContext,
+                Collections.emptySet(),
+                transportMessage,
+                Version.CURRENT,
+                requestId,
+                false,
+                scheme
+            );
         }
 
         final BytesReference totalBytes = message.serialize(new BytesStreamOutput());
@@ -244,7 +290,7 @@ public class InboundDecoderTests extends ESTestCase {
         assertEquals(scheme, compressionScheme);
         assertEquals(uncompressedBytes, content);
         assertThat(content, instanceOf(ReleasableBytesReference.class));
-        ((ReleasableBytesReference)content).close();
+        ((ReleasableBytesReference) content).close();
         // Ref count is not incremented since the bytes are immediately consumed on decompression
         assertEquals(1, releasable2.refCount());
         assertEquals(InboundDecoder.END_CONTENT, endMarker);
@@ -257,8 +303,16 @@ public class InboundDecoderTests extends ESTestCase {
         final String headerValue = randomAlphaOfLength(20);
         threadContext.putHeader(headerKey, headerValue);
         Version handshakeCompat = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
-        OutboundMessage message = new OutboundMessage.Request(threadContext, new String[0], new TestRequest(randomAlphaOfLength(100)),
-            handshakeCompat, action, requestId, true, Compression.Scheme.DEFLATE);
+        OutboundMessage message = new OutboundMessage.Request(
+            threadContext,
+            new String[0],
+            new TestRequest(randomAlphaOfLength(100)),
+            handshakeCompat,
+            action,
+            requestId,
+            true,
+            Compression.Scheme.DEFLATE
+        );
 
         final BytesReference bytes = message.serialize(new BytesStreamOutput());
         int totalHeaderSize = TcpHeader.headerSize(handshakeCompat);
@@ -285,8 +339,16 @@ public class InboundDecoderTests extends ESTestCase {
         String action = "test-request";
         long requestId = randomNonNegativeLong();
         Version incompatibleVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
-        OutboundMessage message = new OutboundMessage.Request(threadContext, new String[0], new TestRequest(randomAlphaOfLength(100)),
-            incompatibleVersion, action, requestId, false, Compression.Scheme.DEFLATE);
+        OutboundMessage message = new OutboundMessage.Request(
+            threadContext,
+            new String[0],
+            new TestRequest(randomAlphaOfLength(100)),
+            incompatibleVersion,
+            action,
+            requestId,
+            false,
+            Compression.Scheme.DEFLATE
+        );
 
         final BytesReference bytes = message.serialize(new BytesStreamOutput());
 
@@ -299,8 +361,11 @@ public class InboundDecoderTests extends ESTestCase {
     }
 
     public void testEnsureVersionCompatibility() throws IOException {
-        IllegalStateException ise = InboundDecoder.ensureVersionCompatibility(VersionUtils.randomVersionBetween(random(),
-            Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT), Version.CURRENT, randomBoolean());
+        IllegalStateException ise = InboundDecoder.ensureVersionCompatibility(
+            VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT),
+            Version.CURRENT,
+            randomBoolean()
+        );
         assertNull(ise);
 
         final Version version = Version.fromString("7.0.0");
@@ -308,15 +373,23 @@ public class InboundDecoderTests extends ESTestCase {
         assertNull(ise);
 
         ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("6.0.0"), version, false);
-        assertEquals("Received message from unsupported version: [6.0.0] minimal compatible version is: ["
-            + version.minimumCompatibilityVersion() + "]", ise.getMessage());
+        assertEquals(
+            "Received message from unsupported version: [6.0.0] minimal compatible version is: ["
+                + version.minimumCompatibilityVersion()
+                + "]",
+            ise.getMessage()
+        );
 
         // For handshake we are compatible with N-2
         ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0"), version, true);
         assertNull(ise);
 
         ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0"), version, false);
-        assertEquals("Received message from unsupported version: [5.6.0] minimal compatible version is: ["
-            + version.minimumCompatibilityVersion() + "]", ise.getMessage());
+        assertEquals(
+            "Received message from unsupported version: [5.6.0] minimal compatible version is: ["
+                + version.minimumCompatibilityVersion()
+                + "]",
+            ise.getMessage()
+        );
     }
 }

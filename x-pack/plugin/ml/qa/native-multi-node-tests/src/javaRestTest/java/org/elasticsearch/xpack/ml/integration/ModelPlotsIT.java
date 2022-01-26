@@ -41,9 +41,11 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
 
     @Before
     public void setUpData() {
-        client().admin().indices().prepareCreate(DATA_INDEX)
-                .addMapping(SINGLE_MAPPING_NAME, "time", "type=date,format=epoch_millis", "user", "type=keyword")
-                .get();
+        client().admin()
+            .indices()
+            .prepareCreate(DATA_INDEX)
+            .addMapping(SINGLE_MAPPING_NAME, "time", "type=date,format=epoch_millis", "user", "type=keyword")
+            .get();
 
         List<String> users = Arrays.asList("user_1", "user_2", "user_3");
 
@@ -60,9 +62,7 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
             }
         }
 
-        BulkResponse bulkResponse = bulkRequestBuilder
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         assertThat(bulkResponse.hasFailures(), is(false));
     }
 
@@ -165,9 +165,9 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
 
     private Set<String> modelPlotTerms(String jobId, String fieldName) {
         SearchResponse searchResponse = client().prepareSearch(".ml-anomalies-" + jobId)
-                .setQuery(QueryBuilders.termQuery("result_type", "model_plot"))
-                .addAggregation(AggregationBuilders.terms("model_plot_terms").field(fieldName))
-                .get();
+            .setQuery(QueryBuilders.termQuery("result_type", "model_plot"))
+            .addAggregation(AggregationBuilders.terms("model_plot_terms").field(fieldName))
+            .get();
 
         Terms aggregation = searchResponse.getAggregations().get("model_plot_terms");
         return aggregation.getBuckets().stream().map(agg -> agg.getKeyAsString()).collect(Collectors.toSet());

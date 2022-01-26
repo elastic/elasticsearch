@@ -22,10 +22,12 @@ dependencies {
 
   testImplementation project(path: xpackModule('monitoring'))
   testImplementation project(path: xpackModule('spatial'))
+  testImplementation project(path: ':modules:legacy-geo')
   testImplementation project(path: ':modules:percolator')
   testImplementation project(path: xpackModule('sql:sql-action'))
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:reindex')
+  testImplementation project(path: xpackModule('data-streams'))
   testImplementation project(":client:rest-high-level")
 
   testImplementation(testArtifact(project(xpackModule('core'))))
@@ -73,7 +75,6 @@ dependencies {
   api "net.minidev:accessors-smart:2.4.2"
   api "org.ow2.asm:asm:9.1"
 
-  testImplementation 'org.elasticsearch:securemock:1.2'
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
   // Test dependencies for Kerberos (MiniKdc)

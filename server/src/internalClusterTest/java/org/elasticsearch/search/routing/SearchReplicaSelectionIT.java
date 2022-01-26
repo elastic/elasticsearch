@@ -35,18 +35,20 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING.getKey(), true).build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING.getKey(), true)
+            .build();
     }
 
     public void testNodeSelection() {
         // We grab a client directly to avoid using a randomizing client that might set a search preference.
         Client client = internalCluster().coordOnlyNodeClient();
 
-        client.admin().indices().prepareCreate("test")
-            .setSettings(Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, 1)
-                .put(SETTING_NUMBER_OF_REPLICAS, 2))
+        client.admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 2))
             .get();
         ensureGreen();
 
@@ -79,9 +81,7 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         assertEquals(1, coordinatingNodes.size());
 
         String coordinatingNodeId = coordinatingNodes.valuesIt().next().getId();
-        NodesStatsResponse statsResponse = client.admin().cluster().prepareNodesStats()
-            .all()
-            .get();
+        NodesStatsResponse statsResponse = client.admin().cluster().prepareNodesStats().all().get();
         NodeStats nodeStats = statsResponse.getNodesMap().get(coordinatingNodeId);
         assertNotNull(nodeStats);
         assertEquals(3, nodeStats.getAdaptiveSelectionStats().getComputedStats().size());

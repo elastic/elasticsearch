@@ -30,8 +30,14 @@ import java.util.Set;
 public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
     // Field names allowed at the index level
-    private static final Set<String> ALLOWED_EXACT_INDEX_FIELD_NAMES =
-        org.elasticsearch.core.Set.of("_id", "doc_type", "name", "api_key_invalidated", "creation_time", "expiration_time");
+    private static final Set<String> ALLOWED_EXACT_INDEX_FIELD_NAMES = org.elasticsearch.core.Set.of(
+        "_id",
+        "doc_type",
+        "name",
+        "api_key_invalidated",
+        "creation_time",
+        "expiration_time"
+    );
 
     private ApiKeyBoolQueryBuilder() {}
 
@@ -60,8 +66,7 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
         finalQuery.filter(QueryBuilders.termQuery("doc_type", "api_key"));
 
         if (authentication != null) {
-            finalQuery
-                .filter(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal()))
+            finalQuery.filter(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal()))
                 .filter(QueryBuilders.termQuery("creator.realm", ApiKeyService.getCreatorRealmName(authentication)));
         }
         return finalQuery;
@@ -70,8 +75,9 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
     private static QueryBuilder doProcess(QueryBuilder qb) {
         if (qb instanceof BoolQueryBuilder) {
             final BoolQueryBuilder query = (BoolQueryBuilder) qb;
-            final BoolQueryBuilder newQuery =
-                QueryBuilders.boolQuery().minimumShouldMatch(query.minimumShouldMatch()).adjustPureNegative(query.adjustPureNegative());
+            final BoolQueryBuilder newQuery = QueryBuilders.boolQuery()
+                .minimumShouldMatch(query.minimumShouldMatch())
+                .adjustPureNegative(query.adjustPureNegative());
             query.must().stream().map(ApiKeyBoolQueryBuilder::doProcess).forEach(newQuery::must);
             query.should().stream().map(ApiKeyBoolQueryBuilder::doProcess).forEach(newQuery::should);
             query.mustNot().stream().map(ApiKeyBoolQueryBuilder::doProcess).forEach(newQuery::mustNot);
@@ -126,7 +132,6 @@ public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
             throw new IllegalArgumentException("Query type [" + qb.getName() + "] is not supported for API Key query");
         }
     }
-
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {

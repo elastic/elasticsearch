@@ -38,35 +38,39 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class TransportFollowStatsAction extends TransportTasksAction<
-        ShardFollowNodeTask,
-        FollowStatsAction.StatsRequest,
-        FollowStatsAction.StatsResponses, FollowStatsAction.StatsResponse> {
+    ShardFollowNodeTask,
+    FollowStatsAction.StatsRequest,
+    FollowStatsAction.StatsResponses,
+    FollowStatsAction.StatsResponse> {
 
     private final CcrLicenseChecker ccrLicenseChecker;
 
     @Inject
     public TransportFollowStatsAction(
-            final ClusterService clusterService,
-            final TransportService transportService,
-            final ActionFilters actionFilters,
-            final CcrLicenseChecker ccrLicenseChecker) {
+        final ClusterService clusterService,
+        final TransportService transportService,
+        final ActionFilters actionFilters,
+        final CcrLicenseChecker ccrLicenseChecker
+    ) {
         super(
-                FollowStatsAction.NAME,
-                clusterService,
-                transportService,
-                actionFilters,
-                FollowStatsAction.StatsRequest::new,
-                FollowStatsAction.StatsResponses::new,
-                FollowStatsAction.StatsResponse::new,
-                Ccr.CCR_THREAD_POOL_NAME);
+            FollowStatsAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            FollowStatsAction.StatsRequest::new,
+            FollowStatsAction.StatsResponses::new,
+            FollowStatsAction.StatsResponse::new,
+            Ccr.CCR_THREAD_POOL_NAME
+        );
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
 
     @Override
     protected void doExecute(
-            final Task task,
-            final FollowStatsAction.StatsRequest request,
-            final ActionListener<FollowStatsAction.StatsResponses> listener) {
+        final Task task,
+        final FollowStatsAction.StatsRequest request,
+        final ActionListener<FollowStatsAction.StatsResponses> listener
+    ) {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
@@ -85,10 +89,11 @@ public class TransportFollowStatsAction extends TransportTasksAction<
 
     @Override
     protected FollowStatsAction.StatsResponses newResponse(
-            final FollowStatsAction.StatsRequest request,
-            final List<FollowStatsAction.StatsResponse> statsRespons,
-            final List<TaskOperationFailure> taskOperationFailures,
-            final List<FailedNodeException> failedNodeExceptions) {
+        final FollowStatsAction.StatsRequest request,
+        final List<FollowStatsAction.StatsResponse> statsRespons,
+        final List<TaskOperationFailure> taskOperationFailures,
+        final List<FailedNodeException> failedNodeExceptions
+    ) {
         return new FollowStatsAction.StatsResponses(taskOperationFailures, failedNodeExceptions, statsRespons);
     }
 
@@ -109,9 +114,10 @@ public class TransportFollowStatsAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-            final FollowStatsAction.StatsRequest request,
-            final ShardFollowNodeTask task,
-            final ActionListener<FollowStatsAction.StatsResponse> listener) {
+        final FollowStatsAction.StatsRequest request,
+        final ShardFollowNodeTask task,
+        final ActionListener<FollowStatsAction.StatsResponse> listener
+    ) {
         listener.onResponse(new FollowStatsAction.StatsResponse(task.getStatus()));
     }
 
@@ -121,9 +127,9 @@ public class TransportFollowStatsAction extends TransportTasksAction<
             return Collections.emptySet();
         }
         final Metadata metadata = state.metadata();
-        final Set<String> requestedFollowerIndices = indices != null ?
-            new HashSet<>(Arrays.asList(indices)) : Collections.emptySet();
-        return persistentTasksMetadata.tasks().stream()
+        final Set<String> requestedFollowerIndices = indices != null ? new HashSet<>(Arrays.asList(indices)) : Collections.emptySet();
+        return persistentTasksMetadata.tasks()
+            .stream()
             .filter(persistentTask -> persistentTask.getTaskName().equals(ShardFollowTask.NAME))
             .map(persistentTask -> {
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();

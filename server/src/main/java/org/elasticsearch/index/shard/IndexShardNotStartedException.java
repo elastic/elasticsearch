@@ -18,7 +18,7 @@ public class IndexShardNotStartedException extends IllegalIndexShardStateExcepti
         super(shardId, currentState, "Shard not started");
     }
 
-    public IndexShardNotStartedException(StreamInput in) throws IOException{
+    public IndexShardNotStartedException(StreamInput in) throws IOException {
         super(in);
     }
 }

@@ -17,9 +17,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -124,9 +124,9 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MultiSearchTemplateRequest that = (MultiSearchTemplateRequest) o;
-        return maxConcurrentSearchRequests == that.maxConcurrentSearchRequests &&
-                Objects.equals(requests, that.requests) &&
-                Objects.equals(indicesOptions, that.indicesOptions);
+        return maxConcurrentSearchRequests == that.maxConcurrentSearchRequests
+            && Objects.equals(requests, that.requests)
+            && Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
@@ -134,8 +134,7 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
         return Objects.hash(maxConcurrentSearchRequests, requests, indicesOptions);
     }
 
-    public static byte[] writeMultiLineFormat(MultiSearchTemplateRequest multiSearchTemplateRequest,
-            XContent xContent) throws IOException {
+    public static byte[] writeMultiLineFormat(MultiSearchTemplateRequest multiSearchTemplateRequest, XContent xContent) throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         for (SearchTemplateRequest templateRequest : multiSearchTemplateRequest.requests()) {
             final SearchRequest searchRequest = templateRequest.getRequest();

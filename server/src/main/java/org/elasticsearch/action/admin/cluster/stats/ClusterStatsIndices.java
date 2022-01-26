@@ -12,14 +12,14 @@ import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,8 +38,12 @@ public class ClusterStatsIndices implements ToXContentFragment {
     private final MappingStats mappings;
     private final VersionStats versions;
 
-    public ClusterStatsIndices(List<ClusterStatsNodeResponse> nodeResponses, MappingStats mappingStats,
-                               AnalysisStats analysisStats, VersionStats versionStats) {
+    public ClusterStatsIndices(
+        List<ClusterStatsNodeResponse> nodeResponses,
+        MappingStats mappingStats,
+        AnalysisStats analysisStats,
+        VersionStats versionStats
+    ) {
         ObjectObjectHashMap<String, ShardStats> countsPerIndex = new ObjectObjectHashMap<>();
 
         this.docs = new DocsStats();
@@ -169,8 +173,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
         double totalIndexReplication = 0;
         double maxIndexReplication = -1;
 
-        public ShardStats() {
-        }
+        public ShardStats() {}
 
         /**
          * number of indices in the cluster

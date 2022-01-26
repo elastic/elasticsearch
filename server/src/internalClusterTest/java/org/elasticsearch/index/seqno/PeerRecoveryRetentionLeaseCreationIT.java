@@ -43,19 +43,31 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
 
-        assertAcked(prepareCreate(INDEX_NAME).setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(IndexMetadata.SETTING_VERSION_CREATED,
-                // simulate a version which supports soft deletes (v6.5.0-and-later) with which this node is compatible
-                VersionUtils.randomVersionBetween(random(),
-                    Version.max(Version.CURRENT.minimumIndexCompatibilityVersion(), Version.V_6_5_0), Version.CURRENT))));
+        assertAcked(
+            prepareCreate(INDEX_NAME).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(
+                        IndexMetadata.SETTING_VERSION_CREATED,
+                        // simulate a version which supports soft deletes (v6.5.0-and-later) with which this node is compatible
+                        VersionUtils.randomVersionBetween(
+                            random(),
+                            Version.max(Version.CURRENT.minimumIndexCompatibilityVersion(), Version.V_6_5_0),
+                            Version.CURRENT
+                        )
+                    )
+            )
+        );
         ensureGreen(INDEX_NAME);
 
         IndicesService service = internalCluster().getInstance(IndicesService.class, dataNode);
-        String uuid = client().admin().indices().getIndex(new GetIndexRequest().indices(INDEX_NAME)).actionGet().getSetting(INDEX_NAME,
-            IndexMetadata.SETTING_INDEX_UUID);
+        String uuid = client().admin()
+            .indices()
+            .getIndex(new GetIndexRequest().indices(INDEX_NAME))
+            .actionGet()
+            .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
         Path path = service.indexService(new Index(INDEX_NAME, uuid)).getShard(0).shardPath().getShardStatePath();
 
         long version = between(1, 1000);
@@ -70,15 +82,16 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
         ensureGreen(INDEX_NAME);
         final RetentionLeases retentionLeases = getRetentionLeases();
         final String nodeId = client().admin().cluster().prepareNodesInfo(dataNode).clear().get().getNodes().get(0).getNode().getId();
-        assertTrue("expected lease for [" + nodeId + "] in " + retentionLeases,
-            retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(nodeId)));
+        assertTrue(
+            "expected lease for [" + nodeId + "] in " + retentionLeases,
+            retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(nodeId))
+        );
         // verify that we touched the right file.
         assertThat(retentionLeases.version(), equalTo(version + 1));
     }
 
     public RetentionLeases getRetentionLeases() {
-        return client().admin().indices().prepareStats(INDEX_NAME).get().getShards()[0]
-            .getRetentionLeaseStats().retentionLeases();
+        return client().admin().indices().prepareStats(INDEX_NAME).get().getShards()[0].getRetentionLeaseStats().retentionLeases();
     }
 
 }

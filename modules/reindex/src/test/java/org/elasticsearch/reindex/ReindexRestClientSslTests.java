@@ -13,19 +13,19 @@ import com.sun.net.httpserver.HttpsExchange;
 import com.sun.net.httpserver.HttpsParameters;
 import com.sun.net.httpserver.HttpsServer;
 
-import org.elasticsearch.index.reindex.RemoteInfo;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.common.ssl.PemTrustConfig;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.reindex.RemoteInfo;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -33,13 +33,6 @@ import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLHandshakeException;
-import javax.net.ssl.SSLPeerUnverifiedException;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509ExtendedKeyManager;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -51,6 +44,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509ExtendedKeyManager;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 import static org.mockito.Mockito.mock;
 
@@ -64,8 +65,7 @@ import static org.mockito.Mockito.mock;
 public class ReindexRestClientSslTests extends ESTestCase {
 
     private static HttpsServer server;
-    private static Consumer<HttpsExchange> handler = ignore -> {
-    };
+    private static Consumer<HttpsExchange> handler = ignore -> {};
 
     @BeforeClass
     public static void setupHttpServer() throws Exception {
@@ -79,8 +79,8 @@ public class ReindexRestClientSslTests extends ESTestCase {
             HttpsExchange https = (HttpsExchange) http;
             handler.accept(https);
             // Always respond with 200
-            //  * If the reindex sees the 200, it means the SSL connection was established correctly.
-            //  * We can check client certs in the handler.
+            // * If the reindex sees the 200, it means the SSL connection was established correctly.
+            // * We can check client certs in the handler.
             https.sendResponseHeaders(200, 0);
             https.close();
         });
@@ -111,8 +111,7 @@ public class ReindexRestClientSslTests extends ESTestCase {
     public void testClientFailsWithUntrustedCertificate() throws IOException {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();
-        final Settings.Builder builder = Settings.builder()
-            .put("path.home", createTempDir());
+        final Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
         if (isHttpsServerBrokenWithTLSv13()) {
             builder.put("reindex.ssl.supported_protocols", "TLSv1.2");
         }
@@ -145,9 +144,7 @@ public class ReindexRestClientSslTests extends ESTestCase {
     public void testClientSucceedsWithVerificationDisabled() throws IOException {
         assumeFalse("Cannot disable verification in FIPS JVM", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();
-        final Settings.Builder builder = Settings.builder()
-            .put("path.home", createTempDir())
-            .put("reindex.ssl.verification_mode", "NONE");
+        final Settings.Builder builder = Settings.builder().put("path.home", createTempDir()).put("reindex.ssl.verification_mode", "NONE");
         if (isHttpsServerBrokenWithTLSv13()) {
             builder.put("reindex.ssl.supported_protocols", "TLSv1.2");
         }
@@ -200,9 +197,18 @@ public class ReindexRestClientSslTests extends ESTestCase {
     }
 
     private RemoteInfo getRemoteInfo() {
-        return new RemoteInfo("https", server.getAddress().getHostName(), server.getAddress().getPort(), "/",
-            new BytesArray("{\"match_all\":{}}"), "user", "password", Collections.emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
-            RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
+        return new RemoteInfo(
+            "https",
+            server.getAddress().getHostName(),
+            server.getAddress().getPort(),
+            "/",
+            new BytesArray("{\"match_all\":{}}"),
+            "user",
+            "password",
+            Collections.emptyMap(),
+            RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+            RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+        );
     }
 
     @SuppressForbidden(reason = "use http server")

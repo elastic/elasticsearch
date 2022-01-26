@@ -33,8 +33,12 @@ public class EmailServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         account = mock(Account.class);
-        service = new EmailService(Settings.builder().put("xpack.notification.email.account.account1.foo", "bar").build(), null,
-            mock(SSLService.class), new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()))) {
+        service = new EmailService(
+            Settings.builder().put("xpack.notification.email.account.account1.foo", "bar").build(),
+            null,
+            mock(SSLService.class),
+            new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()))
+        ) {
             @Override
             protected Account createAccount(String name, Settings accountSettings) {
                 return account;
@@ -57,23 +61,27 @@ public class EmailServiceTests extends ESTestCase {
 
     public void testAccountSmtpPropertyConfiguration() {
         Settings settings = Settings.builder()
-                .put("xpack.notification.email.account.account1.smtp.host", "localhost")
-                .put("xpack.notification.email.account.account1.smtp.starttls.required", "true")
-                .put("xpack.notification.email.account.account2.smtp.host", "localhost")
-                .put("xpack.notification.email.account.account2.smtp.connection_timeout", "1m")
-                .put("xpack.notification.email.account.account2.smtp.timeout", "1m")
-                .put("xpack.notification.email.account.account2.smtp.write_timeout", "1m")
-                .put("xpack.notification.email.account.account3.smtp.host", "localhost")
-                .put("xpack.notification.email.account.account3.smtp.send_partial", true)
-                .put("xpack.notification.email.account.account4.smtp.host", "localhost")
-                .put("xpack.notification.email.account.account4.smtp.local_address", "localhost")
-                .put("xpack.notification.email.account.account4.smtp.local_port", "1025")
-                .put("xpack.notification.email.account.account5.smtp.host", "localhost")
-                .put("xpack.notification.email.account.account5.smtp.wait_on_quit", true)
-                .put("xpack.notification.email.account.account5.smtp.ssl.trust", "host1,host2,host3")
-                .build();
-        EmailService emailService = new EmailService(settings, null, mock(SSLService.class),
-                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
+            .put("xpack.notification.email.account.account1.smtp.host", "localhost")
+            .put("xpack.notification.email.account.account1.smtp.starttls.required", "true")
+            .put("xpack.notification.email.account.account2.smtp.host", "localhost")
+            .put("xpack.notification.email.account.account2.smtp.connection_timeout", "1m")
+            .put("xpack.notification.email.account.account2.smtp.timeout", "1m")
+            .put("xpack.notification.email.account.account2.smtp.write_timeout", "1m")
+            .put("xpack.notification.email.account.account3.smtp.host", "localhost")
+            .put("xpack.notification.email.account.account3.smtp.send_partial", true)
+            .put("xpack.notification.email.account.account4.smtp.host", "localhost")
+            .put("xpack.notification.email.account.account4.smtp.local_address", "localhost")
+            .put("xpack.notification.email.account.account4.smtp.local_port", "1025")
+            .put("xpack.notification.email.account.account5.smtp.host", "localhost")
+            .put("xpack.notification.email.account.account5.smtp.wait_on_quit", true)
+            .put("xpack.notification.email.account.account5.smtp.ssl.trust", "host1,host2,host3")
+            .build();
+        EmailService emailService = new EmailService(
+            settings,
+            null,
+            mock(SSLService.class),
+            new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()))
+        );
 
         Account account1 = emailService.getAccount("account1");
         Properties properties1 = account1.getConfig().smtp.properties;

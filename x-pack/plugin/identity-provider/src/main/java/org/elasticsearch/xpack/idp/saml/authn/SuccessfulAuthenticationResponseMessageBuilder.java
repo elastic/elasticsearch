@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.idp.saml.authn;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.idp.authc.AuthenticationMethod;
 import org.elasticsearch.xpack.idp.authc.NetworkControl;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
@@ -129,8 +129,10 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         final Subject subject = samlFactory.object(Subject.class, Subject.DEFAULT_ELEMENT_NAME);
         subject.setNameID(nameID);
 
-        final SubjectConfirmationData data = samlFactory.object(SubjectConfirmationData.class,
-            SubjectConfirmationData.DEFAULT_ELEMENT_NAME);
+        final SubjectConfirmationData data = samlFactory.object(
+            SubjectConfirmationData.class,
+            SubjectConfirmationData.DEFAULT_ELEMENT_NAME
+        );
         if (authnState != null && authnState.getAuthnRequestId() != null) {
             data.setInResponseTo(authnState.getAuthnRequestId());
         }
@@ -256,8 +258,9 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         if (authnState != null && authnState.getRequestedNameidFormat() != null) {
             nameIdFormat = authnState.getRequestedNameidFormat();
         } else {
-            nameIdFormat = serviceProvider.getAllowedNameIdFormat() != null ? serviceProvider.getAllowedNameIdFormat() :
-                idp.getServiceProviderDefaults().nameIdFormat;
+            nameIdFormat = serviceProvider.getAllowedNameIdFormat() != null
+                ? serviceProvider.getAllowedNameIdFormat()
+                : idp.getServiceProviderDefaults().nameIdFormat;
         }
         nameID.setFormat(nameIdFormat);
         nameID.setValue(getNameIdValueForFormat(nameIdFormat, user));

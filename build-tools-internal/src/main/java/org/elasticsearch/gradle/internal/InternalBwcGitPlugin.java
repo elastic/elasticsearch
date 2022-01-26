@@ -26,11 +26,13 @@ import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 import org.gradle.process.ExecSpec;
 
-import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+
+import javax.inject.Inject;
+
 import static java.util.Arrays.asList;
 
 public class InternalBwcGitPlugin implements Plugin<Project> {

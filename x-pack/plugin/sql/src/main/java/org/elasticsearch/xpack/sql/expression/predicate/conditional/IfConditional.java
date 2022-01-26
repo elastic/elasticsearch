@@ -75,8 +75,7 @@ public class IfConditional extends Expression {
     public boolean equals(Object o) {
         if (super.equals(o)) {
             IfConditional that = (IfConditional) o;
-            return Objects.equals(condition, that.condition)
-                    && Objects.equals(result, that.result);
+            return Objects.equals(condition, that.condition) && Objects.equals(result, that.result);
         }
         return false;
     }

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[inference-processor]]
 === {infer-cap} processor
 ++++

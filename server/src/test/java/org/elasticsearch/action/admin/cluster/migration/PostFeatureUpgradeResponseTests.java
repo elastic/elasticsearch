@@ -32,16 +32,14 @@ public class PostFeatureUpgradeResponseTests extends AbstractWireSerializingTest
     @Override
     protected PostFeatureUpgradeResponse createTestInstance() {
         if (randomBoolean()) {
-            return new PostFeatureUpgradeResponse(
-                true,
-                randomList(9, PostFeatureUpgradeResponseTests::createFeature),
-                null,
-                null);
+            return new PostFeatureUpgradeResponse(true, randomList(9, PostFeatureUpgradeResponseTests::createFeature), null, null);
         }
-        return new PostFeatureUpgradeResponse(false,
+        return new PostFeatureUpgradeResponse(
+            false,
             new ArrayList<>(),
             randomAlphaOfLengthBetween(10, 30),
-            new ElasticsearchException(randomAlphaOfLengthBetween(10, 30)));
+            new ElasticsearchException(randomAlphaOfLengthBetween(10, 30))
+        );
     }
 
     @Override
@@ -49,15 +47,21 @@ public class PostFeatureUpgradeResponseTests extends AbstractWireSerializingTest
         if (instance.isAccepted()) {
             return new PostFeatureUpgradeResponse(
                 true,
-                randomList(1, 9, () ->
-                    randomValueOtherThanMany(instance.getFeatures()::contains, PostFeatureUpgradeResponseTests::createFeature)),
+                randomList(
+                    1,
+                    9,
+                    () -> randomValueOtherThanMany(instance.getFeatures()::contains, PostFeatureUpgradeResponseTests::createFeature)
+                ),
                 null,
-                null);
+                null
+            );
         }
-        return new PostFeatureUpgradeResponse(false,
+        return new PostFeatureUpgradeResponse(
+            false,
             new ArrayList<>(),
             randomValueOtherThan(instance.getReason(), () -> randomAlphaOfLengthBetween(10, 30)),
-            instance.getElasticsearchException());
+            instance.getElasticsearchException()
+        );
     }
 
     /** If constructor is called with null for a list, we just use an empty list */

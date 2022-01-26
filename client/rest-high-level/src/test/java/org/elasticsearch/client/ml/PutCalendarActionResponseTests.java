@@ -8,9 +8,10 @@
 package org.elasticsearch.client.ml;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 
@@ -47,7 +48,7 @@ public class PutCalendarActionResponseTests extends AbstractResponseTestCase<Put
     protected void assertInstances(PutCalendarAction.Response serverTestInstance, PutCalendarResponse clientInstance) {
         org.elasticsearch.client.ml.calendars.Calendar hlrcCalendar = clientInstance.getCalendar();
         Calendar internalCalendar = new Calendar(hlrcCalendar.getId(), hlrcCalendar.getJobIds(), hlrcCalendar.getDescription());
-        PutCalendarAction.Response convertedServerTestInstance =new PutCalendarAction.Response(internalCalendar);
+        PutCalendarAction.Response convertedServerTestInstance = new PutCalendarAction.Response(internalCalendar);
         assertThat(convertedServerTestInstance, equalTo(serverTestInstance));
     }
 }

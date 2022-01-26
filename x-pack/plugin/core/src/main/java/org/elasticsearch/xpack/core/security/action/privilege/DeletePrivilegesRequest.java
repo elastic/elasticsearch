@@ -24,7 +24,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * A request to delete an application privilege.
  */
 public final class DeletePrivilegesRequest extends ActionRequest
-    implements ApplicationPrivilegesRequest, WriteRequest<DeletePrivilegesRequest> {
+    implements
+        ApplicationPrivilegesRequest,
+        WriteRequest<DeletePrivilegesRequest> {
 
     private String application;
     private String[] privileges;

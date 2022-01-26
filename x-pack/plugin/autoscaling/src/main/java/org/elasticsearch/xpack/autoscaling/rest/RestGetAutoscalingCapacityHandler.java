@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.autoscaling.rest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 
@@ -32,7 +33,11 @@ public class RestGetAutoscalingCapacityHandler extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
         final GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request();
-        return channel -> client.execute(GetAutoscalingCapacityAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
+            GetAutoscalingCapacityAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel)
+        );
     }
 
 }

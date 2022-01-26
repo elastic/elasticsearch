@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.AbstractRequestTestCase;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
@@ -24,8 +24,7 @@ public class PutFollowRequestTests extends AbstractRequestTestCase<PutFollowRequ
 
     @Override
     protected PutFollowRequest createClientTestInstance() {
-        PutFollowRequest putFollowRequest =
-            new PutFollowRequest(randomAlphaOfLength(4), randomAlphaOfLength(4), "followerIndex");
+        PutFollowRequest putFollowRequest = new PutFollowRequest(randomAlphaOfLength(4), randomAlphaOfLength(4), "followerIndex");
         if (randomBoolean()) {
             putFollowRequest.setMaxOutstandingReadRequests(randomIntBetween(0, Integer.MAX_VALUE));
         }

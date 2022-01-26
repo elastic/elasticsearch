@@ -19,16 +19,21 @@ import java.util.Iterator;
 import java.util.function.Consumer;
 
 class RetryListener extends ActionListener.Delegating<ScrollableHitSource.Response, ScrollableHitSource.Response>
-        implements RejectAwareActionListener<ScrollableHitSource.Response> {
+    implements
+        RejectAwareActionListener<ScrollableHitSource.Response> {
     private final Logger logger;
     private final Iterator<TimeValue> retries;
     private final ThreadPool threadPool;
     private final Consumer<RejectAwareActionListener<ScrollableHitSource.Response>> retryScrollHandler;
     private int retryCount = 0;
 
-    RetryListener(Logger logger, ThreadPool threadPool, BackoffPolicy backoffPolicy,
-                  Consumer<RejectAwareActionListener<ScrollableHitSource.Response>> retryScrollHandler,
-                  ActionListener<ScrollableHitSource.Response> delegate) {
+    RetryListener(
+        Logger logger,
+        ThreadPool threadPool,
+        BackoffPolicy backoffPolicy,
+        Consumer<RejectAwareActionListener<ScrollableHitSource.Response>> retryScrollHandler,
+        ActionListener<ScrollableHitSource.Response> delegate
+    ) {
         super(delegate);
         this.logger = logger;
         this.threadPool = threadPool;
@@ -49,8 +54,7 @@ class RetryListener extends ActionListener.Delegating<ScrollableHitSource.Respon
             logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
             schedule(() -> retryScrollHandler.accept(this), delay);
         } else {
-            logger.warn(() -> new ParameterizedMessage(
-                "giving up on search because we retried [{}] times without success", retryCount), e);
+            logger.warn(() -> new ParameterizedMessage("giving up on search because we retried [{}] times without success", retryCount), e);
             delegate.onFailure(e);
         }
     }

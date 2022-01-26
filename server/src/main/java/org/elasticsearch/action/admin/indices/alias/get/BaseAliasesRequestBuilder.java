@@ -8,16 +8,19 @@
 
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
 
-public abstract class BaseAliasesRequestBuilder<Response extends ActionResponse,
-                                                Builder extends BaseAliasesRequestBuilder<Response, Builder>>
-    extends MasterNodeReadOperationRequestBuilder<GetAliasesRequest, Response, Builder> {
+public abstract class BaseAliasesRequestBuilder<
+    Response extends ActionResponse,
+    Builder extends BaseAliasesRequestBuilder<Response, Builder>> extends MasterNodeReadOperationRequestBuilder<
+        GetAliasesRequest,
+        Response,
+        Builder> {
 
     public BaseAliasesRequestBuilder(ElasticsearchClient client, ActionType<Response> action, String... aliases) {
         super(client, action, new GetAliasesRequest(aliases));

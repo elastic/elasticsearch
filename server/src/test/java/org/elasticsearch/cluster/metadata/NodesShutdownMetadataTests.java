@@ -10,9 +10,9 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -88,10 +88,9 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
         if (type.equals(SingleNodeShutdownMetadata.Type.RESTART) && randomBoolean()) {
             builder.setAllocationDelay(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()));
         } else if (type.equals(SingleNodeShutdownMetadata.Type.REPLACE)) {
-            builder.setTargetNodeName(randomAlphaOfLengthBetween(5,10));
+            builder.setTargetNodeName(randomAlphaOfLengthBetween(5, 10));
         }
-        return builder.setNodeSeen(randomBoolean())
-            .build();
+        return builder.setNodeSeen(randomBoolean()).build();
     }
 
     @Override

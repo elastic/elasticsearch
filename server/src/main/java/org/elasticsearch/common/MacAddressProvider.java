@@ -75,5 +75,4 @@ public class MacAddressProvider {
         return dummy;
     }
 
-
 }

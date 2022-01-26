@@ -28,9 +28,6 @@ public class AzureSnapshotBasedRecoveryIT extends AbstractSnapshotBasedRecoveryR
         final String basePath = System.getProperty("test.azure.base_path");
         assertThat(basePath, not(blankOrNullString()));
 
-        return Settings.builder()
-            .put("client", "snapshot_based_recoveries")
-            .put("container", container).put("base_path", basePath)
-            .build();
+        return Settings.builder().put("client", "snapshot_based_recoveries").put("container", container).put("base_path", basePath).build();
     }
 }

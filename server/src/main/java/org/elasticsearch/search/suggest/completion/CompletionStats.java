@@ -8,13 +8,13 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.common.FieldMemoryStats;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -29,8 +29,7 @@ public class CompletionStats implements Writeable, ToXContentFragment {
     @Nullable
     private FieldMemoryStats fields;
 
-    public CompletionStats() {
-    }
+    public CompletionStats() {}
 
     public CompletionStats(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();

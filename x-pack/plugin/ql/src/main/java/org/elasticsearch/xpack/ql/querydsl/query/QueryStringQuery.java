@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -112,9 +112,7 @@ public class QueryStringQuery extends LeafQuery {
         }
 
         QueryStringQuery other = (QueryStringQuery) obj;
-        return Objects.equals(query, other.query)
-                && Objects.equals(fields, other.fields)
-                && Objects.equals(predicate, other.predicate);
+        return Objects.equals(query, other.query) && Objects.equals(fields, other.fields) && Objects.equals(predicate, other.predicate);
     }
 
     @Override

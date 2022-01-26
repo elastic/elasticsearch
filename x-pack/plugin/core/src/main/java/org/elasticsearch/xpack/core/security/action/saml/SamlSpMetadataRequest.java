@@ -49,9 +49,7 @@ public class SamlSpMetadataRequest extends ActionRequest {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{" +
-            "realmName=" + realmName +
-            '}';
+        return getClass().getSimpleName() + "{" + "realmName=" + realmName + '}';
     }
 
     @Override

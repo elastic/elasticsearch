@@ -33,23 +33,32 @@ import java.util.function.Supplier;
 public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin, SearchPlugin {
 
     @Override
-    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>>contexts) {
+    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
         return new MustacheScriptEngine();
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(new ActionHandler<>(SearchTemplateAction.INSTANCE, TransportSearchTemplateAction.class),
-                new ActionHandler<>(MultiSearchTemplateAction.INSTANCE, TransportMultiSearchTemplateAction.class));
+        return Arrays.asList(
+            new ActionHandler<>(SearchTemplateAction.INSTANCE, TransportSearchTemplateAction.class),
+            new ActionHandler<>(MultiSearchTemplateAction.INSTANCE, TransportMultiSearchTemplateAction.class)
+        );
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         return Arrays.asList(
-                new RestSearchTemplateAction(),
-                new RestMultiSearchTemplateAction(settings),
-                new RestRenderSearchTemplateAction());
+            new RestSearchTemplateAction(),
+            new RestMultiSearchTemplateAction(settings),
+            new RestRenderSearchTemplateAction()
+        );
     }
 }

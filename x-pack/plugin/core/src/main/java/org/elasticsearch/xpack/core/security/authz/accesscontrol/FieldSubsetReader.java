@@ -28,14 +28,15 @@ import org.apache.lucene.util.FilterIterator;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -44,6 +45,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * A {@link FilterLeafReader} that exposes only a subset
@@ -99,8 +101,9 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             if (reader instanceof FilterDirectoryReader) {
                 FilterDirectoryReader filterDirectoryReader = (FilterDirectoryReader) reader;
                 if (filterDirectoryReader instanceof FieldSubsetDirectoryReader) {
-                    throw new IllegalArgumentException(LoggerMessageFormat.format("Can't wrap [{}] twice",
-                            FieldSubsetDirectoryReader.class));
+                    throw new IllegalArgumentException(
+                        LoggerMessageFormat.format("Can't wrap [{}] twice", FieldSubsetDirectoryReader.class)
+                    );
                 } else {
                     verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(filterDirectoryReader.getDelegate());
                 }
@@ -118,7 +121,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     /** An automaton that only accepts authorized fields. */
     private final CharacterRunAutomaton filter;
     /** {@link Terms} cache with filtered stats for the {@link FieldNamesFieldMapper} field. */
-    private final Terms fieldNamesFilterTerms;
+    private volatile Optional<Terms> fieldNamesFilterTerms;
 
     /**
      * Wrap a single segment, exposing a subset of its fields.
@@ -133,8 +136,6 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
         this.filter = filter;
-        final Terms fieldNameTerms = super.terms(FieldNamesFieldMapper.NAME);
-        this.fieldNamesFilterTerms = fieldNameTerms == null ? null : new FieldNamesTerms(fieldNameTerms);
     }
 
     /** returns true if this field is allowed. */
@@ -206,7 +207,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 if (state == -1) {
                     continue;
                 }
-                Map<String, Object> filteredValue = filter((Map<String, ?>)value, includeAutomaton, state);
+                Map<String, Object> filteredValue = filter((Map<String, ?>) value, includeAutomaton, state);
                 filtered.add(filteredValue);
             } else if (value instanceof Iterable) {
                 List<Object> filteredValue = filter((Iterable<?>) value, includeAutomaton, initialState);
@@ -421,10 +422,22 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         if (hasField(field) == false) {
             return null;
         } else if (FieldNamesFieldMapper.NAME.equals(field)) {
-            // for the _field_names field, fields for the document
-            // are encoded as postings, where term is the field.
-            // so we hide terms for fields we filter out.
-            return fieldNamesFilterTerms;
+            // For the _field_names field, fields for the document are encoded as postings, where term is the field, so we hide terms for
+            // fields we filter out.
+            // Compute this lazily so that the DirectoryReader wrapper works together with RewriteCachingDirectoryReader (used by the
+            // can match phase in the frozen tier), which does not implement the terms() method.
+            if (fieldNamesFilterTerms == null) {
+                synchronized (this) {
+                    if (fieldNamesFilterTerms == null) {
+                        assert Transports.assertNotTransportThread("resolving filter terms");
+                        final Terms fieldNameTerms = super.terms(FieldNamesFieldMapper.NAME);
+                        this.fieldNamesFilterTerms = fieldNameTerms == null
+                            ? Optional.empty()
+                            : Optional.of(new FieldNamesTerms(fieldNameTerms));
+                    }
+                }
+            }
+            return fieldNamesFilterTerms.orElse(null);
         } else {
             return terms;
         }
@@ -447,7 +460,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             final TermsEnum e = iterator();
             long size = 0, sumDocFreq = 0, sumTotalFreq = 0;
             while (e.next() != null) {
-                size ++;
+                size++;
                 sumDocFreq += e.docFreq();
                 sumTotalFreq += e.totalTermFreq();
             }
@@ -527,12 +540,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
         @Override
         public void seekExact(long ord) throws IOException {
-          throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public long ord() throws IOException {
-          throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException();
         }
     }
 

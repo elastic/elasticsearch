@@ -13,9 +13,11 @@ public class UpdateCalendarJobActionResquestTests extends AbstractWireSerializin
 
     @Override
     protected UpdateCalendarJobAction.Request createTestInstance() {
-        return new UpdateCalendarJobAction.Request(randomAlphaOfLength(10),
-                randomBoolean() ? null : randomAlphaOfLength(10),
-                randomBoolean() ? null : randomAlphaOfLength(10));
+        return new UpdateCalendarJobAction.Request(
+            randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10)
+        );
     }
 
     @Override

@@ -35,4 +35,9 @@ public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecide
         }
         return allocation.decision(Decision.YES, NAME, "primary shard for this replica is already active");
     }
+
+    @Override
+    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocate(shardRouting, node, allocation);
+    }
 }

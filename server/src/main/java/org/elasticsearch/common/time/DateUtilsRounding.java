@@ -39,12 +39,8 @@ class DateUtilsRounding {
     // see org.joda.time.chrono.BasicGJChronology
     private static final long[] MIN_TOTAL_MILLIS_BY_MONTH_ARRAY;
     private static final long[] MAX_TOTAL_MILLIS_BY_MONTH_ARRAY;
-    private static final int[] MIN_DAYS_PER_MONTH_ARRAY = {
-        31,28,31,30,31,30,31,31,30,31,30,31
-    };
-    private static final int[] MAX_DAYS_PER_MONTH_ARRAY = {
-        31,29,31,30,31,30,31,31,30,31,30,31
-    };
+    private static final int[] MIN_DAYS_PER_MONTH_ARRAY = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    private static final int[] MAX_DAYS_PER_MONTH_ARRAY = { 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
     static {
         MIN_TOTAL_MILLIS_BY_MONTH_ARRAY = new long[12];
@@ -53,13 +49,11 @@ class DateUtilsRounding {
         long minSum = 0;
         long maxSum = 0;
         for (int i = 0; i < 11; i++) {
-            long millis = MIN_DAYS_PER_MONTH_ARRAY[i]
-                * (long) MILLIS_PER_DAY;
+            long millis = MIN_DAYS_PER_MONTH_ARRAY[i] * (long) MILLIS_PER_DAY;
             minSum += millis;
             MIN_TOTAL_MILLIS_BY_MONTH_ARRAY[i + 1] = minSum;
 
-            millis = MAX_DAYS_PER_MONTH_ARRAY[i]
-                * (long) MILLIS_PER_DAY;
+            millis = MAX_DAYS_PER_MONTH_ARRAY[i] * (long) MILLIS_PER_DAY;
             maxSum += millis;
             MAX_TOTAL_MILLIS_BY_MONTH_ARRAY[i + 1] = maxSum;
         }
@@ -167,27 +161,26 @@ class DateUtilsRounding {
         // the instant isn't measured in milliseconds, but in units of
         // (128/125)seconds.
 
-        int i = (int)((utcMillis - utcMillisAtStartOfYear(year)) >> 10);
+        int i = (int) ((utcMillis - utcMillisAtStartOfYear(year)) >> 10);
 
         // There are 86400000 milliseconds per day, but divided by 1024 is
         // 84375. There are 84375 (128/125)seconds per day.
 
-        return
-            (isLeapYear(year))
-                ? ((i < 182 * 84375)
+        return (isLeapYear(year))
+            ? ((i < 182 * 84375)
                 ? ((i < 91 * 84375)
-                ? ((i < 31 * 84375) ? 1 : (i < 60 * 84375) ? 2 : 3)
-                : ((i < 121 * 84375) ? 4 : (i < 152 * 84375) ? 5 : 6))
+                    ? ((i < 31 * 84375) ? 1 : (i < 60 * 84375) ? 2 : 3)
+                    : ((i < 121 * 84375) ? 4 : (i < 152 * 84375) ? 5 : 6))
                 : ((i < 274 * 84375)
-                ? ((i < 213 * 84375) ? 7 : (i < 244 * 84375) ? 8 : 9)
-                : ((i < 305 * 84375) ? 10 : (i < 335 * 84375) ? 11 : 12)))
-                : ((i < 181 * 84375)
+                    ? ((i < 213 * 84375) ? 7 : (i < 244 * 84375) ? 8 : 9)
+                    : ((i < 305 * 84375) ? 10 : (i < 335 * 84375) ? 11 : 12)))
+            : ((i < 181 * 84375)
                 ? ((i < 90 * 84375)
-                ? ((i < 31 * 84375) ? 1 : (i < 59 * 84375) ? 2 : 3)
-                : ((i < 120 * 84375) ? 4 : (i < 151 * 84375) ? 5 : 6))
+                    ? ((i < 31 * 84375) ? 1 : (i < 59 * 84375) ? 2 : 3)
+                    : ((i < 120 * 84375) ? 4 : (i < 151 * 84375) ? 5 : 6))
                 : ((i < 273 * 84375)
-                ? ((i < 212 * 84375) ? 7 : (i < 243 * 84375) ? 8 : 9)
-                : ((i < 304 * 84375) ? 10 : (i < 334 * 84375) ? 11 : 12)));
+                    ? ((i < 212 * 84375) ? 7 : (i < 243 * 84375) ? 8 : 9)
+                    : ((i < 304 * 84375) ? 10 : (i < 334 * 84375) ? 11 : 12)));
     }
 
     // see org.joda.time.chrono.BasicGJChronology

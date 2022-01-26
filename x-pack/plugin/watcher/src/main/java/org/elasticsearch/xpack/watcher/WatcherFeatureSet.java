@@ -8,14 +8,15 @@ package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.watcher.WatcherConstants;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
@@ -50,7 +51,7 @@ public class WatcherFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.WATCHER);
+        return licenseState != null && WatcherConstants.WATCHER_FEATURE.checkWithoutTracking(licenseState);
     }
 
     @Override
@@ -66,17 +67,16 @@ public class WatcherFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         if (enabled) {
-            try (ThreadContext.StoredContext ignore =
-                    client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
                 WatcherClient watcherClient = new WatcherClient(client);
                 WatcherStatsRequest request = new WatcherStatsRequest();
                 request.includeStats(true);
                 watcherClient.watcherStats(request, ActionListener.wrap(r -> {
                     List<Counters> countersPerNode = r.getNodes()
-                            .stream()
-                            .map(WatcherStatsResponse.Node::getStats)
-                            .filter(Objects::nonNull)
-                            .collect(Collectors.toList());
+                        .stream()
+                        .map(WatcherStatsResponse.Node::getStats)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
                     Counters mergedCounters = Counters.merge(countersPerNode);
                     listener.onResponse(new WatcherFeatureSetUsage(available(), enabled(), mergedCounters.toNestedMap()));
                 }, listener::onFailure));

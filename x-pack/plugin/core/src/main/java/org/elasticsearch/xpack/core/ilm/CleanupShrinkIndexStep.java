@@ -45,8 +45,14 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
                 // if the source index does not exist, we'll skip deleting the
                 // (managed) shrunk index as that will cause data loss
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
-                logger.warn("managed index [{}] as part of policy [{}] is a shrunk index and the source index [{}] does not exist " +
-                    "anymore. will skip the [{}] step", indexMetadata.getIndex().getName(), policyName, shrunkenIndexSource, NAME);
+                logger.warn(
+                    "managed index [{}] as part of policy [{}] is a shrunk index and the source index [{}] does not exist "
+                        + "anymore. will skip the [{}] step",
+                    indexMetadata.getIndex().getName(),
+                    policyName,
+                    shrunkenIndexSource,
+                    NAME
+                );
                 listener.onResponse(null);
                 return;
             }
@@ -59,8 +65,10 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
             listener.onResponse(null);
             return;
         }
-        getClient().admin().indices()
-            .delete(new DeleteIndexRequest(shrinkIndexName).masterNodeTimeout(TimeValue.MAX_VALUE),
+        getClient().admin()
+            .indices()
+            .delete(
+                new DeleteIndexRequest(shrinkIndexName).masterNodeTimeout(TimeValue.MAX_VALUE),
                 new ActionListener<AcknowledgedResponse>() {
                     @Override
                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {
@@ -78,7 +86,8 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
                             listener.onFailure(e);
                         }
                     }
-                });
+                }
+            );
     }
 
 }

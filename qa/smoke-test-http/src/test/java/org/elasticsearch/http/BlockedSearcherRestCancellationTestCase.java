@@ -12,11 +12,11 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -55,8 +55,11 @@ import static org.hamcrest.Matchers.not;
  */
 public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeTestCase {
 
-    private static final Setting<Boolean> BLOCK_SEARCHER_SETTING
-            = Setting.boolSetting("index.block_searcher", false, Setting.Property.IndexScope);
+    private static final Setting<Boolean> BLOCK_SEARCHER_SETTING = Setting.boolSetting(
+        "index.block_searcher",
+        false,
+        Setting.Property.IndexScope
+    );
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

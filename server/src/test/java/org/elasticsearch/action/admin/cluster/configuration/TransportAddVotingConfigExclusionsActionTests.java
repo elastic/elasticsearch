@@ -89,12 +89,13 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
 
     private static DiscoveryNode makeDiscoveryNode(String name) {
         return new DiscoveryNode(
-                name,
-                name,
-                buildNewFakeTransportAddress(),
-                emptyMap(),
-                singleton(DiscoveryNodeRole.MASTER_ROLE),
-                Version.CURRENT);
+            name,
+            name,
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
     }
 
     @AfterClass
@@ -106,8 +107,14 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
     @Before
     public void setupForTest() {
         final MockTransport transport = new MockTransport();
-        transportService = transport.createTransportService(Settings.EMPTY, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
+        transportService = transport.createTransportService(
+            Settings.EMPTY,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundTransportAddress -> localNode,
+            null,
+            emptySet()
+        );
 
         final Settings.Builder nodeSettingsBuilder = Settings.builder();
         if (randomBoolean()) {
@@ -119,20 +126,41 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         final Settings nodeSettings = nodeSettingsBuilder.build();
         clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        new TransportAddVotingConfigExclusionsAction(nodeSettings, clusterSettings, transportService, clusterService, threadPool,
-            new ActionFilters(emptySet()), TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext())); // registers action
+        new TransportAddVotingConfigExclusionsAction(
+            nodeSettings,
+            clusterSettings,
+            transportService,
+            clusterService,
+            threadPool,
+            new ActionFilters(emptySet()),
+            TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext())
+        ); // registers action
 
         transportService.start();
         transportService.acceptIncomingRequests();
 
         final VotingConfiguration allNodesConfig = VotingConfiguration.of(localNode, otherNode1, otherNode2);
 
-        setState(clusterService, builder(new ClusterName("cluster"))
-            .nodes(new Builder().add(localNode).add(otherNode1).add(otherNode2).add(otherDataNode)
-                .localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
-            .metadata(Metadata.builder()
-                .coordinationMetadata(CoordinationMetadata.builder().lastAcceptedConfiguration(allNodesConfig)
-                    .lastCommittedConfiguration(allNodesConfig).build())));
+        setState(
+            clusterService,
+            builder(new ClusterName("cluster")).nodes(
+                new Builder().add(localNode)
+                    .add(otherNode1)
+                    .add(otherNode2)
+                    .add(otherDataNode)
+                    .localNodeId(localNode.getId())
+                    .masterNodeId(localNode.getId())
+            )
+                .metadata(
+                    Metadata.builder()
+                        .coordinationMetadata(
+                            CoordinationMetadata.builder()
+                                .lastAcceptedConfiguration(allNodesConfig)
+                                .lastCommittedConfiguration(allNodesConfig)
+                                .build()
+                        )
+                )
+        );
 
         clusterStateObserver = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
     }
@@ -141,7 +169,10 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(2);
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions(countDownLatch));
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME, new AddVotingConfigExclusionsRequest("other1"),
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
+            new AddVotingConfigExclusionsRequest("other1"),
             expectSuccess(r -> {
                 assertNotNull(r);
                 countDownLatch.countDown();
@@ -156,7 +187,9 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(2);
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions(countDownLatch));
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME,
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
             new AddVotingConfigExclusionsRequest("other1", "other2"),
             expectSuccess(r -> {
                 assertNotNull(r);
@@ -165,15 +198,20 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
-                containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion));
+        assertThat(
+            clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
+            containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion)
+        );
     }
 
     public void testWithdrawsVotesFromNodesMatchingWildcard() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(2);
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions(countDownLatch));
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME, makeRequestWithNodeDescriptions("other*"),
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
+            makeRequestWithNodeDescriptions("other*"),
             expectSuccess(r -> {
                 assertNotNull(r);
                 countDownLatch.countDown();
@@ -181,8 +219,10 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
-                containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion));
+        assertThat(
+            clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
+            containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion)
+        );
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
@@ -190,7 +230,10 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(2);
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions(countDownLatch));
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME, makeRequestWithNodeDescriptions("_all"),
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
+            makeRequestWithNodeDescriptions("_all"),
             expectSuccess(r -> {
                 assertNotNull(r);
                 countDownLatch.countDown();
@@ -198,8 +241,10 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
-                containsInAnyOrder(localNodeExclusion, otherNode1Exclusion, otherNode2Exclusion));
+        assertThat(
+            clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
+            containsInAnyOrder(localNodeExclusion, otherNode1Exclusion, otherNode2Exclusion)
+        );
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
@@ -207,7 +252,10 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(2);
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions(countDownLatch));
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME, makeRequestWithNodeDescriptions("_local"),
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
+            makeRequestWithNodeDescriptions("_local"),
             expectSuccess(r -> {
                 assertNotNull(r);
                 countDownLatch.countDown();
@@ -215,24 +263,32 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
-                contains(localNodeExclusion));
+        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), contains(localNodeExclusion));
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
     public void testReturnsImmediatelyIfVoteAlreadyWithdrawn() throws InterruptedException {
         final ClusterState state = clusterService.state();
-        setState(clusterService, builder(state)
-            .metadata(Metadata.builder(state.metadata())
-                .coordinationMetadata(CoordinationMetadata.builder(state.coordinationMetadata())
-                    .lastCommittedConfiguration(VotingConfiguration.of(localNode, otherNode2))
-                    .lastAcceptedConfiguration(VotingConfiguration.of(localNode, otherNode2))
-                .build())));
+        setState(
+            clusterService,
+            builder(state).metadata(
+                Metadata.builder(state.metadata())
+                    .coordinationMetadata(
+                        CoordinationMetadata.builder(state.coordinationMetadata())
+                            .lastCommittedConfiguration(VotingConfiguration.of(localNode, otherNode2))
+                            .lastAcceptedConfiguration(VotingConfiguration.of(localNode, otherNode2))
+                            .build()
+                    )
+            )
+        );
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
 
         // no observer to reconfigure
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME, new AddVotingConfigExclusionsRequest("other1"),
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
+            new AddVotingConfigExclusionsRequest("other1"),
             expectSuccess(r -> {
                 assertNotNull(r);
                 countDownLatch.countDown();
@@ -240,15 +296,17 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
-                contains(otherNode1Exclusion));
+        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), contains(otherNode1Exclusion));
     }
 
     public void testReturnsErrorIfNoMatchingNodeDescriptions() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
 
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME, makeRequestWithNodeDescriptions("not-a-node"),
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
+            makeRequestWithNodeDescriptions("not-a-node"),
             expectError(e -> {
                 exceptionHolder.set(e);
                 countDownLatch.countDown();
@@ -258,8 +316,10 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         final Throwable rootCause = exceptionHolder.get().getRootCause();
         assertThat(rootCause, instanceOf(IllegalArgumentException.class));
-        assertThat(rootCause.getMessage(),
-            equalTo("add voting config exclusions request for [not-a-node] matched no master-eligible nodes"));
+        assertThat(
+            rootCause.getMessage(),
+            equalTo("add voting config exclusions request for [not-a-node] matched no master-eligible nodes")
+        );
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
@@ -267,7 +327,9 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
 
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME,
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
             makeRequestWithNodeDescriptions("_all", "master:false"),
             expectError(e -> {
                 exceptionHolder.set(e);
@@ -278,8 +340,10 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         final Throwable rootCause = exceptionHolder.get().getRootCause();
         assertThat(rootCause, instanceOf(IllegalArgumentException.class));
-        assertThat(rootCause.getMessage(),
-            equalTo("add voting config exclusions request for [_all, master:false] matched no master-eligible nodes"));
+        assertThat(
+            rootCause.getMessage(),
+            equalTo("add voting config exclusions request for [_all, master:false] matched no master-eligible nodes")
+        );
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
@@ -287,26 +351,38 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(2);
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions(countDownLatch));
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[]{"absent_id"},
-                                                    Strings.EMPTY_ARRAY, TimeValue.timeValueSeconds(30)),
-            expectSuccess(e -> {
-                countDownLatch.countDown();
-            })
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
+            new AddVotingConfigExclusionsRequest(
+                Strings.EMPTY_ARRAY,
+                new String[] { "absent_id" },
+                Strings.EMPTY_ARRAY,
+                TimeValue.timeValueSeconds(30)
+            ),
+            expectSuccess(e -> { countDownLatch.countDown(); })
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertEquals(singleton(new VotingConfigExclusion("absent_id", VotingConfigExclusion.MISSING_VALUE_MARKER)),
-            clusterService.getClusterApplierService().state().getVotingConfigExclusions());
+        assertEquals(
+            singleton(new VotingConfigExclusion("absent_id", VotingConfigExclusion.MISSING_VALUE_MARKER)),
+            clusterService.getClusterApplierService().state().getVotingConfigExclusions()
+        );
     }
 
     public void testExcludeExistingNodesByNodeIds() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(2);
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions(countDownLatch));
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[]{"other1", "other2"},
-                                                    Strings.EMPTY_ARRAY, TimeValue.timeValueSeconds(30)),
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
+            new AddVotingConfigExclusionsRequest(
+                Strings.EMPTY_ARRAY,
+                new String[] { "other1", "other2" },
+                Strings.EMPTY_ARRAY,
+                TimeValue.timeValueSeconds(30)
+            ),
             expectSuccess(r -> {
                 assertNotNull(r);
                 countDownLatch.countDown();
@@ -314,30 +390,37 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
-            containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion));
+        assertThat(
+            clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
+            containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion)
+        );
     }
 
     public void testExcludeAbsentNodesByNodeNames() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(2);
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions(countDownLatch));
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME, new AddVotingConfigExclusionsRequest("absent_node"),
-            expectSuccess(e -> {
-                countDownLatch.countDown();
-            })
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
+            new AddVotingConfigExclusionsRequest("absent_node"),
+            expectSuccess(e -> { countDownLatch.countDown(); })
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertEquals(singleton(new VotingConfigExclusion(VotingConfigExclusion.MISSING_VALUE_MARKER, "absent_node")),
-                    clusterService.getClusterApplierService().state().getVotingConfigExclusions());
+        assertEquals(
+            singleton(new VotingConfigExclusion(VotingConfigExclusion.MISSING_VALUE_MARKER, "absent_node")),
+            clusterService.getClusterApplierService().state().getVotingConfigExclusions()
+        );
     }
 
     public void testExcludeExistingNodesByNodeNames() throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(2);
 
         clusterStateObserver.waitForNextChange(new AdjustConfigurationForExclusions(countDownLatch));
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME,
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
             new AddVotingConfigExclusionsRequest("other1", "other2"),
             expectSuccess(r -> {
                 assertNotNull(r);
@@ -346,23 +429,29 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
-            containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion));
+        assertThat(
+            clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
+            containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion)
+        );
     }
 
     public void testSucceedsEvenIfAllExclusionsAlreadyAdded() throws InterruptedException {
         final ClusterState state = clusterService.state();
         final ClusterState.Builder builder = builder(state);
-        builder.metadata(Metadata.builder(state.metadata()).
-                coordinationMetadata(
-                        CoordinationMetadata.builder(state.coordinationMetadata())
-                                .addVotingConfigExclusion(otherNode1Exclusion).
-                build()));
+        builder.metadata(
+            Metadata.builder(state.metadata())
+                .coordinationMetadata(
+                    CoordinationMetadata.builder(state.coordinationMetadata()).addVotingConfigExclusion(otherNode1Exclusion).build()
+                )
+        );
         setState(clusterService, builder);
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
 
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME, new AddVotingConfigExclusionsRequest("other1"),
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
+            new AddVotingConfigExclusionsRequest("other1"),
             expectSuccess(r -> {
                 assertNotNull(r);
                 countDownLatch.countDown();
@@ -370,25 +459,31 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
-                contains(otherNode1Exclusion));
+        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), contains(otherNode1Exclusion));
     }
 
     public void testExcludeByNodeIdSucceedsEvenIfAllExclusionsAlreadyAdded() throws InterruptedException {
         final ClusterState state = clusterService.state();
         final ClusterState.Builder builder = builder(state);
-        builder.metadata(Metadata.builder(state.metadata()).
-            coordinationMetadata(
-                CoordinationMetadata.builder(state.coordinationMetadata())
-                    .addVotingConfigExclusion(otherNode1Exclusion).
-                    build()));
+        builder.metadata(
+            Metadata.builder(state.metadata())
+                .coordinationMetadata(
+                    CoordinationMetadata.builder(state.coordinationMetadata()).addVotingConfigExclusion(otherNode1Exclusion).build()
+                )
+        );
         setState(clusterService, builder);
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
 
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(Strings.EMPTY_ARRAY, new String[]{"other1"},
-                                                    Strings.EMPTY_ARRAY, TimeValue.timeValueSeconds(30)),
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
+            new AddVotingConfigExclusionsRequest(
+                Strings.EMPTY_ARRAY,
+                new String[] { "other1" },
+                Strings.EMPTY_ARRAY,
+                TimeValue.timeValueSeconds(30)
+            ),
             expectSuccess(r -> {
                 assertNotNull(r);
                 countDownLatch.countDown();
@@ -396,23 +491,26 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
-            contains(otherNode1Exclusion));
+        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), contains(otherNode1Exclusion));
     }
 
     public void testExcludeByNodeNameSucceedsEvenIfAllExclusionsAlreadyAdded() throws InterruptedException {
         final ClusterState state = clusterService.state();
         final ClusterState.Builder builder = builder(state);
-        builder.metadata(Metadata.builder(state.metadata()).
-            coordinationMetadata(
-                CoordinationMetadata.builder(state.coordinationMetadata())
-                    .addVotingConfigExclusion(otherNode1Exclusion).
-                    build()));
+        builder.metadata(
+            Metadata.builder(state.metadata())
+                .coordinationMetadata(
+                    CoordinationMetadata.builder(state.coordinationMetadata()).addVotingConfigExclusion(otherNode1Exclusion).build()
+                )
+        );
         setState(clusterService, builder);
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
 
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME, new AddVotingConfigExclusionsRequest("other1"),
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
+            new AddVotingConfigExclusionsRequest("other1"),
             expectSuccess(r -> {
                 assertNotNull(r);
                 countDownLatch.countDown();
@@ -420,28 +518,32 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
-            contains(otherNode1Exclusion));
+        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), contains(otherNode1Exclusion));
     }
 
     public void testReturnsErrorIfMaximumExclusionCountExceeded() throws InterruptedException {
         final Metadata.Builder metadataBuilder = Metadata.builder(clusterService.state().metadata());
-        CoordinationMetadata.Builder coordinationMetadataBuilder =
-            CoordinationMetadata.builder(clusterService.state().coordinationMetadata())
-                .addVotingConfigExclusion(localNodeExclusion);
+        CoordinationMetadata.Builder coordinationMetadataBuilder = CoordinationMetadata.builder(
+            clusterService.state().coordinationMetadata()
+        ).addVotingConfigExclusion(localNodeExclusion);
 
         final int actualMaximum;
         if (randomBoolean()) {
             actualMaximum = staticMaximum;
         } else {
             actualMaximum = between(2, 15);
-            clusterSettings.applySettings(Settings.builder().put(clusterService.state().metadata().persistentSettings())
-                .put(MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.getKey(), actualMaximum).build());
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(clusterService.state().metadata().persistentSettings())
+                    .put(MAXIMUM_VOTING_CONFIG_EXCLUSIONS_SETTING.getKey(), actualMaximum)
+                    .build()
+            );
         }
 
         for (int i = 2; i < actualMaximum; i++) {
             coordinationMetadataBuilder.addVotingConfigExclusion(
-                new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+                new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10))
+            );
         }
 
         final int existingCount, newCount;
@@ -462,7 +564,10 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
 
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME, makeRequestWithNodeDescriptions("other*"),
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
+            makeRequestWithNodeDescriptions("other*"),
             expectError(e -> {
                 exceptionHolder.set(e);
                 countDownLatch.countDown();
@@ -472,9 +577,18 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         final Throwable rootCause = exceptionHolder.get().getRootCause();
         assertThat(rootCause, instanceOf(IllegalArgumentException.class));
-        assertThat(rootCause.getMessage(), equalTo("add voting config exclusions request for [other*] would add [" + newCount +
-            "] exclusions to the existing [" + existingCount +
-            "] which would exceed the maximum of [" + actualMaximum + "] set by [cluster.max_voting_config_exclusions]"));
+        assertThat(
+            rootCause.getMessage(),
+            equalTo(
+                "add voting config exclusions request for [other*] would add ["
+                    + newCount
+                    + "] exclusions to the existing ["
+                    + existingCount
+                    + "] which would exceed the maximum of ["
+                    + actualMaximum
+                    + "] set by [cluster.max_voting_config_exclusions]"
+            )
+        );
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
     }
 
@@ -482,9 +596,15 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final SetOnce<TransportException> exceptionHolder = new SetOnce<>();
 
-        transportService.sendRequest(localNode, AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(new String[]{"other1"}, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY,
-                TimeValue.timeValueMillis(100)),
+        transportService.sendRequest(
+            localNode,
+            AddVotingConfigExclusionsAction.NAME,
+            new AddVotingConfigExclusionsRequest(
+                new String[] { "other1" },
+                Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
+                TimeValue.timeValueMillis(100)
+            ),
             expectError(e -> {
                 exceptionHolder.set(e);
                 countDownLatch.countDown();
@@ -493,27 +613,24 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
         final Throwable rootCause = exceptionHolder.get().getRootCause();
-        assertThat(rootCause,instanceOf(ElasticsearchTimeoutException.class));
+        assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
         assertThat(rootCause.getMessage(), startsWith("timed out waiting for voting config exclusions [{other1}"));
         assertWarnings(AddVotingConfigExclusionsRequest.DEPRECATION_MESSAGE);
 
     }
 
-    private TransportResponseHandler<ActionResponse.Empty> expectSuccess(
-        Consumer<ActionResponse.Empty> onResponse) {
-        return responseHandler(onResponse, e -> {
-            throw new AssertionError("unexpected", e);
-        });
+    private TransportResponseHandler<ActionResponse.Empty> expectSuccess(Consumer<ActionResponse.Empty> onResponse) {
+        return responseHandler(onResponse, e -> { throw new AssertionError("unexpected", e); });
     }
 
     private TransportResponseHandler<ActionResponse.Empty> expectError(Consumer<TransportException> onException) {
-        return responseHandler(r -> {
-            assert false : r;
-        }, onException);
+        return responseHandler(r -> { assert false : r; }, onException);
     }
 
     private TransportResponseHandler<ActionResponse.Empty> responseHandler(
-        Consumer<ActionResponse.Empty> onResponse, Consumer<TransportException> onException) {
+        Consumer<ActionResponse.Empty> onResponse,
+        Consumer<TransportException> onException
+    ) {
         return new TransportResponseHandler<ActionResponse.Empty>() {
             @Override
             public void handleResponse(ActionResponse.Empty response) {
@@ -550,13 +667,15 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
                     currentState.nodes().forEach(n -> votingNodeIds.add(n.getId()));
                     currentState.getVotingConfigExclusions().forEach(t -> votingNodeIds.remove(t.getNodeId()));
                     final VotingConfiguration votingConfiguration = new VotingConfiguration(votingNodeIds);
-                    return builder(currentState)
-                        .metadata(Metadata.builder(currentState.metadata())
-                            .coordinationMetadata(CoordinationMetadata.builder(currentState.coordinationMetadata())
-                                .lastAcceptedConfiguration(votingConfiguration)
-                                .lastCommittedConfiguration(votingConfiguration)
-                                .build()))
-                           .build();
+                    return builder(currentState).metadata(
+                        Metadata.builder(currentState.metadata())
+                            .coordinationMetadata(
+                                CoordinationMetadata.builder(currentState.coordinationMetadata())
+                                    .lastAcceptedConfiguration(votingConfiguration)
+                                    .lastCommittedConfiguration(votingConfiguration)
+                                    .build()
+                            )
+                    ).build();
                 }
 
                 @Override
@@ -583,8 +702,12 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
     }
 
     private AddVotingConfigExclusionsRequest makeRequestWithNodeDescriptions(String... nodeDescriptions) {
-        return new AddVotingConfigExclusionsRequest(nodeDescriptions, Strings.EMPTY_ARRAY,
-                                                    Strings.EMPTY_ARRAY, TimeValue.timeValueSeconds(30));
+        return new AddVotingConfigExclusionsRequest(
+            nodeDescriptions,
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            TimeValue.timeValueSeconds(30)
+        );
     }
 
 }

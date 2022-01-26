@@ -44,16 +44,14 @@ public class RestGetFieldMappingActionTests extends RestActionTestCase {
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
         verifyingClient.setExecuteVerifier((arg1, arg2) -> new GetFieldMappingsResponse(new HashMap<>()));
 
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath(path)
             .withParams(params)
             .build();
         dispatchRequest(deprecatedRequest);
         assertWarnings(RestGetFieldMappingAction.TYPES_DEPRECATION_MESSAGE);
 
-        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
+        RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("some_index/_mapping/field/some_field")
             .build();
         dispatchRequest(validRequest);
@@ -64,8 +62,7 @@ public class RestGetFieldMappingActionTests extends RestActionTestCase {
         // results in an illegal argument exception.
         Map<String, String> params = new HashMap<>();
         params.put(INCLUDE_TYPE_NAME_PARAMETER, "false");
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.GET)
             .withPath("some_index/some_type/_mapping/field/some_field")
             .withParams(params)
             .build();

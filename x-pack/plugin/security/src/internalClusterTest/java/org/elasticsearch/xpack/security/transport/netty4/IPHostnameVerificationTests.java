@@ -35,21 +35,21 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings settings = super.nodeSettings(nodeOrdinal, otherSettings);
         Settings.Builder builder = Settings.builder()
-                .put(settings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false), false);
+            .put(settings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false), false);
         settings = builder.build();
 
         // The default Unicast test behavior is to use 'localhost' with the port number. For this test we need to use IP
-         List<String> newUnicastAddresses = new ArrayList<>();
-         for (String address : settings.getAsList(DISCOVERY_SEED_HOSTS_SETTING.getKey())) {
-             newUnicastAddresses.add(address.replace("localhost", "127.0.0.1"));
-         }
+        List<String> newUnicastAddresses = new ArrayList<>();
+        for (String address : settings.getAsList(DISCOVERY_SEED_HOSTS_SETTING.getKey())) {
+            newUnicastAddresses.add(address.replace("localhost", "127.0.0.1"));
+        }
 
         Settings.Builder settingsBuilder = Settings.builder()
-                .put(settings)
-                .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), newUnicastAddresses);
+            .put(settings)
+            .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), newUnicastAddresses);
 
         try {
-            //Use a cert with a CN of "Elasticsearch Test Node" and IPv4+IPv6 ip addresses as SubjectAlternativeNames
+            // Use a cert with a CN of "Elasticsearch Test Node" and IPv4+IPv6 ip addresses as SubjectAlternativeNames
             certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-ip-only.crt");
             keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-ip-only.pem");
             assertThat(Files.exists(certPath), is(true));
@@ -57,9 +57,10 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
             throw new RuntimeException(e);
         }
 
-        SecuritySettingsSource.addSecureSettings(settingsBuilder, secureSettings -> {
-            secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode-ip-only");
-        });
+        SecuritySettingsSource.addSecureSettings(
+            settingsBuilder,
+            secureSettings -> { secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode-ip-only"); }
+        );
         return settingsBuilder.put("xpack.security.transport.ssl.key", keyPath.toAbsolutePath())
             .put("xpack.security.transport.ssl.certificate", certPath.toAbsolutePath())
             .put("xpack.security.transport.ssl.certificate_authorities", certPath.toAbsolutePath())
@@ -73,7 +74,8 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
     @Override
     protected Settings transportClientSettings() {
         Settings clientSettings = super.transportClientSettings();
-        return Settings.builder().put(clientSettings.filter(k -> k.startsWith("xpack.security.transport.ssl.") == false))
+        return Settings.builder()
+            .put(clientSettings.filter(k -> k.startsWith("xpack.security.transport.ssl.") == false))
             .put("xpack.security.transport.ssl.verification_mode", "certificate")
             .put("xpack.security.transport.ssl.key", keyPath.toAbsolutePath())
             .put("xpack.security.transport.ssl.certificate", certPath.toAbsolutePath())

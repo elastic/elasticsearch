@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.List;
 import org.elasticsearch.core.Nullable;
@@ -37,6 +36,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.junit.Before;
 
@@ -101,25 +101,25 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
 
         if (randomBoolean()) {
             request.concurrency(between(1, 5));
-            blobStore.ensureMaxWriteConcurrency(request.getConcurrency());
+            blobStore.setMaxWriteConcurrency(request.getConcurrency());
         }
 
         if (randomBoolean()) {
             request.blobCount(between(1, 100));
-            blobStore.ensureMaxBlobCount(request.getBlobCount());
+            blobStore.setMaxBlobCount(request.getBlobCount());
         }
 
         if (request.getBlobCount() > 3 || randomBoolean()) {
             // only use the default blob size of 10MB if writing a small number of blobs, since this is all in-memory
             request.maxBlobSize(new ByteSizeValue(between(1, 2048)));
-            blobStore.ensureMaxBlobSize(request.getMaxBlobSize().getBytes());
+            blobStore.setMaxBlobSize(request.getMaxBlobSize().getBytes());
         }
 
         if (usually()) {
             request.maxTotalDataSize(
                 new ByteSizeValue(request.getMaxBlobSize().getBytes() + request.getBlobCount() - 1 + between(0, 1 << 20))
             );
-            blobStore.ensureMaxTotalBlobSize(request.getMaxTotalDataSize().getBytes());
+            blobStore.setMaxTotalBlobSize(request.getMaxTotalDataSize().getBytes());
         }
 
         request.timeout(TimeValue.timeValueSeconds(20));
@@ -250,19 +250,19 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         @Override
         public void close() {}
 
-        public void ensureMaxWriteConcurrency(int concurrency) {
+        public void setMaxWriteConcurrency(int concurrency) {
             this.writeSemaphore = new Semaphore(concurrency);
         }
 
-        public void ensureMaxBlobCount(int maxBlobCount) {
+        public void setMaxBlobCount(int maxBlobCount) {
             this.maxBlobCount = maxBlobCount;
         }
 
-        public void ensureMaxBlobSize(long maxBlobSize) {
+        public void setMaxBlobSize(long maxBlobSize) {
             this.maxBlobSize = maxBlobSize;
         }
 
-        public void ensureMaxTotalBlobSize(long maxTotalBlobSize) {
+        public void setMaxTotalBlobSize(long maxTotalBlobSize) {
             this.maxTotalBlobSize = maxTotalBlobSize;
         }
     }

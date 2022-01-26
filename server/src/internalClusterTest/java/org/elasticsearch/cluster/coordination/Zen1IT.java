@@ -62,10 +62,12 @@ import static org.hamcrest.Matchers.is;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class Zen1IT extends ESIntegTestCase {
 
-    private static final Settings ZEN1_SETTINGS = Coordinator.addZen1Attribute(true, Settings.builder()
-        .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.ZEN_DISCOVERY_TYPE)
-        .put(IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), false)
-        ).build();
+    private static final Settings ZEN1_SETTINGS = Coordinator.addZen1Attribute(
+        true,
+        Settings.builder()
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.ZEN_DISCOVERY_TYPE)
+            .put(IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), false)
+    ).build();
 
     private static final Settings ZEN2_SETTINGS = Settings.builder()
         .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), DiscoveryModule.ZEN2_DISCOVERY_TYPE)
@@ -93,11 +95,13 @@ public class Zen1IT extends ESIntegTestCase {
     }
 
     public void testMixedClusterDisruption() throws Exception {
-        final List<String> nodes = internalCluster().startNodes(IntStream.range(0, 5)
-            .mapToObj(i -> i < 2 ? ZEN1_SETTINGS : ZEN2_SETTINGS).toArray(Settings[]::new));
+        final List<String> nodes = internalCluster().startNodes(
+            IntStream.range(0, 5).mapToObj(i -> i < 2 ? ZEN1_SETTINGS : ZEN2_SETTINGS).toArray(Settings[]::new)
+        );
 
         final List<MockTransportService> transportServices = nodes.stream()
-            .map(n -> (MockTransportService) internalCluster().getInstance(TransportService.class, n)).collect(Collectors.toList());
+            .map(n -> (MockTransportService) internalCluster().getInstance(TransportService.class, n))
+            .collect(Collectors.toList());
 
         logger.info("--> disrupting communications");
 
@@ -116,45 +120,66 @@ public class Zen1IT extends ESIntegTestCase {
 
         // Nodes 3 and 4 will bootstrap, but we want to keep node 2 as part of the Zen1 cluster, so prevent any messages that might switch
         // its allegiance
-        transportServices.get(3).addFailToSendNoConnectRule(transportServices.get(2),
-            PUBLISH_STATE_ACTION_NAME, FOLLOWER_CHECK_ACTION_NAME, START_JOIN_ACTION_NAME);
-        transportServices.get(4).addFailToSendNoConnectRule(transportServices.get(2),
-            PUBLISH_STATE_ACTION_NAME, FOLLOWER_CHECK_ACTION_NAME, START_JOIN_ACTION_NAME);
+        transportServices.get(3)
+            .addFailToSendNoConnectRule(
+                transportServices.get(2),
+                PUBLISH_STATE_ACTION_NAME,
+                FOLLOWER_CHECK_ACTION_NAME,
+                START_JOIN_ACTION_NAME
+            );
+        transportServices.get(4)
+            .addFailToSendNoConnectRule(
+                transportServices.get(2),
+                PUBLISH_STATE_ACTION_NAME,
+                FOLLOWER_CHECK_ACTION_NAME,
+                START_JOIN_ACTION_NAME
+            );
 
         logger.info("--> waiting for disconnected nodes to be removed");
         ensureStableCluster(3, nodes.get(0));
 
         logger.info("--> creating index on Zen1 side");
         assertAcked(client(nodes.get(0)).admin().indices().create(new CreateIndexRequest("test")).get());
-        assertFalse(client(nodes.get(0)).admin().cluster().health(new ClusterHealthRequest("test")
-            .waitForGreenStatus()).get().isTimedOut());
+        assertFalse(
+            client(nodes.get(0)).admin().cluster().health(new ClusterHealthRequest("test").waitForGreenStatus()).get().isTimedOut()
+        );
 
         logger.info("--> waiting for disconnected nodes to bootstrap themselves");
-        assertBusy(() -> assertTrue(IntStream.range(3, 5)
-            .mapToObj(n -> (Coordinator) internalCluster().getInstance(Discovery.class, nodes.get(n)))
-            .anyMatch(Coordinator::isInitialConfigurationSet)));
+        assertBusy(
+            () -> assertTrue(
+                IntStream.range(3, 5)
+                    .mapToObj(n -> (Coordinator) internalCluster().getInstance(Discovery.class, nodes.get(n)))
+                    .anyMatch(Coordinator::isInitialConfigurationSet)
+            )
+        );
 
         logger.info("--> clearing disruption and waiting for cluster to reform");
         transportServices.forEach(MockTransportService::clearAllRules);
 
         ensureStableCluster(5, nodes.get(0));
-        assertFalse(client(nodes.get(0)).admin().cluster().health(new ClusterHealthRequest("test")
-            .waitForGreenStatus()).get().isTimedOut());
+        assertFalse(
+            client(nodes.get(0)).admin().cluster().health(new ClusterHealthRequest("test").waitForGreenStatus()).get().isTimedOut()
+        );
     }
 
     public void testMixedClusterFormation() throws Exception {
         final int zen1NodeCount = randomIntBetween(1, 3);
         final int zen2NodeCount = randomIntBetween(zen1NodeCount == 1 ? 2 : 1, 3);
         logger.info("starting cluster of [{}] Zen1 nodes and [{}] Zen2 nodes", zen1NodeCount, zen2NodeCount);
-        final List<String> nodes = internalCluster().startNodes(IntStream.range(0, zen1NodeCount + zen2NodeCount)
-            .mapToObj(i -> i < zen1NodeCount ? ZEN1_SETTINGS : ZEN2_SETTINGS).toArray(Settings[]::new));
+        final List<String> nodes = internalCluster().startNodes(
+            IntStream.range(0, zen1NodeCount + zen2NodeCount)
+                .mapToObj(i -> i < zen1NodeCount ? ZEN1_SETTINGS : ZEN2_SETTINGS)
+                .toArray(Settings[]::new)
+        );
 
-        createIndex("test",
+        createIndex(
+            "test",
             Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, zen1NodeCount + zen2NodeCount + randomIntBetween(0, 2)) // causes rebalancing
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build());
+                .build()
+        );
         ensureGreen("test");
 
         for (final String node : nodes) {
@@ -166,15 +191,17 @@ public class Zen1IT extends ESIntegTestCase {
             final boolean requiresVotingConfigExclusions = zen1NodeCount == 1 && zen2NodeCount == 2 && masterNodeIsZen2 && thisNodeIsZen2;
 
             if (requiresVotingConfigExclusions) {
-                client().execute(AddVotingConfigExclusionsAction.INSTANCE,
-                    new AddVotingConfigExclusionsRequest(new String[]{node})).get();
+                client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(new String[] { node }))
+                    .get();
             }
 
             internalCluster().restartNode(node, new RestartCallback() {
                 @Override
                 public Settings onNodeStopped(String restartingNode) {
                     String viaNode = randomValueOtherThan(restartingNode, () -> randomFrom(nodes));
-                    final ClusterHealthRequestBuilder clusterHealthRequestBuilder = client(viaNode).admin().cluster().prepareHealth()
+                    final ClusterHealthRequestBuilder clusterHealthRequestBuilder = client(viaNode).admin()
+                        .cluster()
+                        .prepareHealth()
                         .setWaitForEvents(Priority.LANGUID)
                         .setWaitForNodes(Integer.toString(zen1NodeCount + zen2NodeCount - 1))
                         .setTimeout(TimeValue.timeValueSeconds(30));
@@ -198,12 +225,14 @@ public class Zen1IT extends ESIntegTestCase {
         final int nodeCount = randomIntBetween(2, 5);
         final List<String> zen1Nodes = internalCluster().startNodes(nodeCount, ZEN1_SETTINGS);
 
-        createIndex("test",
+        createIndex(
+            "test",
             Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, nodeCount) // causes rebalancing
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build());
+                .build()
+        );
         ensureGreen("test");
 
         for (final String zen1Node : zen1Nodes) {
@@ -231,12 +260,14 @@ public class Zen1IT extends ESIntegTestCase {
         final int nodeCount = randomIntBetween(2, 5);
         final List<String> nodes = internalCluster().startNodes(nodeCount, ZEN1_SETTINGS);
 
-        createIndex("test",
+        createIndex(
+            "test",
             Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, nodeCount) // causes rebalancing
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build());
+                .build()
+        );
         ensureGreen("test");
 
         internalCluster().rollingRestart(new RestartCallback() {
@@ -248,7 +279,9 @@ public class Zen1IT extends ESIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) {
                 String viaNode = randomValueOtherThan(nodeName, () -> randomFrom(nodes));
-                final ClusterHealthRequestBuilder clusterHealthRequestBuilder = client(viaNode).admin().cluster().prepareHealth()
+                final ClusterHealthRequestBuilder clusterHealthRequestBuilder = client(viaNode).admin()
+                    .cluster()
+                    .prepareHealth()
                     .setWaitForEvents(Priority.LANGUID)
                     .setWaitForNodes(Integer.toString(nodeCount - 1))
                     .setTimeout(TimeValue.timeValueSeconds(30));
@@ -259,8 +292,12 @@ public class Zen1IT extends ESIntegTestCase {
                 }
                 ClusterHealthResponse clusterHealthResponse = clusterHealthRequestBuilder.get();
                 assertFalse(nodeName, clusterHealthResponse.isTimedOut());
-                return Coordinator.addZen1Attribute(false, Settings.builder().put(ZEN2_SETTINGS)
-                    .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), REMOVED_MINIMUM_MASTER_NODES)).build();
+                return Coordinator.addZen1Attribute(
+                    false,
+                    Settings.builder()
+                        .put(ZEN2_SETTINGS)
+                        .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), REMOVED_MINIMUM_MASTER_NODES)
+                ).build();
             }
         });
 
@@ -271,19 +308,27 @@ public class Zen1IT extends ESIntegTestCase {
 
     private void testMultipleNodeMigrationFromZen1ToZen2(int nodeCount) throws Exception {
         final List<String> oldNodes = internalCluster().startNodes(nodeCount, ZEN1_SETTINGS);
-        createIndex("test",
+        createIndex(
+            "test",
             Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, nodeCount) // causes rebalancing
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, nodeCount > 1 ? 1 : 0)
-                .build());
+                .build()
+        );
         ensureGreen("test");
 
         internalCluster().startNodes(nodeCount, ZEN2_SETTINGS);
 
         logger.info("--> updating settings to exclude old nodes");
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), String.join(",", oldNodes))).get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder()
+                    .put(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), String.join(",", oldNodes))
+            )
+            .get();
 
         logger.info("--> waiting for old nodes to be vacated");
         waitForRelocation();
@@ -311,12 +356,19 @@ public class Zen1IT extends ESIntegTestCase {
         final List<String> nodeNames = internalCluster().startNodes(3, ZEN1_SETTINGS);
 
         // Set setting to a non-default value on all nodes.
-        assertTrue(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NEW_PRIMARIES)).get().isAcknowledged());
+        assertTrue(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NEW_PRIMARIES))
+                .get()
+                .isAcknowledged()
+        );
 
-        final List<NodeEnvironment> nodeEnvironments
-            = StreamSupport.stream(internalCluster().getDataOrMasterNodeInstances(NodeEnvironment.class).spliterator(), false)
-            .collect(Collectors.toList());
+        final List<NodeEnvironment> nodeEnvironments = StreamSupport.stream(
+            internalCluster().getDataOrMasterNodeInstances(NodeEnvironment.class).spliterator(),
+            false
+        ).collect(Collectors.toList());
 
         final boolean randomiseVersions = rarely();
 
@@ -330,14 +382,30 @@ public class Zen1IT extends ESIntegTestCase {
                 if (nodesStopped == 1) {
                     final Client client = internalCluster().client(randomValueOtherThan(nodeName, () -> randomFrom(nodeNames)));
 
-                    assertFalse(client.admin().cluster().health(Requests.clusterHealthRequest()
-                        .waitForEvents(Priority.LANGUID)
-                        .waitForNoRelocatingShards(true)
-                        .waitForNodes("2")).actionGet().isTimedOut());
+                    assertFalse(
+                        client.admin()
+                            .cluster()
+                            .health(
+                                Requests.clusterHealthRequest()
+                                    .waitForEvents(Priority.LANGUID)
+                                    .waitForNoRelocatingShards(true)
+                                    .waitForNodes("2")
+                            )
+                            .actionGet()
+                            .isTimedOut()
+                    );
 
                     // Set setting to a different non-default value on two of the three remaining nodes.
-                    assertTrue(client.admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-                        .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE)).get().isAcknowledged());
+                    assertTrue(
+                        client.admin()
+                            .cluster()
+                            .prepareUpdateSettings()
+                            .setPersistentSettings(
+                                Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE)
+                            )
+                            .get()
+                            .isAcknowledged()
+                    );
                 }
 
                 if (nodesStopped == nodeNames.size()) {
@@ -348,9 +416,15 @@ public class Zen1IT extends ESIntegTestCase {
                         final Manifest manifest = metaStateService.loadManifestOrEmpty();
                         assertThat(manifest.getCurrentTerm(), is(ZEN1_BWC_TERM));
                         final long newVersion = randomiseVersions ? randomNonNegativeLong() : 0L;
-                        metaStateService.writeManifestAndCleanup("altering version to " + newVersion,
-                            new Manifest(manifest.getCurrentTerm(), newVersion, manifest.getGlobalGeneration(),
-                                manifest.getIndexGenerations()));
+                        metaStateService.writeManifestAndCleanup(
+                            "altering version to " + newVersion,
+                            new Manifest(
+                                manifest.getCurrentTerm(),
+                                newVersion,
+                                manifest.getGlobalGeneration(),
+                                manifest.getIndexGenerations()
+                            )
+                        );
                     }
                 }
 

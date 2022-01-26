@@ -1,7 +1,7 @@
 [[java-clients]]
 === Java Client and security
 
-deprecated[7.0.0, The `TransportClient` is deprecated in favour of the {java-rest}/java-rest-high.html[Java High Level REST Client] and will be removed in Elasticsearch 8.0. The {java-rest}/java-rest-high-level-migration.html[migration guide] describes all the steps needed to migrate.]
+deprecated[7.0.0, The `TransportClient` is deprecated in favour of the https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.15/java-rest-high.html[Java High Level REST Client] and will be removed in Elasticsearch 8.0. The https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.15/java-rest-high-level-migration.html[migration guide] describes all the steps needed to migrate.]
 
 The {es} {security-features} support the Java http://www.elastic.co/guide/en/elasticsearch/client/java-api/current/transport-client.html[transport client] for Elasticsearch.
 The transport client uses the same transport protocol that the cluster nodes use

@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -65,9 +66,10 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
     private IndexMetadata getIndexMetadata(String index) {
         Map<String, String> ilmCustom = Collections.singletonMap("rollup_index_name", "rollup-index");
-        return IndexMetadata.builder(index).settings(
-            settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "test-ilm-policy"))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
+        return IndexMetadata.builder(index)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "test-ilm-policy"))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
             .build();
     }
@@ -86,19 +88,15 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
         mockClientRollupCall(index);
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, true)
-            )
-            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
     }
 
     public void testPerformActionFailureInvalidExecutionState() {
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(
-            settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "test-ilm-policy"))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "test-ilm-policy"))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         String indexName = indexMetadata.getIndex().getName();
@@ -112,8 +110,10 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
             @Override
             public void onFailure(Exception e) {
                 assertThat(e, instanceOf(IllegalStateException.class));
-                assertThat(e.getMessage(),
-                    is("rollup index name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
+                assertThat(
+                    e.getMessage(),
+                    is("rollup index name was not generated for policy [" + policyName + "] and index [" + indexName + "]")
+                );
             }
         });
     }
@@ -130,8 +130,9 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                        Collections.singletonList(indexMetadata.getIndex())))
+                    .put(
+                        newInstance(dataStreamName, createTimestampField("@timestamp"), Collections.singletonList(indexMetadata.getIndex()))
+                    )
                     .put(indexMetadata, true)
             )
             .build();

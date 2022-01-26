@@ -22,10 +22,10 @@ import java.util.stream.Stream;
  */
 public interface DocReader {
     /** New-style field access */
-    Field<?> field(String fieldName);
+    Field field(String fieldName);
 
     /** New-style field iterator */
-    Stream<Field<?>> fields(String fieldGlob);
+    Stream<Field> fields(String fieldGlob);
 
     /** Set the underlying docId */
     void setDocument(int docID);

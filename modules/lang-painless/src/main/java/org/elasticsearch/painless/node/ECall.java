@@ -25,8 +25,14 @@ public class ECall extends AExpression {
     private final List<AExpression> argumentNodes;
     private final boolean isNullSafe;
 
-    public ECall(int identifier, Location location,
-            AExpression prefixNode, String methodName, List<AExpression> argumentNodes, boolean isNullSafe) {
+    public ECall(
+        int identifier,
+        Location location,
+        AExpression prefixNode,
+        String methodName,
+        List<AExpression> argumentNodes,
+        boolean isNullSafe
+    ) {
 
         super(identifier, location);
 

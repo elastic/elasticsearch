@@ -28,13 +28,17 @@ public class RestGetScriptContextAction extends BaseRestHandler {
         return singletonList(new Route(GET, "/_script_context"));
     }
 
-    @Override public String getName() {
+    @Override
+    public String getName() {
         return "script_context_action";
     }
 
-    @Override protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        return channel -> client.execute(GetScriptContextAction.INSTANCE,
+    @Override
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        return channel -> client.execute(
+            GetScriptContextAction.INSTANCE,
             new GetScriptContextRequest(),
-            new RestToXContentListener<>(channel));
+            new RestToXContentListener<>(channel)
+        );
     }
 }

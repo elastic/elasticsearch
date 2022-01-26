@@ -18,33 +18,51 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testHasDocValues() {
         DenseVectorFieldMapper.DenseVectorFieldType ft = new DenseVectorFieldMapper.DenseVectorFieldType(
-            "f", Version.CURRENT, 1, Collections.emptyMap());
+            "f",
+            Version.CURRENT,
+            1,
+            Collections.emptyMap()
+        );
         assertTrue(ft.hasDocValues());
     }
 
     public void testIsAggregatable() {
         DenseVectorFieldMapper.DenseVectorFieldType ft = new DenseVectorFieldMapper.DenseVectorFieldType(
-            "f", Version.CURRENT,1, Collections.emptyMap());
+            "f",
+            Version.CURRENT,
+            1,
+            Collections.emptyMap()
+        );
         assertFalse(ft.isAggregatable());
     }
 
     public void testFielddataBuilder() {
         DenseVectorFieldMapper.DenseVectorFieldType ft = new DenseVectorFieldMapper.DenseVectorFieldType(
-            "f", Version.CURRENT,1, Collections.emptyMap());
-        assertNotNull(ft.fielddataBuilder("index", () -> {
-            throw new UnsupportedOperationException();
-        }));
+            "f",
+            Version.CURRENT,
+            1,
+            Collections.emptyMap()
+        );
+        assertNotNull(ft.fielddataBuilder("index", () -> { throw new UnsupportedOperationException(); }));
     }
 
     public void testDocValueFormat() {
         DenseVectorFieldMapper.DenseVectorFieldType ft = new DenseVectorFieldMapper.DenseVectorFieldType(
-            "f", Version.CURRENT,1, Collections.emptyMap());
+            "f",
+            Version.CURRENT,
+            1,
+            Collections.emptyMap()
+        );
         expectThrows(IllegalArgumentException.class, () -> ft.docValueFormat(null, null));
     }
 
     public void testFetchSourceValue() throws IOException {
         DenseVectorFieldMapper.DenseVectorFieldType ft = new DenseVectorFieldMapper.DenseVectorFieldType(
-            "f", Version.CURRENT, 5, Collections.emptyMap());
+            "f",
+            Version.CURRENT,
+            5,
+            Collections.emptyMap()
+        );
         List<Double> vector = org.elasticsearch.core.List.of(0.0, 1.0, 2.0, 3.0, 4.0);
         assertEquals(vector, fetchSourceValue(ft, vector));
     }

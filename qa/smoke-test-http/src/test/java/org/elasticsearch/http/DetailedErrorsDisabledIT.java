@@ -8,8 +8,6 @@
 
 package org.elasticsearch.http;
 
-import java.io.IOException;
-
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -17,6 +15,8 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -31,21 +31,22 @@ public class DetailedErrorsDisabledIT extends HttpSmokeTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put(HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED.getKey(), false)
-                .build();
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(HttpTransportSettings.SETTING_HTTP_DETAILED_ERRORS_ENABLED.getKey(), false)
+            .build();
     }
 
     public void testThatErrorTraceParamReturns400() throws IOException {
         Request request = new Request("DELETE", "/");
         request.addParameter("error_trace", "true");
-        ResponseException e = expectThrows(ResponseException.class, () ->
-            getRestClient().performRequest(request));
+        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
 
         Response response = e.getResponse();
         assertThat(response.getHeader("Content-Type"), is("application/json; charset=UTF-8"));
-        assertThat(EntityUtils.toString(e.getResponse().getEntity()),
-                   containsString("\"error\":\"error traces in responses are disabled.\""));
+        assertThat(
+            EntityUtils.toString(e.getResponse().getEntity()),
+            containsString("\"error\":\"error traces in responses are disabled.\"")
+        );
         assertThat(response.getStatusLine().getStatusCode(), is(400));
     }
 }

@@ -10,8 +10,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -30,16 +30,11 @@ public final class EnrichStatsCollector extends Collector {
     private final Client client;
     private final ThreadContext threadContext;
 
-    public EnrichStatsCollector(ClusterService clusterService,
-                                XPackLicenseState licenseState,
-                                Client client) {
+    public EnrichStatsCollector(ClusterService clusterService, XPackLicenseState licenseState, Client client) {
         this(clusterService, licenseState, client, client.threadPool().getThreadContext());
     }
 
-    EnrichStatsCollector(ClusterService clusterService,
-                         XPackLicenseState licenseState,
-                         Client client,
-                         ThreadContext threadContext) {
+    EnrichStatsCollector(ClusterService clusterService, XPackLicenseState licenseState, Client client, ThreadContext threadContext) {
         super(EnrichCoordinatorDoc.TYPE, clusterService, STATS_TIMEOUT, licenseState);
         this.client = client;
         this.threadContext = threadContext;
@@ -57,14 +52,16 @@ public final class EnrichStatsCollector extends Collector {
             final String clusterUuid = clusterUuid(clusterState);
 
             final EnrichStatsAction.Request request = new EnrichStatsAction.Request();
-            final EnrichStatsAction.Response response =
-                client.execute(EnrichStatsAction.INSTANCE, request).actionGet(getCollectionTimeout());
+            final EnrichStatsAction.Response response = client.execute(EnrichStatsAction.INSTANCE, request)
+                .actionGet(getCollectionTimeout());
 
-            final List<MonitoringDoc> docs = response.getCoordinatorStats().stream()
+            final List<MonitoringDoc> docs = response.getCoordinatorStats()
+                .stream()
                 .map(stats -> new EnrichCoordinatorDoc(clusterUuid, timestamp, interval, node, stats))
                 .collect(Collectors.toList());
 
-            response.getExecutingPolicies().stream()
+            response.getExecutingPolicies()
+                .stream()
                 .map(stats -> new ExecutingPolicyDoc(clusterUuid, timestamp, interval, node, stats))
                 .forEach(docs::add);
 

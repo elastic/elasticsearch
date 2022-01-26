@@ -13,14 +13,14 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.SystemIndices;
@@ -33,18 +33,25 @@ import java.util.List;
  * a write operation is about to happen in a non existing index.
  */
 public final class AutoCreateIndex {
-    public static final Setting<AutoCreate> AUTO_CREATE_INDEX_SETTING =
-        new Setting<>("action.auto_create_index", "true", AutoCreate::new, Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<AutoCreate> AUTO_CREATE_INDEX_SETTING = new Setting<>(
+        "action.auto_create_index",
+        "true",
+        AutoCreate::new,
+        Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     private final boolean dynamicMappingDisabled;
     private final IndexNameExpressionResolver resolver;
     private final SystemIndices systemIndices;
     private volatile AutoCreate autoCreate;
 
-    public AutoCreateIndex(Settings settings,
-                           ClusterSettings clusterSettings,
-                           IndexNameExpressionResolver resolver,
-                           SystemIndices systemIndices) {
+    public AutoCreateIndex(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        IndexNameExpressionResolver resolver,
+        SystemIndices systemIndices
+    ) {
         this.resolver = resolver;
         dynamicMappingDisabled = MapperService.INDEX_MAPPER_DYNAMIC_SETTING.get(settings) == false;
         this.systemIndices = systemIndices;
@@ -83,8 +90,7 @@ public final class AutoCreateIndex {
             throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] is [false]", index);
         }
         if (dynamicMappingDisabled) {
-            throw new IndexNotFoundException("[" + MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey() + "] is [false]",
-                    index);
+            throw new IndexNotFoundException("[" + MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey() + "] is [false]", index);
         }
         // matches not set, default value of "true"
         if (autoCreate.expressions.isEmpty()) {
@@ -97,12 +103,17 @@ public final class AutoCreateIndex {
                 if (include) {
                     return true;
                 }
-                throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] contains [-"
-                        + indexExpression + "] which forbids automatic creation of the index", index);
+                throw new IndexNotFoundException(
+                    "["
+                        + AUTO_CREATE_INDEX_SETTING.getKey()
+                        + "] contains [-"
+                        + indexExpression
+                        + "] which forbids automatic creation of the index",
+                    index
+                );
             }
         }
-        throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] ([" + autoCreate
-                + "]) doesn't match", index);
+        throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] ([" + autoCreate + "]) doesn't match", index);
     }
 
     AutoCreate getAutoCreate() {
@@ -133,21 +144,33 @@ public final class AutoCreateIndex {
                     String[] patterns = Strings.commaDelimitedListToStringArray(value);
                     for (String pattern : patterns) {
                         if (pattern == null || pattern.trim().length() == 0) {
-                            throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] must "
-                                    + "be either [true, false, or a comma separated list of index patterns]");
+                            throw new IllegalArgumentException(
+                                "Can't parse ["
+                                    + value
+                                    + "] for setting [action.auto_create_index] must "
+                                    + "be either [true, false, or a comma separated list of index patterns]"
+                            );
                         }
                         pattern = pattern.trim();
                         Tuple<String, Boolean> expression;
                         if (pattern.startsWith("-")) {
                             if (pattern.length() == 1) {
-                                throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] "
-                                        + "must contain an index name after [-]");
+                                throw new IllegalArgumentException(
+                                    "Can't parse ["
+                                        + value
+                                        + "] for setting [action.auto_create_index] "
+                                        + "must contain an index name after [-]"
+                                );
                             }
                             expression = new Tuple<>(pattern.substring(1), false);
-                        } else if(pattern.startsWith("+")) {
+                        } else if (pattern.startsWith("+")) {
                             if (pattern.length() == 1) {
-                                throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] "
-                                        + "must contain an index name after [+]");
+                                throw new IllegalArgumentException(
+                                    "Can't parse ["
+                                        + value
+                                        + "] for setting [action.auto_create_index] "
+                                        + "must contain an index name after [+]"
+                                );
                             }
                             expression = new Tuple<>(pattern.substring(1), true);
                         } else {

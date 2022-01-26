@@ -11,8 +11,8 @@ package org.elasticsearch.test.rest.yaml;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -154,8 +154,15 @@ public class Stash implements ToXContentFragment {
                 }
                 path.remove(path.size() - 1);
                 if (null != result.putIfAbsent(key, value)) {
-                    throw new IllegalArgumentException("Unstashing has caused a key conflict! The map is [" + result + "] and the key is ["
-                            + entry.getKey() + "] which unstashes to [" + key + "]");
+                    throw new IllegalArgumentException(
+                        "Unstashing has caused a key conflict! The map is ["
+                            + result
+                            + "] and the key is ["
+                            + entry.getKey()
+                            + "] which unstashes to ["
+                            + key
+                            + "]"
+                    );
                 }
             }
             return result;

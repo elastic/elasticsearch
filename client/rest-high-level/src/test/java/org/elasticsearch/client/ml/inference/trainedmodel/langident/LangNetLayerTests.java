@@ -7,13 +7,12 @@
  */
 package org.elasticsearch.client.ml.inference.trainedmodel.langident;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.stream.Stream;
-
 
 public class LangNetLayerTests extends AbstractXContentTestCase<LangNetLayer> {
 
@@ -38,7 +37,8 @@ public class LangNetLayerTests extends AbstractXContentTestCase<LangNetLayer> {
             Stream.generate(ESTestCase::randomDouble).limit(numWeights).mapToDouble(Double::doubleValue).toArray(),
             numWeights,
             1,
-            Stream.generate(ESTestCase::randomDouble).limit(numWeights).mapToDouble(Double::doubleValue).toArray());
+            Stream.generate(ESTestCase::randomDouble).limit(numWeights).mapToDouble(Double::doubleValue).toArray()
+        );
     }
 
 }

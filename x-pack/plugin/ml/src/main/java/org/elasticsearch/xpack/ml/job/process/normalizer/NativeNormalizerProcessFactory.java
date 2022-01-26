@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.job.process.normalizer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -43,8 +43,8 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
         this.nodeName = clusterService.getNodeName();
         this.counter = new AtomicLong(0);
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
-            this::setProcessConnectTimeout);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT, this::setProcessConnectTimeout);
     }
 
     void setProcessConnectTimeout(TimeValue processConnectTimeout) {
@@ -52,13 +52,28 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
     }
 
     @Override
-    public NormalizerProcess createNormalizerProcess(String jobId, String quantilesState, Integer bucketSpan,
-                                                     ExecutorService executorService) {
+    public NormalizerProcess createNormalizerProcess(
+        String jobId,
+        String quantilesState,
+        Integer bucketSpan,
+        ExecutorService executorService
+    ) {
         // Since normalize can get run many times in quick succession for the same job the job ID alone is not sufficient to
-        // guarantee that the normalizer process pipe names are unique.  Therefore an increasing counter value is passed as
+        // guarantee that the normalizer process pipe names are unique. Therefore an increasing counter value is passed as
         // well as the job ID to ensure uniqueness between calls.
-        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, processConnectTimeout, NormalizerBuilder.NORMALIZE,
-            jobId, counter.incrementAndGet(), false, true, true, false, false);
+        ProcessPipes processPipes = new ProcessPipes(
+            env,
+            NAMED_PIPE_HELPER,
+            processConnectTimeout,
+            NormalizerBuilder.NORMALIZE,
+            jobId,
+            counter.incrementAndGet(),
+            false,
+            true,
+            true,
+            false,
+            false
+        );
         createNativeProcess(jobId, quantilesState, processPipes, bucketSpan);
 
         NativeNormalizerProcess normalizerProcess = new NativeNormalizerProcess(jobId, processPipes);
@@ -94,4 +109,3 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
         }
     }
 }
-

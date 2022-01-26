@@ -7,13 +7,20 @@
 package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.notification.email.support.BodyPartSource;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.Set;
 
 import javax.activation.DataHandler;
 import javax.activation.DataSource;
@@ -21,12 +28,6 @@ import javax.activation.FileDataSource;
 import javax.mail.MessagingException;
 import javax.mail.internet.MimeBodyPart;
 import javax.mail.util.ByteArrayDataSource;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.Path;
-import java.util.Collections;
-import java.util.Set;
 
 import static javax.mail.Part.ATTACHMENT;
 import static javax.mail.Part.INLINE;
@@ -73,11 +74,11 @@ public abstract class Attachment extends BodyPartSource {
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
-                .field("type", type())
-                .field("id", id)
-                .field("name", name)
-                .field("content_type", contentType)
-                .endObject();
+            .field("type", type())
+            .field("id", id)
+            .field("name", name)
+            .field("content_type", contentType)
+            .endObject();
     }
 
     protected abstract void writeTo(MimeBodyPart part) throws MessagingException;
@@ -232,10 +233,14 @@ public abstract class Attachment extends BodyPartSource {
 
         static String mimeType(XContentType type) {
             switch (type) {
-                case JSON:  return "application/json";
-                case YAML:  return "application/yaml";
-                case SMILE: return "application/smile";
-                case CBOR:  return "application/cbor";
+                case JSON:
+                    return "application/json";
+                case YAML:
+                    return "application/yaml";
+                case SMILE:
+                    return "application/smile";
+                case CBOR:
+                    return "application/cbor";
                 default:
                     throw new IllegalArgumentException("unsupported xcontent attachment type [" + type.name() + "]");
             }

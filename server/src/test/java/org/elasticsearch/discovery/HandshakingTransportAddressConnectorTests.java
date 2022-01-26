@@ -18,10 +18,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -91,18 +91,23 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
                     if (fullConnectionFailure != null && node.getAddress().equals(remoteNode.getAddress())) {
                         handleError(requestId, fullConnectionFailure);
                     } else {
-                        handleResponse(requestId, new HandshakeResponse(
-                                Version.CURRENT,
-                                Build.CURRENT.hash(),
-                                remoteNode,
-                                new ClusterName(remoteClusterName)));
+                        handleResponse(
+                            requestId,
+                            new HandshakeResponse(Version.CURRENT, Build.CURRENT.hash(), remoteNode, new ClusterName(remoteClusterName))
+                        );
                     }
                 }
             }
         };
 
-        transportService = mockTransport.createTransportService(settings, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, address -> localNode, null, emptySet());
+        transportService = mockTransport.createTransportService(
+            settings,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            address -> localNode,
+            null,
+            emptySet()
+        );
 
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -141,7 +146,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         assertEquals(remoteNode, receivedNode.get());
     }
 
-    @TestLogging(reason="ensure logging happens", value="org.elasticsearch.discovery.HandshakingTransportAddressConnector:INFO")
+    @TestLogging(reason = "ensure logging happens", value = "org.elasticsearch.discovery.HandshakingTransportAddressConnector:INFO")
     public void testLogsFullConnectionFailureAfterSuccessfulHandshake() throws Exception {
 
         remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -159,7 +164,9 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
                 "message",
                 HandshakingTransportAddressConnector.class.getCanonicalName(),
                 Level.WARN,
-                "*completed handshake with [*] but followup connection failed*"));
+                "*completed handshake with [*] but followup connection failed*"
+            )
+        );
         Logger targetLogger = LogManager.getLogger(HandshakingTransportAddressConnector.class);
         Loggers.addAppender(targetLogger, mockAppender);
 

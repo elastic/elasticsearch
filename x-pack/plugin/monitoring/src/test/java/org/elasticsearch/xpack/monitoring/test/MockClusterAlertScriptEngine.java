@@ -48,8 +48,9 @@ public class MockClusterAlertScriptEngine extends MockPainlessScriptEngine {
 
         // Transform - Return empty Map from the transform function
         if (context.instanceClazz.equals(WatcherTransformScript.class)) {
-            return context.factoryClazz.cast(new MockWatcherTransformScript(MockDeterministicScript.asDeterministic(
-                p -> new HashMap<String, Object>())));
+            return context.factoryClazz.cast(
+                new MockWatcherTransformScript(MockDeterministicScript.asDeterministic(p -> new HashMap<String, Object>()))
+            );
         }
 
         // We want to just add an allowance for watcher scripts, and to delegate everything else to the parent class.

@@ -27,10 +27,9 @@ dependencies {
   api "org.jline:jline-style:${jlineVersion}"
 
   api xpackProject('plugin:sql:sql-client')
-  api xpackProject('plugin:sql:sql-action')
   api project(":libs:elasticsearch-cli")
   api project(':libs:elasticsearch-x-content')
-  runtimeOnly "org.elasticsearch:jna:${versions.jna}"
+  runtimeOnly "net.java.dev.jna:jna:${versions.jna}"
   testImplementation project(":test:framework")
 }
 
@@ -46,6 +45,7 @@ tasks.named("shadowJar").configure {
   manifest {
     attributes 'Main-Class': 'org.elasticsearch.xpack.sql.cli.Cli'
   }
+  exclude '/org/apache/logging/log4j/core/lookup/JndiLookup.class'
 }
 
 tasks.named('forbiddenApisMain').configure {

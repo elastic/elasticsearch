@@ -9,6 +9,7 @@
 package org.elasticsearch.index.query;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.util.HashMap;
@@ -39,11 +40,17 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
         } else {
             value = testQuery.value();
         }
-        String contentString = "{\n" +
-                "    \"" + testQuery.getName() + "\" : {\n" +
-                "        \"" + testQuery.fieldName() + "\" : " + value + "\n" +
-                "    }\n" +
-                "}";
+        String contentString = "{\n"
+            + "    \""
+            + testQuery.getName()
+            + "\" : {\n"
+            + "        \""
+            + testQuery.fieldName()
+            + "\" : "
+            + value
+            + "\n"
+            + "    }\n"
+            + "}";
         alternateVersions.put(contentString, testQuery);
         return alternateVersions;
     }

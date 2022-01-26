@@ -16,6 +16,7 @@ import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.TaskProvider;
 
 import javax.inject.Inject;
 
@@ -43,18 +44,24 @@ public class RewritePlugin implements Plugin<Project> {
         Configuration rewriteConf = project.getConfigurations().maybeCreate("rewrite");
         rewriteConf.getResolutionStrategy().eachDependency(details -> {
             ModuleVersionSelector requested = details.getRequested();
-            if (requested.getGroup().equals("org.openrewrite") && requested.getVersion().isBlank() ||  requested.getVersion() == null) {
+            if (requested.getGroup().equals("org.openrewrite") && requested.getVersion().isBlank() || requested.getVersion() == null) {
                 details.useVersion(extension.getRewriteVersion());
             }
         });
-        RewriteTask rewriteTask = project.getTasks().create(REWRITE_TASKNAME, RewriteTask.class, rewriteConf, extension);
-        rewriteTask.getActiveRecipes().convention(providerFactory.provider(() -> extension.getActiveRecipes()));
-        rewriteTask.getConfigFile().convention(projectLayout.file(providerFactory.provider(() -> extension.getConfigFile())));
+        TaskProvider<RewriteTask> rewriteTaskProvider = project.getTasks()
+            .register(REWRITE_TASKNAME, RewriteTask.class, rewriteConf, extension);
+        rewriteTaskProvider.configure((rewriteTask) -> {
+            rewriteTask.getActiveRecipes().convention(providerFactory.provider(() -> extension.getActiveRecipes()));
+            rewriteTask.getConfigFile().convention(projectLayout.file(providerFactory.provider(() -> extension.getConfigFile())));
+        });
+
         project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
             JavaPluginExtension javaPluginExtension = project.getExtensions().getByType(JavaPluginExtension.class);
-            javaPluginExtension.getSourceSets().all( sourceSet -> {
-                rewriteTask.getSourceFiles().from(sourceSet.getAllSource());
-                rewriteTask.getDependencyFiles().from(sourceSet.getCompileClasspath());
+            javaPluginExtension.getSourceSets().all(sourceSet -> {
+                rewriteTaskProvider.configure(r -> {
+                    r.getSourceFiles().from(sourceSet.getAllSource());
+                    r.getDependencyFiles().from(sourceSet.getCompileClasspath());
+                });
             });
         });
     }

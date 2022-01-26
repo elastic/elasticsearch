@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -23,7 +23,8 @@ public class FilterRef implements ToXContentObject {
     public static final ParseField FILTER_TYPE = new ParseField("filter_type");
 
     public enum FilterType {
-        INCLUDE, EXCLUDE;
+        INCLUDE,
+        EXCLUDE;
 
         public static FilterType fromString(String value) {
             return valueOf(value.toUpperCase(Locale.ROOT));
@@ -35,8 +36,11 @@ public class FilterRef implements ToXContentObject {
         }
     }
 
-    public static final ConstructingObjectParser<FilterRef, Void> PARSER =
-        new ConstructingObjectParser<>(FILTER_REF_FIELD.getPreferredName(), true, a -> new FilterRef((String) a[0], (FilterType) a[1]));
+    public static final ConstructingObjectParser<FilterRef, Void> PARSER = new ConstructingObjectParser<>(
+        FILTER_REF_FIELD.getPreferredName(),
+        true,
+        a -> new FilterRef((String) a[0], (FilterType) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FILTER_ID);

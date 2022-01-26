@@ -23,24 +23,24 @@ public final class DateUtils {
 
     public static final ZoneId UTC = ZoneId.of("Z");
 
-    private static final DateTimeFormatter DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE = new DateTimeFormatterBuilder()
-        .append(ISO_LOCAL_DATE)
+    private static final DateTimeFormatter DATE_OPTIONAL_TIME_FORMATTER_WHITESPACE = new DateTimeFormatterBuilder().append(ISO_LOCAL_DATE)
         .optionalStart()
         .appendLiteral(' ')
         .append(ISO_LOCAL_TIME)
         .optionalStart()
         .appendZoneOrOffsetId()
         .optionalEnd()
-        .toFormatter().withZone(UTC);
-    private static final DateTimeFormatter DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL = new DateTimeFormatterBuilder()
-        .append(ISO_LOCAL_DATE)
+        .toFormatter()
+        .withZone(UTC);
+    private static final DateTimeFormatter DATE_OPTIONAL_TIME_FORMATTER_T_LITERAL = new DateTimeFormatterBuilder().append(ISO_LOCAL_DATE)
         .optionalStart()
         .appendLiteral('T')
         .append(ISO_LOCAL_TIME)
         .optionalStart()
         .appendZoneOrOffsetId()
         .optionalEnd()
-        .toFormatter().withZone(UTC);
+        .toFormatter()
+        .withZone(UTC);
 
     private DateUtils() {}
 
@@ -61,8 +61,8 @@ public final class DateUtils {
         }
         // Find the second `-` date separator and move 3 places past the dayOfYear to find the time separator
         // e.g. 2020-06-01T10:20:30....
-        //             ^
-        //           +3 = ^
+        // ^
+        // +3 = ^
         separatorIdx = dateFormat.indexOf('-', separatorIdx + 1) + 3;
 
         // Avoid index out of bounds - it will lead to DateTimeParseException anyways

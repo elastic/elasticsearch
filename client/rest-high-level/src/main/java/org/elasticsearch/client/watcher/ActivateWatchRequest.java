@@ -20,7 +20,7 @@ public final class ActivateWatchRequest implements Validatable {
     private final String watchId;
 
     public ActivateWatchRequest(String watchId) {
-        this.watchId  = Objects.requireNonNull(watchId, "Watch identifier is required");
+        this.watchId = Objects.requireNonNull(watchId, "Watch identifier is required");
         if (PutWatchRequest.isValidId(this.watchId) == false) {
             throw new IllegalArgumentException("Watch identifier contains whitespace");
         }

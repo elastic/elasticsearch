@@ -20,8 +20,11 @@ public class ParsedScrollIdTests extends ESTestCase {
         for (int i = 0; i < nResults; i++) {
             String clusterAlias = randomBoolean() ? randomAlphaOfLength(8) : null;
             hasLocal = hasLocal || (clusterAlias == null);
-            searchContextIdForNodes[i] =
-                new SearchContextIdForNode(clusterAlias, "node_" + i, new ShardSearchContextId(randomAlphaOfLength(8), randomLong()));
+            searchContextIdForNodes[i] = new SearchContextIdForNode(
+                clusterAlias,
+                "node_" + i,
+                new ShardSearchContextId(randomAlphaOfLength(8), randomLong())
+            );
         }
         final ParsedScrollId parsedScrollId = new ParsedScrollId(randomAlphaOfLength(8), randomAlphaOfLength(8), searchContextIdForNodes);
 

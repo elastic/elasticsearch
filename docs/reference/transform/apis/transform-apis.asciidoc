@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[transform-apis]]
 = {transform-cap} APIs
 
@@ -11,3 +10,4 @@
 * <<start-transform>>
 * <<stop-transform>>
 * <<update-transform>>
+* <<upgrade-transforms>>

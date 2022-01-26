@@ -39,8 +39,7 @@ import java.util.List;
 
 public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
 
-
-    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(PhoneticTokenFilterFactory.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(PhoneticTokenFilterFactory.class);
 
     private final Encoder encoder;
     private final boolean replace;
@@ -78,38 +77,38 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             this.encoder = null;
             this.maxcodelength = settings.getAsInt("max_code_len", 4);
         } else if ("bm".equalsIgnoreCase(encodername)
-                || "beider_morse".equalsIgnoreCase(encodername)
-                || "beidermorse".equalsIgnoreCase(encodername)) {
-            this.encoder = null;
-            this.languageset = settings.getAsList("languageset");
-            String ruleType = settings.get("rule_type", "approx");
-            if ("approx".equalsIgnoreCase(ruleType)) {
-                ruletype = RuleType.APPROX;
-            } else if ("exact".equalsIgnoreCase(ruleType)) {
-                ruletype = RuleType.EXACT;
+            || "beider_morse".equalsIgnoreCase(encodername)
+            || "beidermorse".equalsIgnoreCase(encodername)) {
+                this.encoder = null;
+                this.languageset = settings.getAsList("languageset");
+                String ruleType = settings.get("rule_type", "approx");
+                if ("approx".equalsIgnoreCase(ruleType)) {
+                    ruletype = RuleType.APPROX;
+                } else if ("exact".equalsIgnoreCase(ruleType)) {
+                    ruletype = RuleType.EXACT;
+                } else {
+                    throw new IllegalArgumentException("No matching rule type [" + ruleType + "] for beider morse encoder");
+                }
+                String nameType = settings.get("name_type", "generic");
+                if ("GENERIC".equalsIgnoreCase(nameType)) {
+                    nametype = NameType.GENERIC;
+                } else if ("ASHKENAZI".equalsIgnoreCase(nameType)) {
+                    nametype = NameType.ASHKENAZI;
+                } else if ("SEPHARDIC".equalsIgnoreCase(nameType)) {
+                    nametype = NameType.SEPHARDIC;
+                }
+            } else if ("koelnerphonetik".equalsIgnoreCase(encodername)) {
+                this.encoder = new KoelnerPhonetik();
+            } else if ("haasephonetik".equalsIgnoreCase(encodername)) {
+                this.encoder = new HaasePhonetik();
+            } else if ("nysiis".equalsIgnoreCase(encodername)) {
+                this.encoder = new Nysiis();
+            } else if ("daitch_mokotoff".equalsIgnoreCase(encodername)) {
+                this.encoder = null;
+                this.isDaitchMokotoff = true;
             } else {
-                throw new IllegalArgumentException("No matching rule type [" + ruleType + "] for beider morse encoder");
+                throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
             }
-            String nameType = settings.get("name_type", "generic");
-            if ("GENERIC".equalsIgnoreCase(nameType)) {
-                nametype = NameType.GENERIC;
-            } else if ("ASHKENAZI".equalsIgnoreCase(nameType)) {
-                nametype = NameType.ASHKENAZI;
-            } else if ("SEPHARDIC".equalsIgnoreCase(nameType)) {
-                nametype = NameType.SEPHARDIC;
-            }
-        } else if ("koelnerphonetik".equalsIgnoreCase(encodername)) {
-            this.encoder = new KoelnerPhonetik();
-        } else if ("haasephonetik".equalsIgnoreCase(encodername)) {
-            this.encoder = new HaasePhonetik();
-        } else if ("nysiis".equalsIgnoreCase(encodername)) {
-            this.encoder = new Nysiis();
-        } else if ("daitch_mokotoff".equalsIgnoreCase(encodername)) {
-            this.encoder = null;
-            this.isDaitchMokotoff = true;
-        } else {
-            throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
-        }
     }
 
     @Override
@@ -138,10 +137,12 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenFilterFactory getSynonymFilter() {
         if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
             throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
-        }
-        else {
-            DEPRECATION_LOGGER.critical(DeprecationCategory.ANALYSIS, "synonym_tokenfilters",
-                "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0");
+        } else {
+            DEPRECATION_LOGGER.critical(
+                DeprecationCategory.ANALYSIS,
+                "synonym_tokenfilters",
+                "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0"
+            );
             return this;
         }
     }

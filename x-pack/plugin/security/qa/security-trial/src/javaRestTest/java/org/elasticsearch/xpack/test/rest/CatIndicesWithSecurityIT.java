@@ -24,17 +24,13 @@ public class CatIndicesWithSecurityIT extends ESRestTestCase {
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("cat_test_user", new SecureString("cat-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public void testHiddenIndexWithVisibleAlias() throws IOException {
@@ -42,7 +38,8 @@ public class CatIndicesWithSecurityIT extends ESRestTestCase {
         {
             final Request createRequest = new Request("PUT", ".index_hidden");
             createRequest.setJsonEntity(
-                "{\"settings\": {\"index.hidden\": true, \"number_of_replicas\":  0}, \"aliases\": {\"index_allowed\": {}}}");
+                "{\"settings\": {\"index.hidden\": true, \"number_of_replicas\":  0}, \"aliases\": {\"index_allowed\": {}}}"
+            );
             final Response createResponse = adminClient().performRequest(createRequest);
             assertOK(createResponse);
             ensureGreen("index_allowed");
@@ -63,8 +60,10 @@ public class CatIndicesWithSecurityIT extends ESRestTestCase {
         // Create the index and alias
         {
             final Request createRequest = new Request("PUT", ".index_hidden");
-            createRequest.setJsonEntity("{\"settings\": {\"index.hidden\": true, \"number_of_replicas\":  0}, "
-                + "\"aliases\": {\"index_allowed\": {\"is_hidden\":  true}}}");
+            createRequest.setJsonEntity(
+                "{\"settings\": {\"index.hidden\": true, \"number_of_replicas\":  0}, "
+                    + "\"aliases\": {\"index_allowed\": {\"is_hidden\":  true}}}"
+            );
             final Response createResponse = adminClient().performRequest(createRequest);
             assertOK(createResponse);
             ensureGreen("index_allowed");
@@ -95,8 +94,9 @@ public class CatIndicesWithSecurityIT extends ESRestTestCase {
         // Create the index and alias
         {
             final Request createRequest = new Request("PUT", "visible_index");
-            createRequest.setJsonEntity("{\"settings\": {\"number_of_replicas\":  0}, "
-                + "\"aliases\": {\"index_allowed\": {\"is_hidden\":  true}}}");
+            createRequest.setJsonEntity(
+                "{\"settings\": {\"number_of_replicas\":  0}, " + "\"aliases\": {\"index_allowed\": {\"is_hidden\":  true}}}"
+            );
             final Response createResponse = adminClient().performRequest(createRequest);
             assertOK(createResponse);
             ensureGreen("index_allowed");

@@ -36,13 +36,17 @@ public class CompletionSuggestionTests extends ESTestCase {
             shardSuggestions.add(suggestion);
         }
         int totalResults = randomIntBetween(0, 5) * nShards;
-        float maxScore = randomIntBetween(totalResults, totalResults*2);
+        float maxScore = randomIntBetween(totalResults, totalResults * 2);
         for (int i = 0; i < totalResults; i++) {
             Suggest.Suggestion<CompletionSuggestion.Entry> suggestion = randomFrom(shardSuggestions);
             CompletionSuggestion.Entry entry = suggestion.getEntries().get(0);
             if (entry.getOptions().size() < size) {
-                CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(i, new Text(""),
-                    maxScore - i, Collections.emptyMap());
+                CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(
+                    i,
+                    new Text(""),
+                    maxScore - i,
+                    Collections.emptyMap()
+                );
                 option.setShardIndex(randomIntBetween(0, Integer.MAX_VALUE));
                 entry.addOption(option);
             }
@@ -73,11 +77,15 @@ public class CompletionSuggestionTests extends ESTestCase {
             CompletionSuggestion suggestion = new CompletionSuggestion(name, size, true);
             CompletionSuggestion.Entry entry = new CompletionSuggestion.Entry(new Text(""), 0, 0);
             suggestion.addTerm(entry);
-            int maxScore = randomIntBetween(totalResults, totalResults*2);
+            int maxScore = randomIntBetween(totalResults, totalResults * 2);
             for (int j = 0; j < size; j++) {
                 String surfaceForm = randomFrom(surfaceForms);
-                CompletionSuggestion.Entry.Option newOption =
-                    new CompletionSuggestion.Entry.Option(j, new Text(surfaceForm), maxScore - j, Collections.emptyMap());
+                CompletionSuggestion.Entry.Option newOption = new CompletionSuggestion.Entry.Option(
+                    j,
+                    new Text(surfaceForm),
+                    maxScore - j,
+                    Collections.emptyMap()
+                );
                 newOption.setShardIndex(0);
                 entry.addOption(newOption);
                 options.add(newOption);
@@ -108,8 +116,12 @@ public class CompletionSuggestionTests extends ESTestCase {
             suggestion.addTerm(entry);
             int shardIndex = 0;
             for (int j = 0; j < size; j++) {
-                CompletionSuggestion.Entry.Option newOption =
-                    new CompletionSuggestion.Entry.Option((j + 1) * (i + 1), surfaceForm, score, Collections.emptyMap());
+                CompletionSuggestion.Entry.Option newOption = new CompletionSuggestion.Entry.Option(
+                    (j + 1) * (i + 1),
+                    surfaceForm,
+                    score,
+                    Collections.emptyMap()
+                );
                 newOption.setShardIndex(shardIndex++);
                 entry.addOption(newOption);
             }

@@ -19,6 +19,7 @@ import java.util.List;
 public class InjectConstantAnnotation {
     public static final String NAME = "inject_constant";
     public final List<String> injects;
+
     public InjectConstantAnnotation(List<String> injects) {
         this.injects = Collections.unmodifiableList(injects);
     }

@@ -58,7 +58,6 @@ public class InternalQlScriptUtils {
         return number == null || Double.isNaN(number.doubleValue()) ? null : (Number) convert(number, fromTypeName(typeName));
     }
 
-
     //
     // Operators
     //

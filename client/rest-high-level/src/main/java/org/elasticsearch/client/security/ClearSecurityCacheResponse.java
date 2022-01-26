@@ -9,8 +9,8 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.NodesResponseHeader;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,9 +21,11 @@ import java.util.List;
 public final class ClearSecurityCacheResponse extends SecurityNodesResponse {
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ClearSecurityCacheResponse, Void> PARSER =
-        new ConstructingObjectParser<>("clear_security_cache_response", false,
-            args -> new ClearSecurityCacheResponse((List<Node>)args[0], (NodesResponseHeader) args[1], (String) args[2]));
+    private static final ConstructingObjectParser<ClearSecurityCacheResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "clear_security_cache_response",
+        false,
+        args -> new ClearSecurityCacheResponse((List<Node>) args[0], (NodesResponseHeader) args[1], (String) args[2])
+    );
 
     static {
         SecurityNodesResponse.declareCommonNodesResponseParsing(PARSER);

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -103,7 +104,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             a -> {},
             new BooleanFieldMapper.BooleanFieldType(fieldName)
         );
-        assertWarnings("Running DateHistogram aggregations on [boolean] fields is deprecated");
+        assertWarnings(Level.WARN, "Running DateHistogram aggregations on [boolean] fields is deprecated");
     }
 
     public void testMatchNoDocs() throws IOException {

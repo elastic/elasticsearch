@@ -17,7 +17,6 @@
 
 package org.elasticsearch.xpack.core.ssl;
 
-
 import org.elasticsearch.common.hash.MessageDigests;
 
 import java.io.ByteArrayInputStream;
@@ -39,7 +38,8 @@ class DerParser {
     // Tag and data types
     private static final int INTEGER = 0x02;
     private static final int OCTET_STRING = 0x04;
-    private static final int OBJECT_OID = 0x06;
+    static final int OBJECT_OID = 0x06;
+    static final int SEQUENCE = 0x10;
     private static final int NUMERIC_STRING = 0x12;
     private static final int PRINTABLE_STRING = 0x13;
     private static final int VIDEOTEX_STRING = 0x15;
@@ -52,13 +52,22 @@ class DerParser {
     private static final int UNIVERSAL_STRING = 0x1C;
     private static final int BMP_STRING = 0x1E;
 
-
     private InputStream derInputStream;
     private int maxAsnObjectLength;
 
     DerParser(byte[] bytes) {
         this.derInputStream = new ByteArrayInputStream(bytes);
         this.maxAsnObjectLength = bytes.length;
+    }
+
+    Asn1Object readAsn1Object(int requiredType) throws IOException {
+        final Asn1Object obj = readAsn1Object();
+        if (obj.type != requiredType) {
+            throw new IllegalStateException(
+                "Expected ASN.1 object of type 0x" + Integer.toHexString(requiredType) + " but was 0x" + Integer.toHexString(obj.type)
+            );
+        }
+        return obj;
     }
 
     Asn1Object readAsn1Object() throws IOException {
@@ -70,14 +79,16 @@ class DerParser {
         // getLength() can return any 32 bit integer, so ensure that a corrupted encoding won't
         // force us into allocating a very large array
         if (length > maxAsnObjectLength) {
-            throw new IOException("Invalid DER: size of ASN.1 object to be parsed appears to be larger than the size of the key file " +
-                "itself.");
+            throw new IOException(
+                "Invalid DER: size of ASN.1 object to be parsed appears to be larger than the size of the key file " + "itself."
+            );
         }
         byte[] value = new byte[length];
         int n = derInputStream.read(value);
         if (n < length) {
-            throw new IOException("Invalid DER: stream too short, missing value. " +
-                    "Could only read " + n + " out of " + length + " bytes");
+            throw new IOException(
+                "Invalid DER: stream too short, missing value. " + "Could only read " + n + " out of " + length + " bytes"
+            );
         }
         return new Asn1Object(tag, length, value);
 
@@ -105,28 +116,22 @@ class DerParser {
     private int getLength() throws IOException {
 
         int i = derInputStream.read();
-        if (i == -1)
-            throw new IOException("Invalid DER: length missing");
+        if (i == -1) throw new IOException("Invalid DER: length missing");
 
         // A single byte short length
-        if ((i & ~0x7F) == 0)
-            return i;
+        if ((i & ~0x7F) == 0) return i;
 
         int num = i & 0x7F;
 
         // We can't handle length longer than 4 bytes
-        if (i >= 0xFF || num > 4)
-            throw new IOException("Invalid DER: length field too big ("
-                    + i + ")"); //$NON-NLS-1$
+        if (i >= 0xFF || num > 4) throw new IOException("Invalid DER: length field too big (" + i + ")"); //$NON-NLS-2$
 
         byte[] bytes = new byte[num];
         int n = derInputStream.read(bytes);
-        if (n < num)
-            throw new IOException("Invalid DER: length too short");
+        if (n < num) throw new IOException("Invalid DER: length too short");
 
         return new BigInteger(1, bytes).intValue();
     }
-
 
     /**
      * An ASN.1 TLV. The object is not parsed. It can
@@ -208,8 +213,7 @@ class DerParser {
          * @return BigInteger
          */
         public BigInteger getInteger() throws IOException {
-            if (type != DerParser.INTEGER)
-                throw new IOException("Invalid DER: object is not integer"); //$NON-NLS-1$
+            if (type != DerParser.INTEGER) throw new IOException("Invalid DER: object is not integer"); //$NON-NLS-1$
 
             return new BigInteger(value);
         }

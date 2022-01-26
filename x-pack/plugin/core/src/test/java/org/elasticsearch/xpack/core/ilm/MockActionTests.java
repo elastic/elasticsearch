@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,8 +53,7 @@ public class MockActionTests extends AbstractActionTestCase<MockAction> {
     }
 
     private static Step.StepKey randomStepKey() {
-        return new Step.StepKey(randomAlphaOfLength(5),
-            randomAlphaOfLength(5), randomAlphaOfLength(5));
+        return new Step.StepKey(randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5));
     }
 
     @Override
@@ -68,4 +67,3 @@ public class MockActionTests extends AbstractActionTestCase<MockAction> {
         assertEquals(action.getSteps(), action.toSteps(null, null, null));
     }
 }
-

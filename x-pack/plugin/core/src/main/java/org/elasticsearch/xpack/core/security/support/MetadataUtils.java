@@ -19,8 +19,7 @@ public class MetadataUtils {
     public static final String DEPRECATED_REASON_METADATA_KEY = RESERVED_PREFIX + "deprecated_reason";
     public static final Map<String, Object> DEFAULT_RESERVED_METADATA = Collections.singletonMap(RESERVED_METADATA_KEY, true);
 
-    private MetadataUtils() {
-    }
+    private MetadataUtils() {}
 
     public static boolean containsReservedMetadata(Map<String, Object> metadata) {
         for (String key : metadata.keySet()) {

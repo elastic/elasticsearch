@@ -9,6 +9,7 @@
 package org.elasticsearch.discovery.gce;
 
 import com.google.api.client.http.HttpTransport;
+
 import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
 import org.elasticsearch.common.settings.Settings;
 

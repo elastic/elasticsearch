@@ -58,7 +58,6 @@ public class PivotExec extends UnaryExec implements Unexecutable {
 
         PivotExec other = (PivotExec) obj;
 
-        return Objects.equals(pivot, other.pivot)
-                && Objects.equals(child(), other.child());
+        return Objects.equals(pivot, other.pivot) && Objects.equals(child(), other.child());
     }
 }

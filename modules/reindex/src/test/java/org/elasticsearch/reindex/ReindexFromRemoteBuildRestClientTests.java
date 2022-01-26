@@ -17,8 +17,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.reindex.RemoteInfo;
-import org.elasticsearch.reindex.ReindexSslConfig;
-import org.elasticsearch.reindex.Reindexer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;
@@ -36,9 +34,19 @@ public class ReindexFromRemoteBuildRestClientTests extends RestClientBuilderTest
     private final BytesReference matchAll = new BytesArray(new MatchAllQueryBuilder().toString());
 
     public void testBuildRestClient() throws Exception {
-        for(final String path: new String[]{"", null, "/", "path"}) {
-            RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, path, matchAll, null, null, emptyMap(),
-                RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
+        for (final String path : new String[] { "", null, "/", "path" }) {
+            RemoteInfo remoteInfo = new RemoteInfo(
+                "https",
+                "localhost",
+                9200,
+                path,
+                matchAll,
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            );
             long taskId = randomLong();
             List<Thread> threads = synchronizedList(new ArrayList<>());
             RestClient client = Reindexer.buildRestClient(remoteInfo, sslConfig(), taskId, threads);
@@ -61,8 +69,18 @@ public class ReindexFromRemoteBuildRestClientTests extends RestClientBuilderTest
         for (int i = 0; i < numHeaders; ++i) {
             headers.put("header" + i, Integer.toString(i));
         }
-        RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, null, matchAll, null, null,
-            headers, RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
+        RemoteInfo remoteInfo = new RemoteInfo(
+            "https",
+            "localhost",
+            9200,
+            null,
+            matchAll,
+            null,
+            null,
+            headers,
+            RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+            RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+        );
         long taskId = randomLong();
         List<Thread> threads = synchronizedList(new ArrayList<>());
         RestClient client = Reindexer.buildRestClient(remoteInfo, sslConfig(), taskId, threads);

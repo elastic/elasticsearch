@@ -32,23 +32,24 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class MappingLookupTests extends ESTestCase {
 
-    private static MappingLookup createMappingLookup(List<FieldMapper> fieldMappers,
-                                                     List<ObjectMapper> objectMappers,
-                                                     List<RuntimeField> runtimeFields) {
+    private static MappingLookup createMappingLookup(
+        List<FieldMapper> fieldMappers,
+        List<ObjectMapper> objectMappers,
+        List<RuntimeField> runtimeFields
+    ) {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
-        Mapping mapping = new Mapping(
-            builder.build(MapperBuilderContext.ROOT),
-            new MetadataFieldMapper[0],
-            Collections.emptyMap()
-        );
+        Mapping mapping = new Mapping(builder.build(MapperBuilderContext.ROOT), new MetadataFieldMapper[0], Collections.emptyMap());
         return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, emptyList());
     }
 
     public void testOnlyRuntimeField() {
-        MappingLookup mappingLookup = createMappingLookup(emptyList(), emptyList(),
-            Collections.singletonList(new TestRuntimeField("test", "type")));
+        MappingLookup mappingLookup = createMappingLookup(
+            emptyList(),
+            emptyList(),
+            Collections.singletonList(new TestRuntimeField("test", "type"))
+        );
         assertEquals(0, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
         assertNull(mappingLookup.getMapper("test"));
@@ -57,8 +58,11 @@ public class MappingLookupTests extends ESTestCase {
 
     public void testRuntimeFieldLeafOverride() {
         MockFieldMapper fieldMapper = new MockFieldMapper("test");
-        MappingLookup mappingLookup = createMappingLookup(Collections.singletonList(fieldMapper), emptyList(),
-            Collections.singletonList(new TestRuntimeField("test", "type")));
+        MappingLookup mappingLookup = createMappingLookup(
+            Collections.singletonList(fieldMapper),
+            emptyList(),
+            Collections.singletonList(new TestRuntimeField("test", "type"))
+        );
         assertThat(mappingLookup.getMapper("test"), instanceOf(MockFieldMapper.class));
         assertEquals(1, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
@@ -67,8 +71,13 @@ public class MappingLookupTests extends ESTestCase {
 
     public void testSubfieldOverride() {
         MockFieldMapper fieldMapper = new MockFieldMapper("object.subfield");
-        ObjectMapper objectMapper = new ObjectMapper("object", "object", new Explicit<>(true, true),
-            ObjectMapper.Dynamic.TRUE, Collections.singletonMap("object.subfield", fieldMapper));
+        ObjectMapper objectMapper = new ObjectMapper(
+            "object",
+            "object",
+            new Explicit<>(true, true),
+            ObjectMapper.Dynamic.TRUE,
+            Collections.singletonMap("object.subfield", fieldMapper)
+        );
         MappingLookup mappingLookup = createMappingLookup(
             Collections.singletonList(fieldMapper),
             Collections.singletonList(objectMapper),
@@ -87,18 +96,14 @@ public class MappingLookupTests extends ESTestCase {
         FakeFieldType fieldType2 = new FakeFieldType("field2");
         FieldMapper fieldMapper2 = new FakeFieldMapper(fieldType2, "index2");
 
-        MappingLookup mappingLookup = createMappingLookup(
-            Arrays.asList(fieldMapper1, fieldMapper2),
-            emptyList(),
-            emptyList()
-        );
+        MappingLookup mappingLookup = createMappingLookup(Arrays.asList(fieldMapper1, fieldMapper2), emptyList(), emptyList());
 
         assertAnalyzes(mappingLookup.indexAnalyzer("field1", f -> null), "field1", "index1");
         assertAnalyzes(mappingLookup.indexAnalyzer("field2", f -> null), "field2", "index2");
-        expectThrows(IllegalArgumentException.class,
-            () -> mappingLookup.indexAnalyzer("field3", f -> {
-                throw new IllegalArgumentException();
-            }).tokenStream("field3", "blah"));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> mappingLookup.indexAnalyzer("field3", f -> { throw new IllegalArgumentException(); }).tokenStream("field3", "blah")
+        );
     }
 
     public void testEmptyMappingLookup() {
@@ -178,15 +183,18 @@ public class MappingLookupTests extends ESTestCase {
         final String indexedValue;
 
         FakeFieldMapper(FakeFieldType fieldType, String indexedValue) {
-            super(fieldType.name(), fieldType,
+            super(
+                fieldType.name(),
+                fieldType,
                 new NamedAnalyzer("fake", AnalyzerScope.INDEX, new FakeAnalyzer(indexedValue)),
-                MultiFields.empty(), CopyTo.empty());
+                MultiFields.empty(),
+                CopyTo.empty()
+            );
             this.indexedValue = indexedValue;
         }
 
         @Override
-        protected void parseCreateField(DocumentParserContext context) {
-        }
+        protected void parseCreateField(DocumentParserContext context) {}
 
         @Override
         protected String contentType() {

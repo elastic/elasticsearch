@@ -18,7 +18,7 @@ public class RemoteClusterTestUtils {
 
     public static String remoteClusterPattern(String pattern) {
         StringJoiner sj = new StringJoiner(",");
-        for (String index: pattern.split(",")) {
+        for (String index : pattern.split(",")) {
             sj.add(remoteClusterIndex(index));
         }
         return sj.toString();

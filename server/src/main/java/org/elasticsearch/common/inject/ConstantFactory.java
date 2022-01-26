@@ -35,15 +35,12 @@ class ConstantFactory<T> implements InternalFactory<T> {
     }
 
     @Override
-    public T get(Errors errors, InternalContext context, Dependency<?> dependency)
-            throws ErrorsException {
+    public T get(Errors errors, InternalContext context, Dependency<?> dependency) throws ErrorsException {
         return initializable.get(errors);
     }
 
     @Override
     public String toString() {
-        return new ToStringBuilder(ConstantFactory.class)
-                .add("value", initializable)
-                .toString();
+        return new ToStringBuilder(ConstantFactory.class).add("value", initializable).toString();
     }
 }

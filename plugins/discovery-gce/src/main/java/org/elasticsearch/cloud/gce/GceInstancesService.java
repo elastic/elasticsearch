@@ -9,6 +9,7 @@
 package org.elasticsearch.cloud.gce;
 
 import com.google.api.services.compute.model.Instance;
+
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.TimeValue;
@@ -36,15 +37,22 @@ public interface GceInstancesService extends Closeable {
     /**
      * cloud.gce.zone: Google Compute Engine zones
      */
-    Setting<List<String>> ZONE_SETTING =
-        Setting.listSetting("cloud.gce.zone", Collections.emptyList(), Function.identity(), Property.NodeScope);
+    Setting<List<String>> ZONE_SETTING = Setting.listSetting(
+        "cloud.gce.zone",
+        Collections.emptyList(),
+        Function.identity(),
+        Property.NodeScope
+    );
 
     /**
      * cloud.gce.refresh_interval: How long the list of hosts is cached to prevent further requests to the AWS API. 0 disables caching.
      * A negative value will cause infinite caching. Defaults to 0s.
      */
-    Setting<TimeValue> REFRESH_SETTING =
-        Setting.timeSetting("cloud.gce.refresh_interval", TimeValue.timeValueSeconds(0), Property.NodeScope);
+    Setting<TimeValue> REFRESH_SETTING = Setting.timeSetting(
+        "cloud.gce.refresh_interval",
+        TimeValue.timeValueSeconds(0),
+        Property.NodeScope
+    );
 
     /**
      * cloud.gce.retry: Should we retry calling GCE API in case of error? Defaults to true.
@@ -56,8 +64,7 @@ public interface GceInstancesService extends Closeable {
      * It's a total time since the initial call is made.
      * A negative value will retry indefinitely. Defaults to `-1s` (retry indefinitely).
      */
-    Setting<TimeValue> MAX_WAIT_SETTING =
-        Setting.timeSetting("cloud.gce.max_wait", TimeValue.timeValueSeconds(-1), Property.NodeScope);
+    Setting<TimeValue> MAX_WAIT_SETTING = Setting.timeSetting("cloud.gce.max_wait", TimeValue.timeValueSeconds(-1), Property.NodeScope);
 
     /**
      * Return a collection of running instances within the same GCE project

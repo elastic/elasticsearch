@@ -8,11 +8,12 @@
 
 package org.elasticsearch.index.store.smb;
 
-import java.io.IOException;
-import java.nio.file.Path;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.index.store.EsBaseDirectoryTestCase;
+
+import java.io.IOException;
+import java.nio.file.Path;
 
 public class SmbNIOFSDirectoryTests extends EsBaseDirectoryTestCase {
 

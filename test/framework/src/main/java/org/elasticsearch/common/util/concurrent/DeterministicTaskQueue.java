@@ -9,6 +9,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -69,7 +70,8 @@ public class DeterministicTaskQueue {
         this(
             // the node name is required by the thread pool but is unused since the thread pool in question doesn't create any threads
             Settings.builder().put(NODE_NAME_SETTING.getKey(), "deterministic-task-queue").build(),
-            ESTestCase.random());
+            ESTestCase.random()
+        );
     }
 
     public long getExecutionDelayVariabilityMillis() {
@@ -515,10 +517,7 @@ public class DeterministicTaskQueue {
 
         @Override
         public String toString() {
-            return "DeferredTask{" +
-                "executionTimeMillis=" + executionTimeMillis +
-                ", task=" + task +
-                '}';
+            return "DeferredTask{" + "executionTimeMillis=" + executionTimeMillis + ", task=" + task + '}';
         }
     }
 

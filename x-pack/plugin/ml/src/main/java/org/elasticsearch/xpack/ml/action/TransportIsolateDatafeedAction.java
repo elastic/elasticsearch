@@ -23,13 +23,24 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.List;
 
-public class TransportIsolateDatafeedAction extends TransportTasksAction<TransportStartDatafeedAction.DatafeedTask,
-        IsolateDatafeedAction.Request, IsolateDatafeedAction.Response, IsolateDatafeedAction.Response> {
+public class TransportIsolateDatafeedAction extends TransportTasksAction<
+    TransportStartDatafeedAction.DatafeedTask,
+    IsolateDatafeedAction.Request,
+    IsolateDatafeedAction.Response,
+    IsolateDatafeedAction.Response> {
 
     @Inject
     public TransportIsolateDatafeedAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
-        super(IsolateDatafeedAction.NAME, clusterService, transportService, actionFilters, IsolateDatafeedAction.Request::new,
-            IsolateDatafeedAction.Response::new, IsolateDatafeedAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME);
+        super(
+            IsolateDatafeedAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            IsolateDatafeedAction.Request::new,
+            IsolateDatafeedAction.Response::new,
+            IsolateDatafeedAction.Response::new,
+            MachineLearning.UTILITY_THREAD_POOL_NAME
+        );
     }
 
     @Override
@@ -49,19 +60,20 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<Transpo
     }
 
     @Override
-    protected IsolateDatafeedAction.Response newResponse(IsolateDatafeedAction.Request request, List<IsolateDatafeedAction.Response> tasks,
-                                                         List<TaskOperationFailure> taskOperationFailures,
-                                                         List<FailedNodeException> failedNodeExceptions) {
+    protected IsolateDatafeedAction.Response newResponse(
+        IsolateDatafeedAction.Request request,
+        List<IsolateDatafeedAction.Response> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    ) {
         // We only let people isolate one datafeed at a time, so each list will be empty or contain one item
         assert tasks.size() <= 1 : "more than 1 item in tasks: " + tasks.size();
         assert taskOperationFailures.size() <= 1 : "more than 1 item in taskOperationFailures: " + taskOperationFailures.size();
         assert failedNodeExceptions.size() <= 1 : "more than 1 item in failedNodeExceptions: " + failedNodeExceptions.size();
         if (taskOperationFailures.isEmpty() == false) {
-            throw org.elasticsearch.ExceptionsHelper
-                    .convertToElastic(taskOperationFailures.get(0).getCause());
+            throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
         } else if (failedNodeExceptions.isEmpty() == false) {
-            throw org.elasticsearch.ExceptionsHelper
-                    .convertToElastic(failedNodeExceptions.get(0));
+            throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
         } else if (tasks.isEmpty() == false) {
             return tasks.get(0);
         }
@@ -69,8 +81,11 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<Transpo
     }
 
     @Override
-    protected void taskOperation(IsolateDatafeedAction.Request request, TransportStartDatafeedAction.DatafeedTask datafeedTask,
-                                 ActionListener<IsolateDatafeedAction.Response> listener) {
+    protected void taskOperation(
+        IsolateDatafeedAction.Request request,
+        TransportStartDatafeedAction.DatafeedTask datafeedTask,
+        ActionListener<IsolateDatafeedAction.Response> listener
+    ) {
         datafeedTask.isolate();
         listener.onResponse(new IsolateDatafeedAction.Response(true));
     }

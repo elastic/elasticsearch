@@ -24,15 +24,11 @@ public class SmokeTestClientIT extends ESSmokeClientTestCase {
         final Client client = getClient();
 
         // START SNIPPET: java-doc-admin-cluster-health
-        final ClusterHealthResponse health =
-                client.admin().cluster().prepareHealth().setWaitForYellowStatus().get();
+        final ClusterHealthResponse health = client.admin().cluster().prepareHealth().setWaitForYellowStatus().get();
         final String clusterName = health.getClusterName();
         final int numberOfNodes = health.getNumberOfNodes();
         // END SNIPPET: java-doc-admin-cluster-health
-        assertThat(
-                "cluster [" + clusterName + "] should have at least 1 node",
-                numberOfNodes,
-                greaterThan(0));
+        assertThat("cluster [" + clusterName + "] should have at least 1 node", numberOfNodes, greaterThan(0));
     }
 
     /**
@@ -43,8 +39,8 @@ public class SmokeTestClientIT extends ESSmokeClientTestCase {
 
         // START SNIPPET: java-doc-index-doc-simple
         client.prepareIndex(index, "doc", "1")  // Index, Type, Id
-                .setSource("foo", "bar")        // Simple document: { "foo" : "bar" }
-                .get();                         // Execute and wait for the result
+            .setSource("foo", "bar")        // Simple document: { "foo" : "bar" }
+            .get();                         // Execute and wait for the result
         // END SNIPPET: java-doc-index-doc-simple
 
         // START SNIPPET: java-doc-admin-indices-refresh
@@ -59,4 +55,3 @@ public class SmokeTestClientIT extends ESSmokeClientTestCase {
     }
 
 }
-

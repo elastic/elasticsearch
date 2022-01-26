@@ -20,15 +20,13 @@ import java.util.Objects;
 
 public class EnrichClient {
 
-     private final ElasticsearchClient client;
+    private final ElasticsearchClient client;
 
     public EnrichClient(ElasticsearchClient client) {
         this.client = Objects.requireNonNull(client, "client");
     }
 
-    public void deleteEnrichPolicy(
-        final DeleteEnrichPolicyAction.Request request,
-        final ActionListener<AcknowledgedResponse> listener) {
+    public void deleteEnrichPolicy(final DeleteEnrichPolicyAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
         client.execute(DeleteEnrichPolicyAction.INSTANCE, request, listener);
     }
 
@@ -40,7 +38,8 @@ public class EnrichClient {
 
     public void executeEnrichPolicy(
         final ExecuteEnrichPolicyAction.Request request,
-        final ActionListener<ExecuteEnrichPolicyAction.Response> listener) {
+        final ActionListener<ExecuteEnrichPolicyAction.Response> listener
+    ) {
         client.execute(ExecuteEnrichPolicyAction.INSTANCE, request, listener);
     }
 
@@ -52,7 +51,8 @@ public class EnrichClient {
 
     public void getEnrichPolicy(
         final GetEnrichPolicyAction.Request request,
-        final ActionListener<GetEnrichPolicyAction.Response> listener) {
+        final ActionListener<GetEnrichPolicyAction.Response> listener
+    ) {
         client.execute(GetEnrichPolicyAction.INSTANCE, request, listener);
     }
 
@@ -62,9 +62,7 @@ public class EnrichClient {
         return listener;
     }
 
-    public void putEnrichPolicy(
-        final PutEnrichPolicyAction.Request request,
-        final ActionListener<AcknowledgedResponse> listener) {
+    public void putEnrichPolicy(final PutEnrichPolicyAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
         client.execute(PutEnrichPolicyAction.INSTANCE, request, listener);
     }
 

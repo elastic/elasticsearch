@@ -91,7 +91,7 @@ public class BinaryRangeUtilTests extends ESTestCase {
             assertEquals(1, BinaryRangeUtil.encodeLong(i).length);
         }
         for (int i = -2048; i <= 2047; ++i) {
-            if (i < -8 ||i > 7) {
+            if (i < -8 || i > 7) {
                 assertEquals(2, BinaryRangeUtil.encodeLong(i).length);
             }
         }
@@ -136,12 +136,12 @@ public class BinaryRangeUtilTests extends ESTestCase {
     }
 
     public void testDecodeLong() {
-        long[] cases = new long[] { Long.MIN_VALUE, -2049, -2048, -128, -3, -1, 0, 1, 3, 125, 2048, 2049, Long.MAX_VALUE};
+        long[] cases = new long[] { Long.MIN_VALUE, -2049, -2048, -128, -3, -1, 0, 1, 3, 125, 2048, 2049, Long.MAX_VALUE };
         for (long expected : cases) {
             byte[] encoded = BinaryRangeUtil.encodeLong(expected);
             int offset = 0;
             int length = RangeType.LengthType.VARIABLE.readLength(encoded, offset);
-            assertEquals(expected, BinaryRangeUtil.decodeLong(encoded, offset,  length));
+            assertEquals(expected, BinaryRangeUtil.decodeLong(encoded, offset, length));
         }
     }
 
@@ -164,8 +164,9 @@ public class BinaryRangeUtilTests extends ESTestCase {
             double start = randomDouble();
             double end = randomDoubleBetween(Math.nextUp(start), Double.MAX_VALUE, false);
             RangeFieldMapper.Range expected = new RangeFieldMapper.Range(RangeType.DOUBLE, start, end, true, true);
-            List<RangeFieldMapper.Range> decoded = BinaryRangeUtil.decodeDoubleRanges(BinaryRangeUtil.encodeDoubleRanges(
-                singleton(expected)));
+            List<RangeFieldMapper.Range> decoded = BinaryRangeUtil.decodeDoubleRanges(
+                BinaryRangeUtil.encodeDoubleRanges(singleton(expected))
+            );
             assertEquals(1, decoded.size());
             RangeFieldMapper.Range actual = decoded.get(0);
             assertEquals(expected, actual);
@@ -184,8 +185,9 @@ public class BinaryRangeUtilTests extends ESTestCase {
                 end = temp;
             }
             RangeFieldMapper.Range expected = new RangeFieldMapper.Range(RangeType.FLOAT, start, end, true, true);
-            List<RangeFieldMapper.Range> decoded = BinaryRangeUtil.decodeFloatRanges(BinaryRangeUtil.encodeFloatRanges(
-                singleton(expected)));
+            List<RangeFieldMapper.Range> decoded = BinaryRangeUtil.decodeFloatRanges(
+                BinaryRangeUtil.encodeFloatRanges(singleton(expected))
+            );
             assertEquals(1, decoded.size());
             RangeFieldMapper.Range actual = decoded.get(0);
             assertEquals(expected, actual);
@@ -193,10 +195,7 @@ public class BinaryRangeUtilTests extends ESTestCase {
     }
 
     public void testDecodeIPRanges() throws IOException {
-        RangeFieldMapper.Range[] cases = {
-            createIPRange("192.168.0.1", "192.168.0.100"),
-            createIPRange("::ffff:c0a8:107", "2001:db8::")
-        };
+        RangeFieldMapper.Range[] cases = { createIPRange("192.168.0.1", "192.168.0.100"), createIPRange("::ffff:c0a8:107", "2001:db8::") };
         for (RangeFieldMapper.Range expected : cases) {
             List<RangeFieldMapper.Range> decoded = BinaryRangeUtil.decodeIPRanges(BinaryRangeUtil.encodeIPRanges(singleton(expected)));
             assertEquals(1, decoded.size());
@@ -206,8 +205,7 @@ public class BinaryRangeUtilTests extends ESTestCase {
     }
 
     private RangeFieldMapper.Range createIPRange(String start, String end) {
-        return new RangeFieldMapper.Range(RangeType.IP, InetAddresses.forString(start), InetAddresses.forString(end),
-            true,  true);
+        return new RangeFieldMapper.Range(RangeType.IP, InetAddresses.forString(start), InetAddresses.forString(end), true, true);
     }
 
     private static int normalize(int cmp) {

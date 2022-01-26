@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[transform-painless-examples]]
 = Painless examples for {transforms}
 ++++

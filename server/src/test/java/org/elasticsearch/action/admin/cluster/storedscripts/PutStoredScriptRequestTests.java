@@ -12,11 +12,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.StoredScriptSource;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -24,8 +24,13 @@ import java.util.Collections;
 public class PutStoredScriptRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        PutStoredScriptRequest storedScriptRequest = new PutStoredScriptRequest("bar", "context", new BytesArray("{}"), XContentType.JSON,
-                new StoredScriptSource("foo", "bar", Collections.emptyMap()));
+        PutStoredScriptRequest storedScriptRequest = new PutStoredScriptRequest(
+            "bar",
+            "context",
+            new BytesArray("{}"),
+            XContentType.JSON,
+            new StoredScriptSource("foo", "bar", Collections.emptyMap())
+        );
 
         assertEquals(XContentType.JSON, storedScriptRequest.xContentType());
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -44,10 +49,7 @@ public class PutStoredScriptRequestTests extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
         builder.startObject();
-        builder.startObject("script")
-            .field("lang", "painless")
-            .field("source", "Math.log(_score * 2) + params.multiplier")
-            .endObject();
+        builder.startObject("script").field("lang", "painless").field("source", "Math.log(_score * 2) + params.multiplier").endObject();
         builder.endObject();
 
         BytesReference expectedRequestBody = BytesReference.bytes(builder);

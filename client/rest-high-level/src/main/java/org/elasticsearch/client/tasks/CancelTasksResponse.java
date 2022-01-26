@@ -7,14 +7,14 @@
  */
 package org.elasticsearch.client.tasks;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * cancel tasks response that contains
@@ -24,9 +24,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class CancelTasksResponse extends ListTasksResponse {
 
-    CancelTasksResponse(List<NodeData> nodesInfoData,
-                        List<TaskOperationFailure> taskFailures,
-                        List<ElasticsearchException> nodeFailures) {
+    CancelTasksResponse(List<NodeData> nodesInfoData, List<TaskOperationFailure> taskFailures, List<ElasticsearchException> nodeFailures) {
         super(nodesInfoData, taskFailures, nodeFailures);
     }
 
@@ -37,7 +35,9 @@ public class CancelTasksResponse extends ListTasksResponse {
     private static ConstructingObjectParser<CancelTasksResponse, Void> PARSER;
 
     static {
-        ConstructingObjectParser<CancelTasksResponse, Void> parser = new ConstructingObjectParser<>("cancel_tasks_response", true,
+        ConstructingObjectParser<CancelTasksResponse, Void> parser = new ConstructingObjectParser<>(
+            "cancel_tasks_response",
+            true,
             constructingObjects -> {
                 int i = 0;
                 @SuppressWarnings("unchecked")
@@ -47,12 +47,19 @@ public class CancelTasksResponse extends ListTasksResponse {
                 @SuppressWarnings("unchecked")
                 List<NodeData> nodesInfoData = (List<NodeData>) constructingObjects[i];
                 return new CancelTasksResponse(nodesInfoData, tasksFailures, nodeFailures);
-            });
+            }
+        );
 
-        parser.declareObjectArray(optionalConstructorArg(), (p, c) ->
-            TaskOperationFailure.fromXContent(p), new ParseField("task_failures"));
-        parser.declareObjectArray(optionalConstructorArg(), (p, c) ->
-            ElasticsearchException.fromXContent(p), new ParseField("node_failures"));
+        parser.declareObjectArray(
+            optionalConstructorArg(),
+            (p, c) -> TaskOperationFailure.fromXContent(p),
+            new ParseField("task_failures")
+        );
+        parser.declareObjectArray(
+            optionalConstructorArg(),
+            (p, c) -> ElasticsearchException.fromXContent(p),
+            new ParseField("node_failures")
+        );
         parser.declareNamedObjects(optionalConstructorArg(), NodeData.PARSER, new ParseField("nodes"));
         PARSER = parser;
     }
@@ -69,12 +76,17 @@ public class CancelTasksResponse extends ListTasksResponse {
 
     @Override
     public String toString() {
-        return "CancelTasksResponse{" +
-            "taskFailures=" + taskFailures +
-            ", nodeFailures=" + nodeFailures +
-            ", nodesInfoData=" + nodesInfoData +
-            ", tasks=" + tasks +
-            ", taskGroups=" + taskGroups +
-            '}';
+        return "CancelTasksResponse{"
+            + "taskFailures="
+            + taskFailures
+            + ", nodeFailures="
+            + nodeFailures
+            + ", nodesInfoData="
+            + nodesInfoData
+            + ", tasks="
+            + tasks
+            + ", taskGroups="
+            + taskGroups
+            + '}';
     }
 }

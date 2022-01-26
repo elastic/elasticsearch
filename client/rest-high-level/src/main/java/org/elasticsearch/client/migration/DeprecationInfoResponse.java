@@ -9,9 +9,9 @@
 package org.elasticsearch.client.migration;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,8 +33,12 @@ public class DeprecationInfoResponse {
     private final Map<String, List<DeprecationIssue>> indexSettingsIssues;
     private final List<DeprecationIssue> mlSettingsIssues;
 
-    public DeprecationInfoResponse(List<DeprecationIssue> clusterSettingsIssues, List<DeprecationIssue> nodeSettingsIssues,
-                                   Map<String, List<DeprecationIssue>> indexSettingsIssues, List<DeprecationIssue> mlSettingsIssues) {
+    public DeprecationInfoResponse(
+        List<DeprecationIssue> clusterSettingsIssues,
+        List<DeprecationIssue> nodeSettingsIssues,
+        Map<String, List<DeprecationIssue>> indexSettingsIssues,
+        List<DeprecationIssue> mlSettingsIssues
+    ) {
         this.clusterSettingsIssues = Objects.requireNonNull(clusterSettingsIssues, "cluster settings issues cannot be null");
         this.nodeSettingsIssues = Objects.requireNonNull(nodeSettingsIssues, "node settings issues cannot be null");
         this.indexSettingsIssues = Objects.requireNonNull(indexSettingsIssues, "index settings issues cannot be null");
@@ -103,10 +107,10 @@ public class DeprecationInfoResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DeprecationInfoResponse that = (DeprecationInfoResponse) o;
-        return Objects.equals(clusterSettingsIssues, that.clusterSettingsIssues) &&
-            Objects.equals(nodeSettingsIssues, that.nodeSettingsIssues) &&
-            Objects.equals(mlSettingsIssues, that.mlSettingsIssues) &&
-            Objects.equals(indexSettingsIssues, that.indexSettingsIssues);
+        return Objects.equals(clusterSettingsIssues, that.clusterSettingsIssues)
+            && Objects.equals(nodeSettingsIssues, that.nodeSettingsIssues)
+            && Objects.equals(mlSettingsIssues, that.mlSettingsIssues)
+            && Objects.equals(indexSettingsIssues, that.indexSettingsIssues);
     }
 
     @Override
@@ -131,8 +135,10 @@ public class DeprecationInfoResponse {
         private static final ParseField RESOLVE_DURING_ROLLING_UPGRADE = new ParseField("resolve_during_rolling_upgrade");
         private static final ParseField META = new ParseField("_meta");
 
-        static final ConstructingObjectParser<DeprecationIssue, Void> PARSER =
-            new ConstructingObjectParser<>("deprecation_issue", true, args -> {
+        static final ConstructingObjectParser<DeprecationIssue, Void> PARSER = new ConstructingObjectParser<>(
+            "deprecation_issue",
+            true,
+            args -> {
                 String logLevel = (String) args[0];
                 String message = (String) args[1];
                 String url = (String) args[2];
@@ -141,7 +147,8 @@ public class DeprecationInfoResponse {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> meta = (Map<String, Object>) args[5];
                 return new DeprecationIssue(Level.fromString(logLevel), message, url, details, resolveDuringRollingUpgrade, meta);
-            });
+            }
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), LEVEL);
@@ -154,8 +161,7 @@ public class DeprecationInfoResponse {
 
         public enum Level {
             WARNING,
-            CRITICAL
-            ;
+            CRITICAL;
 
             public static Level fromString(String value) {
                 return Level.valueOf(value.toUpperCase(Locale.ROOT));
@@ -174,8 +180,14 @@ public class DeprecationInfoResponse {
         private final boolean resolveDuringRollingUpgrade;
         private final Map<String, Object> meta;
 
-        public DeprecationIssue(Level level, String message, String url, @Nullable String details, boolean resolveDuringRollingUpgrade,
-                                @Nullable Map<String, Object> meta) {
+        public DeprecationIssue(
+            Level level,
+            String message,
+            String url,
+            @Nullable String details,
+            boolean resolveDuringRollingUpgrade,
+            @Nullable Map<String, Object> meta
+        ) {
             this.level = level;
             this.message = message;
             this.url = url;
@@ -217,12 +229,12 @@ public class DeprecationInfoResponse {
                 return false;
             }
             DeprecationIssue that = (DeprecationIssue) o;
-            return Objects.equals(level, that.level) &&
-                Objects.equals(message, that.message) &&
-                Objects.equals(url, that.url) &&
-                Objects.equals(details, that.details) &&
-                Objects.equals(resolveDuringRollingUpgrade, that.resolveDuringRollingUpgrade) &&
-                Objects.equals(meta, that.meta);
+            return Objects.equals(level, that.level)
+                && Objects.equals(message, that.message)
+                && Objects.equals(url, that.url)
+                && Objects.equals(details, that.details)
+                && Objects.equals(resolveDuringRollingUpgrade, that.resolveDuringRollingUpgrade)
+                && Objects.equals(meta, that.meta);
         }
 
         @Override

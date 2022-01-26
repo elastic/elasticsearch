@@ -13,12 +13,12 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,8 +53,12 @@ public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastRespo
         return createTestInstance(totalShards, successfulShards, failedShards, failures);
     }
 
-    protected abstract T createTestInstance(int totalShards, int successfulShards, int failedShards,
-                                          List<DefaultShardOperationFailedException> failures);
+    protected abstract T createTestInstance(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> failures
+    );
 
     @Override
     protected void assertEqualInstances(T response, T parsedResponse) {
@@ -103,7 +107,7 @@ public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastRespo
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference bytesReference = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
         T parsedResponse;
-        try(XContentParser parser = createParser(xContentType.xContent(), bytesReference)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), bytesReference)) {
             parsedResponse = doParseInstance(parser);
             assertNull(parser.nextToken());
         }

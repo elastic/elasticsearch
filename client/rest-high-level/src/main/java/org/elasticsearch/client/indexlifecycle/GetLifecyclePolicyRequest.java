@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.client.TimedRequest;

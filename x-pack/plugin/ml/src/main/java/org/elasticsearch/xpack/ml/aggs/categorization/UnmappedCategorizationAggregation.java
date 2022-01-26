@@ -13,7 +13,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import java.util.List;
 import java.util.Map;
 
-
 class UnmappedCategorizationAggregation extends InternalCategorizationAggregation {
     protected UnmappedCategorizationAggregation(
         String name,

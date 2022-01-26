@@ -22,10 +22,11 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.workers.WorkQueue;
 import org.gradle.workers.WorkerExecutor;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.util.List;
 import java.util.Set;
+
+import javax.inject.Inject;
 
 import static java.util.stream.Collectors.toList;
 
@@ -51,11 +52,7 @@ public abstract class RewriteTask extends DefaultTask {
     abstract Property<String> getMaxHeapSize();
 
     @Inject
-    public RewriteTask(
-        Configuration configuration,
-        RewriteExtension extension,
-        WorkerExecutor workerExecutor
-    ) {
+    public RewriteTask(Configuration configuration, RewriteExtension extension, WorkerExecutor workerExecutor) {
         this.configuration = configuration;
         this.extension = extension;
         this.workerExecutor = workerExecutor;

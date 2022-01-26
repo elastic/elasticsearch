@@ -116,9 +116,8 @@ final class TypeConverter {
         Calendar c = (Calendar) cal.clone();
         c.setTimeInMillis(value);
 
-        ZonedDateTime convertedDateTime = ZonedDateTime
-                .ofInstant(c.toInstant(), c.getTimeZone().toZoneId())
-                .withZoneSameLocal(ZoneOffset.UTC);
+        ZonedDateTime convertedDateTime = ZonedDateTime.ofInstant(c.toInstant(), c.getTimeZone().toZoneId())
+            .withZoneSameLocal(ZoneOffset.UTC);
 
         return convertedDateTime.toInstant().toEpochMilli();
     }
@@ -308,9 +307,8 @@ final class TypeConverter {
     }
 
     private static <T> T failConversion(Object value, EsType columnType, String typeString, Class<T> target, Exception e)
-            throws SQLException {
-        String message = format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to [%s]", value, columnType,
-                typeString);
+        throws SQLException {
+        String message = format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to [%s]", value, columnType, typeString);
         throw e != null ? new SQLException(message, e) : new SQLException(message);
     }
 
@@ -427,11 +425,11 @@ final class TypeConverter {
             case SCALED_FLOAT:
             case DOUBLE:
                 return safeToLong(((Number) val).doubleValue());
-            //TODO: should we support conversion to TIMESTAMP?
-            //The spec says that getLong() should support the following types conversions:
-            //TINYINT, SMALLINT, INTEGER, BIGINT, REAL, FLOAT, DOUBLE, DECIMAL, NUMERIC, BIT, BOOLEAN, CHAR, VARCHAR, LONGVARCHAR
-            //case TIMESTAMP:
-            //    return ((Number) val).longValue();
+            // TODO: should we support conversion to TIMESTAMP?
+            // The spec says that getLong() should support the following types conversions:
+            // TINYINT, SMALLINT, INTEGER, BIGINT, REAL, FLOAT, DOUBLE, DECIMAL, NUMERIC, BIT, BOOLEAN, CHAR, VARCHAR, LONGVARCHAR
+            // case TIMESTAMP:
+            // return ((Number) val).longValue();
             case KEYWORD:
             case TEXT:
                 try {
@@ -557,8 +555,8 @@ final class TypeConverter {
                 } catch (NumberFormatException nfe) {
                     return failConversion(val, columnType, typeString, BigDecimal.class, nfe);
                 }
-            // TODO: should we implement numeric - interval types conversions too; ever needed? ODBC does mandate it
-            //       https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/converting-data-from-c-to-sql-data-types
+                // TODO: should we implement numeric - interval types conversions too; ever needed? ODBC does mandate it
+                // https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/converting-data-from-c-to-sql-data-types
         }
         return failConversion(val, columnType, typeString, BigDecimal.class);
     }

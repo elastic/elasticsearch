@@ -8,11 +8,11 @@
 
 package org.elasticsearch.client.license;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -20,8 +20,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class StartTrialResponse {
 
@@ -47,8 +47,7 @@ public class StartTrialResponse {
                 acknowledgeMessages = null;
             }
 
-            return new StartTrialResponse(acknowledged, trialWasStarted, licenseType, errorMessage, acknowledgeHeader,
-                acknowledgeMessages);
+            return new StartTrialResponse(acknowledged, trialWasStarted, licenseType, errorMessage, acknowledgeHeader, acknowledgeMessages);
         }
     );
 
@@ -110,12 +109,14 @@ public class StartTrialResponse {
     private final String acknowledgeHeader;
     private final Map<String, String[]> acknowledgeMessages;
 
-    public StartTrialResponse(boolean acknowledged,
-                              boolean trialWasStarted,
-                              String licenseType,
-                              String errorMessage,
-                              String acknowledgeHeader,
-                              Map<String, String[]> acknowledgeMessages) {
+    public StartTrialResponse(
+        boolean acknowledged,
+        boolean trialWasStarted,
+        String licenseType,
+        String errorMessage,
+        String acknowledgeHeader,
+        Map<String, String[]> acknowledgeMessages
+    ) {
 
         this.acknowledged = acknowledged;
         this.trialWasStarted = trialWasStarted;

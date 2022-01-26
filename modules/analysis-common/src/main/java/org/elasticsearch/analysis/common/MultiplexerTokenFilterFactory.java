@@ -33,7 +33,7 @@ import java.util.function.Function;
 
 public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(MultiplexerTokenFilterFactory.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(MultiplexerTokenFilterFactory.class);
 
     private List<String> filterNames;
     private final boolean preserveOriginal;
@@ -53,22 +53,28 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenFilterFactory getSynonymFilter() {
         if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
             throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
-        }
-        else {
+        } else {
             if (preserveOriginal) {
-                DEPRECATION_LOGGER.critical(DeprecationCategory.ANALYSIS, "synonym_tokenfilters",
-                    "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0");
+                DEPRECATION_LOGGER.critical(
+                    DeprecationCategory.ANALYSIS,
+                    "synonym_tokenfilters",
+                    "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0"
+                );
                 return IDENTITY_FILTER;
             }
-            throw new IllegalArgumentException("Token filter [" + name()
-                + "] cannot be used to parse synonyms unless [preserve_original] is [true]");
+            throw new IllegalArgumentException(
+                "Token filter [" + name() + "] cannot be used to parse synonyms unless [preserve_original] is [true]"
+            );
         }
     }
 
     @Override
-    public TokenFilterFactory getChainAwareTokenFilterFactory(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
-                                                              List<TokenFilterFactory> previousTokenFilters,
-                                                              Function<String, TokenFilterFactory> allFilters) {
+    public TokenFilterFactory getChainAwareTokenFilterFactory(
+        TokenizerFactory tokenizer,
+        List<CharFilterFactory> charFilters,
+        List<TokenFilterFactory> previousTokenFilters,
+        Function<String, TokenFilterFactory> allFilters
+    ) {
         List<TokenFilterFactory> filters = new ArrayList<>();
         if (preserveOriginal) {
             filters.add(IDENTITY_FILTER);
@@ -116,15 +122,18 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
             public TokenFilterFactory getSynonymFilter() {
                 if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
                     throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
-                }
-                else {
+                } else {
                     if (preserveOriginal) {
-                        DEPRECATION_LOGGER.critical(DeprecationCategory.ANALYSIS, "synonym_tokenfilters",
-                            "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0");
+                        DEPRECATION_LOGGER.critical(
+                            DeprecationCategory.ANALYSIS,
+                            "synonym_tokenfilters",
+                            "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0"
+                        );
                         return IDENTITY_FILTER;
                     }
-                    throw new IllegalArgumentException("Token filter [" + name()
-                        + "] cannot be used to parse synonyms unless [preserve_original] is [true]");
+                    throw new IllegalArgumentException(
+                        "Token filter [" + name() + "] cannot be used to parse synonyms unless [preserve_original] is [true]"
+                    );
                 }
             }
 

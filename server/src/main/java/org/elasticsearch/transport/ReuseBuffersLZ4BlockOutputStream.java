@@ -81,12 +81,11 @@ public class ReuseBuffersLZ4BlockOutputStream extends FilterOutputStream {
     static final byte[] MAGIC = new byte[] { 'L', 'Z', '4', 'B', 'l', 'o', 'c', 'k' };
     static final int MAGIC_LENGTH = MAGIC.length;
 
-    static final int HEADER_LENGTH =
-        MAGIC_LENGTH // magic bytes
-            + 1          // token
-            + 4          // compressed length
-            + 4          // decompressed length
-            + 4;         // checksum
+    static final int HEADER_LENGTH = MAGIC_LENGTH // magic bytes
+        + 1          // token
+        + 4          // compressed length
+        + 4          // decompressed length
+        + 4;         // checksum
 
     static final int COMPRESSION_LEVEL_BASE = 10;
     static final int MIN_BLOCK_SIZE = 64;
@@ -273,9 +272,7 @@ public class ReuseBuffersLZ4BlockOutputStream extends FilterOutputStream {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "(out=" + out + ", blockSize=" + blockSize
-            + ", compressor=" + compressor + ")";
+        return getClass().getSimpleName() + "(out=" + out + ", blockSize=" + blockSize + ", compressor=" + compressor + ")";
     }
 
 }
-

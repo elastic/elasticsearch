@@ -8,6 +8,7 @@ package org.elasticsearch.smoketest;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
+
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -92,8 +93,9 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
-                .put(SecurityField.USER_SETTING.getKey(), USER + ":" + PASS)
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4).build();
+            .put(SecurityField.USER_SETTING.getKey(), USER + ":" + PASS)
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4)
+            .build();
     }
 
     @Before
@@ -107,7 +109,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
             .put("xpack.monitoring.exporters._http.auth.password", "x-pack-test-password")
             .put("xpack.monitoring.exporters._http.ssl.verification_mode", "full")
             .put("xpack.monitoring.exporters._http.ssl.certificate_authorities", "testnode.crt")
-                .build();
+            .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
     }
 
@@ -128,12 +130,11 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
 
     private boolean getMonitoringUsageExportersDefined() throws Exception {
         final XPackUsageResponse usageResponse = new XPackUsageRequestBuilder(client()).execute().get();
-        final Optional<MonitoringFeatureSetUsage> monitoringUsage =
-                usageResponse.getUsages()
-                        .stream()
-                        .filter(usage -> usage instanceof MonitoringFeatureSetUsage)
-                        .map(usage -> (MonitoringFeatureSetUsage)usage)
-                        .findFirst();
+        final Optional<MonitoringFeatureSetUsage> monitoringUsage = usageResponse.getUsages()
+            .stream()
+            .filter(usage -> usage instanceof MonitoringFeatureSetUsage)
+            .map(usage -> (MonitoringFeatureSetUsage) usage)
+            .findFirst();
 
         assertThat("Monitoring feature set does not exist", monitoringUsage.isPresent(), is(true));
 

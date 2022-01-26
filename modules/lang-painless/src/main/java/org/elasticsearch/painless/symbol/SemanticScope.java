@@ -198,6 +198,9 @@ public abstract class SemanticScope {
                 return;
             }
             usesInstanceMethod = true;
+            if (parent != null) {
+                parent.setUsesInstanceMethod();
+            }
         }
 
         @Override
@@ -260,6 +263,12 @@ public abstract class SemanticScope {
         @Override
         public String getReturnCanonicalTypeName() {
             return parent.getReturnCanonicalTypeName();
+        }
+
+        @Override
+        // If the parent scope is a lambda, we want to track this usage, so forward call to parent.
+        public void setUsesInstanceMethod() {
+            parent.setUsesInstanceMethod();
         }
     }
 
@@ -338,6 +347,7 @@ public abstract class SemanticScope {
     }
 
     public abstract Class<?> getReturnType();
+
     public abstract String getReturnCanonicalTypeName();
 
     public Variable defineVariable(Location location, Class<?> type, String name, boolean isReadOnly) {
@@ -352,9 +362,11 @@ public abstract class SemanticScope {
     }
 
     public abstract boolean isVariableDefined(String name);
+
     public abstract Variable getVariable(Location location, String name);
 
-    // We only want to track instance method use inside of lambdas for "this" injection.  It's a noop for other scopes.
+    // We only want to track instance method use inside of lambdas (and blocks inside lambdas) for "this" injection.
+    // It's a noop for other scopes.
     public void setUsesInstanceMethod() {}
 
     public boolean usesInstanceMethod() {

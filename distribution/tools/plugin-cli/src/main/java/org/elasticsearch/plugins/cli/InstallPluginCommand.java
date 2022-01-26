@@ -75,13 +75,17 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        SyncPluginsAction.ensureNoConfigFile(env);
+
         List<PluginDescriptor> plugins = arguments.values(options)
             .stream()
-            .map(id -> new PluginDescriptor(id, id))
+            // We only have one piece of data, which could be an ID or could be a location, so we use it for both
+            .map(idOrLocation -> new PluginDescriptor(idOrLocation, idOrLocation))
             .collect(Collectors.toList());
         final boolean isBatch = options.has(batchOption);
 
-        InstallPluginAction action = new InstallPluginAction(terminal, env, isBatch);
-        action.execute(plugins);
+        try (InstallPluginAction action = new InstallPluginAction(terminal, env, isBatch)) {
+            action.execute(plugins);
+        }
     }
 }

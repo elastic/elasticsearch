@@ -30,6 +30,6 @@ public class ClasspathUtils {
             }
         }
 
-        return paths.toArray(new Path[]{});
+        return paths.toArray(new Path[] {});
     }
 }

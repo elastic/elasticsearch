@@ -11,10 +11,10 @@ package org.elasticsearch.ingest.geoip;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -24,11 +24,9 @@ class GeoIpTaskParams implements PersistentTaskParams {
 
     public static final ObjectParser<GeoIpTaskParams, Void> PARSER = new ObjectParser<>(GEOIP_DOWNLOADER, true, GeoIpTaskParams::new);
 
-    GeoIpTaskParams() {
-    }
+    GeoIpTaskParams() {}
 
-    GeoIpTaskParams(StreamInput in) {
-    }
+    GeoIpTaskParams(StreamInput in) {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -48,8 +46,7 @@ class GeoIpTaskParams implements PersistentTaskParams {
     }
 
     @Override
-    public void writeTo(StreamOutput out) {
-    }
+    public void writeTo(StreamOutput out) {}
 
     public static GeoIpTaskParams fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);

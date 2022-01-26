@@ -30,8 +30,13 @@ import java.util.function.Predicate;
 public final class LimitedRole extends Role {
     private final Role limitedBy;
 
-    LimitedRole(ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application, RunAsPermission runAs,
-                Role limitedBy) {
+    LimitedRole(
+        ClusterPermission cluster,
+        IndicesPermission indices,
+        ApplicationPermission application,
+        RunAsPermission runAs,
+        Role limitedBy
+    ) {
         super(Objects.requireNonNull(limitedBy, "limiting role is required").names(), cluster, indices, application, runAs);
         this.limitedBy = limitedBy;
     }
@@ -57,6 +62,11 @@ public final class LimitedRole extends Role {
     }
 
     @Override
+    public boolean hasFieldOrDocumentLevelSecurity() {
+        return super.hasFieldOrDocumentLevelSecurity() || limitedBy.hasFieldOrDocumentLevelSecurity();
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;
@@ -77,14 +87,24 @@ public final class LimitedRole extends Role {
     }
 
     @Override
-    public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases,
-                                          Map<String, IndexAbstraction> aliasAndIndexLookup,
-                                          FieldPermissionsCache fieldPermissionsCache) {
-        IndicesAccessControl indicesAccessControl =
-            super.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache);
-        IndicesAccessControl limitedByIndicesAccessControl = limitedBy.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup,
-                fieldPermissionsCache);
-
+    public IndicesAccessControl authorize(
+        String action,
+        Set<String> requestedIndicesOrAliases,
+        Map<String, IndexAbstraction> aliasAndIndexLookup,
+        FieldPermissionsCache fieldPermissionsCache
+    ) {
+        IndicesAccessControl indicesAccessControl = super.authorize(
+            action,
+            requestedIndicesOrAliases,
+            aliasAndIndexLookup,
+            fieldPermissionsCache
+        );
+        IndicesAccessControl limitedByIndicesAccessControl = limitedBy.authorize(
+            action,
+            requestedIndicesOrAliases,
+            aliasAndIndexLookup,
+            fieldPermissionsCache
+        );
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }
 
@@ -129,12 +149,18 @@ public final class LimitedRole extends Role {
      * @return an instance of {@link ResourcePrivilegesMap}
      */
     @Override
-    public ResourcePrivilegesMap checkIndicesPrivileges(Set<String> checkForIndexPatterns, boolean allowRestrictedIndices,
-                                                        Set<String> checkForPrivileges) {
-        ResourcePrivilegesMap resourcePrivilegesMap = super.indices().checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices,
-                checkForPrivileges);
-        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedBy.indices().checkResourcePrivileges(checkForIndexPatterns,
-                allowRestrictedIndices, checkForPrivileges);
+    public ResourcePrivilegesMap checkIndicesPrivileges(
+        Set<String> checkForIndexPatterns,
+        boolean allowRestrictedIndices,
+        Set<String> checkForPrivileges
+    ) {
+        ResourcePrivilegesMap resourcePrivilegesMap = super.indices().checkResourcePrivileges(
+            checkForIndexPatterns,
+            allowRestrictedIndices,
+            checkForPrivileges
+        );
+        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedBy.indices()
+            .checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges);
         return ResourcePrivilegesMap.intersection(resourcePrivilegesMap, resourcePrivilegesMapForLimitedRole);
     }
 
@@ -179,13 +205,20 @@ public final class LimitedRole extends Role {
      * @return an instance of {@link ResourcePrivilegesMap}
      */
     @Override
-    public ResourcePrivilegesMap checkApplicationResourcePrivileges(final String applicationName, Set<String> checkForResources,
-                                                                    Set<String> checkForPrivilegeNames,
-                                                                    Collection<ApplicationPrivilegeDescriptor> storedPrivileges) {
-        ResourcePrivilegesMap resourcePrivilegesMap = super.application().checkResourcePrivileges(applicationName, checkForResources,
-                checkForPrivilegeNames, storedPrivileges);
-        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedBy.application().checkResourcePrivileges(applicationName,
-                checkForResources, checkForPrivilegeNames, storedPrivileges);
+    public ResourcePrivilegesMap checkApplicationResourcePrivileges(
+        final String applicationName,
+        Set<String> checkForResources,
+        Set<String> checkForPrivilegeNames,
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges
+    ) {
+        ResourcePrivilegesMap resourcePrivilegesMap = super.application().checkResourcePrivileges(
+            applicationName,
+            checkForResources,
+            checkForPrivilegeNames,
+            storedPrivileges
+        );
+        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedBy.application()
+            .checkResourcePrivileges(applicationName, checkForResources, checkForPrivilegeNames, storedPrivileges);
         return ResourcePrivilegesMap.intersection(resourcePrivilegesMap, resourcePrivilegesMapForLimitedRole);
     }
 

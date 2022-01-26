@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.spatial;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.xcontent.ContextParser;
+import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xpack.core.common.stats.EnumCounters;
 import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 
@@ -19,8 +19,7 @@ public class SpatialUsage {
 
     private final EnumCounters<SpatialStatsAction.Item> counters = new EnumCounters<>(SpatialStatsAction.Item.class);
 
-    public SpatialUsage() {
-    }
+    public SpatialUsage() {}
 
     /**
      * Track successful parsing.

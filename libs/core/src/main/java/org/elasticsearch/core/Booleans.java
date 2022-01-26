@@ -107,6 +107,7 @@ public final class Booleans {
         }
         return parseBooleanLenient(value, false);
     }
+
     /**
      * Returns {@code false} if text is in "false", "0", "off", "no"; else, {@code true}.
      *
@@ -163,8 +164,11 @@ public final class Booleans {
             return (text[offset] == 'o' && text[offset + 1] == 'f' && text[offset + 2] == 'f') == false;
         }
         if (length == 5) {
-            return (text[offset] == 'f' && text[offset + 1] == 'a' && text[offset + 2] == 'l' && text[offset + 3] == 's' &&
-                text[offset + 4] == 'e') == false;
+            return (text[offset] == 'f'
+                && text[offset + 1] == 'a'
+                && text[offset + 2] == 'l'
+                && text[offset + 3] == 's'
+                && text[offset + 4] == 'e') == false;
         }
         return true;
     }
@@ -190,15 +194,18 @@ public final class Booleans {
             return (text[offset] == 'n' && text[offset + 1] == 'o') || (text[offset] == 'o' && text[offset + 1] == 'n');
         }
         if (length == 3) {
-            return (text[offset] == 'o' && text[offset + 1] == 'f' && text[offset + 2] == 'f') ||
-                (text[offset] == 'y' && text[offset + 1] == 'e' && text[offset + 2] == 's');
+            return (text[offset] == 'o' && text[offset + 1] == 'f' && text[offset + 2] == 'f')
+                || (text[offset] == 'y' && text[offset + 1] == 'e' && text[offset + 2] == 's');
         }
         if (length == 4) {
             return (text[offset] == 't' && text[offset + 1] == 'r' && text[offset + 2] == 'u' && text[offset + 3] == 'e');
         }
         if (length == 5) {
-            return (text[offset] == 'f' && text[offset + 1] == 'a' && text[offset + 2] == 'l' && text[offset + 3] == 's' &&
-                text[offset + 4] == 'e');
+            return (text[offset] == 'f'
+                && text[offset + 1] == 'a'
+                && text[offset + 2] == 'l'
+                && text[offset + 3] == 's'
+                && text[offset + 4] == 'e');
         }
         return false;
     }

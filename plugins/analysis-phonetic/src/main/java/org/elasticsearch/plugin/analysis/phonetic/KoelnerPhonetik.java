@@ -34,18 +34,14 @@ import java.util.regex.Pattern;
  */
 public class KoelnerPhonetik implements StringEncoder {
 
-    private static final String[] POSTEL_VARIATIONS_PATTERNS = {"AUN", "OWN", "RB", "RW", "WSK", "RSK"};
-    private static final String[] POSTEL_VARIATIONS_REPLACEMENTS = {"OWN", "AUN", "RW", "RB", "RSK", "WSK"};
+    private static final String[] POSTEL_VARIATIONS_PATTERNS = { "AUN", "OWN", "RB", "RW", "WSK", "RSK" };
+    private static final String[] POSTEL_VARIATIONS_REPLACEMENTS = { "OWN", "AUN", "RW", "RB", "RSK", "WSK" };
     private Pattern[] variationsPatterns;
     private boolean primary = false;
-    private final Set<Character> csz = new HashSet<>(Arrays.asList(
-            'C', 'S', 'Z'));
-    private final Set<Character> ckq = new HashSet<>(Arrays.asList(
-            'C', 'K', 'Q'));
-    private final Set<Character> aouhkxq = new HashSet<>(Arrays.asList(
-            'A', 'O', 'U', 'H', 'K', 'X', 'Q'));
-    private final Set<Character> ahkloqrux = new HashSet<>(Arrays.asList(
-            'A', 'H', 'K', 'L', 'O', 'Q', 'R', 'U', 'X'));
+    private final Set<Character> csz = new HashSet<>(Arrays.asList('C', 'S', 'Z'));
+    private final Set<Character> ckq = new HashSet<>(Arrays.asList('C', 'K', 'Q'));
+    private final Set<Character> aouhkxq = new HashSet<>(Arrays.asList('A', 'O', 'U', 'H', 'K', 'X', 'Q'));
+    private final Set<Character> ahkloqrux = new HashSet<>(Arrays.asList('A', 'H', 'K', 'L', 'O', 'Q', 'R', 'U', 'X'));
 
     /**
      * Constructor for  Kölner Phonetik
@@ -107,7 +103,6 @@ public class KoelnerPhonetik implements StringEncoder {
         }
         return sb.toString();
     }
-
 
     private void init() {
         this.variationsPatterns = new Pattern[getPatterns().length];

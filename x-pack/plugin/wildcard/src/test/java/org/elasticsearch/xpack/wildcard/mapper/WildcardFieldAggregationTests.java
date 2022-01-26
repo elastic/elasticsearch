@@ -35,7 +35,6 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
     private WildcardFieldMapper wildcardFieldMapper;
     private WildcardFieldMapper.WildcardFieldType wildcardFieldType;
 
-
     @Before
     public void setup() {
         WildcardFieldMapper.Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.CURRENT);
@@ -72,64 +71,53 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
     }
 
     public void testTermsAggregation() throws IOException {
-        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
-            .field(WILDCARD_FIELD_NAME)
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field(WILDCARD_FIELD_NAME)
             .order(BucketOrder.key(true));
 
-        testCase(aggregationBuilder,
-            new MatchAllDocsQuery(),
-            iw -> {
-                indexStrings(iw, "a");
-                indexStrings(iw, "a");
-                indexStrings(iw, "b");
-                indexStrings(iw, "b");
-                indexStrings(iw, "b");
-                indexStrings(iw, "c");
-            },
-            (StringTerms result) -> {
-                assertTrue(AggregationInspectionHelper.hasValue(result));
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            indexStrings(iw, "a");
+            indexStrings(iw, "a");
+            indexStrings(iw, "b");
+            indexStrings(iw, "b");
+            indexStrings(iw, "b");
+            indexStrings(iw, "c");
+        }, (StringTerms result) -> {
+            assertTrue(AggregationInspectionHelper.hasValue(result));
 
-                assertEquals(3, result.getBuckets().size());
-                assertEquals("a", result.getBuckets().get(0).getKeyAsString());
-                assertEquals(2L, result.getBuckets().get(0).getDocCount());
-                assertEquals("b", result.getBuckets().get(1).getKeyAsString());
-                assertEquals(3L, result.getBuckets().get(1).getDocCount());
-                assertEquals("c", result.getBuckets().get(2).getKeyAsString());
-                assertEquals(1L, result.getBuckets().get(2).getDocCount());
-            },
-            wildcardFieldType);
+            assertEquals(3, result.getBuckets().size());
+            assertEquals("a", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(0).getDocCount());
+            assertEquals("b", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(3L, result.getBuckets().get(1).getDocCount());
+            assertEquals("c", result.getBuckets().get(2).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(2).getDocCount());
+        }, wildcardFieldType);
     }
 
     public void testCompositeTermsAggregation() throws IOException {
         CompositeAggregationBuilder aggregationBuilder = new CompositeAggregationBuilder(
             "name",
-            Collections.singletonList(
-                new TermsValuesSourceBuilder("terms_key").field(WILDCARD_FIELD_NAME)
-            )
+            Collections.singletonList(new TermsValuesSourceBuilder("terms_key").field(WILDCARD_FIELD_NAME))
         );
 
-        testCase(aggregationBuilder,
-            new MatchAllDocsQuery(),
-            iw -> {
-                indexStrings(iw, "a");
-                indexStrings(iw, "c");
-                indexStrings(iw, "a");
-                indexStrings(iw, "d");
-                indexStrings(iw, "c");
-            },
-            (InternalComposite result) -> {
-                assertTrue(AggregationInspectionHelper.hasValue(result));
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            indexStrings(iw, "a");
+            indexStrings(iw, "c");
+            indexStrings(iw, "a");
+            indexStrings(iw, "d");
+            indexStrings(iw, "c");
+        }, (InternalComposite result) -> {
+            assertTrue(AggregationInspectionHelper.hasValue(result));
 
-                assertEquals(3, result.getBuckets().size());
-                assertEquals("{terms_key=d}", result.afterKey().toString());
-                assertEquals("{terms_key=a}", result.getBuckets().get(0).getKeyAsString());
-                assertEquals(2L, result.getBuckets().get(0).getDocCount());
-                assertEquals("{terms_key=c}", result.getBuckets().get(1).getKeyAsString());
-                assertEquals(2L, result.getBuckets().get(1).getDocCount());
-                assertEquals("{terms_key=d}", result.getBuckets().get(2).getKeyAsString());
-                assertEquals(1L, result.getBuckets().get(2).getDocCount());
-            },
-            wildcardFieldType);
+            assertEquals(3, result.getBuckets().size());
+            assertEquals("{terms_key=d}", result.afterKey().toString());
+            assertEquals("{terms_key=a}", result.getBuckets().get(0).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(0).getDocCount());
+            assertEquals("{terms_key=c}", result.getBuckets().get(1).getKeyAsString());
+            assertEquals(2L, result.getBuckets().get(1).getDocCount());
+            assertEquals("{terms_key=d}", result.getBuckets().get(2).getKeyAsString());
+            assertEquals(1L, result.getBuckets().get(2).getDocCount());
+        }, wildcardFieldType);
     }
 
     public void testCompositeTermsSearchAfter() throws IOException {

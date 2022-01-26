@@ -13,8 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.ReportingService;
 
 public final class ProcessService implements ReportingService<ProcessInfo> {
@@ -25,9 +25,12 @@ public final class ProcessService implements ReportingService<ProcessInfo> {
     private final ProcessInfo info;
     private final SingleObjectCache<ProcessStats> processStatsCache;
 
-    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("monitor.process.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
-            Property.NodeScope);
+    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "monitor.process.refresh_interval",
+        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueSeconds(1),
+        Property.NodeScope
+    );
 
     public ProcessService(Settings settings) {
         this.probe = ProcessProbe.getInstance();

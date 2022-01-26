@@ -8,9 +8,9 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.AbstractRefCounted;
 
 import java.nio.ByteBuffer;
 

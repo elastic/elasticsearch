@@ -27,8 +27,7 @@ public class PercentilesAgg extends DefaultAggSourceLeafAgg {
 
     @Override
     Function<String, ValuesSourceAggregationBuilder<?>> builder() {
-        return s -> percentiles(s)
-            .percentiles(percents.stream().mapToDouble(Double::doubleValue).toArray())
+        return s -> percentiles(s).percentiles(percents.stream().mapToDouble(Double::doubleValue).toArray())
             .percentilesConfig(percentilesConfig);
     }
 }

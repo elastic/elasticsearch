@@ -13,17 +13,17 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -178,8 +178,10 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[wildcard] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[wildcard] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     }
                 }
@@ -190,10 +192,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
             }
         }
 
-        WildcardQueryBuilder result = new WildcardQueryBuilder(fieldName, value)
-                .rewrite(rewrite)
-                .boost(boost)
-                .queryName(queryName);
+        WildcardQueryBuilder result = new WildcardQueryBuilder(fieldName, value).rewrite(rewrite).boost(boost).queryName(queryName);
         result.caseInsensitive(caseInsensitive);
         return result;
     }
@@ -215,7 +214,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
                 } else if (query instanceof MatchNoDocsQuery) {
                     return new MatchNoneQueryBuilder();
                 } else {
-                    assert false : "Constant fields must produce match-all or match-none queries, got " + query ;
+                    assert false : "Constant fields must produce match-all or match-none queries, got " + query;
                 }
             }
         }
@@ -231,8 +230,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
             throw new IllegalStateException("Rewrite first");
         }
 
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(
-            rewrite, null, LoggingDeprecationHandler.INSTANCE);
+        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
         return fieldType.wildcardQuery(value, method, caseInsensitive, context);
     }
 
@@ -243,9 +241,9 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     @Override
     protected boolean doEquals(WildcardQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-                Objects.equals(value, other.value) &&
-                Objects.equals(rewrite, other.rewrite)&&
-                Objects.equals(caseInsensitive, other.caseInsensitive);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(value, other.value)
+            && Objects.equals(rewrite, other.rewrite)
+            && Objects.equals(caseInsensitive, other.caseInsensitive);
     }
 }

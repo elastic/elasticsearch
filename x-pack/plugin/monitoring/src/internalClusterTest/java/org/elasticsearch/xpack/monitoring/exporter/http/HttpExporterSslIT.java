@@ -7,14 +7,15 @@
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import com.sun.net.httpserver.HttpsServer;
+
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.http.MockWebServer;
@@ -28,7 +29,6 @@ import org.hamcrest.CoreMatchers;
 import org.junit.AfterClass;
 import org.junit.Before;
 
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,12 +37,19 @@ import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.List;
 
+import javax.net.ssl.SSLContext;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-@ESIntegTestCase.ClusterScope(scope = Scope.SUITE,
-    numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
+@ESIntegTestCase.ClusterScope(
+    scope = Scope.SUITE,
+    numDataNodes = 1,
+    numClientNodes = 0,
+    transportClientRatio = 0.0,
+    supportsDedicatedMasters = false
+)
 public class HttpExporterSslIT extends MonitoringIntegTestCase {
 
     private final Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
@@ -50,7 +57,6 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
 
     private static MockWebServer webServer;
     private MockSecureSettings secureSettings;
-
 
     @AfterClass
     public static void cleanUpStatics() {
@@ -140,7 +146,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
         final ActionFuture<ClusterUpdateSettingsResponse> future = setVerificationMode("plaintext", VerificationMode.CERTIFICATE);
         final ClusterUpdateSettingsResponse response = future.actionGet();
         assertThat(response, notNullValue());
-        clearTransientSettings("plaintext");
+        clearPersistentSettings("plaintext");
     }
 
     public void testCanAddNewExporterWithSsl() {
@@ -155,13 +161,13 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
             .put("xpack.monitoring.exporters._new.ssl.truststore.password", "testnode")
             .put("xpack.monitoring.exporters._new.ssl.verification_mode", VerificationMode.CERTIFICATE.name())
             .build();
-        updateSettings.transientSettings(settings);
+        updateSettings.persistentSettings(settings);
         final ActionFuture<ClusterUpdateSettingsResponse> future = client().admin().cluster().updateSettings(updateSettings);
         final ClusterUpdateSettingsResponse response = future.actionGet();
         assertThat(response, notNullValue());
 
         assertExporterExists("_new");
-        clearTransientSettings("_new");
+        clearPersistentSettings("_new");
     }
 
     private void assertExporterExists(String secure) {
@@ -183,17 +189,17 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
             .put("xpack.monitoring.exporters." + name + ".host", "https://" + webServer.getHostName() + ":" + webServer.getPort())
             .put("xpack.monitoring.exporters." + name + ".ssl.verification_mode", mode.name())
             .build();
-        updateSettings.transientSettings(settings);
+        updateSettings.persistentSettings(settings);
         return client().admin().cluster().updateSettings(updateSettings);
     }
 
-    private void clearTransientSettings(String... names) {
+    private void clearPersistentSettings(String... names) {
         final ClusterUpdateSettingsRequest updateSettings = new ClusterUpdateSettingsRequest();
         final Settings.Builder builder = Settings.builder();
         for (String name : names) {
             builder.put("xpack.monitoring.exporters." + name + ".*", (String) null);
         }
-        updateSettings.transientSettings(builder.build());
+        updateSettings.persistentSettings(builder.build());
         client().admin().cluster().updateSettings(updateSettings).actionGet();
     }
 
@@ -207,9 +213,9 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
         } else if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
             return Collections.singletonList("TLSv1.2");
         } else {
-            JavaVersion full =
-                AccessController.doPrivileged(
-                    (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
+            JavaVersion full = AccessController.doPrivileged(
+                (PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version"))
+            );
             if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
                 return Collections.singletonList("TLSv1.2");
             }

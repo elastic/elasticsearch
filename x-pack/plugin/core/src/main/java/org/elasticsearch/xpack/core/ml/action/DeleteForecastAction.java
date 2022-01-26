@@ -42,8 +42,7 @@ public class DeleteForecastAction extends ActionType<AcknowledgedResponse> {
             allowNoForecasts = in.readBoolean();
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(String jobId, String forecastId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());

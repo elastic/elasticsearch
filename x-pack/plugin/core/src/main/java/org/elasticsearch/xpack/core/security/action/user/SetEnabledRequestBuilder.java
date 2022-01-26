@@ -15,7 +15,8 @@ import org.elasticsearch.client.ElasticsearchClient;
  * Request builder for setting a user as enabled or disabled
  */
 public class SetEnabledRequestBuilder extends ActionRequestBuilder<SetEnabledRequest, ActionResponse.Empty>
-        implements WriteRequestBuilder<SetEnabledRequestBuilder> {
+    implements
+        WriteRequestBuilder<SetEnabledRequestBuilder> {
 
     public SetEnabledRequestBuilder(ElasticsearchClient client) {
         super(client, SetEnabledAction.INSTANCE, new SetEnabledRequest());

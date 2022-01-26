@@ -23,7 +23,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-
 import java.util.Properties;
 
 import static java.util.Collections.emptyList;
@@ -34,6 +33,7 @@ public abstract class RewriteWorker implements WorkAction<RewriteParameters> {
     private static Logger logger = Logging.getLogger(RewriteWorker.class);
 
     RewriteReflectiveFacade rewrite;
+
     @Override
     public void execute() {
         rewrite = new RewriteReflectiveFacade();
@@ -44,8 +44,11 @@ public abstract class RewriteWorker implements WorkAction<RewriteParameters> {
     private void writeInPlaceChanges(ResultsContainer results) {
         for (RewriteReflectiveFacade.Result result : results.refactoredInPlace) {
             assert result.getBefore() != null;
-            try (BufferedWriter sourceFileWriter = Files.newBufferedWriter(
-                    results.getProjectRoot().resolve(result.getBefore().getSourcePath()))) {
+            try (
+                BufferedWriter sourceFileWriter = Files.newBufferedWriter(
+                    results.getProjectRoot().resolve(result.getBefore().getSourcePath())
+                )
+            ) {
                 assert result.getAfter() != null;
                 sourceFileWriter.write(result.getAfter().print());
             } catch (IOException e) {
@@ -69,27 +72,26 @@ public abstract class RewriteWorker implements WorkAction<RewriteParameters> {
         logger.lifecycle("Validating active recipes");
         Collection<RewriteReflectiveFacade.Validated> validated = recipe.validateAll();
         List<RewriteReflectiveFacade.Validated.Invalid> failedValidations = validated.stream()
-                .map(RewriteReflectiveFacade.Validated::failures)
-                .flatMap(Collection::stream)
-                .collect(toList());
+            .map(RewriteReflectiveFacade.Validated::failures)
+            .flatMap(Collection::stream)
+            .collect(toList());
         if (failedValidations.isEmpty() == false) {
             failedValidations.forEach(
-                    failedValidation -> logger.error(
-                            "Recipe validation error in " + failedValidation.getProperty() + ": " + failedValidation.getMessage(),
-                            failedValidation.getException()
-                    )
+                failedValidation -> logger.error(
+                    "Recipe validation error in " + failedValidation.getProperty() + ": " + failedValidation.getMessage(),
+                    failedValidation.getException()
+                )
             );
-            logger.error(
-                    "Recipe validation errors detected as part of one or more activeRecipe(s). Execution will continue regardless."
-            );
+            logger.error("Recipe validation errors detected as part of one or more activeRecipe(s). Execution will continue regardless.");
         }
 
         RewriteReflectiveFacade.InMemoryExecutionContext ctx = executionContext();
         List<RewriteReflectiveFacade.SourceFile> sourceFiles = parse(
-                getParameters().getAllJavaPaths().get(),
-                getParameters().getAllDependencyPaths().get(),
-                styles,
-                ctx);
+            getParameters().getAllJavaPaths().get(),
+            getParameters().getAllDependencyPaths().get(),
+            styles,
+            ctx
+        );
 
         logger.lifecycle("Running recipe(s)...");
         List<RewriteReflectiveFacade.Result> results = recipe.run(sourceFiles);
@@ -101,10 +103,10 @@ public abstract class RewriteWorker implements WorkAction<RewriteParameters> {
     }
 
     protected List<RewriteReflectiveFacade.SourceFile> parse(
-            List<File> javaFiles,
-            List<File> dependencyFiles,
-            List<RewriteReflectiveFacade.NamedStyles> styles,
-            RewriteReflectiveFacade.InMemoryExecutionContext ctx
+        List<File> javaFiles,
+        List<File> dependencyFiles,
+        List<RewriteReflectiveFacade.NamedStyles> styles,
+        RewriteReflectiveFacade.InMemoryExecutionContext ctx
     ) {
         try {
             List<Path> javaPaths = javaFiles.stream().map(File::toPath).map(p -> p.toAbsolutePath()).toList();
@@ -112,18 +114,18 @@ public abstract class RewriteWorker implements WorkAction<RewriteParameters> {
             List<RewriteReflectiveFacade.SourceFile> sourceFiles = new ArrayList<>();
             if (javaPaths.size() > 0) {
                 logger.lifecycle(
-                        "Parsing " + javaPaths.size() + " Java files from "  + getParameters().getProjectDirectory().getAsFile().get()
+                    "Parsing " + javaPaths.size() + " Java files from " + getParameters().getProjectDirectory().getAsFile().get()
                 );
                 Instant start = Instant.now();
                 sourceFiles.addAll(
-                        rewrite.javaParserFromJavaVersion()
-                                .relaxedClassTypeMatching(true)
-                                .styles(styles)
-                                .classpath(dependencyPaths)
-                                .charset(Charset.forName("UTF-8"))
-                                .logCompilationWarningsAndErrors(false)
-                                .build()
-                                .parse(javaPaths, getParameters().getProjectDirectory().get().getAsFile().toPath(), ctx)
+                    rewrite.javaParserFromJavaVersion()
+                        .relaxedClassTypeMatching(true)
+                        .styles(styles)
+                        .classpath(dependencyPaths)
+                        .charset(Charset.forName("UTF-8"))
+                        .logCompilationWarningsAndErrors(false)
+                        .build()
+                        .parse(javaPaths, getParameters().getProjectDirectory().get().getAsFile().toPath(), ctx)
                 );
             }
             return sourceFiles;
@@ -134,14 +136,16 @@ public abstract class RewriteWorker implements WorkAction<RewriteParameters> {
 
     protected RewriteReflectiveFacade.Environment environment() {
         Properties properties = new Properties();
-        RewriteReflectiveFacade.EnvironmentBuilder env =
-                rewrite.environmentBuilder(properties).scanRuntimeClasspath().scanUserHome();
+        RewriteReflectiveFacade.EnvironmentBuilder env = rewrite.environmentBuilder(properties).scanRuntimeClasspath().scanUserHome();
         File rewriteConfig = getParameters().getConfigFile().getAsFile().getOrNull();
-        if(rewriteConfig != null){
+        if (rewriteConfig != null) {
             if (rewriteConfig.exists()) {
                 try (FileInputStream is = new FileInputStream(rewriteConfig)) {
-                    RewriteReflectiveFacade.YamlResourceLoader resourceLoader =
-                            rewrite.yamlResourceLoader(is, rewriteConfig.toURI(), properties);
+                    RewriteReflectiveFacade.YamlResourceLoader resourceLoader = rewrite.yamlResourceLoader(
+                        is,
+                        rewriteConfig.toURI(),
+                        properties
+                    );
                     env.load(resourceLoader);
                 } catch (IOException e) {
                     throw new RuntimeException("Unable to load rewrite configuration", e);
@@ -172,11 +176,11 @@ public abstract class RewriteWorker implements WorkAction<RewriteParameters> {
                 } else if (result.getBefore() != null && result.getAfter() == null) {
                     deleted.add(result);
                 } else if (result.getBefore() != null
-                        && result.getBefore().getSourcePath().equals(result.getAfter().getSourcePath()) == false) {
-                    moved.add(result);
-                } else {
-                    refactoredInPlace.add(result);
-                }
+                    && result.getBefore().getSourcePath().equals(result.getAfter().getSourcePath()) == false) {
+                        moved.add(result);
+                    } else {
+                        refactoredInPlace.add(result);
+                    }
             }
         }
 
@@ -186,9 +190,9 @@ public abstract class RewriteWorker implements WorkAction<RewriteParameters> {
 
         public boolean isNotEmpty() {
             return generated.isEmpty() == false
-                    || deleted.isEmpty() == false
-                    || moved.isEmpty() == false
-                    || refactoredInPlace.isEmpty() == false;
+                || deleted.isEmpty() == false
+                || moved.isEmpty() == false
+                || refactoredInPlace.isEmpty() == false;
         }
     }
 }

@@ -139,8 +139,10 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             b.field("type", "long");
             b.field("on_script_error", "continue");
         })));
-        assertThat(e.getMessage(),
-            equalTo("Failed to parse mapping [_doc]: Field [on_script_error] requires field [script] to be configured"));
+        assertThat(
+            e.getMessage(),
+            equalTo("Failed to parse mapping [_doc]: Field [on_script_error] requires field [script] to be configured")
+        );
     }
 
     public void testIgnoreScriptErrors() throws IOException {
@@ -194,12 +196,20 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
         if (context.factoryClazz == LongFieldScript.Factory.class) {
             return (T) (LongFieldScript.Factory) (n, p, l) -> ctx -> new TestLongFieldScript(
-                n, p, l, ctx, getLongScript(script.getIdOrCode())
+                n,
+                p,
+                l,
+                ctx,
+                getLongScript(script.getIdOrCode())
             );
         }
         if (context.factoryClazz == DoubleFieldScript.Factory.class) {
             return (T) (DoubleFieldScript.Factory) (n, p, l) -> ctx -> new TestDoubleFieldScript(
-                n, p, l, ctx, getDoubleScript(script.getIdOrCode())
+                n,
+                p,
+                l,
+                ctx,
+                getDoubleScript(script.getIdOrCode())
             );
         }
         throw new IllegalArgumentException("Unknown factory type " + context.factoryClazz + " for code " + script.getIdOrCode());
@@ -207,9 +217,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
 
     private static Consumer<TestLongFieldScript> getLongScript(String name) {
         if ("refer-to-runtime".equals(name)) {
-            return s -> {
-                s.emitValue((long) s.getDoc().get("runtime-field").get(0));
-            };
+            return s -> { s.emitValue((long) s.getDoc().get("runtime-field").get(0)); };
         }
         if ("throws".equals(name)) {
             return s -> { throw new RuntimeException("Oops!"); };

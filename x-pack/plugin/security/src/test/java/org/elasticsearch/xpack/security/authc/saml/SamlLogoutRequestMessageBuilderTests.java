@@ -6,11 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.Collections;
-
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.opensaml.saml.common.xml.SAMLConstants;
@@ -19,6 +14,11 @@ import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
 import org.opensaml.saml.saml2.metadata.SingleLogoutService;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -56,16 +56,19 @@ public class SamlLogoutRequestMessageBuilderTests extends SamlTestCase {
     }
 
     public void testBuildValidRequest() throws Exception {
-        final SingleLogoutService sloPost = logoutService(SAMLConstants.SAML2_POST_BINDING_URI,
-                "http://idp.example.com/saml/logout/post");
+        final SingleLogoutService sloPost = logoutService(SAMLConstants.SAML2_POST_BINDING_URI, "http://idp.example.com/saml/logout/post");
         idpRole.getSingleLogoutServices().add(sloPost);
 
-        final SingleLogoutService sloRedirect = logoutService(SAMLConstants.SAML2_REDIRECT_BINDING_URI,
-                "http://idp.example.com/saml/logout/redirect");
+        final SingleLogoutService sloRedirect = logoutService(
+            SAMLConstants.SAML2_REDIRECT_BINDING_URI,
+            "http://idp.example.com/saml/logout/redirect"
+        );
         idpRole.getSingleLogoutServices().add(sloRedirect);
 
-        final SingleLogoutService sloArtifact = logoutService(SAMLConstants.SAML2_ARTIFACT_BINDING_URI,
-                "http://idp.example.com/saml/logout/artifact");
+        final SingleLogoutService sloArtifact = logoutService(
+            SAMLConstants.SAML2_ARTIFACT_BINDING_URI,
+            "http://idp.example.com/saml/logout/artifact"
+        );
         idpRole.getSingleLogoutServices().add(sloArtifact);
 
         Clock fixedClock = Clock.fixed(Instant.now(), ZoneOffset.UTC);

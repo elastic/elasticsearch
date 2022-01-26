@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 
 import java.io.IOException;
@@ -30,8 +30,12 @@ import static org.hamcrest.Matchers.lessThan;
 public class TransformCheckpointTests extends AbstractSerializingTransformTestCase<TransformCheckpoint> {
 
     public static TransformCheckpoint randomTransformCheckpoint() {
+        return randomTransformCheckpoint(randomAlphaOfLengthBetween(1, 10));
+    }
+
+    public static TransformCheckpoint randomTransformCheckpoint(String transformId) {
         return new TransformCheckpoint(
-            randomAlphaOfLengthBetween(1, 10),
+            transformId,
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomCheckpointsByIndex(),

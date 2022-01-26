@@ -14,10 +14,10 @@ import joptsimple.OptionSpec;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.xcontent.XContentGenerator;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.xcontent.XContentGenerator;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;

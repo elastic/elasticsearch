@@ -79,7 +79,7 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals(Resolution.MILLISECONDS, ((DocValueFormat.DateTime) vf).resolution);
         assertTrue(dateFormat.formatSortValues);
 
-        DocValueFormat.DateTime nanosDateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.ofHours(1),Resolution.NANOSECONDS);
+        DocValueFormat.DateTime nanosDateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.ofHours(1), Resolution.NANOSECONDS);
         out = new BytesStreamOutput();
         out.writeNamedWriteable(nanosDateFormat);
         in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
@@ -129,10 +129,10 @@ public class DocValueFormatTests extends ESTestCase {
 
     public void testBinaryFormat() {
         assertEquals("", DocValueFormat.BINARY.format(new BytesRef()));
-        assertEquals("KmQ=", DocValueFormat.BINARY.format(new BytesRef(new byte[] {42, 100})));
+        assertEquals("KmQ=", DocValueFormat.BINARY.format(new BytesRef(new byte[] { 42, 100 })));
 
         assertEquals(new BytesRef(), DocValueFormat.BINARY.parseBytesRef(""));
-        assertEquals(new BytesRef(new byte[] {42, 100}), DocValueFormat.BINARY.parseBytesRef("KmQ="));
+        assertEquals(new BytesRef(new byte[] { 42, 100 }), DocValueFormat.BINARY.parseBytesRef("KmQ="));
     }
 
     public void testBooleanFormat() {
@@ -141,10 +141,11 @@ public class DocValueFormatTests extends ESTestCase {
     }
 
     public void testIpFormat() {
-        assertEquals("192.168.1.7",
-                DocValueFormat.IP.format(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.7")))));
-        assertEquals("::1",
-                DocValueFormat.IP.format(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1")))));
+        assertEquals(
+            "192.168.1.7",
+            DocValueFormat.IP.format(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.7"))))
+        );
+        assertEquals("::1", DocValueFormat.IP.format(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1")))));
     }
 
     public void testDecimalFormat() {
@@ -165,8 +166,8 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals("29/536869420/0", DocValueFormat.GEOTILE.format(longEncode(179.999, 89.999, 29)));
         assertEquals("29/1491/536870911", DocValueFormat.GEOTILE.format(longEncode(-179.999, -89.999, 29)));
         assertEquals("2/2/1", DocValueFormat.GEOTILE.format(longEncode(1, 1, 2)));
-        assertEquals("1/1/0", DocValueFormat.GEOTILE.format(longEncode(13,95, 1)));
-        assertEquals("1/1/1", DocValueFormat.GEOTILE.format(longEncode(13,-95, 1)));
+        assertEquals("1/1/0", DocValueFormat.GEOTILE.format(longEncode(13, 95, 1)));
+        assertEquals("1/1/1", DocValueFormat.GEOTILE.format(longEncode(13, -95, 1)));
     }
 
     public void testRawParse() {
@@ -190,22 +191,23 @@ public class DocValueFormatTests extends ESTestCase {
     public void testBooleanParse() {
         assertEquals(0L, DocValueFormat.BOOLEAN.parseLong("false", randomBoolean(), null));
         assertEquals(1L, DocValueFormat.BOOLEAN.parseLong("true", randomBoolean(), null));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> DocValueFormat.BOOLEAN.parseLong("", randomBoolean(), null));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DocValueFormat.BOOLEAN.parseLong("", randomBoolean(), null)
+        );
         assertEquals("Cannot parse boolean [], expected either [true] or [false]", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class,
-                () -> DocValueFormat.BOOLEAN.parseLong("0", randomBoolean(), null));
+        e = expectThrows(IllegalArgumentException.class, () -> DocValueFormat.BOOLEAN.parseLong("0", randomBoolean(), null));
         assertEquals("Cannot parse boolean [0], expected either [true] or [false]", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class,
-                () -> DocValueFormat.BOOLEAN.parseLong("False", randomBoolean(), null));
+        e = expectThrows(IllegalArgumentException.class, () -> DocValueFormat.BOOLEAN.parseLong("False", randomBoolean(), null));
         assertEquals("Cannot parse boolean [False], expected either [true] or [false]", e.getMessage());
     }
 
     public void testIPParse() {
-        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.7"))),
-                DocValueFormat.IP.parseBytesRef("192.168.1.7"));
-        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))),
-                DocValueFormat.IP.parseBytesRef("::1"));
+        assertEquals(
+            new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.7"))),
+            DocValueFormat.IP.parseBytesRef("192.168.1.7")
+        );
+        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), DocValueFormat.IP.parseBytesRef("::1"));
     }
 
     public void testDecimalParse() {
@@ -239,10 +241,7 @@ public class DocValueFormatTests extends ESTestCase {
     }
 
     public void testBadIp() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DocValueFormat.IP.format(new BytesRef("cat"))
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DocValueFormat.IP.format(new BytesRef("cat")));
         assertNotNull("wrapped exception should have a cause", e.getCause());
         assertThat(e.getMessage(), containsString("mapping"));
         assertThat(e.getMessage(), containsString("IP address"));
@@ -292,7 +291,6 @@ public class DocValueFormatTests extends ESTestCase {
             formatter.parseLong(formatter.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
         );
     }
-
 
     public void testDateHMSTimezone() {
         DocValueFormat.DateTime tokyo = new DocValueFormat.DateTime(
@@ -379,7 +377,7 @@ public class DocValueFormatTests extends ESTestCase {
         long expected = 1628719200000L;
         ZonedDateTime sample = ZonedDateTime.of(2021, 8, 12, 0, 0, 0, 0, ZoneId.ofOffset("", ZoneOffset.ofHours(2)));
         assertEquals("GUARD: wrong initial millis", expected, sample.toEpochSecond() * 1000);
-        //assertEquals("GUARD: wrong initial string", "2021-08-12T00:00:00.000000000+02:00", parsesZone.format(expected));
+        // assertEquals("GUARD: wrong initial string", "2021-08-12T00:00:00.000000000+02:00", parsesZone.format(expected));
         long actualMillis = parsesZone.parseLong(
             "2021-08-12T00:00:00.000000000CET",
             false,

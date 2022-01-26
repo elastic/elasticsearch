@@ -55,31 +55,38 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.notification.email.account.test.smtp.secure_password", EmailServer.PASSWORD);
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
 
-                // email
-                .put("xpack.notification.email.account.test.smtp.auth", true)
-                .put("xpack.notification.email.account.test.smtp.user", EmailServer.USERNAME)
-                .put("xpack.notification.email.account.test.smtp.port", server.port())
-                .put("xpack.notification.email.account.test.smtp.host", "localhost")
-                .setSecureSettings(secureSettings)
-                .build();
+            // email
+            .put("xpack.notification.email.account.test.smtp.auth", true)
+            .put("xpack.notification.email.account.test.smtp.user", EmailServer.USERNAME)
+            .put("xpack.notification.email.account.test.smtp.port", server.port())
+            .put("xpack.notification.email.account.test.smtp.host", "localhost")
+            .setSecureSettings(secureSettings)
+            .build();
     }
 
     public void testEmailFields() throws Exception {
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
-                .trigger(schedule(interval("5s")))
-                .input(simpleInput())
-                .condition(InternalAlwaysCondition.INSTANCE)
-                .addAction("_email", emailAction(EmailTemplate.builder()
-                        .from("from@example.com")
-                        .to("to1@example.com", "to2@example.com")
-                        .cc("cc1@example.com", "cc2@example.com")
-                        .bcc("bcc1@example.com", "bcc2@example.com")
-                        .replyTo("rt1@example.com", "rt2@example.com")
-                        .subject("_subject")
-                        .textBody("_body"))))
-                .get();
+        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id")
+            .setSource(
+                watchBuilder().trigger(schedule(interval("5s")))
+                    .input(simpleInput())
+                    .condition(InternalAlwaysCondition.INSTANCE)
+                    .addAction(
+                        "_email",
+                        emailAction(
+                            EmailTemplate.builder()
+                                .from("from@example.com")
+                                .to("to1@example.com", "to2@example.com")
+                                .cc("cc1@example.com", "cc2@example.com")
+                                .bcc("bcc1@example.com", "bcc2@example.com")
+                                .replyTo("rt1@example.com", "rt2@example.com")
+                                .subject("_subject")
+                                .textBody("_body")
+                        )
+                    )
+            )
+            .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
         timeWarp().trigger("_id");
@@ -89,13 +96,15 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         // the action should fail as no email server is available
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
 
-        SearchResponse response = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*").setSource(searchSource()
-                .aggregation(terms("from").field("result.actions.email.message.from"))
-                .aggregation(terms("to").field("result.actions.email.message.to"))
-                .aggregation(terms("cc").field("result.actions.email.message.cc"))
-                .aggregation(terms("bcc").field("result.actions.email.message.bcc"))
-                .aggregation(terms("reply_to").field("result.actions.email.message.reply_to")))
-                .get();
+        SearchResponse response = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
+            .setSource(
+                searchSource().aggregation(terms("from").field("result.actions.email.message.from"))
+                    .aggregation(terms("to").field("result.actions.email.message.to"))
+                    .aggregation(terms("cc").field("result.actions.email.message.cc"))
+                    .aggregation(terms("bcc").field("result.actions.email.message.bcc"))
+                    .aggregation(terms("reply_to").field("result.actions.email.message.reply_to"))
+            )
+            .get();
 
         assertThat(response, notNullValue());
         assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));

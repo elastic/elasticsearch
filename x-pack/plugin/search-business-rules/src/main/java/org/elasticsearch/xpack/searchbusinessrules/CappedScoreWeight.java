@@ -65,11 +65,14 @@ public abstract class CappedScoreWeight extends Weight {
 
         Explanation sub = innerWeight.explain(context, doc);
         if (sub.isMatch() && sub.getValue().floatValue() > maxScore) {
-          return Explanation.match(maxScore, "Capped score of " + innerWeight.getQuery() + ", max of",
-              sub,
-              Explanation.match(maxScore, "maximum score"));
+            return Explanation.match(
+                maxScore,
+                "Capped score of " + innerWeight.getQuery() + ", max of",
+                sub,
+                Explanation.match(maxScore, "maximum score")
+            );
         } else {
-          return sub;
+            return sub;
         }
     }
 

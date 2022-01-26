@@ -19,14 +19,14 @@ final class GeoField {
     private GeoField() {}
 
     // supported variables
-    static final String EMPTY_VARIABLE        = "empty";
-    static final String LAT_VARIABLE          = "lat";
-    static final String LON_VARIABLE          = "lon";
+    static final String EMPTY_VARIABLE = "empty";
+    static final String LAT_VARIABLE = "lat";
+    static final String LON_VARIABLE = "lon";
 
     // supported methods
-    static final String ISEMPTY_METHOD        = "isEmpty";
-    static final String GETLAT_METHOD         = "getLat";
-    static final String GETLON_METHOD         = "getLon";
+    static final String ISEMPTY_METHOD = "isEmpty";
+    static final String GETLAT_METHOD = "getLat";
+    static final String GETLON_METHOD = "getLon";
 
     static DoubleValuesSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
         switch (variable) {

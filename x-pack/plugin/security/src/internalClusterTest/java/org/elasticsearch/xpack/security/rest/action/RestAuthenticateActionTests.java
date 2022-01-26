@@ -47,8 +47,8 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
 
         if (anonymousEnabled) {
             builder.put(AnonymousUser.USERNAME_SETTING.getKey(), "anon")
-                   .putList(AnonymousUser.ROLES_SETTING.getKey(), SecuritySettingsSource.TEST_ROLE, "foo")
-                   .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false);
+                .putList(AnonymousUser.ROLES_SETTING.getKey(), SecuritySettingsSource.TEST_ROLE, "foo")
+                .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false);
         }
         return builder.build();
     }
@@ -56,8 +56,13 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
     public void testAuthenticateApi() throws Exception {
         Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        options.addHeader(
+            "Authorization",
+            basicAuthHeaderValue(
+                SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
+            )
+        );
         request.setOptions(options);
         Response a = getRestClient().performRequest(request);
         ObjectPath objectPath = ObjectPath.createFromResponse(a);
@@ -91,7 +96,7 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
             } else {
                 fail("request should have failed");
             }
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             if (anonymousEnabled) {
                 fail("request should have succeeded");
             } else {

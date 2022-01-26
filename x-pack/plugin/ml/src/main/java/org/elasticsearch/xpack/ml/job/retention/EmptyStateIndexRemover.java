@@ -43,30 +43,20 @@ public class EmptyStateIndexRemover implements MlDataRemover {
                 listener.onResponse(false);
                 return;
             }
-            getEmptyStateIndices(
-                ActionListener.wrap(
-                    emptyStateIndices -> {
-                        if (emptyStateIndices.isEmpty()) {
-                            listener.onResponse(true);
-                            return;
-                        }
-                        getCurrentStateIndices(
-                            ActionListener.wrap(
-                                currentStateIndices -> {
-                                    Set<String> stateIndicesToRemove = Sets.difference(emptyStateIndices, currentStateIndices);
-                                    if (stateIndicesToRemove.isEmpty()) {
-                                        listener.onResponse(true);
-                                        return;
-                                    }
-                                    executeDeleteEmptyStateIndices(stateIndicesToRemove, listener);
-                                },
-                                listener::onFailure
-                            )
-                        );
-                    },
-                    listener::onFailure
-                )
-            );
+            getEmptyStateIndices(ActionListener.wrap(emptyStateIndices -> {
+                if (emptyStateIndices.isEmpty()) {
+                    listener.onResponse(true);
+                    return;
+                }
+                getCurrentStateIndices(ActionListener.wrap(currentStateIndices -> {
+                    Set<String> stateIndicesToRemove = Sets.difference(emptyStateIndices, currentStateIndices);
+                    if (stateIndicesToRemove.isEmpty()) {
+                        listener.onResponse(true);
+                        return;
+                    }
+                    executeDeleteEmptyStateIndices(stateIndicesToRemove, listener);
+                }, listener::onFailure));
+            }, listener::onFailure));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -75,46 +65,34 @@ public class EmptyStateIndexRemover implements MlDataRemover {
     private void getEmptyStateIndices(ActionListener<Set<String>> listener) {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest().indices(AnomalyDetectorsIndex.jobStateIndexPattern());
         indicesStatsRequest.setParentTask(parentTaskId);
-        client.admin().indices().stats(
-            indicesStatsRequest,
-            ActionListener.wrap(
-                indicesStatsResponse -> {
-                    Set<String> emptyStateIndices =
-                        indicesStatsResponse.getIndices().values().stream()
-                            .filter(stats -> stats.getTotal().getDocs().getCount() == 0)
-                            .map(IndexStats::getIndex)
-                            .collect(toSet());
-                    listener.onResponse(emptyStateIndices);
-                },
-                listener::onFailure
-            )
-        );
+        client.admin().indices().stats(indicesStatsRequest, ActionListener.wrap(indicesStatsResponse -> {
+            Set<String> emptyStateIndices = indicesStatsResponse.getIndices()
+                .values()
+                .stream()
+                .filter(stats -> stats.getTotal().getDocs().getCount() == 0)
+                .map(IndexStats::getIndex)
+                .collect(toSet());
+            listener.onResponse(emptyStateIndices);
+        }, listener::onFailure));
     }
 
     private void getCurrentStateIndices(ActionListener<Set<String>> listener) {
         GetIndexRequest getIndexRequest = new GetIndexRequest().indices(AnomalyDetectorsIndex.jobStateIndexWriteAlias());
         getIndexRequest.setParentTask(parentTaskId);
-        client.admin().indices().getIndex(
-            getIndexRequest,
-            ActionListener.wrap(
-                getIndexResponse -> {
-                    Set<String> currentStateIndices = Arrays.stream(getIndexResponse.getIndices()).collect(toSet());
-                    listener.onResponse(currentStateIndices);
-                },
-                listener::onFailure
-            )
-        );
+        client.admin().indices().getIndex(getIndexRequest, ActionListener.wrap(getIndexResponse -> {
+            Set<String> currentStateIndices = Arrays.stream(getIndexResponse.getIndices()).collect(toSet());
+            listener.onResponse(currentStateIndices);
+        }, listener::onFailure));
     }
 
     private void executeDeleteEmptyStateIndices(Set<String> emptyStateIndices, ActionListener<Boolean> listener) {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(emptyStateIndices.toArray(new String[0]));
         deleteIndexRequest.setParentTask(parentTaskId);
-        client.admin().indices().delete(
-            deleteIndexRequest,
-            ActionListener.wrap(
-                deleteResponse -> listener.onResponse(deleteResponse.isAcknowledged()),
-                listener::onFailure
-            )
-        );
+        client.admin()
+            .indices()
+            .delete(
+                deleteIndexRequest,
+                ActionListener.wrap(deleteResponse -> listener.onResponse(deleteResponse.isAcknowledged()), listener::onFailure)
+            );
     }
 }

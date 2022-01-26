@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -34,9 +34,11 @@ public class RestGetJobsAction extends BaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}")
-                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}", RestApiVersion.V_7).build(),
+                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}", RestApiVersion.V_7)
+                .build(),
             Route.builder(GET, BASE_PATH + "anomaly_detectors")
-                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors", RestApiVersion.V_7).build()
+                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -56,9 +58,8 @@ public class RestGetJobsAction extends BaseRestHandler {
             LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, () -> null, Request.ALLOW_NO_JOBS, Request.ALLOW_NO_MATCH);
         }
         request.setAllowNoMatch(
-            restRequest.paramAsBoolean(
-                Request.ALLOW_NO_MATCH,
-                restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS, request.allowNoMatch())));
+            restRequest.paramAsBoolean(Request.ALLOW_NO_MATCH, restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS, request.allowNoMatch()))
+        );
         return channel -> client.execute(GetJobsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

@@ -122,7 +122,6 @@ public class NormalizeOutputGradleRunner extends GradleRunner {
         return this;
     }
 
-
     @Override
     public GradleRunner forwardStdOutput(Writer writer) {
         delegate.forwardStdOutput(writer);

@@ -74,10 +74,7 @@ public class Insert extends ScalarFunction {
 
     @Override
     public boolean foldable() {
-        return input.foldable()
-                && start.foldable()
-                && length.foldable()
-                && replacement.foldable();
+        return input.foldable() && start.foldable() && length.foldable() && replacement.foldable();
     }
 
     @Override
@@ -87,11 +84,14 @@ public class Insert extends ScalarFunction {
 
     @Override
     protected Pipe makePipe() {
-        return new InsertFunctionPipe(source(), this,
-                Expressions.pipe(input),
-                Expressions.pipe(start),
-                Expressions.pipe(length),
-                Expressions.pipe(replacement));
+        return new InsertFunctionPipe(
+            source(),
+            this,
+            Expressions.pipe(input),
+            Expressions.pipe(start),
+            Expressions.pipe(length),
+            Expressions.pipe(replacement)
+        );
     }
 
     @Override
@@ -109,26 +109,39 @@ public class Insert extends ScalarFunction {
         return asScriptFrom(inputScript, startScript, lengthScript, replacementScript);
     }
 
-    private ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate startScript,
-            ScriptTemplate lengthScript, ScriptTemplate replacementScript) {
+    private ScriptTemplate asScriptFrom(
+        ScriptTemplate inputScript,
+        ScriptTemplate startScript,
+        ScriptTemplate lengthScript,
+        ScriptTemplate replacementScript
+    ) {
         // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2,...)
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s,%s,%s)"),
+        return new ScriptTemplate(
+            format(
+                Locale.ROOT,
+                formatTemplate("{sql}.%s(%s,%s,%s,%s)"),
                 "insert",
                 inputScript.template(),
                 startScript.template(),
                 lengthScript.template(),
-                replacementScript.template()),
-                paramsBuilder()
-                    .script(inputScript.params()).script(startScript.params())
-                    .script(lengthScript.params()).script(replacementScript.params())
-                    .build(), dataType());
+                replacementScript.template()
+            ),
+            paramsBuilder().script(inputScript.params())
+                .script(startScript.params())
+                .script(lengthScript.params())
+                .script(replacementScript.params())
+                .build(),
+            dataType()
+        );
     }
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
-                paramsBuilder().variable(field.exactAttribute().name()).build(),
-                dataType());
+        return new ScriptTemplate(
+            processScript(Scripts.DOC_VALUE),
+            paramsBuilder().variable(field.exactAttribute().name()).build(),
+            dataType()
+        );
     }
 
     @Override

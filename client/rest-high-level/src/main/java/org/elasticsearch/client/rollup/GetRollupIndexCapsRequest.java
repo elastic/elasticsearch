@@ -58,7 +58,6 @@ public class GetRollupIndexCapsRequest implements Validatable {
             return false;
         }
         GetRollupIndexCapsRequest other = (GetRollupIndexCapsRequest) obj;
-        return Arrays.equals(indices, other.indices)
-            && Objects.equals(options, other.options);
+        return Arrays.equals(indices, other.indices) && Objects.equals(options, other.options);
     }
 }

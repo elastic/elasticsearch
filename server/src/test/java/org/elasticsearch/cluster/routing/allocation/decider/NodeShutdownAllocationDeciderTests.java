@@ -93,7 +93,6 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         );
     }
 
-
     public void testCannotAllocateShardsToRemovingNode() {
         ClusterState state = prepareState(
             service.reroute(ClusterState.EMPTY_STATE, "initial state"),
@@ -105,10 +104,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
 
         Decision decision = decider.canAllocate(shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(
-            decision.getExplanation(),
-            equalTo("node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster")
-        );
+        assertThat(decision.getExplanation(), equalTo("node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster"));
     }
 
     public void testShardsCanRemainOnRestartingNode() {
@@ -139,10 +135,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
 
         Decision decision = decider.canRemain(shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(
-            decision.getExplanation(),
-            equalTo("node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster")
-        );
+        assertThat(decision.getExplanation(), equalTo("node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster"));
     }
 
     public void testCannotAutoExpandToRestartingNode() {

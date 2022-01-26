@@ -109,8 +109,10 @@ public class ILMClient {
     /**
      * Removes index lifecycle management from an index
      */
-    public void removeIndexLifecyclePolicy(RemoveIndexLifecyclePolicyAction.Request request,
-            ActionListener<RemoveIndexLifecyclePolicyAction.Response> listener) {
+    public void removeIndexLifecyclePolicy(
+        RemoveIndexLifecyclePolicyAction.Request request,
+        ActionListener<RemoveIndexLifecyclePolicyAction.Response> listener
+    ) {
         client.execute(RemoveIndexLifecyclePolicyAction.INSTANCE, request, listener);
     }
 
@@ -118,7 +120,8 @@ public class ILMClient {
      * Removes index lifecycle management from an index
      */
     public ActionFuture<RemoveIndexLifecyclePolicyAction.Response> removeIndexLifecyclePolicy(
-            RemoveIndexLifecyclePolicyAction.Request request) {
+        RemoveIndexLifecyclePolicyAction.Request request
+    ) {
         return client.execute(RemoveIndexLifecyclePolicyAction.INSTANCE, request);
     }
 

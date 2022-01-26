@@ -33,7 +33,8 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
         return Arrays.asList(
             new Route(GET, "/_component_template"),
             new Route(GET, "/_component_template/{name}"),
-            new Route(HEAD, "/_component_template/{name}"));
+            new Route(HEAD, "/_component_template/{name}")
+        );
     }
 
     @Override
@@ -51,15 +52,17 @@ public class RestGetComponentTemplateAction extends BaseRestHandler {
 
         final boolean implicitAll = getRequest.name() == null;
 
-        return channel ->
-            client.execute(GetComponentTemplateAction.INSTANCE, getRequest,
-                    new RestToXContentListener<GetComponentTemplateAction.Response>(channel) {
-                        @Override
-                        protected RestStatus getStatus(final GetComponentTemplateAction.Response response) {
-                            final boolean templateExists = response.getComponentTemplates().isEmpty() == false;
-                            return (templateExists || implicitAll) ? OK : NOT_FOUND;
-                        }
-                    });
+        return channel -> client.execute(
+            GetComponentTemplateAction.INSTANCE,
+            getRequest,
+            new RestToXContentListener<GetComponentTemplateAction.Response>(channel) {
+                @Override
+                protected RestStatus getStatus(final GetComponentTemplateAction.Response response) {
+                    final boolean templateExists = response.getComponentTemplates().isEmpty() == false;
+                    return (templateExists || implicitAll) ? OK : NOT_FOUND;
+                }
+            }
+        );
     }
 
     @Override

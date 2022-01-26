@@ -13,5 +13,4 @@ import org.elasticsearch.client.TimedRequest;
 /**
  * A {@link TimedRequest} to get the list of features available to be included in snapshots in the cluster.
  */
-public class GetFeaturesRequest extends TimedRequest {
-}
+public class GetFeaturesRequest extends TimedRequest {}

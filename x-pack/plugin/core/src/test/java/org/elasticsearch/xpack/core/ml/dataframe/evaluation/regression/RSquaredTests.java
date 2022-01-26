@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 
 import java.io.IOException;
@@ -43,12 +43,14 @@ public class RSquaredTests extends AbstractSerializingTestCase<RSquared> {
     }
 
     public void testEvaluate() {
-        Aggregations aggs = new Aggregations(Arrays.asList(
-            mockSingleValue("residual_sum_of_squares", 10_111),
-            mockExtendedStats("extended_stats_actual", 155.23, 1000),
-            mockExtendedStats("some_other_extended_stats",99.1, 10_000),
-            mockSingleValue("some_other_single_metric_agg", 0.2377)
-        ));
+        Aggregations aggs = new Aggregations(
+            Arrays.asList(
+                mockSingleValue("residual_sum_of_squares", 10_111),
+                mockExtendedStats("extended_stats_actual", 155.23, 1000),
+                mockExtendedStats("some_other_extended_stats", 99.1, 10_000),
+                mockSingleValue("some_other_single_metric_agg", 0.2377)
+            )
+        );
 
         RSquared rSquared = new RSquared();
         rSquared.process(aggs);
@@ -59,12 +61,14 @@ public class RSquaredTests extends AbstractSerializingTestCase<RSquared> {
     }
 
     public void testEvaluateWithZeroCount() {
-        Aggregations aggs = new Aggregations(Arrays.asList(
-            mockSingleValue("residual_sum_of_squares", 0),
-            mockExtendedStats("extended_stats_actual", 0.0, 0),
-            mockExtendedStats("some_other_extended_stats",99.1, 10_000),
-            mockSingleValue("some_other_single_metric_agg", 0.2377)
-        ));
+        Aggregations aggs = new Aggregations(
+            Arrays.asList(
+                mockSingleValue("residual_sum_of_squares", 0),
+                mockExtendedStats("extended_stats_actual", 0.0, 0),
+                mockExtendedStats("some_other_extended_stats", 99.1, 10_000),
+                mockSingleValue("some_other_single_metric_agg", 0.2377)
+            )
+        );
 
         RSquared rSquared = new RSquared();
         rSquared.process(aggs);
@@ -74,12 +78,14 @@ public class RSquaredTests extends AbstractSerializingTestCase<RSquared> {
     }
 
     public void testEvaluateWithSingleCountZeroVariance() {
-        Aggregations aggs = new Aggregations(Arrays.asList(
-            mockSingleValue("residual_sum_of_squares", 1),
-            mockExtendedStats("extended_stats_actual", 0.0, 1),
-            mockExtendedStats("some_other_extended_stats",99.1, 10_000),
-            mockSingleValue("some_other_single_metric_agg", 0.2377)
-        ));
+        Aggregations aggs = new Aggregations(
+            Arrays.asList(
+                mockSingleValue("residual_sum_of_squares", 1),
+                mockExtendedStats("extended_stats_actual", 0.0, 1),
+                mockExtendedStats("some_other_extended_stats", 99.1, 10_000),
+                mockSingleValue("some_other_single_metric_agg", 0.2377)
+            )
+        );
 
         RSquared rSquared = new RSquared();
         rSquared.process(aggs);
@@ -89,9 +95,7 @@ public class RSquaredTests extends AbstractSerializingTestCase<RSquared> {
     }
 
     public void testEvaluate_GivenMissingAggs() {
-        Aggregations aggs = new Aggregations(Collections.singletonList(
-            mockSingleValue("some_other_single_metric_agg", 0.2377)
-        ));
+        Aggregations aggs = new Aggregations(Collections.singletonList(mockSingleValue("some_other_single_metric_agg", 0.2377)));
 
         RSquared rSquared = new RSquared();
         rSquared.process(aggs);
@@ -101,10 +105,9 @@ public class RSquaredTests extends AbstractSerializingTestCase<RSquared> {
     }
 
     public void testEvaluate_GivenMissingExtendedStatsAgg() {
-        Aggregations aggs = new Aggregations(Arrays.asList(
-            mockSingleValue("some_other_single_metric_agg", 0.2377),
-            mockSingleValue("residual_sum_of_squares", 0.2377)
-        ));
+        Aggregations aggs = new Aggregations(
+            Arrays.asList(mockSingleValue("some_other_single_metric_agg", 0.2377), mockSingleValue("residual_sum_of_squares", 0.2377))
+        );
 
         RSquared rSquared = new RSquared();
         rSquared.process(aggs);
@@ -114,10 +117,9 @@ public class RSquaredTests extends AbstractSerializingTestCase<RSquared> {
     }
 
     public void testEvaluate_GivenMissingResidualSumOfSquaresAgg() {
-        Aggregations aggs = new Aggregations(Arrays.asList(
-            mockSingleValue("some_other_single_metric_agg", 0.2377),
-            mockExtendedStats("extended_stats_actual",100, 50)
-        ));
+        Aggregations aggs = new Aggregations(
+            Arrays.asList(mockSingleValue("some_other_single_metric_agg", 0.2377), mockExtendedStats("extended_stats_actual", 100, 50))
+        );
 
         RSquared rSquared = new RSquared();
         rSquared.process(aggs);

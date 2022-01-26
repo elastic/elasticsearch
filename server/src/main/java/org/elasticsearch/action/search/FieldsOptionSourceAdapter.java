@@ -38,7 +38,7 @@ class FieldsOptionSourceAdapter {
 
     FieldsOptionSourceAdapter(SearchRequest request) {
         originalSource = request.source() != null ? request.source() : new SearchSourceBuilder();
-        List<FieldAndFormat> fetchFields =  originalSource.fetchFields();
+        List<FieldAndFormat> fetchFields = originalSource.fetchFields();
         requestShouldBeAdapted = request.isFieldsOptionEmulationEnabled() && fetchFields != null && fetchFields.isEmpty() == false;
         if (requestShouldBeAdapted) {
             FetchSourceContext fetchSource = originalSource.fetchSource();
@@ -98,7 +98,8 @@ class FieldsOptionSourceAdapter {
                         CharacterRunAutomaton unmappedFieldsFetchAutomaton = null;
                         // We separate the "include_unmapped" field patters with wildcards from the rest in order to use less space in the
                         // lookup automaton
-                        Map<Boolean, List<String>> partitions = originalSource.fetchFields().stream()
+                        Map<Boolean, List<String>> partitions = originalSource.fetchFields()
+                            .stream()
                             .map(ff -> ff.field)
                             .collect(Collectors.partitioningBy((s -> Regex.isSimpleMatchPattern(s))));
                         List<String> unmappedWildcardPattern = partitions.get(true);

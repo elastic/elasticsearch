@@ -8,11 +8,11 @@
 
 package org.elasticsearch.client.slm;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -26,9 +26,11 @@ public class SnapshotInvocationRecord implements ToXContentObject {
     private long timestamp;
     private String details;
 
-    public static final ConstructingObjectParser<SnapshotInvocationRecord, String> PARSER =
-        new ConstructingObjectParser<>("snapshot_policy_invocation_record", true,
-            a -> new SnapshotInvocationRecord((String) a[0], (long) a[1], (String) a[2]));
+    public static final ConstructingObjectParser<SnapshotInvocationRecord, String> PARSER = new ConstructingObjectParser<>(
+        "snapshot_policy_invocation_record",
+        true,
+        a -> new SnapshotInvocationRecord((String) a[0], (long) a[1], (String) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_NAME);
@@ -77,9 +79,9 @@ public class SnapshotInvocationRecord implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SnapshotInvocationRecord that = (SnapshotInvocationRecord) o;
-        return getTimestamp() == that.getTimestamp() &&
-            Objects.equals(getSnapshotName(), that.getSnapshotName()) &&
-            Objects.equals(getDetails(), that.getDetails());
+        return getTimestamp() == that.getTimestamp()
+            && Objects.equals(getSnapshotName(), that.getSnapshotName())
+            && Objects.equals(getDetails(), that.getDetails());
     }
 
     @Override

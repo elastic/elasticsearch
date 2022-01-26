@@ -10,9 +10,9 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.test.ESTestCase;
@@ -31,13 +31,13 @@ public class GatewayMetaStateTests extends ESTestCase {
 
     public void testUpdateTemplateMetadataOnUpgrade() {
         Metadata metadata = randomMetadata();
-        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.singletonList(
-                        templates -> {
-                            templates.put("added_test_template", IndexTemplateMetadata.builder("added_test_template")
-                                .patterns(randomIndexPatterns()).build());
-                            return templates;
-                        }
-                    ));
+        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.singletonList(templates -> {
+            templates.put(
+                "added_test_template",
+                IndexTemplateMetadata.builder("added_test_template").patterns(randomIndexPatterns()).build()
+            );
+            return templates;
+        }));
 
         Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
         assertNotSame(upgrade, metadata);
@@ -90,15 +90,15 @@ public class GatewayMetaStateTests extends ESTestCase {
 
     public void testIndexTemplateValidation() {
         Metadata metadata = randomMetadata();
-        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Collections.singletonList(
-                        customs -> {
-                            throw new IllegalStateException("template is incompatible");
-                        }));
-        String message = expectThrows(IllegalStateException.class,
-            () -> GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader)).getMessage();
+        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(
+            Collections.singletonList(customs -> { throw new IllegalStateException("template is incompatible"); })
+        );
+        String message = expectThrows(
+            IllegalStateException.class,
+            () -> GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader)
+        ).getMessage();
         assertThat(message, equalTo("template is incompatible"));
     }
-
 
     public void testMultipleIndexTemplateUpgrade() {
         final Metadata metadata;
@@ -115,23 +115,27 @@ public class GatewayMetaStateTests extends ESTestCase {
             default:
                 throw new IllegalStateException("should never happen");
         }
-        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Arrays.asList(
-                indexTemplateMetadatas -> {
-                    indexTemplateMetadatas.put("template1", IndexTemplateMetadata.builder("template1")
-                        .patterns(randomIndexPatterns())
-                        .settings(Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 20).build())
-                        .build());
-                    return indexTemplateMetadatas;
+        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(Arrays.asList(indexTemplateMetadatas -> {
+            indexTemplateMetadatas.put(
+                "template1",
+                IndexTemplateMetadata.builder("template1")
+                    .patterns(randomIndexPatterns())
+                    .settings(Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 20).build())
+                    .build()
+            );
+            return indexTemplateMetadatas;
 
-                },
-                indexTemplateMetadatas -> {
-                    indexTemplateMetadatas.put("template2", IndexTemplateMetadata.builder("template2")
-                        .patterns(randomIndexPatterns())
-                        .settings(Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 10).build()).build());
-                    return indexTemplateMetadatas;
+        }, indexTemplateMetadatas -> {
+            indexTemplateMetadatas.put(
+                "template2",
+                IndexTemplateMetadata.builder("template2")
+                    .patterns(randomIndexPatterns())
+                    .settings(Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 10).build())
+                    .build()
+            );
+            return indexTemplateMetadatas;
 
-                }
-            ));
+        }));
         Metadata upgrade = GatewayMetaState.upgradeMetadata(metadata, new MockIndexMetadataVerifier(false), metadataUpgrader);
         assertNotSame(upgrade, metadata);
         assertFalse(Metadata.isGlobalStateEquals(upgrade, metadata));
@@ -201,9 +205,10 @@ public class GatewayMetaStateTests extends ESTestCase {
         Metadata.Builder builder = Metadata.builder();
         for (String template : templates) {
             IndexTemplateMetadata templateMetadata = IndexTemplateMetadata.builder(template)
-                .settings(settings(Version.CURRENT)
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 3))
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 5)))
+                .settings(
+                    settings(Version.CURRENT).put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 3))
+                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 5))
+                )
                 .patterns(randomIndexPatterns())
                 .build();
             builder.put(templateMetadata);

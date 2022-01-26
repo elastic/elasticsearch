@@ -39,7 +39,7 @@ public abstract class ShardLock implements Closeable {
     @Override
     public final void close() {
         if (this.closed.compareAndSet(false, true)) {
-           closeInternal();
+            closeInternal();
         }
     }
 
@@ -49,14 +49,11 @@ public abstract class ShardLock implements Closeable {
      * Update the details of the holder of this lock. These details are displayed alongside a {@link ShardLockObtainFailedException}. Must
      * only be called by the holder of this lock.
      */
-    public void setDetails(String details) {
-    }
+    public void setDetails(String details) {}
 
     @Override
     public String toString() {
-        return "ShardLock{" +
-                "shardId=" + shardId +
-                '}';
+        return "ShardLock{" + "shardId=" + shardId + '}';
     }
 
 }

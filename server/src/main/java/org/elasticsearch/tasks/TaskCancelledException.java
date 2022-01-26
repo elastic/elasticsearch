@@ -22,7 +22,7 @@ public class TaskCancelledException extends ElasticsearchException {
         super(msg);
     }
 
-    public TaskCancelledException(StreamInput in) throws IOException{
+    public TaskCancelledException(StreamInput in) throws IOException {
         super(in);
     }
 

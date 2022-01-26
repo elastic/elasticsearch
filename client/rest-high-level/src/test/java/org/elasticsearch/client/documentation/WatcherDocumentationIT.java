@@ -15,18 +15,22 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.watcher.ActivateWatchRequest;
-import org.elasticsearch.client.watcher.ActivateWatchResponse;
 import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchResponse;
 import org.elasticsearch.client.watcher.ActionStatus;
 import org.elasticsearch.client.watcher.ActionStatus.AckStatus;
+import org.elasticsearch.client.watcher.ActivateWatchRequest;
+import org.elasticsearch.client.watcher.ActivateWatchResponse;
 import org.elasticsearch.client.watcher.DeactivateWatchRequest;
 import org.elasticsearch.client.watcher.DeactivateWatchResponse;
+import org.elasticsearch.client.watcher.DeleteWatchRequest;
+import org.elasticsearch.client.watcher.DeleteWatchResponse;
 import org.elasticsearch.client.watcher.ExecuteWatchRequest;
 import org.elasticsearch.client.watcher.ExecuteWatchResponse;
 import org.elasticsearch.client.watcher.GetWatchRequest;
 import org.elasticsearch.client.watcher.GetWatchResponse;
+import org.elasticsearch.client.watcher.PutWatchRequest;
+import org.elasticsearch.client.watcher.PutWatchResponse;
 import org.elasticsearch.client.watcher.StartWatchServiceRequest;
 import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.client.watcher.WatchStatus;
@@ -34,13 +38,9 @@ import org.elasticsearch.client.watcher.WatcherStatsRequest;
 import org.elasticsearch.client.watcher.WatcherStatsResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.client.watcher.DeleteWatchRequest;
-import org.elasticsearch.client.watcher.DeleteWatchResponse;
-import org.elasticsearch.client.watcher.PutWatchRequest;
-import org.elasticsearch.client.watcher.PutWatchResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
 import java.util.Map;
@@ -49,6 +49,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
+@SuppressWarnings("removal")
 public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testStartStopWatchService() throws Exception {
@@ -161,11 +162,13 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            BytesReference watch = new BytesArray("{ \n" +
-                "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
-                "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n" +
-                "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
-                "}");
+            BytesReference watch = new BytesArray(
+                "{ \n"
+                    + "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n"
+                    + "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n"
+                    + "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n"
+                    + "}"
+            );
             PutWatchRequest request = new PutWatchRequest("my_other_watch_id", watch, XContentType.JSON);
             // tag::x-pack-put-watch-execute-listener
             ActionListener<PutWatchResponse> listener = new ActionListener<PutWatchResponse>() {
@@ -351,11 +354,11 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            String watchJson = "{ \n" +
-                "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
-                "  \"input\": { \"none\": {} },\n" +
-                "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
-                "}";
+            String watchJson = "{ \n"
+                + "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n"
+                + "  \"input\": { \"none\": {} },\n"
+                + "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n"
+                + "}";
             ExecuteWatchRequest request = ExecuteWatchRequest.inline(watchJson);
             // tag::x-pack-execute-watch-inline-execute-listener
             ActionListener<ExecuteWatchResponse> listener = new ActionListener<ExecuteWatchResponse>() {
@@ -387,11 +390,13 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            BytesReference watch = new BytesArray("{ \n" +
-                "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
-                "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n" +
-                "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
-                "}");
+            BytesReference watch = new BytesArray(
+                "{ \n"
+                    + "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n"
+                    + "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n"
+                    + "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n"
+                    + "}"
+            );
             PutWatchRequest putWatchRequest = new PutWatchRequest("my_watch_id", watch, XContentType.JSON);
             client.watcher().putWatch(putWatchRequest, RequestOptions.DEFAULT);
 
@@ -453,11 +458,13 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            BytesReference watch = new BytesArray("{ \n" +
-                "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
-                "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n" +
-                "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
-                "}");
+            BytesReference watch = new BytesArray(
+                "{ \n"
+                    + "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n"
+                    + "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n"
+                    + "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n"
+                    + "}"
+            );
             PutWatchRequest putWatchRequest = new PutWatchRequest("my_watch_id", watch, XContentType.JSON);
             client.watcher().putWatch(putWatchRequest, RequestOptions.DEFAULT);
         }
@@ -499,16 +506,17 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-
     public void testActivateWatch() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
-            BytesReference watch = new BytesArray("{ \n" +
-                "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n" +
-                "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n" +
-                "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n" +
-                "}");
+            BytesReference watch = new BytesArray(
+                "{ \n"
+                    + "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n"
+                    + "  \"input\": { \"simple\": { \"foo\" : \"bar\" } },\n"
+                    + "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n"
+                    + "}"
+            );
             PutWatchRequest request = new PutWatchRequest("my_watch_id", watch, XContentType.JSON);
             request.setActive(false); // <1>
             PutWatchResponse response = client.watcher().putWatch(request, RequestOptions.DEFAULT);
@@ -543,7 +551,7 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
             };
             //end::activate-watch-request-listener
 
-            //Replace the empty listener by a blocking listener in test
+            // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 

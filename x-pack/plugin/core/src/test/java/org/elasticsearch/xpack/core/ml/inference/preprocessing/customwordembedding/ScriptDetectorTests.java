@@ -75,9 +75,9 @@ public class ScriptDetectorTests extends ESTestCase {
     }
 
     public void testOtherTwoBytes() {
-        // Unrecognized 2-byte scripts.  For info on the scripts mentioned below, see
+        // Unrecognized 2-byte scripts. For info on the scripts mentioned below, see
         // http://www.unicode.org/charts/#scripts Note: the scripts below are uniquely
-        // associated with a language.  Still, the number of queries in those
+        // associated with a language. Still, the number of queries in those
         // languages is small and we didn't want to increase the code size and
         // latency, so (at least for now) we do not treat them specially.
         // The following three tests are, respectively, for Armenian, Syriac and

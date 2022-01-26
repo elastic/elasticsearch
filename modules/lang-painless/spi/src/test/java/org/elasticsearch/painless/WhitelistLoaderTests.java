@@ -25,17 +25,23 @@ public class WhitelistLoaderTests extends ESTestCase {
     public void testUnknownAnnotations() {
         Map<String, WhitelistAnnotationParser> parsers = new HashMap<>(WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS);
 
-        RuntimeException expected = expectThrows(RuntimeException.class, () -> {
-            WhitelistLoader.loadFromResourceFiles(Whitelist.class, parsers, "org.elasticsearch.painless.annotation.unknown");
-        });
-        assertEquals(
-            "invalid annotation: parser not found for [unknownAnnotation] [@unknownAnnotation]", expected.getCause().getMessage()
+        RuntimeException expected = expectThrows(
+            RuntimeException.class,
+            () -> { WhitelistLoader.loadFromResourceFiles(Whitelist.class, parsers, "org.elasticsearch.painless.annotation.unknown"); }
         );
+        assertEquals("invalid annotation: parser not found for [unknownAnnotation] [@unknownAnnotation]", expected.getCause().getMessage());
         assertEquals(IllegalArgumentException.class, expected.getCause().getClass());
 
-        expected = expectThrows(RuntimeException.class, () -> {
-            WhitelistLoader.loadFromResourceFiles(Whitelist.class, parsers, "org.elasticsearch.painless.annotation.unknown_with_options");
-        });
+        expected = expectThrows(
+            RuntimeException.class,
+            () -> {
+                WhitelistLoader.loadFromResourceFiles(
+                    Whitelist.class,
+                    parsers,
+                    "org.elasticsearch.painless.annotation.unknown_with_options"
+                );
+            }
+        );
         assertEquals(
             "invalid annotation: parser not found for [unknownAnnotationWithMessage] [@unknownAnnotationWithMessage[arg=\"arg value\"]]",
             expected.getCause().getMessage()
@@ -60,16 +66,18 @@ public class WhitelistLoaderTests extends ESTestCase {
 
         for (WhitelistMethod whitelistMethod : whitelistClass.whitelistMethods) {
             if ("deprecatedMethod".equals(whitelistMethod.methodName)) {
-                assertEquals("use another method",
-                        ((DeprecatedAnnotation)whitelistMethod.painlessAnnotations.get(DeprecatedAnnotation.class)).getMessage());
+                assertEquals(
+                    "use another method",
+                    ((DeprecatedAnnotation) whitelistMethod.painlessAnnotations.get(DeprecatedAnnotation.class)).getMessage()
+                );
                 assertEquals(1, whitelistMethod.painlessAnnotations.size());
                 ++count;
             }
 
             if ("annotatedTestMethod".equals(whitelistMethod.methodName)) {
-                AnnotationTestObject.TestAnnotation ta =
-                        ((AnnotationTestObject.TestAnnotation)whitelistMethod.painlessAnnotations.get(
-                                AnnotationTestObject.TestAnnotation.class));
+                AnnotationTestObject.TestAnnotation ta = ((AnnotationTestObject.TestAnnotation) whitelistMethod.painlessAnnotations.get(
+                    AnnotationTestObject.TestAnnotation.class
+                ));
                 assertEquals("one", ta.getOne());
                 assertEquals("two", ta.getTwo());
                 assertEquals("three", ta.getThree());
@@ -78,11 +86,13 @@ public class WhitelistLoaderTests extends ESTestCase {
             }
 
             if ("annotatedMultipleMethod".equals(whitelistMethod.methodName)) {
-                assertEquals("test",
-                        ((DeprecatedAnnotation)whitelistMethod.painlessAnnotations.get(DeprecatedAnnotation.class)).getMessage());
-                AnnotationTestObject.TestAnnotation ta =
-                        ((AnnotationTestObject.TestAnnotation)whitelistMethod.painlessAnnotations.get(
-                                AnnotationTestObject.TestAnnotation.class));
+                assertEquals(
+                    "test",
+                    ((DeprecatedAnnotation) whitelistMethod.painlessAnnotations.get(DeprecatedAnnotation.class)).getMessage()
+                );
+                AnnotationTestObject.TestAnnotation ta = ((AnnotationTestObject.TestAnnotation) whitelistMethod.painlessAnnotations.get(
+                    AnnotationTestObject.TestAnnotation.class
+                ));
                 assertEquals("one", ta.getOne());
                 assertEquals("two", ta.getTwo());
                 assertEquals("three", ta.getThree());

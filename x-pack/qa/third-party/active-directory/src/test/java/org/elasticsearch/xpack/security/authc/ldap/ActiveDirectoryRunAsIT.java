@@ -45,13 +45,15 @@ public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
         switch (realmConfig) {
             case AD:
                 builder.put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".bind_dn", "ironman@ad.test.elasticsearch.com")
-                        .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".user_search.pool.enabled", false);
+                    .put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".user_search.pool.enabled", false);
                 if (useLegacyBindPassword) {
                     builder.put(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".bind_password", ActiveDirectorySessionFactoryTests.PASSWORD);
                 } else {
                     SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
-                        secureSettings.setString(XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".secure_bind_password",
-                                ActiveDirectorySessionFactoryTests.PASSWORD);
+                        secureSettings.setString(
+                            XPACK_SECURITY_AUTHC_REALMS_AD_EXTERNAL + ".secure_bind_password",
+                            ActiveDirectorySessionFactoryTests.PASSWORD
+                        );
                     });
                 }
                 break;
@@ -71,9 +73,9 @@ public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
 
     protected Client runAsClient(String user) {
         final Map<String, String> headers = MapBuilder.<String, String>newMapBuilder()
-                .put(BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, BOOTSTRAP_PASSWORD))
-                .put(AuthenticationServiceField.RUN_AS_USER_HEADER, user)
-                .map();
+            .put(BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, BOOTSTRAP_PASSWORD))
+            .put(AuthenticationServiceField.RUN_AS_USER_HEADER, user)
+            .map();
         return client().filterWithHeader(headers);
     }
 

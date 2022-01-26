@@ -12,9 +12,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.Arrays;
 
 public class VectorEncoderDecoderTests extends ESTestCase {
 
@@ -34,11 +34,7 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         int[] sortedDims = Arrays.copyOf(expectedDims, dimCount);
         Arrays.sort(sortedDims);
         VectorEncoderDecoder.sortSparseDimsValues(expectedDims, expectedValues, dimCount);
-        assertArrayEquals(
-            "Sparse vector dims are not properly sorted!",
-            sortedDims,
-            expectedDims
-        );
+        assertArrayEquals("Sparse vector dims are not properly sorted!", sortedDims, expectedDims);
 
         // test that values that went through encoding and decoding are equal to their original
         BytesRef encodedSparseVector = VectorEncoderDecoder.encodeSparseVector(indexVersion, expectedDims, expectedValues, dimCount);
@@ -46,17 +42,8 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(indexVersion, encodedSparseVector);
         float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(indexVersion, encodedSparseVector);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.0f);
-        assertArrayEquals(
-            "Decoded sparse vector dims are not equal to their original!",
-            expectedDims,
-            decodedDims
-        );
-        assertArrayEquals(
-            "Decoded sparse vector values are not equal to their original.",
-            expectedValues,
-            decodedValues,
-            0.001f
-        );
+        assertArrayEquals("Decoded sparse vector dims are not equal to their original!", expectedDims, decodedDims);
+        assertArrayEquals("Decoded sparse vector values are not equal to their original.", expectedValues, decodedValues, 0.001f);
     }
 
     public void testSparseVectorEncodingDecodingBefore_V_7_5_0() {
@@ -72,27 +59,14 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         int[] sortedDims = Arrays.copyOf(expectedDims, dimCount);
         Arrays.sort(sortedDims);
         VectorEncoderDecoder.sortSparseDimsValues(expectedDims, expectedValues, dimCount);
-        assertArrayEquals(
-            "Sparse vector dims are not properly sorted!",
-            sortedDims,
-            expectedDims
-        );
+        assertArrayEquals("Sparse vector dims are not properly sorted!", sortedDims, expectedDims);
 
         // test that values that went through encoding and decoding are equal to their original
         BytesRef encodedSparseVector = VectorEncoderDecoder.encodeSparseVector(indexVersion, expectedDims, expectedValues, dimCount);
         int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(indexVersion, encodedSparseVector);
         float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(indexVersion, encodedSparseVector);
-        assertArrayEquals(
-            "Decoded sparse vector dims are not equal to their original!",
-            expectedDims,
-            decodedDims
-        );
-        assertArrayEquals(
-            "Decoded sparse vector values are not equal to their original.",
-            expectedValues,
-            decodedValues,
-            0.001f
-        );
+        assertArrayEquals("Decoded sparse vector dims are not equal to their original!", expectedDims, decodedDims);
+        assertArrayEquals("Decoded sparse vector values are not equal to their original.", expectedValues, decodedValues, 0.001f);
     }
 
     // imitates the code in DenseVectorFieldMapper::parse

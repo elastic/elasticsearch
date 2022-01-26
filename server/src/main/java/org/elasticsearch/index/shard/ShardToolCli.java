@@ -25,4 +25,3 @@ public class ShardToolCli extends LoggingAwareMultiCommand {
     }
 
 }
-

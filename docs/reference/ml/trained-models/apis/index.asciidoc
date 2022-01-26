@@ -1,0 +1,11 @@
+include::ml-trained-models-apis.asciidoc[leveloffset=+1]
+//CREATE
+include::put-trained-models-aliases.asciidoc[leveloffset=+2]
+include::put-trained-models.asciidoc[leveloffset=+2]
+//DELETE
+include::delete-trained-models-aliases.asciidoc[leveloffset=+2]
+include::delete-trained-models.asciidoc[leveloffset=+2]
+//GET
+include::get-trained-models.asciidoc[leveloffset=+2]
+include::get-trained-models-stats.asciidoc[leveloffset=+2]
+

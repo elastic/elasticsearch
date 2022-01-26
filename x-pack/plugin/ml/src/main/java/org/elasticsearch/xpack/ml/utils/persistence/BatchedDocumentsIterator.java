@@ -29,7 +29,7 @@ import java.util.Objects;
  * An iterator useful to fetch a big number of documents of type T
  * and iterate through them in batches.
  */
-public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T>  {
+public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> {
     private static final Logger LOGGER = LogManager.getLogger(BatchedDocumentsIterator.class);
 
     private static final String CONTEXT_ALIVE_DURATION = "5m";
@@ -97,12 +97,13 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
         SearchRequest searchRequest = new SearchRequest(index);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
         searchRequest.scroll(CONTEXT_ALIVE_DURATION);
-        searchRequest.source(new SearchSourceBuilder()
-                .size(BATCH_SIZE)
+        searchRequest.source(
+            new SearchSourceBuilder().size(BATCH_SIZE)
                 .query(getQuery())
                 .fetchSource(shouldFetchSource())
                 .trackTotalHits(true)
-                .sort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)));
+                .sort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC))
+        );
 
         SearchResponse searchResponse = client.search(searchRequest).actionGet();
         totalHits = searchResponse.getHits().getTotalHits().value;

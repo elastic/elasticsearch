@@ -19,6 +19,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public interface TransformConfigManager {
 
@@ -86,13 +87,35 @@ public interface TransformConfigManager {
     void deleteOldCheckpoints(String transformId, long deleteCheckpointsBelow, long deleteOlderThan, ActionListener<Long> listener);
 
     /**
+     * This deletes all _old_ internal storages(indices) except the most recent one.
+     *
+     * CAUTION: Deletes data without checks! Special method for upgrades.
+     *
+     * @param listener listener to call on completion
+     */
+    void deleteOldIndices(ActionListener<Boolean> listener);
+
+    /**
      * Get a stored checkpoint, requires the transform id as well as the checkpoint id
      *
      * @param transformId the transform id
      * @param checkpoint the checkpoint
-     * @param resultListener listener to call after request has been made
+     * @param checkpointListener listener to call after request has been made
      */
-    void getTransformCheckpoint(String transformId, long checkpoint, ActionListener<TransformCheckpoint> resultListener);
+    void getTransformCheckpoint(String transformId, long checkpoint, ActionListener<TransformCheckpoint> checkpointListener);
+
+    /**
+     * Get a stored checkpoint, requires the transform id as well as the checkpoint id. This function is only for internal use.
+     *
+     * @param transformId the transform id
+     * @param checkpoint the checkpoint
+     * @param checkpointAndVersionListener listener to call after inner request has returned
+     */
+    void getTransformCheckpointForUpdate(
+        String transformId,
+        long checkpoint,
+        ActionListener<Tuple<TransformCheckpoint, SeqNoPrimaryTermAndIndex>> checkpointAndVersionListener
+    );
 
     /**
      * Get the transform configuration for a given transform id. This function is only for internal use. For transforms returned via GET
@@ -133,6 +156,20 @@ public interface TransformConfigManager {
     );
 
     /**
+     * Get all transform ids
+     *
+     * @param listener The listener to call with the collected ids
+     */
+    void getAllTransformIds(ActionListener<Set<String>> listener);
+
+    /**
+     * Get all transform ids that aren't using the latest index.
+     *
+     * @param listener The listener to call with total number of transforms and the list of transform ids.
+     */
+    void getAllOutdatedTransformIds(ActionListener<Tuple<Long, Set<String>>> listener);
+
+    /**
      * This deletes the configuration and all other documents corresponding to the transform id (e.g. checkpoints).
      *
      * @param transformId the transform id
@@ -146,7 +183,11 @@ public interface TransformConfigManager {
         ActionListener<SeqNoPrimaryTermAndIndex> listener
     );
 
-    void getTransformStoredDoc(String transformId, ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> resultListener);
+    void getTransformStoredDoc(
+        String transformId,
+        boolean allowNoMatch,
+        ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> resultListener
+    );
 
     void getTransformStoredDocs(Collection<String> transformIds, ActionListener<List<TransformStoredDoc>> listener);
 

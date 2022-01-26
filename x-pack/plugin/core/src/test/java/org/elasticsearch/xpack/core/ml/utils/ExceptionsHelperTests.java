@@ -19,11 +19,15 @@ import static org.hamcrest.Matchers.sameInstance;
 public class ExceptionsHelperTests extends ESTestCase {
 
     public void testFindSearchExceptionRootCause_GivenWrappedSearchPhaseException() {
-        SearchPhaseExecutionException searchPhaseExecutionException = new SearchPhaseExecutionException("test-phase",
-            "partial shards failure", new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchException("for the cause!")) });
+        SearchPhaseExecutionException searchPhaseExecutionException = new SearchPhaseExecutionException(
+            "test-phase",
+            "partial shards failure",
+            new ShardSearchFailure[] { new ShardSearchFailure(new ElasticsearchException("for the cause!")) }
+        );
 
         Throwable rootCauseException = ExceptionsHelper.findSearchExceptionRootCause(
-            new IndexCreationException("test-index", searchPhaseExecutionException));
+            new IndexCreationException("test-index", searchPhaseExecutionException)
+        );
 
         assertThat(rootCauseException.getMessage(), equalTo("for the cause!"));
     }
@@ -37,7 +41,8 @@ public class ExceptionsHelperTests extends ESTestCase {
         RuntimeException runtimeException = new RuntimeException("cause");
 
         Throwable rootCauseException = ExceptionsHelper.findSearchExceptionRootCause(
-            new IndexCreationException("test-index", runtimeException));
+            new IndexCreationException("test-index", runtimeException)
+        );
 
         assertThat(rootCauseException.getMessage(), equalTo("cause"));
     }

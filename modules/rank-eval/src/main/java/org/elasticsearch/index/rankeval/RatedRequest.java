@@ -8,18 +8,18 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.rankeval.RatedDocument.DocumentKey;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,8 +85,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
      * @param params template parameters
      * @param templateId a templare id
      */
-    public RatedRequest(String id, List<RatedDocument> ratedDocs, Map<String, Object> params,
-            String templateId) {
+    public RatedRequest(String id, List<RatedDocument> ratedDocs, Map<String, Object> params, String templateId) {
         this(id, ratedDocs, null, params, templateId);
     }
 
@@ -102,15 +101,22 @@ public class RatedRequest implements Writeable, ToXContentObject {
         this(id, ratedDocs, evaluatedQuery, new HashMap<>(), null);
     }
 
-    private RatedRequest(String id, List<RatedDocument> ratedDocs, SearchSourceBuilder evaluatedQuery,
-            Map<String, Object> params, String templateId) {
+    private RatedRequest(
+        String id,
+        List<RatedDocument> ratedDocs,
+        SearchSourceBuilder evaluatedQuery,
+        Map<String, Object> params,
+        String templateId
+    ) {
         if (params != null && (params.size() > 0 && evaluatedQuery != null)) {
             throw new IllegalArgumentException(
-                    "Ambiguous rated request: Set both, verbatim test request and test request " + "template parameters.");
+                "Ambiguous rated request: Set both, verbatim test request and test request " + "template parameters."
+            );
         }
         if (templateId != null && evaluatedQuery != null) {
             throw new IllegalArgumentException(
-                    "Ambiguous rated request: Set both, verbatim test request and test request " + "template parameters.");
+                "Ambiguous rated request: Set both, verbatim test request and test request " + "template parameters."
+            );
         }
         if ((params == null || params.size() < 1) && evaluatedQuery == null) {
             throw new IllegalArgumentException("Need to set at least test request or test request template parameters.");
@@ -126,7 +132,8 @@ public class RatedRequest implements Writeable, ToXContentObject {
             if (docKeys.add(doc.getKey()) == false) {
                 String docKeyToString = doc.getKey().toString().replaceAll("\n", "").replaceAll("  ", " ");
                 throw new IllegalArgumentException(
-                        "Found duplicate rated document key [" + docKeyToString + "] in evaluation request [" + id + "]");
+                    "Found duplicate rated document key [" + docKeyToString + "] in evaluation request [" + id + "]"
+                );
             }
         }
 
@@ -227,8 +234,8 @@ public class RatedRequest implements Writeable, ToXContentObject {
         return Collections.unmodifiableList(summaryFields);
     }
 
-    public void addSummaryFields(List<String> summaryFields) {
-        this.summaryFields.addAll(Objects.requireNonNull(summaryFields, "no summary fields supplied"));
+    public void addSummaryFields(List<String> summaryFieldsToAdd) {
+        this.summaryFields.addAll(Objects.requireNonNull(summaryFieldsToAdd, "no summary fields supplied"));
     }
 
     private static final ParseField ID_FIELD = new ParseField("id");
@@ -239,17 +246,29 @@ public class RatedRequest implements Writeable, ToXContentObject {
     private static final ParseField TEMPLATE_ID_FIELD = new ParseField("template_id");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<RatedRequest, Void> PARSER = new ConstructingObjectParser<>("request",
-            a -> new RatedRequest((String) a[0], (List<RatedDocument>) a[1], (SearchSourceBuilder) a[2], (Map<String, Object>) a[3],
-                    (String) a[4]));
+    private static final ConstructingObjectParser<RatedRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "request",
+        a -> new RatedRequest(
+            (String) a[0],
+            (List<RatedDocument>) a[1],
+            (SearchSourceBuilder) a[2],
+            (Map<String, Object>) a[3],
+            (String) a[4]
+        )
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            return RatedDocument.fromXContent(p);
-        }, RATINGS_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) ->
-                SearchSourceBuilder.fromXContent(p, false), REQUEST_FIELD);
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> { return RatedDocument.fromXContent(p); },
+            RATINGS_FIELD
+        );
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> SearchSourceBuilder.fromXContent(p, false),
+            REQUEST_FIELD
+        );
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), PARAMS_FIELD);
         PARSER.declareStringArray(RatedRequest::addSummaryFields, FIELDS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TEMPLATE_ID_FIELD);
@@ -263,7 +282,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params xContentParams) throws IOException {
         builder.startObject();
         builder.field(ID_FIELD.getPreferredName(), this.id);
         if (evaluationRequest != null) {
@@ -271,7 +290,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
         }
         builder.startArray(RATINGS_FIELD.getPreferredName());
         for (RatedDocument doc : this.ratedDocs) {
-            doc.toXContent(builder, params);
+            doc.toXContent(builder, xContentParams);
         }
         builder.endArray();
         if (this.templateId != null) {
@@ -311,16 +330,16 @@ public class RatedRequest implements Writeable, ToXContentObject {
 
         RatedRequest other = (RatedRequest) obj;
 
-        return Objects.equals(id, other.id) && Objects.equals(evaluationRequest, other.evaluationRequest)
-                && Objects.equals(summaryFields, other.summaryFields)
-                && Objects.equals(ratedDocs, other.ratedDocs)
-                && Objects.equals(params, other.params)
-                && Objects.equals(templateId, other.templateId);
+        return Objects.equals(id, other.id)
+            && Objects.equals(evaluationRequest, other.evaluationRequest)
+            && Objects.equals(summaryFields, other.summaryFields)
+            && Objects.equals(ratedDocs, other.ratedDocs)
+            && Objects.equals(params, other.params)
+            && Objects.equals(templateId, other.templateId);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(id, evaluationRequest, summaryFields, ratedDocs, params,
-                templateId);
+        return Objects.hash(id, evaluationRequest, summaryFields, ratedDocs, params, templateId);
     }
 }

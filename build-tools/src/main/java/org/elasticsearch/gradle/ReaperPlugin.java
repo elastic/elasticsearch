@@ -12,8 +12,9 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.ProjectLayout;
 
-import javax.inject.Inject;
 import java.io.File;
+
+import javax.inject.Inject;
 
 /**
  * A plugin to handle reaping external services spawned by a build if Gradle dies.

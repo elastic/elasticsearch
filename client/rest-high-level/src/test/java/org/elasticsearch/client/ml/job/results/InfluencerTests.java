@@ -9,9 +9,9 @@ package org.elasticsearch.client.ml.job.results;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Date;
@@ -19,8 +19,13 @@ import java.util.Date;
 public class InfluencerTests extends AbstractXContentTestCase<Influencer> {
 
     public static Influencer createTestInstance(String jobId) {
-        Influencer influencer = new Influencer(jobId, randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20),
-                new Date(randomNonNegativeLong()), randomNonNegativeLong());
+        Influencer influencer = new Influencer(
+            jobId,
+            randomAlphaOfLengthBetween(1, 20),
+            randomAlphaOfLengthBetween(1, 20),
+            new Date(randomNonNegativeLong()),
+            randomNonNegativeLong()
+        );
         influencer.setInterim(randomBoolean());
         influencer.setInfluencerScore(randomDouble());
         influencer.setInitialInfluencerScore(randomDouble());

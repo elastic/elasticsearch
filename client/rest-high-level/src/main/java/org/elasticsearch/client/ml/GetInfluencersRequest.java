@@ -11,10 +11,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,7 +32,9 @@ public class GetInfluencersRequest extends ActionRequest implements ToXContentOb
     public static final ParseField DESCENDING = new ParseField("desc");
 
     public static final ConstructingObjectParser<GetInfluencersRequest, Void> PARSER = new ConstructingObjectParser<>(
-            "get_influencers_request", a -> new GetInfluencersRequest((String) a[0]));
+        "get_influencers_request",
+        a -> new GetInfluencersRequest((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -204,13 +206,13 @@ public class GetInfluencersRequest extends ActionRequest implements ToXContentOb
             return false;
         }
         GetInfluencersRequest other = (GetInfluencersRequest) obj;
-        return Objects.equals(jobId, other.jobId) &&
-                Objects.equals(excludeInterim, other.excludeInterim) &&
-                Objects.equals(influencerScore, other.influencerScore) &&
-                Objects.equals(pageParams, other.pageParams) &&
-                Objects.equals(start, other.start) &&
-                Objects.equals(end, other.end) &&
-                Objects.equals(sort, other.sort) &&
-                Objects.equals(descending, other.descending);
+        return Objects.equals(jobId, other.jobId)
+            && Objects.equals(excludeInterim, other.excludeInterim)
+            && Objects.equals(influencerScore, other.influencerScore)
+            && Objects.equals(pageParams, other.pageParams)
+            && Objects.equals(start, other.start)
+            && Objects.equals(end, other.end)
+            && Objects.equals(sort, other.sort)
+            && Objects.equals(descending, other.descending);
     }
 }

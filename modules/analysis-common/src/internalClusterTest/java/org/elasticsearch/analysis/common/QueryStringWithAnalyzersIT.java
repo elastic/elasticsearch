@@ -31,8 +31,12 @@ public class QueryStringWithAnalyzersIT extends ESIntegTestCase {
      * Validates that we properly split fields using the word delimiter filter in query_string.
      */
     public void testCustomWordDelimiterQueryString() {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(Settings.builder()
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(
+                    Settings.builder()
                         .put("analysis.analyzer.my_analyzer.type", "custom")
                         .put("analysis.analyzer.my_analyzer.tokenizer", "whitespace")
                         .put("analysis.analyzer.my_analyzer.filter", "custom_word_delimiter")
@@ -43,21 +47,17 @@ public class QueryStringWithAnalyzersIT extends ESIntegTestCase {
                         .put("analysis.filter.custom_word_delimiter.catenate_words", "false")
                         .put("analysis.filter.custom_word_delimiter.split_on_case_change", "false")
                         .put("analysis.filter.custom_word_delimiter.split_on_numerics", "false")
-                        .put("analysis.filter.custom_word_delimiter.stem_english_possessive", "false"))
-                .addMapping("type1",
-                        "field1", "type=text,analyzer=my_analyzer",
-                        "field2", "type=text,analyzer=my_analyzer"));
+                        .put("analysis.filter.custom_word_delimiter.stem_english_possessive", "false")
+                )
+                .addMapping("type1", "field1", "type=text,analyzer=my_analyzer", "field2", "type=text,analyzer=my_analyzer")
+        );
 
-        client().prepareIndex("test", "type1", "1").setSource(
-                "field1", "foo bar baz",
-                "field2", "not needed").get();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "foo bar baz", "field2", "not needed").get();
         refresh();
 
-        SearchResponse response = client()
-                .prepareSearch("test")
-                .setQuery(
-                        queryStringQuery("foo.baz").defaultOperator(Operator.AND)
-                                .field("field1").field("field2")).get();
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(queryStringQuery("foo.baz").defaultOperator(Operator.AND).field("field1").field("field2"))
+            .get();
         assertHitCount(response, 1L);
     }
 }

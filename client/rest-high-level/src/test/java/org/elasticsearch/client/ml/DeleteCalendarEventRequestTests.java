@@ -13,14 +13,12 @@ import org.elasticsearch.test.ESTestCase;
 public class DeleteCalendarEventRequestTests extends ESTestCase {
 
     public void testWithNullId() {
-        NullPointerException ex = expectThrows(NullPointerException.class,
-            () -> new DeleteCalendarEventRequest(null, "event1"));
+        NullPointerException ex = expectThrows(NullPointerException.class, () -> new DeleteCalendarEventRequest(null, "event1"));
         assertEquals("[calendar_id] must not be null.", ex.getMessage());
     }
 
     public void testWithNullEvent() {
-        NullPointerException ex = expectThrows(NullPointerException.class,
-            () ->new DeleteCalendarEventRequest("calendarId", null));
+        NullPointerException ex = expectThrows(NullPointerException.class, () -> new DeleteCalendarEventRequest("calendarId", null));
         assertEquals("[event_id] must not be null.", ex.getMessage());
     }
 }

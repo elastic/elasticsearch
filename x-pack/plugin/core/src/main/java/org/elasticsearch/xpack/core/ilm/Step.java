@@ -6,15 +6,15 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -58,8 +58,7 @@ public abstract class Step {
             return false;
         }
         Step other = (Step) obj;
-        return Objects.equals(key, other.key) &&
-                Objects.equals(nextStepKey, other.nextStepKey);
+        return Objects.equals(key, other.key) && Objects.equals(nextStepKey, other.nextStepKey);
     }
 
     @Override
@@ -75,8 +74,10 @@ public abstract class Step {
         public static final ParseField PHASE_FIELD = new ParseField("phase");
         public static final ParseField ACTION_FIELD = new ParseField("action");
         public static final ParseField NAME_FIELD = new ParseField("name");
-        private static final ConstructingObjectParser<StepKey, Void> PARSER =
-            new ConstructingObjectParser<>("stepkey", a -> new StepKey((String) a[0], (String) a[1], (String) a[2]));
+        private static final ConstructingObjectParser<StepKey, Void> PARSER = new ConstructingObjectParser<>(
+            "stepkey",
+            a -> new StepKey((String) a[0], (String) a[1], (String) a[2])
+        );
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), PHASE_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), ACTION_FIELD);
@@ -132,9 +133,7 @@ public abstract class Step {
                 return false;
             }
             StepKey other = (StepKey) obj;
-            return Objects.equals(phase, other.phase) &&
-                    Objects.equals(action, other.action) &&
-                    Objects.equals(name, other.name);
+            return Objects.equals(phase, other.phase) && Objects.equals(action, other.action) && Objects.equals(name, other.name);
         }
 
         @Override

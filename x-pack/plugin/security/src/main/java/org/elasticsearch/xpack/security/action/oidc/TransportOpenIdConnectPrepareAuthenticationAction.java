@@ -26,22 +26,33 @@ import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTransportAction<OpenIdConnectPrepareAuthenticationRequest,
+public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTransportAction<
+    OpenIdConnectPrepareAuthenticationRequest,
     OpenIdConnectPrepareAuthenticationResponse> {
 
     private final Realms realms;
 
     @Inject
-    public TransportOpenIdConnectPrepareAuthenticationAction(TransportService transportService,
-                                                             ActionFilters actionFilters, Realms realms) {
-        super(OpenIdConnectPrepareAuthenticationAction.NAME, transportService, actionFilters,
-            (Writeable.Reader<OpenIdConnectPrepareAuthenticationRequest>) OpenIdConnectPrepareAuthenticationRequest::new);
+    public TransportOpenIdConnectPrepareAuthenticationAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Realms realms
+    ) {
+        super(
+            OpenIdConnectPrepareAuthenticationAction.NAME,
+            transportService,
+            actionFilters,
+            (Writeable.Reader<OpenIdConnectPrepareAuthenticationRequest>) OpenIdConnectPrepareAuthenticationRequest::new
+        );
         this.realms = realms;
     }
 
     @Override
-    protected void doExecute(Task task, OpenIdConnectPrepareAuthenticationRequest request,
-                             ActionListener<OpenIdConnectPrepareAuthenticationResponse> listener) {
+    protected void doExecute(
+        Task task,
+        OpenIdConnectPrepareAuthenticationRequest request,
+        ActionListener<OpenIdConnectPrepareAuthenticationResponse> listener
+    ) {
         Realm realm = null;
         if (Strings.hasText(request.getIssuer())) {
             List<OpenIdConnectRealm> matchingRealms = this.realms.stream()
@@ -50,10 +61,12 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
                 .collect(Collectors.toList());
             if (matchingRealms.isEmpty()) {
                 listener.onFailure(
-                    new ElasticsearchSecurityException("Cannot find OpenID Connect realm with issuer [{}]", request.getIssuer()));
+                    new ElasticsearchSecurityException("Cannot find OpenID Connect realm with issuer [{}]", request.getIssuer())
+                );
             } else if (matchingRealms.size() > 1) {
                 listener.onFailure(
-                    new ElasticsearchSecurityException("Found multiple OpenID Connect realm with issuer [{}]", request.getIssuer()));
+                    new ElasticsearchSecurityException("Found multiple OpenID Connect realm with issuer [{}]", request.getIssuer())
+                );
             } else {
                 realm = matchingRealms.get(0);
             }
@@ -62,19 +75,33 @@ public class TransportOpenIdConnectPrepareAuthenticationAction extends HandledTr
         }
 
         if (realm instanceof OpenIdConnectRealm) {
-            prepareAuthenticationResponse((OpenIdConnectRealm) realm, request.getState(), request.getNonce(), request.getLoginHint(),
-                listener);
+            prepareAuthenticationResponse(
+                (OpenIdConnectRealm) realm,
+                request.getState(),
+                request.getNonce(),
+                request.getLoginHint(),
+                listener
+            );
         } else {
             listener.onFailure(
-                new ElasticsearchSecurityException("Cannot find OpenID Connect realm with name [{}]", request.getRealmName()));
+                new ElasticsearchSecurityException("Cannot find OpenID Connect realm with name [{}]", request.getRealmName())
+            );
         }
     }
 
-    private void prepareAuthenticationResponse(OpenIdConnectRealm realm, String state, String nonce, String loginHint,
-                                               ActionListener<OpenIdConnectPrepareAuthenticationResponse> listener) {
+    private void prepareAuthenticationResponse(
+        OpenIdConnectRealm realm,
+        String state,
+        String nonce,
+        String loginHint,
+        ActionListener<OpenIdConnectPrepareAuthenticationResponse> listener
+    ) {
         try {
-            final OpenIdConnectPrepareAuthenticationResponse authenticationResponse =
-                realm.buildAuthenticationRequestUri(state, nonce, loginHint);
+            final OpenIdConnectPrepareAuthenticationResponse authenticationResponse = realm.buildAuthenticationRequestUri(
+                state,
+                nonce,
+                loginHint
+            );
             listener.onResponse(authenticationResponse);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);

@@ -12,8 +12,10 @@ import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class DeleteStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<DeleteStoredScriptRequest,
-    AcknowledgedResponse, DeleteStoredScriptRequestBuilder> {
+public class DeleteStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<
+    DeleteStoredScriptRequest,
+    AcknowledgedResponse,
+    DeleteStoredScriptRequestBuilder> {
 
     public DeleteStoredScriptRequestBuilder(ElasticsearchClient client, DeleteStoredScriptAction action) {
         super(client, action, new DeleteStoredScriptRequest());

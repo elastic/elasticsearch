@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ssl;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.InputStream;
@@ -31,8 +32,10 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/rsa_key_pkcs8_plain.pem"), ""::toCharArray);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/rsa_key_pkcs8_plain.pem"),
+            ""::toCharArray
+        );
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
     }
@@ -41,8 +44,10 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_with_bagattrs.pem"), ""::toCharArray);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_with_bagattrs.pem"),
+            ""::toCharArray
+        );
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
     }
@@ -51,8 +56,10 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("DSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/dsa_key_pkcs8_plain.pem"), ""::toCharArray);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/dsa_key_pkcs8_plain.pem"),
+            ""::toCharArray
+        );
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
     }
@@ -61,16 +68,20 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("EC");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-            ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/ec_key_pkcs8_plain.pem"), ""::toCharArray);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/ec_key_pkcs8_plain.pem"),
+            ""::toCharArray
+        );
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
     }
 
     public void testReadEcKeyCurves() throws Exception {
         String curve = randomFrom("secp256r1", "secp384r1", "secp521r1");
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-            ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/private_" + curve + ".pem"), ""::toCharArray);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/private_" + curve + ".pem"),
+            ""::toCharArray
+        );
         assertThat(privateKey, instanceOf(ECPrivateKey.class));
         ECParameterSpec parameterSpec = ((ECPrivateKey) privateKey).getParams();
         ECGenParameterSpec algorithmParameterSpec = new ECGenParameterSpec(curve);
@@ -84,8 +95,22 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-            ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/key_pkcs8_encrypted.pem"), "testnode"::toCharArray);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/key_pkcs8_encrypted.pem"),
+            "testnode"::toCharArray
+        );
+        assertThat(privateKey, notNullValue());
+        assertThat(privateKey, equalTo(key));
+    }
+
+    public void testReadEncryptedPKCS8KeyPBES2() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
+        assumeTrue("Can't read PBES2 on OpenJDK before v11", Constants.JRE_IS_MINIMUM_JAVA11);
+        Key key = getKeyFromKeystore("RSA");
+        assertThat(key, notNullValue());
+        assertThat(key, instanceOf(PrivateKey.class));
+        final Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/key_pkcs8_encrypted_pbes2_aes.pem");
+        PrivateKey privateKey = PemUtils.readPrivateKey(keyPath, "testnode"::toCharArray);
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
     }
@@ -94,8 +119,10 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"), "testnode"::toCharArray);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"),
+            "testnode"::toCharArray
+        );
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
     }
@@ -105,9 +132,10 @@ public class PemUtilsTests extends ESTestCase {
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
         String bits = randomFrom("128", "192", "256");
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-                        ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-aes" + bits + ".pem"),
-                "testnode"::toCharArray);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-aes" + bits + ".pem"),
+            "testnode"::toCharArray
+        );
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -117,9 +145,10 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("RSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-                        ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-unprotected.pem"),
-                "testnode"::toCharArray);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-unprotected.pem"),
+            "testnode"::toCharArray
+        );
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -129,9 +158,10 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("DSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/dsa_key_openssl_plain.pem"),
-            ""::toCharArray);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/dsa_key_openssl_plain.pem"),
+            ""::toCharArray
+        );
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -141,9 +171,10 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("DSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/dsa_key_openssl_plain_with_params.pem"),
-            ""::toCharArray);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/dsa_key_openssl_plain_with_params.pem"),
+            ""::toCharArray
+        );
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -153,9 +184,10 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("DSA");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/dsa_key_openssl_encrypted.pem"),
-            "testnode"::toCharArray);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/dsa_key_openssl_encrypted.pem"),
+            "testnode"::toCharArray
+        );
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -165,9 +197,10 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("EC");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/ec_key_openssl_plain.pem"),
-            ""::toCharArray);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/ec_key_openssl_plain.pem"),
+            ""::toCharArray
+        );
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -177,9 +210,10 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("EC");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/ec_key_openssl_plain_with_params.pem"),
-            ""::toCharArray);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/ec_key_openssl_plain_with_params.pem"),
+            ""::toCharArray
+        );
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
@@ -189,40 +223,57 @@ public class PemUtilsTests extends ESTestCase {
         Key key = getKeyFromKeystore("EC");
         assertThat(key, notNullValue());
         assertThat(key, instanceOf(PrivateKey.class));
-        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/ec_key_openssl_encrypted.pem"),
-            "testnode"::toCharArray);
+        PrivateKey privateKey = PemUtils.readPrivateKey(
+            getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/ec_key_openssl_encrypted.pem"),
+            "testnode"::toCharArray
+        );
 
         assertThat(privateKey, notNullValue());
         assertThat(privateKey, equalTo(key));
     }
 
     public void testReadUnsupportedKey() {
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> PemUtils.readPrivateKey(getDataPath
-                        ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/key_unsupported.pem"),
-                "testnode"::toCharArray));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PemUtils.readPrivateKey(
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/key_unsupported.pem"),
+                "testnode"::toCharArray
+            )
+        );
         assertThat(e.getMessage(), containsString("File did not contain a supported key format"));
     }
 
     public void testReadUnsupportedPemFile() {
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> PemUtils.readPrivateKey(getDataPath
-                        ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"),
-                "testnode"::toCharArray));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PemUtils.readPrivateKey(
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"),
+                "testnode"::toCharArray
+            )
+        );
         assertThat(e.getMessage(), containsString("File did not contain a supported key format"));
     }
 
     public void testReadCorruptedKey() {
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> PemUtils.readPrivateKey(getDataPath
-                        ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/corrupted_key_pkcs8_plain.pem"),
-                "testnode"::toCharArray));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PemUtils.readPrivateKey(
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/corrupted_key_pkcs8_plain.pem"),
+                "testnode"::toCharArray
+            )
+        );
         assertThat(e.getMessage(), containsString("Error parsing Private Key from"));
         assertThat(e.getCause().getMessage(), containsString("Malformed PEM file, PEM footer is invalid or missing"));
     }
 
     public void testReadEmptyFile() {
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> PemUtils.readPrivateKey(getDataPath
-                        ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/empty.pem"),
-                "testnode"::toCharArray));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PemUtils.readPrivateKey(
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/empty.pem"),
+                "testnode"::toCharArray
+            )
+        );
         assertThat(e.getMessage(), containsString("File is empty"));
     }
 

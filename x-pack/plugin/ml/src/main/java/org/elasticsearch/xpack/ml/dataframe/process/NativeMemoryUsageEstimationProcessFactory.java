@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -49,8 +49,8 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
         this.nodeName = clusterService.getNodeName();
         this.counter = new AtomicLong(0);
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(
-            MachineLearning.PROCESS_CONNECT_TIMEOUT, this::setProcessConnectTimeout);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT, this::setProcessConnectTimeout);
     }
 
     void setProcessConnectTimeout(TimeValue processConnectTimeout) {
@@ -59,18 +59,29 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
 
     @Override
     public NativeMemoryUsageEstimationProcess createAnalyticsProcess(
-            DataFrameAnalyticsConfig config,
-            AnalyticsProcessConfig analyticsProcessConfig,
-            boolean hasState,
-            ExecutorService executorService,
-            Consumer<String> onProcessCrash) {
+        DataFrameAnalyticsConfig config,
+        AnalyticsProcessConfig analyticsProcessConfig,
+        boolean hasState,
+        ExecutorService executorService,
+        Consumer<String> onProcessCrash
+    ) {
         List<Path> filesToDelete = new ArrayList<>();
         // Since memory estimation can be called many times in quick succession for the same config the config ID alone is not
-        // sufficient to guarantee that the memory estimation process pipe names are unique.  Therefore an increasing counter
+        // sufficient to guarantee that the memory estimation process pipe names are unique. Therefore an increasing counter
         // value is passed as well as the config ID to ensure uniqueness between calls.
         ProcessPipes processPipes = new ProcessPipes(
-            env, NAMED_PIPE_HELPER, processConnectTimeout, AnalyticsBuilder.ANALYTICS, config.getId(), counter.incrementAndGet(),
-            false, false, true, false, false);
+            env,
+            NAMED_PIPE_HELPER,
+            processConnectTimeout,
+            AnalyticsBuilder.ANALYTICS,
+            config.getId(),
+            counter.incrementAndGet(),
+            false,
+            false,
+            true,
+            false,
+            false
+        );
 
         createNativeProcess(config.getId(), analyticsProcessConfig, filesToDelete, processPipes);
 
@@ -79,7 +90,8 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
             processPipes,
             0,
             filesToDelete,
-            onProcessCrash);
+            onProcessCrash
+        );
 
         try {
             process.start(executorService);
@@ -96,11 +108,19 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
         }
     }
 
-    private void createNativeProcess(String jobId, AnalyticsProcessConfig analyticsProcessConfig, List<Path> filesToDelete,
-                                     ProcessPipes processPipes) {
-        AnalyticsBuilder analyticsBuilder =
-            new AnalyticsBuilder(env::tmpFile, nativeController, processPipes, analyticsProcessConfig, filesToDelete)
-                .performMemoryUsageEstimationOnly();
+    private void createNativeProcess(
+        String jobId,
+        AnalyticsProcessConfig analyticsProcessConfig,
+        List<Path> filesToDelete,
+        ProcessPipes processPipes
+    ) {
+        AnalyticsBuilder analyticsBuilder = new AnalyticsBuilder(
+            env::tmpFile,
+            nativeController,
+            processPipes,
+            analyticsProcessConfig,
+            filesToDelete
+        ).performMemoryUsageEstimationOnly();
         try {
             analyticsBuilder.build();
         } catch (InterruptedException e) {

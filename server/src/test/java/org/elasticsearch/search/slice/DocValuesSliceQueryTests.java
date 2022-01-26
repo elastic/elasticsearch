@@ -9,6 +9,7 @@
 package org.elasticsearch.search.slice;
 
 import com.carrotsearch.hppc.BitMixer;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -37,14 +38,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class DocValuesSliceQueryTests extends ESTestCase {
 
     public void testBasics() {
-        DocValuesSliceQuery query1 =
-            new DocValuesSliceQuery("field1", 1, 10);
-        DocValuesSliceQuery query2 =
-            new DocValuesSliceQuery("field1", 1, 10);
-        DocValuesSliceQuery query3 =
-            new DocValuesSliceQuery("field2", 1, 10);
-        DocValuesSliceQuery query4 =
-            new DocValuesSliceQuery("field1", 2, 10);
+        DocValuesSliceQuery query1 = new DocValuesSliceQuery("field1", 1, 10);
+        DocValuesSliceQuery query2 = new DocValuesSliceQuery("field1", 1, 10);
+        DocValuesSliceQuery query3 = new DocValuesSliceQuery("field2", 1, 10);
+        DocValuesSliceQuery query4 = new DocValuesSliceQuery("field1", 2, 10);
         QueryUtils.check(query1);
         QueryUtils.checkEqual(query1, query2);
         QueryUtils.checkUnequal(query1, query3);
@@ -66,30 +63,27 @@ public class DocValuesSliceQueryTests extends ESTestCase {
             long doubleValue = NumericUtils.doubleToSortableLong(randomDouble());
             doc.add(new StringField("uuid", uuid, Field.Store.YES));
             doc.add(new SortedNumericDocValuesField("intField", intValue));
-            doc.add(new SortedNumericDocValuesField("doubleField",  doubleValue));
+            doc.add(new SortedNumericDocValuesField("doubleField", doubleValue));
             w.addDocument(doc);
-            sliceCounters1[Math.floorMod(BitMixer.mix((long) intValue), max)] ++;
-            sliceCounters2[Math.floorMod(BitMixer.mix(doubleValue), max)] ++;
+            sliceCounters1[Math.floorMod(BitMixer.mix((long) intValue), max)]++;
+            sliceCounters2[Math.floorMod(BitMixer.mix(doubleValue), max)]++;
             keys.add(uuid);
         }
         final IndexReader reader = w.getReader();
         final IndexSearcher searcher = newSearcher(reader);
 
         for (int id = 0; id < max; id++) {
-            DocValuesSliceQuery query1 =
-                new DocValuesSliceQuery("intField", id, max);
+            DocValuesSliceQuery query1 = new DocValuesSliceQuery("intField", id, max);
             assertThat(searcher.count(query1), equalTo(sliceCounters1[id]));
 
-            DocValuesSliceQuery query2 =
-                new DocValuesSliceQuery("doubleField", id, max);
+            DocValuesSliceQuery query2 = new DocValuesSliceQuery("doubleField", id, max);
             assertThat(searcher.count(query2), equalTo(sliceCounters2[id]));
             searcher.search(query1, new Collector() {
                 @Override
                 public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
                     return new LeafCollector() {
                         @Override
-                        public void setScorer(Scorable scorer) throws IOException {
-                        }
+                        public void setScorer(Scorable scorer) throws IOException {}
 
                         @Override
                         public void collect(int doc) throws IOException {

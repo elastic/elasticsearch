@@ -37,8 +37,12 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
 
     @Override
     protected CreateSnapshotStep copyInstance(CreateSnapshotStep instance) {
-        return new CreateSnapshotStep(instance.getKey(), instance.getNextKeyOnComplete(), instance.getNextKeyOnIncomplete(),
-            instance.getClient());
+        return new CreateSnapshotStep(
+            instance.getKey(),
+            instance.getNextKeyOnComplete(),
+            instance.getNextKeyOnIncomplete(),
+            instance.getClient()
+        );
     }
 
     @Override
@@ -63,9 +67,10 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         String policyName = "test-ilm-policy";
 
         {
-            IndexMetadata.Builder indexMetadataBuilder =
-                IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                    .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5));
             Map<String, String> ilmCustom = new HashMap<>();
             String repository = "repository";
             ilmCustom.put("snapshot_repository", repository);
@@ -73,30 +78,38 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
 
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-            ClusterState clusterState =
-                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
+            ClusterState clusterState = ClusterState.builder(emptyClusterState())
+                .metadata(Metadata.builder().put(indexMetadata, true).build())
+                .build();
 
             CreateSnapshotStep createSnapshotStep = createRandomInstance();
-            Exception e = expectThrows(IllegalStateException.class, () -> PlainActionFuture.<Void, Exception>get(
-                    f -> createSnapshotStep.performAction(indexMetadata, clusterState, null, f)));
-            assertThat(e.getMessage(),
-                is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
+            Exception e = expectThrows(
+                IllegalStateException.class,
+                () -> PlainActionFuture.<Void, Exception>get(f -> createSnapshotStep.performAction(indexMetadata, clusterState, null, f))
+            );
+            assertThat(e.getMessage(), is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
         }
 
         {
-            IndexMetadata.Builder indexMetadataBuilder =
-                IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                    .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5));
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-            ClusterState clusterState =
-                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
+            ClusterState clusterState = ClusterState.builder(emptyClusterState())
+                .metadata(Metadata.builder().put(indexMetadata, true).build())
+                .build();
 
             CreateSnapshotStep createSnapshotStep = createRandomInstance();
-            Exception e = expectThrows(IllegalStateException.class, () -> PlainActionFuture.<Void, Exception>get(
-                f -> createSnapshotStep.performAction(indexMetadata, clusterState, null, f)));
-            assertThat(e.getMessage(),
-                is("snapshot repository is not present for policy [" + policyName + "] and index [" + indexName + "]"));
+            Exception e = expectThrows(
+                IllegalStateException.class,
+                () -> PlainActionFuture.<Void, Exception>get(f -> createSnapshotStep.performAction(indexMetadata, clusterState, null, f))
+            );
+            assertThat(
+                e.getMessage(),
+                is("snapshot repository is not present for policy [" + policyName + "] and index [" + indexName + "]")
+            );
         }
     }
 
@@ -109,25 +122,25 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         String repository = "repository";
         ilmCustom.put("snapshot_repository", repository);
 
-        IndexMetadata.Builder indexMetadataBuilder =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState =
-            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .build();
 
         try (NoOpClient client = getCreateSnapshotRequestAssertingClient(repository, snapshotName, indexName)) {
             CreateSnapshotStep step = new CreateSnapshotStep(randomStepKey(), randomStepKey(), randomStepKey(), client);
             step.performAction(indexMetadata, clusterState, null, new ActionListener<Void>() {
                 @Override
-                public void onResponse(Void complete) {
-                }
+                public void onResponse(Void complete) {}
 
                 @Override
-                public void onFailure(Exception e) {
-                }
+                public void onFailure(Exception e) {}
             });
         }
     }
@@ -141,20 +154,21 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         String repository = "repository";
         ilmCustom.put("snapshot_repository", repository);
 
-        IndexMetadata.Builder indexMetadataBuilder =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState =
-            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .build();
         {
             try (NoOpClient client = new NoOpClient(getTestName())) {
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
-                CreateSnapshotStep completeStep = new CreateSnapshotStep(randomStepKey(), nextKeyOnComplete, nextKeyOnIncomplete,
-                    client) {
+                CreateSnapshotStep completeStep = new CreateSnapshotStep(randomStepKey(), nextKeyOnComplete, nextKeyOnIncomplete, client) {
                     @Override
                     void createSnapshot(IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
                         listener.onResponse(true);
@@ -179,8 +193,12 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             try (NoOpClient client = new NoOpClient(getTestName())) {
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
-                CreateSnapshotStep incompleteStep = new CreateSnapshotStep(randomStepKey(), nextKeyOnComplete, nextKeyOnIncomplete,
-                    client) {
+                CreateSnapshotStep incompleteStep = new CreateSnapshotStep(
+                    randomStepKey(),
+                    nextKeyOnComplete,
+                    nextKeyOnIncomplete,
+                    client
+                ) {
                     @Override
                     void createSnapshot(IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
                         listener.onResponse(false);
@@ -205,9 +223,11 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
     private NoOpClient getCreateSnapshotRequestAssertingClient(String expectedRepoName, String expectedSnapshotName, String indexName) {
         return new NoOpClient(getTestName()) {
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
-                                                                                                      Request request,
-                                                                                                      ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 assertThat(action.name(), is(CreateSnapshotAction.NAME));
                 assertTrue(request instanceof CreateSnapshotRequest);
                 CreateSnapshotRequest createSnapshotRequest = (CreateSnapshotRequest) request;
@@ -215,10 +235,16 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                 assertThat(createSnapshotRequest.indices()[0], is(indexName));
                 assertThat(createSnapshotRequest.repository(), is(expectedRepoName));
                 assertThat(createSnapshotRequest.snapshot(), is(expectedSnapshotName));
-                assertThat(CreateSnapshotStep.NAME + " waits for the create snapshot request to complete",
-                    createSnapshotRequest.waitForCompletion(), is(true));
-                assertThat("ILM generated snapshots should not include global state", createSnapshotRequest.includeGlobalState(),
-                    is(false));
+                assertThat(
+                    CreateSnapshotStep.NAME + " waits for the create snapshot request to complete",
+                    createSnapshotRequest.waitForCompletion(),
+                    is(true)
+                );
+                assertThat(
+                    "ILM generated snapshots should not include global state",
+                    createSnapshotRequest.includeGlobalState(),
+                    is(false)
+                );
             }
         };
     }

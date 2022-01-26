@@ -27,8 +27,8 @@ import java.util.function.Supplier;
 public final class TypeFieldType extends ConstantFieldType {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeFieldType.class);
-    public static final String TYPES_V7_DEPRECATION_MESSAGE = "[types removal] Using the _type field " +
-        "in queries and aggregations is deprecated, prefer to use a field instead.";
+    public static final String TYPES_V7_DEPRECATION_MESSAGE = "[types removal] Using the _type field "
+        + "in queries and aggregations is deprecated, prefer to use a field instead.";
 
     public static final String NAME = "_type";
 

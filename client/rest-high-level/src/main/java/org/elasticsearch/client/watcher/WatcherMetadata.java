@@ -21,9 +21,10 @@ public class WatcherMetadata {
     public boolean manuallyStopped() {
         return manuallyStopped;
     }
+
     @Override
     public String toString() {
-        return "manuallyStopped["+ manuallyStopped +"]";
+        return "manuallyStopped[" + manuallyStopped + "]";
     }
 
     @Override

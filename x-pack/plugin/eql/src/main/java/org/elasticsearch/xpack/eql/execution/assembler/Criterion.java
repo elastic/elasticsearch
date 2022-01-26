@@ -28,13 +28,15 @@ public class Criterion<Q extends QueryRequest> {
     private final boolean descending;
     private final int keySize;
 
-    public Criterion(int stage,
-              Q queryRequest,
-              List<HitExtractor> keys,
-              HitExtractor timestamp,
-              HitExtractor tiebreaker,
-              HitExtractor implicitTiebreaker,
-              boolean descending) {
+    public Criterion(
+        int stage,
+        Q queryRequest,
+        List<HitExtractor> keys,
+        HitExtractor timestamp,
+        HitExtractor tiebreaker,
+        HitExtractor implicitTiebreaker,
+        boolean descending
+    ) {
         this.stage = stage;
         this.queryRequest = queryRequest;
         this.keys = keys;
@@ -95,8 +97,8 @@ public class Criterion<Q extends QueryRequest> {
         if (implicitTbreaker instanceof Number == false) {
             throw new EqlIllegalArgumentException("Expected _shard_doc/implicit tiebreaker as long but got [{}]", implicitTbreaker);
         }
-        long implicitTiebreaker = ((Number) implicitTbreaker).longValue();
-        return new Ordinal((Timestamp) ts, tbreaker, implicitTiebreaker);
+        long timebreakerValue = ((Number) implicitTbreaker).longValue();
+        return new Ordinal((Timestamp) ts, tbreaker, timebreakerValue);
     }
 
     @Override

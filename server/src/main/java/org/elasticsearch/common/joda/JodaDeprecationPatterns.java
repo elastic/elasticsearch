@@ -27,10 +27,8 @@ public class JodaDeprecationPatterns {
         JODA_PATTERNS_DEPRECATIONS.put("y", "'y' year should be replaced with 'u'. Use 'y' for year-of-era.");
         JODA_PATTERNS_DEPRECATIONS.put("C", "'C' century of era is no longer supported.");
         JODA_PATTERNS_DEPRECATIONS.put("x", "'x' weak-year should be replaced with 'Y'. Use 'x' for zone-offset.");
-        JODA_PATTERNS_DEPRECATIONS.put("Z",
-            "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'.");
-        JODA_PATTERNS_DEPRECATIONS.put("z",
-            "'z' time zone text. Will print 'Z' for Zulu given UTC timezone.");
+        JODA_PATTERNS_DEPRECATIONS.put("Z", "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'.");
+        JODA_PATTERNS_DEPRECATIONS.put("z", "'z' time zone text. Will print 'Z' for Zulu given UTC timezone.");
     }
 
     /**
@@ -45,11 +43,9 @@ public class JodaDeprecationPatterns {
         List<String> patterns = DateFormatter.splitCombinedPatterns(pattern);
 
         for (String subPattern : patterns) {
-            boolean isDeprecated = subPattern.startsWith("8") == false && FormatNames.exist(subPattern) == false &&
-                JODA_PATTERNS_DEPRECATIONS.keySet().stream()
-                                          .filter(s -> subPattern.contains(s))
-                                          .findAny()
-                                          .isPresent();
+            boolean isDeprecated = subPattern.startsWith("8") == false
+                && FormatNames.exist(subPattern) == false
+                && JODA_PATTERNS_DEPRECATIONS.keySet().stream().filter(s -> subPattern.contains(s)).findAny().isPresent();
             if (isDeprecated) {
                 return true;
             }
@@ -69,15 +65,15 @@ public class JodaDeprecationPatterns {
         Set<String> warnings = new LinkedHashSet<>();
         for (String subPattern : patterns) {
             if (isDeprecatedPattern(subPattern)) {
-                String suggestion = JODA_PATTERNS_DEPRECATIONS.entrySet().stream()
-                                                              .filter(s -> subPattern.contains(s.getKey()))
-                                                              .map(s -> s.getValue())
-                                                              .collect(Collectors.joining("; "));
+                String suggestion = JODA_PATTERNS_DEPRECATIONS.entrySet()
+                    .stream()
+                    .filter(s -> subPattern.contains(s.getKey()))
+                    .map(s -> s.getValue())
+                    .collect(Collectors.joining("; "));
                 warnings.add(suggestion);
             }
         }
-        String combinedWarning = warnings.stream()
-                                 .collect(Collectors.joining("; "));
+        String combinedWarning = warnings.stream().collect(Collectors.joining("; "));
         return combinedWarning;
     }
 }

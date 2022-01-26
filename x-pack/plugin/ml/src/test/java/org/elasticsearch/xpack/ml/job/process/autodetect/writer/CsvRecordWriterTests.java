@@ -17,9 +17,9 @@ import java.util.Arrays;
 public class CsvRecordWriterTests extends ESTestCase {
 
     public void testWriteArray() throws IOException {
-        String[] header = {"one", "two", "three", "four", "five"};
-        String[] record1 = {"r1", "r2", "", "rrr4", "r5"};
-        String[] record2 = {"y1", "y2", "yy3", "yyy4", "y5"};
+        String[] header = { "one", "two", "three", "four", "five" };
+        String[] record1 = { "r1", "r2", "", "rrr4", "r5" };
+        String[] record2 = { "y1", "y2", "yy3", "yyy4", "y5" };
 
         ByteArrayOutputStream bos = new ByteArrayOutputStream(1024);
 
@@ -40,7 +40,7 @@ public class CsvRecordWriterTests extends ESTestCase {
 
         String[] fields = lines[0].split(",");
         Assert.assertArrayEquals(fields, header);
-        for (int i = 1; i < NUM_RECORDS; ) {
+        for (int i = 1; i < NUM_RECORDS;) {
             fields = lines[i++].split(",");
             Assert.assertArrayEquals(fields, record1);
             fields = lines[i++].split(",");
@@ -49,9 +49,9 @@ public class CsvRecordWriterTests extends ESTestCase {
     }
 
     public void testWriteList() throws IOException {
-        String[] header = {"one", "two", "three", "four", "five"};
-        String[] record1 = {"r1", "r2", "", "rrr4", "r5"};
-        String[] record2 = {"y1", "y2", "yy3", "yyy4", "y5"};
+        String[] header = { "one", "two", "three", "four", "five" };
+        String[] record1 = { "r1", "r2", "", "rrr4", "r5" };
+        String[] record2 = { "y1", "y2", "yy3", "yyy4", "y5" };
 
         ByteArrayOutputStream bos = new ByteArrayOutputStream(1024);
 
@@ -72,7 +72,7 @@ public class CsvRecordWriterTests extends ESTestCase {
 
         String[] fields = lines[0].split(",");
         Assert.assertArrayEquals(fields, header);
-        for (int i = 1; i < NUM_RECORDS; ) {
+        for (int i = 1; i < NUM_RECORDS;) {
             fields = lines[i++].split(",");
             Assert.assertArrayEquals(fields, record1);
             fields = lines[i++].split(",");

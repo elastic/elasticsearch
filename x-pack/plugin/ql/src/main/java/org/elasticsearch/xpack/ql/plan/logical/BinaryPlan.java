@@ -40,8 +40,7 @@ public abstract class BinaryPlan extends LogicalPlan {
 
         BinaryPlan other = (BinaryPlan) obj;
 
-        return Objects.equals(left(), other.left())
-                && Objects.equals(right(), other.right());
+        return Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
     }
 
     @Override

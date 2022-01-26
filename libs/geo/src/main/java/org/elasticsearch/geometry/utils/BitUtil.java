@@ -12,13 +12,15 @@ package org.elasticsearch.geometry.utils;
  */
 public class BitUtil {  // magic numbers for bit interleaving
     private static final long MAGIC[] = {
-        0x5555555555555555L, 0x3333333333333333L,
-        0x0F0F0F0F0F0F0F0FL, 0x00FF00FF00FF00FFL,
-        0x0000FFFF0000FFFFL, 0x00000000FFFFFFFFL,
-        0xAAAAAAAAAAAAAAAAL
-    };
+        0x5555555555555555L,
+        0x3333333333333333L,
+        0x0F0F0F0F0F0F0F0FL,
+        0x00FF00FF00FF00FFL,
+        0x0000FFFF0000FFFFL,
+        0x00000000FFFFFFFFL,
+        0xAAAAAAAAAAAAAAAAL };
     // shift values for bit interleaving
-    private static final short SHIFT[] = {1, 2, 4, 8, 16};
+    private static final short SHIFT[] = { 1, 2, 4, 8, 16 };
 
     /**
      * Interleaves the first 32 bits of each long value
@@ -39,7 +41,7 @@ public class BitUtil {  // magic numbers for bit interleaving
         v2 = (v2 | (v2 << SHIFT[1])) & MAGIC[1];
         v2 = (v2 | (v2 << SHIFT[0])) & MAGIC[0];
 
-        return (v2<<1) | v1;
+        return (v2 << 1) | v1;
     }
 
     /**
@@ -59,6 +61,6 @@ public class BitUtil {  // magic numbers for bit interleaving
      * flip flops odd with even bits
      */
     public static final long flipFlop(final long b) {
-        return ((b & MAGIC[6]) >>> 1) | ((b & MAGIC[0]) << 1 );
+        return ((b & MAGIC[6]) >>> 1) | ((b & MAGIC[0]) << 1);
     }
 }

@@ -36,8 +36,7 @@ public class LicenseVerificationTests extends ESTestCase {
 
     public void testGeneratedLicenses() throws Exception {
         final TimeValue fortyEightHours = TimeValue.timeValueHours(2 * 24);
-        final License license =
-                TestUtils.generateSignedLicense(fortyEightHours, pubKeyPath, priKeyPath);
+        final License license = TestUtils.generateSignedLicense(fortyEightHours, pubKeyPath, priKeyPath);
         assertTrue(LicenseVerifier.verifyLicense(license, Files.readAllBytes(pubKeyPath)));
     }
 
@@ -46,32 +45,32 @@ public class LicenseVerificationTests extends ESTestCase {
         License license = TestUtils.generateSignedLicense(twoHours, pubKeyPath, priKeyPath);
 
         final License tamperedLicense = License.builder()
-                .fromLicenseSpec(license, license.signature())
-                .expiryDate(license.expiryDate() + 10 * 24 * 60 * 60 * 1000L)
-                .validate()
-                .build();
+            .fromLicenseSpec(license, license.signature())
+            .expiryDate(license.expiryDate() + 10 * 24 * 60 * 60 * 1000L)
+            .validate()
+            .build();
 
         assertFalse(LicenseVerifier.verifyLicense(tamperedLicense, Files.readAllBytes(pubKeyPath)));
     }
 
     public void testRandomLicenseVerification() throws Exception {
         TestUtils.LicenseSpec licenseSpec = TestUtils.generateRandomLicenseSpec(
-                randomIntBetween(License.VERSION_START, License.VERSION_CURRENT));
+            randomIntBetween(License.VERSION_START, License.VERSION_CURRENT)
+        );
         License generatedLicense = generateSignedLicense(licenseSpec, pubKeyPath, priKeyPath);
         assertTrue(LicenseVerifier.verifyLicense(generatedLicense, Files.readAllBytes(pubKeyPath)));
     }
 
-    private static License generateSignedLicense(
-            TestUtils.LicenseSpec spec, Path pubKeyPath, Path priKeyPath) throws Exception {
+    private static License generateSignedLicense(TestUtils.LicenseSpec spec, Path pubKeyPath, Path priKeyPath) throws Exception {
         LicenseSigner signer = new LicenseSigner(priKeyPath, pubKeyPath);
         License.Builder builder = License.builder()
-                .uid(spec.uid)
-                .feature(spec.feature)
-                .type(spec.type)
-                .subscriptionType(spec.subscriptionType)
-                .issuedTo(spec.issuedTo)
-                .issuer(spec.issuer)
-                .maxNodes(spec.maxNodes);
+            .uid(spec.uid)
+            .feature(spec.feature)
+            .type(spec.type)
+            .subscriptionType(spec.subscriptionType)
+            .issuedTo(spec.issuedTo)
+            .issuer(spec.issuer)
+            .maxNodes(spec.maxNodes);
 
         if (spec.expiryDate != null) {
             builder.expiryDate(DateUtils.endOfTheDay(spec.expiryDate));

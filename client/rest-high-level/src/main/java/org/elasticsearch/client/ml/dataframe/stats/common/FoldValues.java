@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.client.ml.dataframe.stats.common;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -23,8 +23,11 @@ public class FoldValues implements ToXContentObject {
     public static final ParseField VALUES = new ParseField("values");
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<FoldValues, Void> PARSER = new ConstructingObjectParser<>("fold_values", true,
-        a -> new FoldValues((int) a[0], (List<Double>) a[1]));
+    public static ConstructingObjectParser<FoldValues, Void> PARSER = new ConstructingObjectParser<>(
+        "fold_values",
+        true,
+        a -> new FoldValues((int) a[0], (List<Double>) a[1])
+    );
 
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), FOLD);

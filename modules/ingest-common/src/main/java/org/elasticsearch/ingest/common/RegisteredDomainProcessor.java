@@ -26,13 +26,7 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
     private final String targetField;
     private final boolean ignoreMissing;
 
-    RegisteredDomainProcessor(
-        String tag,
-        String description,
-        String field,
-        String targetField,
-        boolean ignoreMissing
-    ) {
+    RegisteredDomainProcessor(String tag, String description, String field, String targetField, boolean ignoreMissing) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
@@ -174,13 +168,7 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", DEFAULT_TARGET_FIELD);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", true);
 
-            return new RegisteredDomainProcessor(
-                processorTag,
-                description,
-                field,
-                targetField,
-                ignoreMissing
-            );
+            return new RegisteredDomainProcessor(processorTag, description, field, targetField, ignoreMissing);
         }
     }
 }

@@ -8,9 +8,9 @@
 
 package org.elasticsearch.rest.action;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 /**
  * A REST action listener that builds an {@link XContentBuilder} based response.

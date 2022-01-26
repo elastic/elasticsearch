@@ -32,13 +32,20 @@ public class ListTests extends ArrayLikeObjectTestCase {
 
     private String fillValue(String valueType) {
         switch (valueType) {
-        case "int":    return "0";
-        case "long":   return "0L";
-        case "short":  return "(short) 0";
-        case "byte":   return "(byte) 0";
-        case "float":  return "0.0f";
-        case "double": return "0.0"; // Double is implicit for decimal constants
-        default:       return null;
+            case "int":
+                return "0";
+            case "long":
+                return "0L";
+            case "short":
+                return "(short) 0";
+            case "byte":
+                return "(byte) 0";
+            case "float":
+                return "0.0f";
+            case "double":
+                return "0.0"; // Double is implicit for decimal constants
+            default:
+                return null;
         }
     }
 

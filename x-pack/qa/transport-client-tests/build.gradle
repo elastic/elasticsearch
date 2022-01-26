@@ -12,8 +12,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
 }
 
-
-testingConventions {
+tasks.named("testingConventions").configure {
   naming.clear()
   naming {
     IT {

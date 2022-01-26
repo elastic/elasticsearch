@@ -34,7 +34,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
-
 /**
  * This class will search the buckets and indices over a given window to determine if any data is missing
  */
@@ -52,9 +51,17 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
     private final IndicesOptions indicesOptions;
     private final Map<String, Object> runtimeMappings;
 
-    DatafeedDelayedDataDetector(long bucketSpan, long window, String jobId, String timeField, QueryBuilder datafeedQuery,
-                                String[] datafeedIndices, IndicesOptions indicesOptions, Map<String, Object> runtimeMappings,
-                                Client client) {
+    DatafeedDelayedDataDetector(
+        long bucketSpan,
+        long window,
+        String jobId,
+        String timeField,
+        QueryBuilder datafeedQuery,
+        String[] datafeedIndices,
+        IndicesOptions indicesOptions,
+        Map<String, Object> runtimeMappings,
+        Client client
+    ) {
         this.bucketSpan = bucketSpan;
         this.window = window;
         this.jobId = jobId;
@@ -108,7 +115,7 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
         request.setSort("timestamp");
         request.setDescending(false);
         request.setExcludeInterim(true);
-        request.setPageParams(new PageParams(0, (int)((end - start)/bucketSpan)));
+        request.setPageParams(new PageParams(0, (int) ((end - start) / bucketSpan)));
 
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             GetBucketsAction.Response response = client.execute(GetBucketsAction.INSTANCE, request).actionGet();
@@ -117,17 +124,18 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
     }
 
     private Map<Long, Long> checkCurrentBucketEventCount(long start, long end) {
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
-            .size(0)
-            .aggregation(new DateHistogramAggregationBuilder(DATE_BUCKETS)
-                .fixedInterval(new DateHistogramInterval(bucketSpan + "ms")).field(timeField))
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
+            .aggregation(
+                new DateHistogramAggregationBuilder(DATE_BUCKETS).fixedInterval(new DateHistogramInterval(bucketSpan + "ms"))
+                    .field(timeField)
+            )
             .query(ExtractorUtils.wrapInTimeRangeQuery(datafeedQuery, timeField, start, end))
             .runtimeMappings(runtimeMappings);
 
         SearchRequest searchRequest = new SearchRequest(datafeedIndices).source(searchSourceBuilder).indicesOptions(indicesOptions);
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             SearchResponse response = client.execute(SearchAction.INSTANCE, searchRequest).actionGet();
-            List<? extends Histogram.Bucket> buckets = ((Histogram)response.getAggregations().get(DATE_BUCKETS)).getBuckets();
+            List<? extends Histogram.Bucket> buckets = ((Histogram) response.getAggregations().get(DATE_BUCKETS)).getBuckets();
             Map<Long, Long> hashMap = new HashMap<>(buckets.size());
             for (Histogram.Bucket bucket : buckets) {
                 long bucketTime = toHistogramKeyToEpoch(bucket.getKey());
@@ -142,11 +150,11 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
 
     private static long toHistogramKeyToEpoch(Object key) {
         if (key instanceof ZonedDateTime) {
-            return ((ZonedDateTime)key).toInstant().toEpochMilli();
+            return ((ZonedDateTime) key).toInstant().toEpochMilli();
         } else if (key instanceof Double) {
-            return ((Double)key).longValue();
-        } else if (key instanceof Long){
-            return (Long)key;
+            return ((Double) key).longValue();
+        } else if (key instanceof Long) {
+            return (Long) key;
         } else {
             return -1L;
         }

@@ -43,15 +43,20 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
         refresh();
 
         WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(
-                new String[]{index}, new String[]{type}, SearchType.QUERY_THEN_FETCH,
-                WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, new BytesArray("{}")
+            new String[] { index },
+            new String[] { type },
+            SearchType.QUERY_THEN_FETCH,
+            WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS,
+            new BytesArray("{}")
         );
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
-                .trigger(schedule(interval("5s")))
-                .input(searchInput(request))
-                .condition(InternalAlwaysCondition.INSTANCE)
-                .addAction("logger", loggingAction("indexed")))
-                .get();
+        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id")
+            .setSource(
+                watchBuilder().trigger(schedule(interval("5s")))
+                    .input(searchInput(request))
+                    .condition(InternalAlwaysCondition.INSTANCE)
+                    .addAction("logger", loggingAction("indexed"))
+            )
+            .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
         timeWarp().trigger("_id");
@@ -61,12 +66,14 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
         // the action should fail as no email server is available
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
 
-        SearchResponse response = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*").setSource(searchSource()
-                .aggregation(terms("input_search_type").field("result.input.search.request.search_type"))
-                .aggregation(terms("input_indices").field("result.input.search.request.indices"))
-                .aggregation(terms("input_types").field("result.input.search.request.types"))
-                .aggregation(terms("input_body").field("result.input.search.request.body")))
-                .get();
+        SearchResponse response = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
+            .setSource(
+                searchSource().aggregation(terms("input_search_type").field("result.input.search.request.search_type"))
+                    .aggregation(terms("input_indices").field("result.input.search.request.indices"))
+                    .aggregation(terms("input_types").field("result.input.search.request.types"))
+                    .aggregation(terms("input_body").field("result.input.search.request.body"))
+            )
+            .get();
 
         assertThat(response, notNullValue());
         assertThat(response.getHits().getTotalHits().value, is(1L));

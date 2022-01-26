@@ -59,7 +59,6 @@ public interface RoutingChangesObserver {
      */
     void initializedReplicaReinitialized(ShardRouting oldReplica, ShardRouting reinitializedReplica);
 
-
     /**
      * Abstract implementation of {@link RoutingChangesObserver} that does not take any action. Useful for subclasses that only override
      * certain methods.

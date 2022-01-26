@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.azure;
 
 import com.azure.storage.common.policy.RequestRetryOptions;
+
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -25,14 +26,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 public class AzureClientProviderTests extends ESTestCase {
-    private static final BiConsumer<String, URL> EMPTY_CONSUMER = (method, url) -> { };
+    private static final BiConsumer<String, URL> EMPTY_CONSUMER = (method, url) -> {};
 
     private ThreadPool threadPool;
     private AzureClientProvider azureClientProvider;
 
     @Before
     public void setUpThreadPool() {
-        threadPool = new TestThreadPool(getTestName(),
+        threadPool = new TestThreadPool(
+            getTestName(),
             AzureRepositoryPlugin.executorBuilder(),
             AzureRepositoryPlugin.nettyEventLoopExecutorBuilder(Settings.EMPTY)
         );
@@ -52,8 +54,8 @@ public class AzureClientProviderTests extends ESTestCase {
 
         final String endpoint;
         if (randomBoolean()) {
-            endpoint = "ignored;BlobEndpoint=https://myaccount1.blob.core.windows.net;" +
-                "BlobSecondaryEndpoint=https://myaccount1-secondary.blob.core.windows.net";
+            endpoint = "ignored;BlobEndpoint=https://myaccount1.blob.core.windows.net;"
+                + "BlobSecondaryEndpoint=https://myaccount1-secondary.blob.core.windows.net";
         } else {
             endpoint = "core.windows.net";
         }
@@ -90,9 +92,10 @@ public class AzureClientProviderTests extends ESTestCase {
 
         LocationMode locationMode = LocationMode.SECONDARY_ONLY;
         RequestRetryOptions requestRetryOptions = new RequestRetryOptions();
-        expectThrows(IllegalArgumentException.class, () -> {
-            azureClientProvider.createClient(storageSettings, locationMode, requestRetryOptions, null, EMPTY_CONSUMER);
-        });
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> { azureClientProvider.createClient(storageSettings, locationMode, requestRetryOptions, null, EMPTY_CONSUMER); }
+        );
     }
 
     private static String encodeKey(final String value) {

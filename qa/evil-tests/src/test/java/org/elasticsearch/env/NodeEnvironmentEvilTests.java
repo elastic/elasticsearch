@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.env;
 
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.BeforeClass;
@@ -35,14 +35,19 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
         final String[] tempPaths = tmpPaths();
         Path path = PathUtils.get(randomFrom(tempPaths));
         try (PosixPermissionsResetter attr = new PosixPermissionsResetter(path)) {
-            attr.setPermissions(new HashSet<>(Arrays.asList(PosixFilePermission.OTHERS_READ, PosixFilePermission.GROUP_READ,
-                PosixFilePermission.OWNER_READ)));
+            attr.setPermissions(
+                new HashSet<>(
+                    Arrays.asList(PosixFilePermission.OTHERS_READ, PosixFilePermission.GROUP_READ, PosixFilePermission.OWNER_READ)
+                )
+            );
             Settings build = Settings.builder()
-                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                    .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
-            IOException ioException = expectThrows(IOException.class, () -> {
-                new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
-            });
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths)
+                .build();
+            IOException ioException = expectThrows(
+                IOException.class,
+                () -> { new NodeEnvironment(build, TestEnvironment.newEnvironment(build)); }
+            );
             assertTrue(ioException.getMessage(), ioException.getMessage().startsWith(path.toString()));
         }
     }
@@ -51,18 +56,22 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
         assumeTrue("posix filesystem", isPosix);
         final String[] tempPaths = tmpPaths();
         Path path = PathUtils.get(randomFrom(tempPaths));
-        Path fooIndex = path.resolve("nodes").resolve("0").resolve(NodeEnvironment.INDICES_FOLDER)
-            .resolve("foo");
+        Path fooIndex = path.resolve("nodes").resolve("0").resolve(NodeEnvironment.INDICES_FOLDER).resolve("foo");
         Files.createDirectories(fooIndex);
         try (PosixPermissionsResetter attr = new PosixPermissionsResetter(fooIndex)) {
-            attr.setPermissions(new HashSet<>(Arrays.asList(PosixFilePermission.OTHERS_READ, PosixFilePermission.GROUP_READ,
-                PosixFilePermission.OWNER_READ)));
+            attr.setPermissions(
+                new HashSet<>(
+                    Arrays.asList(PosixFilePermission.OTHERS_READ, PosixFilePermission.GROUP_READ, PosixFilePermission.OWNER_READ)
+                )
+            );
             Settings build = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
-            IOException ioException = expectThrows(IOException.class, () -> {
-                new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
-            });
+                .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths)
+                .build();
+            IOException ioException = expectThrows(
+                IOException.class,
+                () -> { new NodeEnvironment(build, TestEnvironment.newEnvironment(build)); }
+            );
             assertTrue(ioException.getMessage(), ioException.getMessage().startsWith("failed to test writes in data directory"));
         }
     }
@@ -71,8 +80,7 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
         assumeTrue("posix filesystem", isPosix);
         final String[] tempPaths = tmpPaths();
         Path path = PathUtils.get(randomFrom(tempPaths));
-        Path fooIndex = path.resolve("nodes").resolve("0").resolve(NodeEnvironment.INDICES_FOLDER)
-            .resolve("foo");
+        Path fooIndex = path.resolve("nodes").resolve("0").resolve(NodeEnvironment.INDICES_FOLDER).resolve("foo");
         Path fooShard = fooIndex.resolve("0");
         Path fooShardIndex = fooShard.resolve("index");
         Path fooShardTranslog = fooShard.resolve("translog");
@@ -80,14 +88,19 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
         Path pick = randomFrom(fooShard, fooShardIndex, fooShardTranslog, fooShardState);
         Files.createDirectories(pick);
         try (PosixPermissionsResetter attr = new PosixPermissionsResetter(pick)) {
-            attr.setPermissions(new HashSet<>(Arrays.asList(PosixFilePermission.OTHERS_READ, PosixFilePermission.GROUP_READ,
-                PosixFilePermission.OWNER_READ)));
+            attr.setPermissions(
+                new HashSet<>(
+                    Arrays.asList(PosixFilePermission.OTHERS_READ, PosixFilePermission.GROUP_READ, PosixFilePermission.OWNER_READ)
+                )
+            );
             Settings build = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
-            IOException ioException = expectThrows(IOException.class, () -> {
-                new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
-            });
+                .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths)
+                .build();
+            IOException ioException = expectThrows(
+                IOException.class,
+                () -> { new NodeEnvironment(build, TestEnvironment.newEnvironment(build)); }
+            );
             assertTrue(ioException.getMessage(), ioException.getMessage().startsWith("failed to test writes in data directory"));
         }
     }

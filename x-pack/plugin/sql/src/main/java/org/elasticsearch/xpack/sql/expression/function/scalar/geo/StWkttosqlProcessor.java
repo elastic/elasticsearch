@@ -22,11 +22,9 @@ public class StWkttosqlProcessor implements Processor {
 
     public static final String NAME = "geo_wkttosql";
 
-    StWkttosqlProcessor() {
-    }
+    StWkttosqlProcessor() {}
 
-    public StWkttosqlProcessor(StreamInput in) throws IOException {
-    }
+    public StWkttosqlProcessor(StreamInput in) throws IOException {}
 
     @Override
     public Object process(Object input) {

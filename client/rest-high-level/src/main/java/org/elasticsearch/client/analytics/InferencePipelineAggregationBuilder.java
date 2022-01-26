@@ -9,22 +9,22 @@
 package org.elasticsearch.client.analytics;
 
 import org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * For building inference pipeline aggregations
@@ -41,26 +41,28 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     public static final ParseField MODEL_ID = new ParseField("model_id");
     private static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
 
-
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<InferencePipelineAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
-        NAME, false,
-        (args, name) -> new InferencePipelineAggregationBuilder(name, (String)args[0], (Map<String, String>) args[1])
+        NAME,
+        false,
+        (args, name) -> new InferencePipelineAggregationBuilder(name, (String) args[0], (Map<String, String>) args[1])
     );
 
     static {
         PARSER.declareString(constructorArg(), MODEL_ID);
         PARSER.declareObject(constructorArg(), (p, c) -> p.mapStrings(), BUCKETS_PATH_FIELD);
-        PARSER.declareNamedObject(InferencePipelineAggregationBuilder::setInferenceConfig,
-            (p, c, n) -> p.namedObject(InferenceConfig.class, n, c), INFERENCE_CONFIG);
+        PARSER.declareNamedObject(
+            InferencePipelineAggregationBuilder::setInferenceConfig,
+            (p, c, n) -> p.namedObject(InferenceConfig.class, n, c),
+            INFERENCE_CONFIG
+        );
     }
 
     private final Map<String, String> bucketPathMap;
     private final String modelId;
     private InferenceConfig inferenceConfig;
 
-    public static InferencePipelineAggregationBuilder parse(String pipelineAggregatorName,
-                                                            XContentParser parser) {
+    public static InferencePipelineAggregationBuilder parse(String pipelineAggregatorName, XContentParser parser) {
         return PARSER.apply(parser, pipelineAggregatorName);
     }
 

@@ -9,11 +9,11 @@ package org.elasticsearch.client.ml.job.results;
 
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,14 +38,19 @@ public class OverallBucket implements ToXContentObject {
      */
     public static final String RESULT_TYPE_VALUE = "overall_bucket";
 
-    public static final ConstructingObjectParser<OverallBucket, Void> PARSER =
-        new ConstructingObjectParser<>(RESULT_TYPE_VALUE, true,
-            a -> new OverallBucket((Date) a[0], (long) a[1], (double) a[2], (boolean) a[3]));
+    public static final ConstructingObjectParser<OverallBucket, Void> PARSER = new ConstructingObjectParser<>(
+        RESULT_TYPE_VALUE,
+        true,
+        a -> new OverallBucket((Date) a[0], (long) a[1], (double) a[2], (boolean) a[3])
+    );
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p) -> TimeUtil.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
-                Result.TIMESTAMP, ObjectParser.ValueType.VALUE);
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            (p) -> TimeUtil.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
+            Result.TIMESTAMP,
+            ObjectParser.ValueType.VALUE
+        );
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), OVERALL_SCORE);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), Result.IS_INTERIM);
@@ -126,18 +131,21 @@ public class OverallBucket implements ToXContentObject {
         OverallBucket that = (OverallBucket) other;
 
         return Objects.equals(this.timestamp, that.timestamp)
-                && this.bucketSpan == that.bucketSpan
-                && this.overallScore == that.overallScore
-                && Objects.equals(this.jobs, that.jobs)
-                && this.isInterim == that.isInterim;
+            && this.bucketSpan == that.bucketSpan
+            && this.overallScore == that.overallScore
+            && Objects.equals(this.jobs, that.jobs)
+            && this.isInterim == that.isInterim;
     }
 
     public static class JobInfo implements ToXContentObject, Comparable<JobInfo> {
 
         private static final ParseField MAX_ANOMALY_SCORE = new ParseField("max_anomaly_score");
 
-        public static final ConstructingObjectParser<JobInfo, Void> PARSER =
-            new ConstructingObjectParser<>("job_info", true, a -> new JobInfo((String) a[0], (double) a[1]));
+        public static final ConstructingObjectParser<JobInfo, Void> PARSER = new ConstructingObjectParser<>(
+            "job_info",
+            true,
+            a -> new JobInfo((String) a[0], (double) a[1])
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);

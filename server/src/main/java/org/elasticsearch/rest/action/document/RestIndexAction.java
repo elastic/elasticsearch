@@ -35,17 +35,20 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndexAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document " +
-        "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, " +
-        "or /{index}/_create/{id}).";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document "
+        + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
+        + "or /{index}/_create/{id}).";
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(POST, "/{index}/_doc/{id}"),
-            new Route(PUT, "/{index}/_doc/{id}"),
-            new Route(POST, "/{index}/{type}/{id}"),
-            new Route(PUT, "/{index}/{type}/{id}")));
+        return unmodifiableList(
+            asList(
+                new Route(POST, "/{index}/_doc/{id}"),
+                new Route(PUT, "/{index}/_doc/{id}"),
+                new Route(POST, "/{index}/{type}/{id}"),
+                new Route(PUT, "/{index}/{type}/{id}")
+            )
+        );
     }
 
     @Override
@@ -62,11 +65,14 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(
-                new Route(POST, "/{index}/_create/{id}"),
-                new Route(PUT, "/{index}/_create/{id}"),
-                new Route(POST, "/{index}/{type}/{id}/_create"),
-                new Route(PUT, "/{index}/{type}/{id}/_create")));
+            return unmodifiableList(
+                asList(
+                    new Route(POST, "/{index}/_create/{id}"),
+                    new Route(PUT, "/{index}/_create/{id}"),
+                    new Route(POST, "/{index}/{type}/{id}/_create"),
+                    new Route(PUT, "/{index}/{type}/{id}/_create")
+                )
+            );
         }
 
         @Override
@@ -98,9 +104,7 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(
-                new Route(POST, "/{index}/_doc"),
-                new Route(POST, "/{index}/{type}")));
+            return unmodifiableList(asList(new Route(POST, "/{index}/_doc"), new Route(POST, "/{index}/{type}")));
         }
 
         @Override
@@ -144,8 +148,10 @@ public class RestIndexAction extends BaseRestHandler {
             indexRequest.opType(sOpType);
         }
 
-        return channel ->
-                client.index(indexRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));
+        return channel -> client.index(
+            indexRequest,
+            new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing()))
+        );
     }
 
 }

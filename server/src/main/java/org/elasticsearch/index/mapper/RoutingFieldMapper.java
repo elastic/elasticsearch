@@ -64,10 +64,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> RoutingFieldMapper.get(Defaults.REQUIRED),
-        c -> new Builder()
-    );
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> RoutingFieldMapper.get(Defaults.REQUIRED), c -> new Builder());
 
     static final class RoutingFieldType extends StringFieldType {
 
@@ -84,7 +81,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            return new StoredValueFetcher(context.lookup(), NAME);
         }
     }
 

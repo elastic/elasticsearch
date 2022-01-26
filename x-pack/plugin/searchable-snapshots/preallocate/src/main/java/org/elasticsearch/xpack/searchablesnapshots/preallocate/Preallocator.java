@@ -17,7 +17,7 @@ interface Preallocator {
      *
      * @return true if native methods are available, otherwise false
      */
-    boolean available();
+    boolean useNative();
 
     /**
      * Pre-allocate a file of given current size to the specified size using the given file descriptor.

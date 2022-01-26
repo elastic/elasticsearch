@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal.precommit;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
@@ -23,8 +22,9 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
 
-import javax.inject.Inject;
 import java.io.File;
+
+import javax.inject.Inject;
 
 /**
  * Runs LoggerUsageCheck on a set of directories.
@@ -63,7 +63,8 @@ public class LoggerUsageTask extends PrecommitTask {
     @PathSensitive(PathSensitivity.RELATIVE)
     @SkipWhenEmpty
     public FileCollection getClassDirectories() {
-        return getProject().getExtensions().getByType(JavaPluginExtension.class)
+        return getProject().getExtensions()
+            .getByType(JavaPluginExtension.class)
             .getSourceSets()
             .stream()
             // Don't pick up all source sets like the java9 ones as logger-check doesn't support the class format

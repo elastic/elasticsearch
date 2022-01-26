@@ -15,12 +15,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -47,6 +41,12 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.mockito.Mockito;
@@ -73,9 +73,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     @BeforeClass
     public static void init() {
-        Settings baseSettings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
+        Settings baseSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Map<String, Function<Map<String, Object>, Object>> scripts = Collections.singletonMap(MOCK_SCRIPT_NAME, p -> null);
         ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts, Collections.emptyMap());
         scriptService = new ScriptService(baseSettings, Collections.singletonMap(engine.getType(), engine), ScriptModule.CORE_CONTEXTS);
@@ -145,8 +143,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         SearchExecutionContext mockShardContext = createMockSearchExecutionContext();
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             T sortBuilder = createTestItem();
-            SortFieldAndFormat sortField = Rewriteable.rewrite(sortBuilder, mockShardContext)
-                    .build(mockShardContext);
+            SortFieldAndFormat sortField = Rewriteable.rewrite(sortBuilder, mockShardContext).build(mockShardContext);
             sortFieldAssertions(sortBuilder, sortField.field, sortField.format);
         }
     }
@@ -181,17 +178,39 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     protected final SearchExecutionContext createMockSearchExecutionContext(IndexSearcher searcher) {
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index,
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
+            index,
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+        );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup =
-            (fieldType, fieldIndexName, searchLookup) -> {
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup = (
+            fieldType,
+            fieldIndexName,
+            searchLookup) -> {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        return new SearchExecutionContext(0, 0, idxSettings, bitsetFilterCache, indexFieldDataLookup,
-                null, null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, searcher,
-                () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap()) {
+        return new SearchExecutionContext(
+            0,
+            0,
+            idxSettings,
+            bitsetFilterCache,
+            indexFieldDataLookup,
+            null,
+            null,
+            null,
+            scriptService,
+            xContentRegistry(),
+            namedWriteableRegistry,
+            null,
+            searcher,
+            () -> randomNonNegativeLong(),
+            null,
+            null,
+            () -> true,
+            null,
+            emptyMap()
+        ) {
 
             @Override
             public MappedFieldType getFieldType(String name) {
@@ -210,8 +229,10 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
      * Tests that require other field types can override this.
      */
     protected MappedFieldType provideMappedFieldType(String name) {
-        NumberFieldMapper.NumberFieldType doubleFieldType
-            = new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.DOUBLE);
+        NumberFieldMapper.NumberFieldType doubleFieldType = new NumberFieldMapper.NumberFieldType(
+            name,
+            NumberFieldMapper.NumberType.DOUBLE
+        );
         return doubleFieldType;
     }
 
@@ -222,13 +243,15 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     protected static QueryBuilder randomNestedFilter() {
         int id = randomIntBetween(0, 2);
-        switch(id) {
-            case 0: return (new MatchAllQueryBuilder()).boost(randomFloat());
-            case 1: return (new IdsQueryBuilder()).boost(randomFloat());
-            case 2: return (new TermQueryBuilder(
-                    randomAlphaOfLengthBetween(1, 10),
-                    randomDouble()).boost(randomFloat()));
-            default: throw new IllegalStateException("Only three query builders supported for testing sort");
+        switch (id) {
+            case 0:
+                return (new MatchAllQueryBuilder()).boost(randomFloat());
+            case 1:
+                return (new IdsQueryBuilder()).boost(randomFloat());
+            case 2:
+                return (new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomDouble()).boost(randomFloat()));
+            default:
+                throw new IllegalStateException("Only three query builders supported for testing sort");
         }
     }
 
@@ -236,7 +259,10 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     private T copy(T original) throws IOException {
         /* The cast below is required to make Java 9 happy. Java 8 infers the T in copyWriterable to be the same as AbstractSortTestCase's
          * T but Java 9 infers it to be SortBuilder. */
-        return (T) copyWriteable(original, namedWriteableRegistry,
-                namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()));
+        return (T) copyWriteable(
+            original,
+            namedWriteableRegistry,
+            namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName())
+        );
     }
 }

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 
 [[unsigned-long]]
 === Unsigned long field type

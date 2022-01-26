@@ -28,10 +28,6 @@ public class S3SnapshotBasedRecoveryIT extends AbstractSnapshotBasedRecoveryRest
         final String basePath = System.getProperty("test.s3.base_path");
         assertThat(basePath, not(blankOrNullString()));
 
-        return Settings.builder()
-            .put("client", "snapshot_based_recoveries")
-            .put("bucket", bucket)
-            .put("base_path", basePath)
-            .build();
+        return Settings.builder().put("client", "snapshot_based_recoveries").put("bucket", bucket).put("base_path", basePath).build();
     }
 }

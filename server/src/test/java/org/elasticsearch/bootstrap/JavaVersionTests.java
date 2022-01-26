@@ -106,14 +106,14 @@ public class JavaVersionTests extends ESTestCase {
     }
 
     public void testValidVersions() {
-        String[] versions = new String[]{"1.7", "1.7.0", "0.1.7", "1.7.0.80", "12-ea", "13.0.2.3-ea", "14-something", "11.0.2-21002"};
+        String[] versions = new String[] { "1.7", "1.7.0", "0.1.7", "1.7.0.80", "12-ea", "13.0.2.3-ea", "14-something", "11.0.2-21002" };
         for (String version : versions) {
             assertTrue(JavaVersion.isValid(version));
         }
     }
 
     public void testInvalidVersions() {
-        String[] versions = new String[]{"", "1.7.0_80", "1.7.", "11.2-something-else"};
+        String[] versions = new String[] { "", "1.7.0_80", "1.7.", "11.2-something-else" };
         for (String version : versions) {
             assertFalse(JavaVersion.isValid(version));
         }

@@ -19,8 +19,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -103,8 +103,11 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            GeoIpDownloaderStats stats =
-                getNodes().stream().map(n -> n.stats).filter(Objects::nonNull).findFirst().orElse(GeoIpDownloaderStats.EMPTY);
+            GeoIpDownloaderStats stats = getNodes().stream()
+                .map(n -> n.stats)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(GeoIpDownloaderStats.EMPTY);
             builder.startObject();
             builder.field("stats", stats);
             builder.startObject("nodes");

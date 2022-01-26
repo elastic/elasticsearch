@@ -58,13 +58,13 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
             throw new RuntimeException(e);
         }
 
-        SecuritySettingsSource.addSecureSettings(settingsBuilder, secureSettings -> {
-            secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode-no-subjaltname");
-        });
+        SecuritySettingsSource.addSecureSettings(
+            settingsBuilder,
+            secureSettings -> { secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode-no-subjaltname"); }
+        );
         return settingsBuilder.put("xpack.security.transport.ssl.key", keyPath.toAbsolutePath())
             .put("xpack.security.transport.ssl.certificate", certPath.toAbsolutePath())
-            .putList("xpack.security.transport.ssl.certificate_authorities",
-                     Arrays.asList(certPath.toString(), nodeCertPath.toString()))
+            .putList("xpack.security.transport.ssl.certificate_authorities", Arrays.asList(certPath.toString(), nodeCertPath.toString()))
             // disable hostname verification as this test uses certs without a valid SAN or DNS in the CN
             .put("xpack.security.transport.ssl.verification_mode", "certificate")
             .build();
@@ -106,9 +106,10 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
         TransportAddress transportAddress = transport.boundAddress().publishAddress();
         InetSocketAddress inetSocketAddress = transportAddress.address();
 
-        Settings settings = Settings.builder().put(transportClientSettings())
-                .put("xpack.security.transport.ssl.verification_mode", "full")
-                .build();
+        Settings settings = Settings.builder()
+            .put(transportClientSettings())
+            .put("xpack.security.transport.ssl.verification_mode", "full")
+            .build();
 
         try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {
             client.addTransportAddress(new TransportAddress(inetSocketAddress.getAddress(), inetSocketAddress.getPort()));

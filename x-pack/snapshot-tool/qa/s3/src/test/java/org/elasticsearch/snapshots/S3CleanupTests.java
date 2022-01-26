@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.amazonaws.services.s3.internal.Constants;
 import joptsimple.OptionSet;
+
+import com.amazonaws.services.s3.internal.Constants;
+
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -16,9 +18,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 
-import java.util.HashMap;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -41,14 +43,16 @@ public class S3CleanupTests extends AbstractCleanupTests {
     @Override
     protected void createRepository(String repoName) {
         Settings.Builder settings = Settings.builder()
-                .put("bucket", getBucket())
-                .put("base_path", getBasePath())
-                .put("endpoint", getEndpoint());
+            .put("bucket", getBucket())
+            .put("base_path", getBasePath())
+            .put("endpoint", getEndpoint());
 
-        AcknowledgedResponse putRepositoryResponse = client().admin().cluster()
-                .preparePutRepository(repoName)
-                .setType("s3")
-                .setSettings(settings).get();
+        AcknowledgedResponse putRepositoryResponse = client().admin()
+            .cluster()
+            .preparePutRepository(repoName)
+            .setType("s3")
+            .setSettings(settings)
+            .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 
@@ -79,15 +83,25 @@ public class S3CleanupTests extends AbstractCleanupTests {
     @Override
     protected ThrowingRunnable commandRunnable(MockTerminal terminal, Map<String, String> nonDefaultArguments) {
         final CleanupS3RepositoryCommand command = new CleanupS3RepositoryCommand();
-        final OptionSet options = command.getParser().parse(
-                "--safety_gap_millis", nonDefaultArguments.getOrDefault("safety_gap_millis", "0"),
-                "--parallelism", nonDefaultArguments.getOrDefault("parallelism", "10"),
-                "--endpoint", nonDefaultArguments.getOrDefault("endpoint", getEndpoint()),
-                "--region", nonDefaultArguments.getOrDefault("region", getRegion()),
-                "--bucket", nonDefaultArguments.getOrDefault("bucket", getBucket()),
-                "--base_path", nonDefaultArguments.getOrDefault("base_path", getBasePath()),
-                "--access_key", nonDefaultArguments.getOrDefault("access_key", getAccessKey()),
-                "--secret_key", nonDefaultArguments.getOrDefault("secret_key", getSecretKey()));
+        final OptionSet options = command.getParser()
+            .parse(
+                "--safety_gap_millis",
+                nonDefaultArguments.getOrDefault("safety_gap_millis", "0"),
+                "--parallelism",
+                nonDefaultArguments.getOrDefault("parallelism", "10"),
+                "--endpoint",
+                nonDefaultArguments.getOrDefault("endpoint", getEndpoint()),
+                "--region",
+                nonDefaultArguments.getOrDefault("region", getRegion()),
+                "--bucket",
+                nonDefaultArguments.getOrDefault("bucket", getBucket()),
+                "--base_path",
+                nonDefaultArguments.getOrDefault("base_path", getBasePath()),
+                "--access_key",
+                nonDefaultArguments.getOrDefault("access_key", getAccessKey()),
+                "--secret_key",
+                nonDefaultArguments.getOrDefault("secret_key", getSecretKey())
+            );
         return () -> command.execute(terminal, options);
     }
 
@@ -96,9 +110,7 @@ public class S3CleanupTests extends AbstractCleanupTests {
         args.put("region", "");
         args.put("endpoint", "");
 
-        expectThrows(() ->
-                        executeCommand(false, args),
-                "region or endpoint option is required for cleaning up S3 repository");
+        expectThrows(() -> executeCommand(false, args), "region or endpoint option is required for cleaning up S3 repository");
     }
 
     public void testRegionAndEndpointSpecified() {
@@ -106,20 +118,20 @@ public class S3CleanupTests extends AbstractCleanupTests {
         args.put("region", "test_region");
         args.put("endpoint", "test_endpoint");
 
-        expectThrows(() ->
-                        executeCommand(false, args),
-                "you must not specify both region and endpoint");
+        expectThrows(() -> executeCommand(false, args), "you must not specify both region and endpoint");
     }
 
     public void testNoAccessKey() {
-        expectThrows(() ->
-                        executeCommand(false, Collections.singletonMap("access_key", "")),
-                "access_key option is required for cleaning up S3 repository");
+        expectThrows(
+            () -> executeCommand(false, Collections.singletonMap("access_key", "")),
+            "access_key option is required for cleaning up S3 repository"
+        );
     }
 
     public void testNoSecretKey() {
-        expectThrows(() ->
-                        executeCommand(false, Collections.singletonMap("secret_key", "")),
-                "secret_key option is required for cleaning up S3 repository");
+        expectThrows(
+            () -> executeCommand(false, Collections.singletonMap("secret_key", "")),
+            "secret_key option is required for cleaning up S3 repository"
+        );
     }
 }

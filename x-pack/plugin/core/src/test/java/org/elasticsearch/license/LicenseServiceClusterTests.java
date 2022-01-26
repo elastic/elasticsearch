@@ -8,8 +8,8 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.core.Set;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
@@ -89,7 +89,6 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         assertTrue(License.LicenseType.isBasic(licensingClient.prepareGetLicense().get().license().type()));
         assertOperationMode(License.OperationMode.BASIC);
 
-
         wipeAllLicenses();
     }
 
@@ -103,8 +102,12 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
 
         logger.info("--> put signed license");
         LicensingClient licensingClient = new LicensingClient(client());
-        License license = TestUtils.generateSignedLicense("cloud_internal", License.VERSION_CURRENT, System.currentTimeMillis(),
-                TimeValue.timeValueMinutes(1));
+        License license = TestUtils.generateSignedLicense(
+            "cloud_internal",
+            License.VERSION_CURRENT,
+            System.currentTimeMillis(),
+            TimeValue.timeValueMinutes(1)
+        );
         putLicense(license);
         assertThat(licensingClient.prepareGetLicense().get().license(), equalTo(license));
         assertOperationMode(License.OperationMode.PLATINUM);
@@ -155,7 +158,7 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         logger.info("--> await node for enabled");
         assertLicenseActive(true);
         licensingClient = new LicensingClient(client());
-        assertThat(licensingClient.prepareGetLicense().get().license().version(), equalTo(License.VERSION_CURRENT)); //license updated
+        assertThat(licensingClient.prepareGetLicense().get().license().version(), equalTo(License.VERSION_CURRENT)); // license updated
         internalCluster().fullRestart(); // restart once more and verify updated license is active
         ensureYellow();
         logger.info("--> await node for enabled");

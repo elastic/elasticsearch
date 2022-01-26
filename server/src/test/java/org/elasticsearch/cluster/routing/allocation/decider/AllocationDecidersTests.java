@@ -80,15 +80,17 @@ public class AllocationDecidersTests extends ESTestCase {
         }));
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
-        final RoutingAllocation allocation = new RoutingAllocation(deciders,
-            clusterState.getRoutingNodes(), clusterState, null, null,0L);
+        final RoutingAllocation allocation = new RoutingAllocation(deciders, clusterState.getRoutingNodes(), clusterState, null, null, 0L);
 
         allocation.setDebugMode(mode);
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message");
-        final ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId("test", "testUUID", 0), true,
-            RecoverySource.ExistingStoreRecoverySource.INSTANCE, unassignedInfo);
-        IndexMetadata idx =
-            IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
+        final ShardRouting shardRouting = ShardRouting.newUnassigned(
+            new ShardId("test", "testUUID", 0),
+            true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            unassignedInfo
+        );
+        IndexMetadata idx = IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
 
         RoutingNode routingNode = new RoutingNode("testNode", null);
         verify(deciders.canAllocate(shardRouting, routingNode, allocation), matcher);
@@ -111,107 +113,119 @@ public class AllocationDecidersTests extends ESTestCase {
     public void testEarlyTermination() {
         final Decision decisionOne = randomFrom(Decision.NO, Decision.single(Decision.Type.NO, "label1", "explanation"));
         final Decision decisionTwo = randomFrom(Decision.NO, Decision.single(Decision.Type.NO, "label2", "explanation"));
-        final AllocationDeciders allocationDeciders = new AllocationDeciders(Arrays.asList(
-                new AllocationDecider() {
-                    @Override
-                    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                        return decisionOne;
-                    }
+        final AllocationDeciders allocationDeciders = new AllocationDeciders(Arrays.asList(new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return decisionOne;
+            }
 
-                    @Override
-                    public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-                        return decisionOne;
-                    }
+            @Override
+            public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+                return decisionOne;
+            }
 
-                    @Override
-                    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                        return decisionOne;
-                    }
+            @Override
+            public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return decisionOne;
+            }
 
-                    @Override
-                    public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-                        return decisionOne;
-                    }
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
+                return decisionOne;
+            }
 
-                    @Override
-                    public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
-                        return decisionOne;
-                    }
+            @Override
+            public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
+                return decisionOne;
+            }
 
-                    @Override
-                    public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-                        return decisionOne;
-                    }
+            @Override
+            public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
+                return decisionOne;
+            }
 
-                    @Override
-                    public Decision canRebalance(RoutingAllocation allocation) {
-                        return decisionOne;
-                    }
+            @Override
+            public Decision canRebalance(RoutingAllocation allocation) {
+                return decisionOne;
+            }
 
-                    @Override
-                    public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                        return decisionOne;
-                    }
-                }, new AllocationDecider() {
+            @Override
+            public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return decisionOne;
+            }
+        }, new AllocationDecider() {
 
-                    @Override
-                    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                        return decision(allocation);
-                    }
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return decision(allocation);
+            }
 
-                    @Override
-                    public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-                        return decision(allocation);
-                    }
+            @Override
+            public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+                return decision(allocation);
+            }
 
-                    @Override
-                    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                        return decision(allocation);
-                    }
+            @Override
+            public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return decision(allocation);
+            }
 
-                    @Override
-                    public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-                        return decision(allocation);
-                    }
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
+                return decision(allocation);
+            }
 
-                    @Override
-                    public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
-                        return decision(allocation);
-                    }
+            @Override
+            public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
+                return decision(allocation);
+            }
 
-                    @Override
-                    public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-                        return decision(allocation);
-                    }
+            @Override
+            public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
+                return decision(allocation);
+            }
 
-                    @Override
-                    public Decision canRebalance(RoutingAllocation allocation) {
-                        return decision(allocation);
-                    }
+            @Override
+            public Decision canRebalance(RoutingAllocation allocation) {
+                return decision(allocation);
+            }
 
-                    @Override
-                    public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                        return decision(allocation);
-                    }
+            @Override
+            public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return decision(allocation);
+            }
 
-                    private Decision decision(RoutingAllocation allocation) {
-                        if (allocation.debugDecision() == false) {
-                            throw new AssertionError("Should not be called");
-                        }
-                        return decisionTwo;
-                    }
-                }));
+            private Decision decision(RoutingAllocation allocation) {
+                if (allocation.debugDecision() == false) {
+                    throw new AssertionError("Should not be called");
+                }
+                return decisionTwo;
+            }
+        }));
 
         // no debug should just short-circuit to no, no matter what kind of no type return the first decider returns
-        final ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId("test", "testUUID", 0), true,
-                RecoverySource.ExistingStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message"));
+        final ShardRouting shardRouting = ShardRouting.newUnassigned(
+            new ShardId("test", "testUUID", 0),
+            true,
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message")
+        );
         final RoutingNode routingNode = new RoutingNode("testNode", null);
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
-        final IndexMetadata indexMetadata =
-                IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
+        final IndexMetadata indexMetadata = IndexMetadata.builder("idx")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
 
-        final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders,
-                clusterState.getRoutingNodes(), clusterState, null, null,0L);
+        final RoutingAllocation allocation = new RoutingAllocation(
+            allocationDeciders,
+            clusterState.getRoutingNodes(),
+            clusterState,
+            null,
+            null,
+            0L
+        );
         assertSame(Decision.NO, allocationDeciders.canAllocate(shardRouting, routingNode, allocation));
         assertSame(Decision.NO, allocationDeciders.canRebalance(shardRouting, allocation));
         assertSame(Decision.NO, allocationDeciders.canRemain(shardRouting, routingNode, allocation));

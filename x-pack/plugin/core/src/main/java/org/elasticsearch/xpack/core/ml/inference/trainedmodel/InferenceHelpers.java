@@ -25,58 +25,62 @@ import java.util.stream.IntStream;
 
 public final class InferenceHelpers {
 
-    private InferenceHelpers() { }
+    private InferenceHelpers() {}
 
     /**
      * @return Tuple of the highest scored index and the top classes
      */
-    public static Tuple<TopClassificationValue, List<TopClassEntry>> topClasses(double[] probabilities,
-                                                                                List<String> classificationLabels,
-                                                                                @Nullable double[] classificationWeights,
-                                                                                int numToInclude,
-                                                                                PredictionFieldType predictionFieldType) {
+    public static Tuple<TopClassificationValue, List<TopClassEntry>> topClasses(
+        double[] probabilities,
+        List<String> classificationLabels,
+        @Nullable double[] classificationWeights,
+        int numToInclude,
+        PredictionFieldType predictionFieldType
+    ) {
 
         if (classificationLabels != null && probabilities.length != classificationLabels.size()) {
-            throw ExceptionsHelper
-                .serverError(
-                    "model returned classification probabilities of size [{}] which is not equal to classification labels size [{}]",
-                    null,
-                    probabilities.length,
-                    classificationLabels.size());
+            throw ExceptionsHelper.serverError(
+                "model returned classification probabilities of size [{}] which is not equal to classification labels size [{}]",
+                null,
+                probabilities.length,
+                classificationLabels.size()
+            );
         }
 
-        double[] scores = classificationWeights == null ?
-            probabilities :
-            IntStream.range(0, probabilities.length)
-                .mapToDouble(i -> probabilities[i] * classificationWeights[i])
-                .toArray();
+        double[] scores = classificationWeights == null
+            ? probabilities
+            : IntStream.range(0, probabilities.length).mapToDouble(i -> probabilities[i] * classificationWeights[i]).toArray();
 
         int[] sortedIndices = IntStream.range(0, scores.length)
             .boxed()
-            .sorted(Comparator.comparing(i -> scores[(Integer)i]).reversed())
+            .sorted(Comparator.comparing(i -> scores[(Integer) i]).reversed())
             .mapToInt(i -> i)
             .toArray();
 
-        final TopClassificationValue topClassificationValue = new TopClassificationValue(sortedIndices[0],
+        final TopClassificationValue topClassificationValue = new TopClassificationValue(
+            sortedIndices[0],
             probabilities[sortedIndices[0]],
-            scores[sortedIndices[0]]);
+            scores[sortedIndices[0]]
+        );
         if (numToInclude == 0) {
             return Tuple.tuple(topClassificationValue, Collections.emptyList());
         }
 
         List<String> labels = classificationLabels == null ?
-            // If we don't have the labels we should return the top classification values anyways, they will just be numeric
-            IntStream.range(0, probabilities.length).boxed().map(String::valueOf).collect(Collectors.toList()) :
-            classificationLabels;
+        // If we don't have the labels we should return the top classification values anyways, they will just be numeric
+            IntStream.range(0, probabilities.length).boxed().map(String::valueOf).collect(Collectors.toList()) : classificationLabels;
 
         int count = numToInclude < 0 ? probabilities.length : Math.min(numToInclude, probabilities.length);
         List<TopClassEntry> topClassEntries = new ArrayList<>(count);
-        for(int i = 0; i < count; i++) {
+        for (int i = 0; i < count; i++) {
             int idx = sortedIndices[i];
-            topClassEntries.add(new TopClassEntry(
-                predictionFieldType.transformPredictedValue((double)idx, labels.get(idx)),
-                probabilities[idx],
-                scores[idx]));
+            topClassEntries.add(
+                new TopClassEntry(
+                    predictionFieldType.transformPredictedValue((double) idx, labels.get(idx)),
+                    probabilities[idx],
+                    scores[idx]
+                )
+            );
         }
 
         return Tuple.tuple(topClassificationValue, topClassEntries);
@@ -91,14 +95,15 @@ public final class InferenceHelpers {
                 "model returned classification value of [{}] which is not a valid index in classification labels [{}]",
                 null,
                 inferenceValue,
-                classificationLabels);
+                classificationLabels
+            );
         }
         return classificationLabels.get(inferenceValue);
     }
 
     public static Double toDouble(Object value) {
         if (value instanceof Number) {
-            return ((Number)value).doubleValue();
+            return ((Number) value).doubleValue();
         }
         if (value instanceof String) {
             return stringToDouble((String) value);
@@ -118,8 +123,10 @@ public final class InferenceHelpers {
         }
     }
 
-    public static Map<String, double[]> decodeFeatureImportances(Map<String, String> processedFeatureToOriginalFeatureMap,
-                                                                 Map<String, double[]> featureImportances) {
+    public static Map<String, double[]> decodeFeatureImportances(
+        Map<String, String> processedFeatureToOriginalFeatureMap,
+        Map<String, double[]> featureImportances
+    ) {
         if (processedFeatureToOriginalFeatureMap == null || processedFeatureToOriginalFeatureMap.isEmpty()) {
             return featureImportances;
         }
@@ -139,9 +146,10 @@ public final class InferenceHelpers {
     }
 
     public static List<ClassificationFeatureImportance> transformFeatureImportanceClassification(
-            Map<String, double[]> featureImportance,
-            @Nullable List<String> classificationLabels,
-            @Nullable PredictionFieldType predictionFieldType) {
+        Map<String, double[]> featureImportance,
+        @Nullable List<String> classificationLabels,
+        @Nullable PredictionFieldType predictionFieldType
+    ) {
         List<ClassificationFeatureImportance> importances = new ArrayList<>(featureImportance.size());
         final PredictionFieldType fieldType = predictionFieldType == null ? PredictionFieldType.STRING : predictionFieldType;
         featureImportance.forEach((k, v) -> {
@@ -154,24 +162,24 @@ public final class InferenceHelpers {
                 // These leaves indicate which direction the feature pulls the value
                 // The original importance is an indication of how it pushes or pulls the value towards or from `1`
                 // To get the importance for the `0` class, we simply invert it.
-                importances.add(new ClassificationFeatureImportance(k,
-                    Arrays.asList(
-                        new ClassificationFeatureImportance.ClassImportance(
-                            fieldType.transformPredictedValue(0.0, zeroLabel),
-                            -v[0]),
-                        new ClassificationFeatureImportance.ClassImportance(
-                            fieldType.transformPredictedValue(1.0, oneLabel),
-                            v[0])
-                    )));
+                importances.add(
+                    new ClassificationFeatureImportance(
+                        k,
+                        Arrays.asList(
+                            new ClassificationFeatureImportance.ClassImportance(fieldType.transformPredictedValue(0.0, zeroLabel), -v[0]),
+                            new ClassificationFeatureImportance.ClassImportance(fieldType.transformPredictedValue(1.0, oneLabel), v[0])
+                        )
+                    )
+                );
             } else {
                 List<ClassificationFeatureImportance.ClassImportance> classImportance = new ArrayList<>(v.length);
                 // If the classificationLabels exist, their length must match leaf_value length
                 assert classificationLabels == null || classificationLabels.size() == v.length;
                 for (int i = 0; i < v.length; i++) {
                     String label = classificationLabels == null ? null : classificationLabels.get(i);
-                    classImportance.add(new ClassificationFeatureImportance.ClassImportance(
-                        fieldType.transformPredictedValue((double)i, label),
-                        v[i]));
+                    classImportance.add(
+                        new ClassificationFeatureImportance.ClassImportance(fieldType.transformPredictedValue((double) i, label), v[i])
+                    );
                 }
                 importances.add(new ClassificationFeatureImportance(k, classImportance));
             }
@@ -180,11 +188,27 @@ public final class InferenceHelpers {
     }
 
     public static double[] sumDoubleArrays(double[] sumTo, double[] inc) {
+        return sumDoubleArrays(sumTo, inc, 1);
+    }
+
+    public static double[] sumDoubleArrays(double[] sumTo, double[] inc, int weight) {
         assert sumTo != null && inc != null && sumTo.length == inc.length;
         for (int i = 0; i < inc.length; i++) {
-            sumTo[i] += inc[i];
+            sumTo[i] += (inc[i] * weight);
         }
         return sumTo;
+    }
+
+    public static void divMut(double[] xs, int v) {
+        if (xs.length == 0) {
+            return;
+        }
+        if (v == 0) {
+            throw new IllegalArgumentException("unable to divide by [" + v + "] as it results in undefined behavior");
+        }
+        for (int i = 0; i < xs.length; i++) {
+            xs[i] /= v;
+        }
     }
 
     public static class TopClassificationValue {

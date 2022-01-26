@@ -58,10 +58,10 @@ public class EqlFeatureSet implements XPackFeatureSet {
         request.includeStats(true);
         client.execute(EqlStatsAction.INSTANCE, request, ActionListener.wrap(r -> {
             List<Counters> countersPerNode = r.getNodes()
-                    .stream()
-                    .map(EqlStatsResponse.NodeStatsResponse::getStats)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+                .stream()
+                .map(EqlStatsResponse.NodeStatsResponse::getStats)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
             Counters mergedCounters = Counters.merge(countersPerNode);
             listener.onResponse(new EqlFeatureSetUsage(mergedCounters.toNestedMap()));
         }, listener::onFailure));

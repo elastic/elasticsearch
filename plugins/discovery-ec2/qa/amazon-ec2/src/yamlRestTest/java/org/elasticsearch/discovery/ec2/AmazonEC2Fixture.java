@@ -8,6 +8,7 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.util.DateUtils;
+
 import org.apache.http.NameValuePair;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -18,9 +19,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
 
-import javax.xml.XMLConstants;
-import javax.xml.stream.XMLOutputFactory;
-import javax.xml.stream.XMLStreamWriter;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.file.Files;
@@ -32,6 +30,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+
+import javax.xml.XMLConstants;
+import javax.xml.stream.XMLOutputFactory;
+import javax.xml.stream.XMLStreamWriter;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -89,32 +91,41 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
             return new Response(RestStatus.OK.getStatus(), TEXT_PLAIN_CONTENT_TYPE, "127.0.0.1".getBytes(UTF_8));
         }
 
-        if (instanceProfile &&
-            "/latest/meta-data/iam/security-credentials/".equals(request.getPath()) &&
-            HttpGet.METHOD_NAME.equals(request.getMethod())) {
+        if (instanceProfile
+            && "/latest/meta-data/iam/security-credentials/".equals(request.getPath())
+            && HttpGet.METHOD_NAME.equals(request.getMethod())) {
             final Map<String, String> headers = new HashMap<>(contentType("text/plain"));
             return new Response(RestStatus.OK.getStatus(), headers, "my_iam_profile".getBytes(UTF_8));
         }
 
-        if (instanceProfile && "/latest/api/token".equals(request.getPath())
-            && HttpPut.METHOD_NAME.equals(request.getMethod())) {
+        if (instanceProfile && "/latest/api/token".equals(request.getPath()) && HttpPut.METHOD_NAME.equals(request.getMethod())) {
             // TODO: Implement IMDSv2 behavior here. For now this just returns a 403 which makes the SDK fall back to IMDSv1
-            //       which is implemented in this fixture
+            // which is implemented in this fixture
             return new Response(RestStatus.FORBIDDEN.getStatus(), TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
         }
 
-        if ((containerCredentials &&
-            "/ecs_credentials_endpoint".equals(request.getPath()) &&
-            HttpGet.METHOD_NAME.equals(request.getMethod())) ||
-            ("/latest/meta-data/iam/security-credentials/my_iam_profile".equals(request.getPath()) &&
-            HttpGet.METHOD_NAME.equals(request.getMethod()))) {
+        if ((containerCredentials
+            && "/ecs_credentials_endpoint".equals(request.getPath())
+            && HttpGet.METHOD_NAME.equals(request.getMethod()))
+            || ("/latest/meta-data/iam/security-credentials/my_iam_profile".equals(request.getPath())
+                && HttpGet.METHOD_NAME.equals(request.getMethod()))) {
             final Date expiration = new Date(new Date().getTime() + TimeUnit.DAYS.toMillis(1));
             final String response = "{"
-                + "\"AccessKeyId\": \"" + "ec2_integration_test_access_key" + "\","
-                + "\"Expiration\": \"" + DateUtils.formatISO8601Date(expiration) + "\","
-                + "\"RoleArn\": \"" + "test" + "\","
-                + "\"SecretAccessKey\": \"" + "ec2_integration_test_secret_key" + "\","
-                + "\"Token\": \"" + "test" + "\""
+                + "\"AccessKeyId\": \""
+                + "ec2_integration_test_access_key"
+                + "\","
+                + "\"Expiration\": \""
+                + DateUtils.formatISO8601Date(expiration)
+                + "\","
+                + "\"RoleArn\": \""
+                + "test"
+                + "\","
+                + "\"SecretAccessKey\": \""
+                + "ec2_integration_test_secret_key"
+                + "\","
+                + "\"Token\": \""
+                + "test"
+                + "\""
                 + "}";
 
             final Map<String, String> headers = new HashMap<>(contentType("application/json"));

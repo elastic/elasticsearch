@@ -9,10 +9,10 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -73,8 +73,8 @@ public class GetAliasesResponseTests extends AbstractXContentTestCase<GetAliases
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return p -> p.equals("") // do not add elements at the top-level as any element at this level is parsed as a new index
-                || p.endsWith(".aliases") // do not add new alias
-                || p.contains(".filter"); // do not insert random data into AliasMetadata#filter
+            || p.endsWith(".aliases") // do not add new alias
+            || p.contains(".filter"); // do not insert random data into AliasMetadata#filter
     }
 
     @Override
@@ -92,44 +92,41 @@ public class GetAliasesResponseTests extends AbstractXContentTestCase<GetAliases
     }
 
     public void testFromXContentWithElasticsearchException() throws IOException {
-        String xContent =
-                "{" +
-                "  \"error\": {" +
-                "    \"root_cause\": [" +
-                "      {" +
-                "        \"type\": \"index_not_found_exception\"," +
-                "        \"reason\": \"no such index [index]\"," +
-                "        \"resource.type\": \"index_or_alias\"," +
-                "        \"resource.id\": \"index\"," +
-                "        \"index_uuid\": \"_na_\"," +
-                "        \"index\": \"index\"" +
-                "      }" +
-                "    ]," +
-                "    \"type\": \"index_not_found_exception\"," +
-                "    \"reason\": \"no such index [index]\"," +
-                "    \"resource.type\": \"index_or_alias\"," +
-                "    \"resource.id\": \"index\"," +
-                "    \"index_uuid\": \"_na_\"," +
-                "    \"index\": \"index\"" +
-                "  }," +
-                "  \"status\": 404" +
-                "}";
+        String xContent = "{"
+            + "  \"error\": {"
+            + "    \"root_cause\": ["
+            + "      {"
+            + "        \"type\": \"index_not_found_exception\","
+            + "        \"reason\": \"no such index [index]\","
+            + "        \"resource.type\": \"index_or_alias\","
+            + "        \"resource.id\": \"index\","
+            + "        \"index_uuid\": \"_na_\","
+            + "        \"index\": \"index\""
+            + "      }"
+            + "    ],"
+            + "    \"type\": \"index_not_found_exception\","
+            + "    \"reason\": \"no such index [index]\","
+            + "    \"resource.type\": \"index_or_alias\","
+            + "    \"resource.id\": \"index\","
+            + "    \"index_uuid\": \"_na_\","
+            + "    \"index\": \"index\""
+            + "  },"
+            + "  \"status\": 404"
+            + "}";
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
             GetAliasesResponse getAliasesResponse = GetAliasesResponse.fromXContent(parser);
             assertThat(getAliasesResponse.getError(), nullValue());
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
-            assertThat(getAliasesResponse.getException().getMessage(),
-                    equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]"));
+            assertThat(
+                getAliasesResponse.getException().getMessage(),
+                equalTo("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]")
+            );
         }
     }
 
     public void testFromXContentWithNoAliasFound() throws IOException {
-        String xContent =
-                "{" +
-                        "  \"error\": \"alias [aa] missing\"," +
-                        "  \"status\": 404" +
-                        "}";
+        String xContent = "{" + "  \"error\": \"alias [aa] missing\"," + "  \"status\": 404" + "}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
             GetAliasesResponse getAliasesResponse = GetAliasesResponse.fromXContent(parser);
             assertThat(getAliasesResponse.status(), equalTo(RestStatus.NOT_FOUND));
@@ -139,16 +136,15 @@ public class GetAliasesResponseTests extends AbstractXContentTestCase<GetAliases
     }
 
     public void testFromXContentWithMissingAndFoundAlias() throws IOException {
-        String xContent =
-                "{" +
-                        "  \"error\": \"alias [something] missing\"," +
-                        "  \"status\": 404," +
-                        "  \"index\": {" +
-                        "    \"aliases\": {" +
-                        "      \"alias\": {}" +
-                        "    }" +
-                        "  }" +
-                        "}";
+        String xContent = "{"
+            + "  \"error\": \"alias [something] missing\","
+            + "  \"status\": 404,"
+            + "  \"index\": {"
+            + "    \"aliases\": {"
+            + "      \"alias\": {}"
+            + "    }"
+            + "  }"
+            + "}";
         final String index = "index";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
             GetAliasesResponse response = GetAliasesResponse.fromXContent(parser);

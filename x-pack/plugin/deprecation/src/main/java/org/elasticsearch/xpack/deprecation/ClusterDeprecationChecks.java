@@ -11,32 +11,38 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -49,32 +55,35 @@ import static org.elasticsearch.xpack.deprecation.NodeDeprecationChecks.checkRem
 public class ClusterDeprecationChecks {
     private static final Logger logger = LogManager.getLogger(ClusterDeprecationChecks.class);
 
+    private static final String SPARSE_VECTOR = "sparse_vector";
+
     @SuppressWarnings("unchecked")
     static DeprecationIssue checkUserAgentPipelines(ClusterState state) {
         List<PipelineConfiguration> pipelines = IngestService.getPipelines(state);
 
-        List<String> pipelinesWithDeprecatedEcsConfig = pipelines.stream()
-            .filter(Objects::nonNull)
-            .filter(pipeline -> {
-                Map<String, Object> pipelineConfig = pipeline.getConfigAsMap();
+        List<String> pipelinesWithDeprecatedEcsConfig = pipelines.stream().filter(Objects::nonNull).filter(pipeline -> {
+            Map<String, Object> pipelineConfig = pipeline.getConfigAsMap();
 
-                List<Map<String, Map<String, Object>>> processors =
-                    (List<Map<String, Map<String, Object>>>) pipelineConfig.get("processors");
-                return processors.stream()
-                    .filter(Objects::nonNull)
-                    .filter(processor -> processor.containsKey("user_agent"))
-                    .map(processor -> processor.get("user_agent"))
-                    .anyMatch(processorConfig -> processorConfig.containsKey("ecs"));
-            })
+            List<Map<String, Map<String, Object>>> processors = (List<Map<String, Map<String, Object>>>) pipelineConfig.get("processors");
+            return processors.stream()
+                .filter(Objects::nonNull)
+                .filter(processor -> processor.containsKey("user_agent"))
+                .map(processor -> processor.get("user_agent"))
+                .anyMatch(processorConfig -> processorConfig.containsKey("ecs"));
+        })
             .map(PipelineConfiguration::getId)
             .sorted() // Make the warning consistent for testing purposes
             .collect(Collectors.toList());
         if (pipelinesWithDeprecatedEcsConfig.isEmpty() == false) {
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "User-Agent ingest plugin will always use ECS-formatted output",
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "The User-Agent ingest processor's ecs parameter is deprecated",
                 "https://ela.st/es-deprecation-7-ingest-pipeline-ecs-option",
-                "Ingest pipelines " + pipelinesWithDeprecatedEcsConfig +
-                    " uses the [ecs] option which needs to be removed to work in 8.0", false, null);
+                "Remove the ecs parameter from your ingest pipelines. The User-Agent ingest processor always returns Elastic Common "
+                    + "Schema (ECS) fields in 8.0.",
+                false,
+                null
+            );
         }
         return null;
     }
@@ -98,13 +107,407 @@ public class ClusterDeprecationChecks {
         });
 
         if (templatesOverLimit.isEmpty() == false) {
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
                 "Fields in index template exceed automatic field expansion limit",
                 "https://ela.st/es-deprecation-7-number-of-auto-expanded-fields",
-                "Index templates " + templatesOverLimit + " have a number of fields which exceeds the automatic field expansion " +
-                    "limit of [" + maxClauseCount + "] and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING.getKey() + "] set, " +
-                    "which may cause queries which use automatic field expansion, such as query_string, simple_query_string, and " +
-                    "multi_match to fail if fields are not explicitly specified in the query.", false, null);
+                "Index templates "
+                    + templatesOverLimit
+                    + " have a number of fields which exceeds the automatic field expansion "
+                    + "limit of ["
+                    + maxClauseCount
+                    + "] and does not have ["
+                    + IndexSettings.DEFAULT_FIELD_SETTING.getKey()
+                    + "] set, "
+                    + "which may cause queries which use automatic field expansion, such as query_string, simple_query_string, and "
+                    + "multi_match to fail if fields are not explicitly specified in the query.",
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Check templates that use `fields` within `fields` blocks
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkTemplatesWithChainedMultiFields(ClusterState state) {
+        Map<String, List<String>> templatesContainingChainedMultiFields = new HashMap<>();
+        state.getMetadata().getTemplates().forEach((templateCursor) -> {
+            String templateName = templateCursor.key;
+            templateCursor.value.getMappings().forEach((mappingCursor) -> {
+                String type = mappingCursor.key;
+                // There should be the type name at this level, but there was a bug where mappings could be stored without a type (#45120)
+                // to make sure, we try to detect this like we try to do in MappingMetadata#sourceAsMap()
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappingCursor.value.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey(type)) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get(type);
+                }
+                List<String> mappingIssues = IndexDeprecationChecks.findInPropertiesRecursively(
+                    type,
+                    mapping,
+                    IndexDeprecationChecks::containsChainedMultiFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                );
+                if (mappingIssues.size() > 0) {
+                    templatesContainingChainedMultiFields.put(templateName, mappingIssues);
+                }
+            });
+        });
+        if (templatesContainingChainedMultiFields.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining multi-fields within multi-fields on index template mappings is deprecated",
+                "https://ela.st/es-deprecation-7-chained-multi-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove chained multi-fields from the \"%s\" template%s. Multi-fields within multi-fields "
+                        + "are not supported in 8.0.",
+                    String.join(",", templatesContainingChainedMultiFields.keySet()),
+                    templatesContainingChainedMultiFields.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Check templates that use `fields` within `fields` blocks of dynamic templates
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkTemplatesWithChainedMultiFieldsInDynamicTemplates(ClusterState state) {
+        Map<String, List<String>> templatesContainingChainedMultiFields = new HashMap<>();
+        state.getMetadata().getTemplates().forEach((templateCursor) -> {
+            String templateName = templateCursor.key;
+            templateCursor.value.getMappings().forEach((mappingCursor) -> {
+                String type = mappingCursor.key;
+                // There should be the type name at this level, but there was a bug where mappings could be stored without a type (#45120)
+                // to make sure, we try to detect this like we try to do in MappingMetadata#sourceAsMap()
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappingCursor.value.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey(type)) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get(type);
+                }
+                List<String> mappingIssues = IndexDeprecationChecks.findInDynamicTemplates(
+                    type,
+                    mapping,
+                    IndexDeprecationChecks::containsMappingWithChainedMultiFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                );
+                if (mappingIssues.size() > 0) {
+                    templatesContainingChainedMultiFields.put(templateName, mappingIssues);
+                }
+            });
+        });
+        if (templatesContainingChainedMultiFields.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining multi-fields within multi-fields on index template dynamic_templates is deprecated",
+                "https://ela.st/es-deprecation-7-chained-multi-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove chained multi-fields from the \"%s\" template%s. Multi-fields within multi-fields "
+                        + "are not supported in 8.0.",
+                    String.join(",", templatesContainingChainedMultiFields.keySet()),
+                    templatesContainingChainedMultiFields.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Check component templates that use `fields` within `fields` blocks
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkComponentTemplatesWithChainedMultiFields(ClusterState state) {
+        Map<String, List<String>> templatesContainingChainedMultiFields = new HashMap<>();
+        state.getMetadata().componentTemplates().forEach((templateName, componentTemplate) -> {
+            CompressedXContent mappings = componentTemplate.template().mappings();
+            if (mappings != null) {
+                // Component templates root their mapping data under the "_doc" mapping type. Unpack it if that is the case.
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappings.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey("_doc")) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get("_doc");
+                }
+                List<String> mappingIssues = IndexDeprecationChecks.findInPropertiesRecursively(
+                    "_doc",
+                    mapping,
+                    IndexDeprecationChecks::containsChainedMultiFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                );
+                if (mappingIssues.size() > 0) {
+                    templatesContainingChainedMultiFields.put(templateName, mappingIssues);
+                }
+            }
+        });
+        if (templatesContainingChainedMultiFields.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining multi-fields within multi-fields on component templates is deprecated",
+                "https://ela.st/es-deprecation-7-chained-multi-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove chained multi-fields from the \"%s\" component template%s. Multi-fields within multi-fields "
+                        + "are not supported in 8.0.",
+                    String.join(",", templatesContainingChainedMultiFields.keySet()),
+                    templatesContainingChainedMultiFields.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Check component templates that use `fields` within `fields` blocks of dynamic templates
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkComponentTemplatesWithChainedMultiFieldsInDynamicTemplates(ClusterState state) {
+        Map<String, List<String>> templatesContainingChainedMultiFields = new HashMap<>();
+        state.getMetadata().componentTemplates().forEach((templateName, componentTemplate) -> {
+            CompressedXContent mappings = componentTemplate.template().mappings();
+            if (mappings != null) {
+                // Component templates root their mapping data under the "_doc" mapping type. Unpack it if that is the case.
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappings.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey("_doc")) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get("_doc");
+                }
+                List<String> mappingIssues = IndexDeprecationChecks.findInDynamicTemplates(
+                    "_doc",
+                    mapping,
+                    IndexDeprecationChecks::containsMappingWithChainedMultiFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                );
+                if (mappingIssues.size() > 0) {
+                    templatesContainingChainedMultiFields.put(templateName, mappingIssues);
+                }
+            }
+        });
+        if (templatesContainingChainedMultiFields.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining multi-fields within multi-fields on component template dynamic_templates is deprecated",
+                "https://ela.st/es-deprecation-7-chained-multi-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove chained multi-fields from the \"%s\" component template%s. Multi-fields within multi-fields "
+                        + "are not supported in 8.0.",
+                    String.join(",", templatesContainingChainedMultiFields.keySet()),
+                    templatesContainingChainedMultiFields.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Check templates that use fields with `boost` values
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkTemplatesWithBoostedFields(ClusterState state) {
+        Map<String, List<String>> templatesContainingBoostedFields = new HashMap<>();
+        state.getMetadata().getTemplates().forEach((templateCursor) -> {
+            String templateName = templateCursor.key;
+            templateCursor.value.getMappings().forEach((mappingCursor) -> {
+                String type = mappingCursor.key;
+                // There should be the type name at this level, but there was a bug where mappings could be stored without a type (#45120)
+                // to make sure, we try to detect this like we try to do in MappingMetadata#sourceAsMap()
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappingCursor.value.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey(type)) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get(type);
+                }
+                List<String> mappingIssues = IndexDeprecationChecks.findInPropertiesRecursively(
+                    type,
+                    mapping,
+                    IndexDeprecationChecks::containsBoostedFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                );
+                if (mappingIssues.size() > 0) {
+                    templatesContainingBoostedFields.put(templateName, mappingIssues);
+                }
+            });
+        });
+        if (templatesContainingBoostedFields.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining boosted fields on index template mappings is deprecated",
+                "https://ela.st/es-deprecation-7-boost-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove boost fields from the \"%s\" template%s. Configuring a boost value on mapping fields "
+                        + "is not supported in 8.0.",
+                    String.join(",", templatesContainingBoostedFields.keySet()),
+                    templatesContainingBoostedFields.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Check templates that use fields with `boost` values in dynamic templates
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkTemplatesWithBoostFieldsInDynamicTemplates(ClusterState state) {
+        Map<String, List<String>> templatesContainingBoostedFields = new HashMap<>();
+        state.getMetadata().getTemplates().forEach((templateCursor) -> {
+            String templateName = templateCursor.key;
+            templateCursor.value.getMappings().forEach((mappingCursor) -> {
+                String type = mappingCursor.key;
+                // There should be the type name at this level, but there was a bug where mappings could be stored without a type (#45120)
+                // to make sure, we try to detect this like we try to do in MappingMetadata#sourceAsMap()
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappingCursor.value.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey(type)) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get(type);
+                }
+                List<String> mappingIssues = IndexDeprecationChecks.findInDynamicTemplates(
+                    type,
+                    mapping,
+                    IndexDeprecationChecks::containsMappingWithBoostedFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                );
+                if (mappingIssues.size() > 0) {
+                    templatesContainingBoostedFields.put(templateName, mappingIssues);
+                }
+            });
+        });
+        if (templatesContainingBoostedFields.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining boosted fields on index template dynamic_templates is deprecated",
+                "https://ela.st/es-deprecation-7-boost-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove boost fields from the \"%s\" template%s. Configuring a boost value on mapping fields "
+                        + "is not supported in 8.0.",
+                    String.join(",", templatesContainingBoostedFields.keySet()),
+                    templatesContainingBoostedFields.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Check component templates that use fields with `boost` values
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkComponentTemplatesWithBoostedFields(ClusterState state) {
+        Map<String, List<String>> templatesContainingBoostedFields = new HashMap<>();
+        state.getMetadata().componentTemplates().forEach((templateName, componentTemplate) -> {
+            CompressedXContent mappings = componentTemplate.template().mappings();
+            if (mappings != null) {
+                // Component templates root their mapping data under the "_doc" mapping type. Unpack it if that is the case.
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappings.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey("_doc")) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get("_doc");
+                }
+                List<String> mappingIssues = IndexDeprecationChecks.findInPropertiesRecursively(
+                    "_doc",
+                    mapping,
+                    IndexDeprecationChecks::containsBoostedFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                );
+                if (mappingIssues.size() > 0) {
+                    templatesContainingBoostedFields.put(templateName, mappingIssues);
+                }
+            }
+        });
+        if (templatesContainingBoostedFields.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining boosted fields on component templates is deprecated",
+                "https://ela.st/es-deprecation-7-boost-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove boost fields from the \"%s\" component template%s. Configuring a boost value on mapping fields "
+                        + "is not supported in 8.0.",
+                    String.join(",", templatesContainingBoostedFields.keySet()),
+                    templatesContainingBoostedFields.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Check component templates that use fields with `boost` values in dynamic templates
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkComponentTemplatesWithBoostedFieldsInDynamicTemplates(ClusterState state) {
+        Map<String, List<String>> templatesContainingBoostedFields = new HashMap<>();
+        state.getMetadata().componentTemplates().forEach((templateName, componentTemplate) -> {
+            CompressedXContent mappings = componentTemplate.template().mappings();
+            if (mappings != null) {
+                // Component templates root their mapping data under the "_doc" mapping type. Unpack it if that is the case.
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappings.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey("_doc")) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get("_doc");
+                }
+                List<String> mappingIssues = IndexDeprecationChecks.findInDynamicTemplates(
+                    "_doc",
+                    mapping,
+                    IndexDeprecationChecks::containsMappingWithBoostedFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                );
+                if (mappingIssues.size() > 0) {
+                    templatesContainingBoostedFields.put(templateName, mappingIssues);
+                }
+            }
+        });
+        if (templatesContainingBoostedFields.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining boosted fields on component template dynamic_templates is deprecated",
+                "https://ela.st/es-deprecation-7-boost-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove boost fields from the \"%s\" component template%s. Configuring a boost value on mapping fields "
+                        + "is not supported in 8.0.",
+                    String.join(",", templatesContainingBoostedFields.keySet()),
+                    templatesContainingBoostedFields.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
         }
         return null;
     }
@@ -134,12 +537,20 @@ public class ClusterDeprecationChecks {
         });
 
         if (templatesContainingFieldNames.isEmpty() == false) {
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Index templates contain _field_names settings.",
-                    "https://ela.st/es-deprecation-7-field_names-settings",
-                    "Index templates " + templatesContainingFieldNames + " use the deprecated `enable` setting for the `"
-                            + FieldNamesFieldMapper.NAME + "` field. Using this setting in new index mappings will throw an error "
-                                    + "in the next major version and needs to be removed from existing mappings and templates.",
-                false, null);
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Disabling the \"_field_names\" field in a template's index " + "mappings is deprecated",
+                "https://ela.st/es-deprecation-7-field_names-settings",
+                String.format(
+                    Locale.ROOT,
+                    "Remove the \"%s\" mapping that configures the enabled setting from the following templates: \"%s\". "
+                        + "There's no longer a need to disable this field to reduce index overhead if you have a lot of fields.",
+                    FieldNamesFieldMapper.NAME,
+                    templatesContainingFieldNames.stream().collect(Collectors.joining(","))
+                ),
+                false,
+                null
+            );
         }
         return null;
     }
@@ -172,129 +583,258 @@ public class ClusterDeprecationChecks {
         }
 
         if (pollInterval.compareTo(TimeValue.timeValueSeconds(1)) < 0) {
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
                 "Index Lifecycle Management poll interval is set too low",
                 "https://ela.st/es-deprecation-7-indices-lifecycle-poll-interval-setting",
-                "The Index Lifecycle Management poll interval setting [" + LIFECYCLE_POLL_INTERVAL_SETTING.getKey() + "] is " +
-                    "currently set to [" + pollIntervalString + "], but must be 1s or greater", false, null);
+                String.format(
+                    Locale.ROOT,
+                    "The ILM [%s] setting is set to [%s]. Set the interval to at least 1s.",
+                    LIFECYCLE_POLL_INTERVAL_SETTING.getKey(),
+                    pollIntervalString
+                ),
+                false,
+                null
+            );
         }
         return null;
     }
 
-    static DeprecationIssue checkTemplatesWithMultipleTypes(ClusterState state) {
-        Set<String> templatesWithMultipleTypes = new HashSet<>();
+    static DeprecationIssue checkTemplatesWithCustomAndMultipleTypes(ClusterState state) {
+        Set<String> templatesWithMultipleTypes = new TreeSet<>();
+        Set<String> templatesWithCustomTypes = new TreeSet<>();
+        // See https://github.com/elastic/elasticsearch/issues/82109#issuecomment-1006143687 for details:
+        Set<String> systemTemplatesWithCustomTypes = Sets.newHashSet(".triggered_watches", ".watch-history-9", ".watches");
         state.getMetadata().getTemplates().forEach((templateCursor) -> {
             String templateName = templateCursor.key;
             ImmutableOpenMap<String, CompressedXContent> mappings = templateCursor.value.mappings();
-            if (mappings != null && mappings.size() > 1) {
-                templatesWithMultipleTypes.add(templateName);
+            if (mappings != null) {
+                if (mappings.size() > 1) {
+                    templatesWithMultipleTypes.add(templateName);
+                }
+                boolean hasCustomType = mappings.stream().anyMatch(mapping -> {
+                    String typeName = mapping.getKey();
+                    return MapperService.SINGLE_MAPPING_NAME.equals(typeName) == false;
+                });
+                if (hasCustomType) {
+                    if (systemTemplatesWithCustomTypes.contains(templateName) == false) {
+                        templatesWithCustomTypes.add(templateName);
+                    }
+                }
             }
         });
-        if (templatesWithMultipleTypes.isEmpty()) {
-            return null;
+        final DeprecationIssue deprecationIssue;
+        if (templatesWithMultipleTypes.isEmpty() && templatesWithCustomTypes.isEmpty()) {
+            deprecationIssue = null;
+        } else if (templatesWithMultipleTypes.isEmpty()) {
+            deprecationIssue = new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Custom mapping types in index templates are deprecated",
+                "https://ela.st/es-deprecation-7-custom-types",
+                "Update or remove the following index templates before upgrading to 8.0: "
+                    + templatesWithCustomTypes
+                    + ". See https://ela.st/es-deprecation-7-removal-of-types for alternatives to mapping types.",
+                false,
+                null
+            );
+        } else {
+            // There were multiple mapping types, so at least one of them had to be a custom type as well
+            Set<String> allBadTemplates = new TreeSet<>();
+            allBadTemplates.addAll(templatesWithMultipleTypes);
+            allBadTemplates.addAll(templatesWithCustomTypes);
+            deprecationIssue = new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Multiple mapping types and custom mapping types in index templates and indices are deprecated",
+                "https://ela.st/es-deprecation-7-multiple-types",
+                "Update or remove the following index templates before upgrading to 8.0: "
+                    + allBadTemplates
+                    + ". See https://ela.st/es-deprecation-7-removal-of-types for alternatives to mapping types.",
+                false,
+                null
+            );
         }
-        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-            "Some index templates contain multiple mapping types",
-            "https://ela.st/es-deprecation-7-multiple-types",
-            "Index templates " + templatesWithMultipleTypes
-            + " define multiple types and so will cause errors when used in index creation",
-            false,
-            null);
+        return deprecationIssue;
     }
 
     static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final ClusterState clusterState) {
-        return checkRemovedSetting(clusterState.metadata().settings(),
+        return checkRemovedSetting(
+            clusterState.metadata().settings(),
+            null,
             CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
             "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
+            "Relocating shards are always taken into account in 8.0.",
             DeprecationIssue.Level.WARNING
         );
     }
 
     @SuppressWarnings("unchecked")
-    private static String getDetailsMessageForGeoShapeComponentTemplates(Map<String, ComponentTemplate> componentTemplates) {
-        String detailsForComponentTemplates =
-            componentTemplates.entrySet().stream().map((templateCursor) -> {
-                String templateName = templateCursor.getKey();
-                ComponentTemplate componentTemplate = templateCursor.getValue();
-                CompressedXContent mappings = componentTemplate.template().mappings();
-                if (mappings != null) {
-                    Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(mappings.uncompressed(), true,
-                        XContentType.JSON);
-                    Map<String, Object> mappingAsMap = tuple.v2();
-                    List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                        IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
-                            mappingAsMap,
-                            IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
-                            IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
-                    if (messages.isEmpty() == false) {
-                        String messageForMapping =
-                            "mappings in component template " + templateName + " contains deprecated geo_shape properties. " +
-                                messages.stream().collect(Collectors.joining("; "));
-                        return messageForMapping;
-                    }
-                }
-                return null;
-            }).filter(messageForTemplate -> Strings.isEmpty(messageForTemplate) == false).collect(Collectors.joining("; "));
+    private static Map<String, List<String>> getComponentTemplatesWithDeprecatedGeoShapeProperties(
+        Map<String, ComponentTemplate> componentTemplates
+    ) {
+        Map<String, List<String>> detailsForComponentTemplates = componentTemplates.entrySet().stream().map((templateCursor) -> {
+            String templateName = templateCursor.getKey();
+            ComponentTemplate componentTemplate = templateCursor.getValue();
+            CompressedXContent mappings = componentTemplate.template().mappings();
+            if (mappings != null) {
+                Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
+                    mappings.uncompressed(),
+                    true,
+                    XContentType.JSON
+                );
+                Map<String, Object> mappingAsMap = tuple.v2();
+                List<String> messages = mappingAsMap == null
+                    ? Collections.emptyList()
+                    : IndexDeprecationChecks.findInPropertiesRecursively(
+                        GeoShapeFieldMapper.CONTENT_TYPE,
+                        mappingAsMap,
+                        IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
+                        IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage,
+                        "[",
+                        "]"
+                    );
+                return Tuple.tuple(templateName, messages);
+            }
+            return null;
+        })
+            .filter(templateToMessagesTuple -> templateToMessagesTuple != null && templateToMessagesTuple.v2().isEmpty() == false)
+            .collect(Collectors.toMap(Tuple<String, List<String>>::v1, Tuple<String, List<String>>::v2));
         return detailsForComponentTemplates;
     }
 
     @SuppressWarnings("unchecked")
-    private static String getDetailsMessageForGeoShapeIndexTemplates(ImmutableOpenMap<String, IndexTemplateMetadata> indexTemplates) {
-        String detailsForIndexTemplates =
-            StreamSupport.stream(indexTemplates.spliterator(), false).map((templateCursor) -> {
+    private static Map<String, List<String>> getIndexTemplatesWithDeprecatedGeoShapeProperties(
+        ImmutableOpenMap<String, IndexTemplateMetadata> indexTemplates
+    ) {
+        Map<String, List<String>> detailsForIndexTemplates = StreamSupport.stream(indexTemplates.spliterator(), false)
+            .map((templateCursor) -> {
                 String templateName = templateCursor.key;
                 IndexTemplateMetadata indexTemplateMetadata = templateCursor.value;
-                String messageForTemplate =
-                    StreamSupport.stream(indexTemplateMetadata.getMappings().spliterator(), false).map((mappingCursor) -> {
+                List<String> messagesForTemplate = StreamSupport.stream(indexTemplateMetadata.getMappings().spliterator(), false)
+                    .map((mappingCursor) -> {
                         CompressedXContent mapping = mappingCursor.value;
-                        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(mapping.uncompressed(), true,
-                            XContentType.JSON);
+                        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
+                            mapping.uncompressed(),
+                            true,
+                            XContentType.JSON
+                        );
                         Map<String, Object> mappingAsMap = (Map<String, Object>) tuple.v2().get("_doc");
-                        List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                            IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                        List<String> messages = mappingAsMap == null
+                            ? Collections.emptyList()
+                            : IndexDeprecationChecks.findInPropertiesRecursively(
+                                GeoShapeFieldMapper.CONTENT_TYPE,
                                 mappingAsMap,
                                 IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
-                                IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage);
+                                IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage,
+                                "[",
+                                "]"
+                            );
                         return messages;
-                    }).filter(messages -> messages.isEmpty() == false).map(messages -> {
-                        String messageForMapping =
-                            "mappings in index template " + templateName + " contains deprecated geo_shape properties. " +
-                                messages.stream().collect(Collectors.joining("; "));
-                        return messageForMapping;
-                    }).collect(Collectors.joining("; "));
-                return messageForTemplate;
-            }).filter(messageForTemplate -> Strings.isEmpty(messageForTemplate) == false).collect(Collectors.joining("; "));
+                    })
+                    .filter(messages -> messages.isEmpty() == false)
+                    .flatMap(x -> x.stream())
+                    .collect(Collectors.toList());
+                return Tuple.tuple(templateName, messagesForTemplate);
+            })
+            .filter(templateToMessagesTuple -> templateToMessagesTuple != null && templateToMessagesTuple.v2().isEmpty() == false)
+            .collect(Collectors.toMap(Tuple<String, List<String>>::v1, Tuple<String, List<String>>::v2));
         return detailsForIndexTemplates;
+    }
+
+    private static String getDetailsMessageForTemplatesWithDeprecations(
+        Map<String, List<String>> templateToMessages,
+        boolean forceIncludeTemplateName
+    ) {
+        final boolean includeTemplateName = forceIncludeTemplateName || templateToMessages.keySet().size() > 1;
+        return templateToMessages.entrySet().stream().filter(entry -> entry.getValue().isEmpty() == false).map(entry -> {
+            StringBuilder message = new StringBuilder();
+            if (includeTemplateName) {
+                message.append("[");
+                message.append(entry.getKey());
+                message.append(": ");
+            }
+            message.append(entry.getValue().stream().collect(Collectors.joining("; ")));
+            if (includeTemplateName) {
+                message.append("]");
+            }
+            return message;
+        }).collect(Collectors.joining("; "));
     }
 
     @SuppressWarnings("unchecked")
     static DeprecationIssue checkGeoShapeTemplates(final ClusterState clusterState) {
-        String detailsForComponentTemplates =
-            getDetailsMessageForGeoShapeComponentTemplates(clusterState.getMetadata().componentTemplates());
-        String detailsForIndexTemplates = getDetailsMessageForGeoShapeIndexTemplates(clusterState.getMetadata().getTemplates());
-        boolean deprecationInComponentTemplates = Strings.isEmpty(detailsForComponentTemplates) == false;
-        boolean deprecationInIndexTemplates = Strings.isEmpty(detailsForIndexTemplates) == false;
+        Map<String, List<String>> componentTemplatesToMessagesMap = getComponentTemplatesWithDeprecatedGeoShapeProperties(
+            clusterState.getMetadata().componentTemplates()
+        );
+        Map<String, List<String>> indexTemplatesToMessagesMap = getIndexTemplatesWithDeprecatedGeoShapeProperties(
+            clusterState.getMetadata().getTemplates()
+        );
+        boolean deprecationInComponentTemplates = componentTemplatesToMessagesMap.isEmpty() == false;
+        boolean deprecationInIndexTemplates = indexTemplatesToMessagesMap.isEmpty() == false;
         String url = "https://ela.st/es-deprecation-7-geo-shape-mappings";
         if (deprecationInComponentTemplates && deprecationInIndexTemplates) {
-            String message = "component templates and index templates contain deprecated geo_shape properties that must be removed";
-            String details = detailsForComponentTemplates + "; " + detailsForIndexTemplates;
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false,
-                null);
-        } if (deprecationInComponentTemplates == false && deprecationInIndexTemplates) {
-            String message = "index templates contain deprecated geo_shape properties that must be removed";
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, detailsForIndexTemplates, false,
-                null);
+            String message = String.format(
+                Locale.ROOT,
+                "[%s] component template%s and [%s] index template%s use deprecated geo_shape " + "properties",
+                componentTemplatesToMessagesMap.keySet().stream().collect(Collectors.joining(",")),
+                componentTemplatesToMessagesMap.keySet().size() > 1 ? "s" : "",
+                indexTemplatesToMessagesMap.keySet().stream().collect(Collectors.joining(",")),
+                indexTemplatesToMessagesMap.keySet().size() > 1 ? "s" : ""
+            );
+            String details = String.format(
+                Locale.ROOT,
+                "Remove the following deprecated geo_shape properties from the mappings: %s; %s.",
+                getDetailsMessageForTemplatesWithDeprecations(componentTemplatesToMessagesMap, true),
+                getDetailsMessageForTemplatesWithDeprecations(indexTemplatesToMessagesMap, true)
+            );
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+        }
+        if (deprecationInComponentTemplates == false && deprecationInIndexTemplates) {
+            String message = String.format(
+                Locale.ROOT,
+                "[%s] index template%s use%s deprecated geo_shape properties",
+                indexTemplatesToMessagesMap.keySet().stream().collect(Collectors.joining(",")),
+                indexTemplatesToMessagesMap.keySet().size() > 1 ? "s" : "",
+                indexTemplatesToMessagesMap.keySet().size() > 1 ? "" : "s"
+            );
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                message,
+                url,
+                String.format(
+                    Locale.ROOT,
+                    "Remove the following deprecated geo_shape properties from the mappings: %s.",
+                    getDetailsMessageForTemplatesWithDeprecations(indexTemplatesToMessagesMap, false)
+                ),
+                false,
+                null
+            );
         } else if (deprecationInIndexTemplates == false && deprecationInComponentTemplates) {
-            String message = "component templates contain deprecated geo_shape properties that must be removed";
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, detailsForComponentTemplates, false,
-                null);
+            String message = String.format(
+                Locale.ROOT,
+                "[%s] component template%s use%s deprecated geo_shape properties",
+                componentTemplatesToMessagesMap.keySet().stream().collect(Collectors.joining(",")),
+                componentTemplatesToMessagesMap.keySet().size() > 1 ? "s" : "",
+                componentTemplatesToMessagesMap.keySet().size() > 1 ? "" : "s"
+            );
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                message,
+                url,
+                String.format(
+                    Locale.ROOT,
+                    "Remove the following deprecated geo_shape properties from the mappings: %s.",
+                    getDetailsMessageForTemplatesWithDeprecations(componentTemplatesToMessagesMap, false)
+                ),
+                false,
+                null
+            );
         } else {
             return null;
         }
     }
 
     protected static boolean isSparseVector(Map<?, ?> property) {
-        return "sparse_vector".equals(property.get("type"));
+        return SPARSE_VECTOR.equals(property.get("type"));
     }
 
     protected static String formatDeprecatedSparseVectorMessage(String type, Map.Entry<?, ?> entry) {
@@ -302,83 +842,148 @@ public class ClusterDeprecationChecks {
     }
 
     @SuppressWarnings("unchecked")
-    private static String getDetailsMessageForSparseVectorComponentTemplates(Map<String, ComponentTemplate> componentTemplates) {
-        String detailsForComponentTemplates =
-            componentTemplates.entrySet().stream().map((templateCursor) -> {
-                String templateName = templateCursor.getKey();
-                ComponentTemplate componentTemplate = templateCursor.getValue();
-                CompressedXContent mappings = componentTemplate.template().mappings();
-                if (mappings != null) {
-                    Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(mappings.uncompressed(), true,
-                        XContentType.JSON);
-                    Map<String, Object> mappingAsMap = tuple.v2();
-                    List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                        IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
-                            mappingAsMap,
-                            ClusterDeprecationChecks::isSparseVector,
-                            ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage);
-                    if (messages.isEmpty() == false) {
-                        String messageForMapping =
-                            "mappings in component template [" + templateName + "] contains deprecated sparse_vector fields: " +
-                                messages.stream().collect(Collectors.joining(", "));
-                        return messageForMapping;
-                    }
+    private static Map<String, List<String>> getComponentTemplatesWithDeprecatedSparseVectorProperties(
+        Map<String, ComponentTemplate> componentTemplates
+    ) {
+        Map<String, List<String>> detailsForComponentTemplates = componentTemplates.entrySet().stream().map((templateCursor) -> {
+            String templateName = templateCursor.getKey();
+            ComponentTemplate componentTemplate = templateCursor.getValue();
+            CompressedXContent mappings = componentTemplate.template().mappings();
+            if (mappings != null) {
+                Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
+                    mappings.uncompressed(),
+                    true,
+                    XContentType.JSON
+                );
+                Map<String, Object> mappingAsMap = tuple.v2();
+                List<String> messages = mappingAsMap == null
+                    ? Collections.emptyList()
+                    : IndexDeprecationChecks.findInPropertiesRecursively(
+                        SPARSE_VECTOR,
+                        mappingAsMap,
+                        ClusterDeprecationChecks::isSparseVector,
+                        ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage,
+                        "[",
+                        "]"
+                    );
+                if (messages.isEmpty() == false) {
+                    return Tuple.tuple(templateName, messages);
                 }
-                return null;
-            }).filter(messageForTemplate -> Strings.isEmpty(messageForTemplate) == false).collect(Collectors.joining("; "));
+            }
+            return null;
+        })
+            .filter(templateToMessagesTuple -> templateToMessagesTuple != null && templateToMessagesTuple.v2().isEmpty() == false)
+            .collect(Collectors.toMap(Tuple<String, List<String>>::v1, Tuple<String, List<String>>::v2));
         return detailsForComponentTemplates;
     }
 
     @SuppressWarnings("unchecked")
-    private static String getDetailsMessageForSparseVectorIndexTemplates(ImmutableOpenMap<String, IndexTemplateMetadata> indexTemplates) {
-        String detailsForIndexTemplates =
-            StreamSupport.stream(indexTemplates.spliterator(), false).map((templateCursor) -> {
+    private static Map<String, List<String>> getIndexTemplatesWithDeprecatedSparseVectorProperties(
+        ImmutableOpenMap<String, IndexTemplateMetadata> indexTemplates
+    ) {
+        Map<String, List<String>> detailsForIndexTemplates = StreamSupport.stream(indexTemplates.spliterator(), false)
+            .map((templateCursor) -> {
                 String templateName = templateCursor.key;
                 IndexTemplateMetadata indexTemplateMetadata = templateCursor.value;
-                String messageForTemplate =
-                    StreamSupport.stream(indexTemplateMetadata.getMappings().spliterator(), false).map((mappingCursor) -> {
+                List<String> messagesForTemplate = StreamSupport.stream(indexTemplateMetadata.getMappings().spliterator(), false)
+                    .map((mappingCursor) -> {
                         CompressedXContent mapping = mappingCursor.value;
-                        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(mapping.uncompressed(), true,
-                            XContentType.JSON);
+                        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
+                            mapping.uncompressed(),
+                            true,
+                            XContentType.JSON
+                        );
                         Map<String, Object> mappingAsMap = (Map<String, Object>) tuple.v2().get("_doc");
-                        List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                            IndexDeprecationChecks.findInPropertiesRecursively(LegacyGeoShapeFieldMapper.CONTENT_TYPE,
+                        List<String> messages = mappingAsMap == null
+                            ? Collections.emptyList()
+                            : IndexDeprecationChecks.findInPropertiesRecursively(
+                                SPARSE_VECTOR,
                                 mappingAsMap,
                                 ClusterDeprecationChecks::isSparseVector,
-                                ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage);
+                                ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage,
+                                "[",
+                                "]"
+                            );
                         return messages;
-                    }).filter(messages -> messages.isEmpty() == false).map(messages -> {
-                        String messageForMapping =
-                            "mappings in index template " + templateName + " contains deprecated sparse_vector fields: " +
-                                messages.stream().collect(Collectors.joining(", "));
-                        return messageForMapping;
-                    }).collect(Collectors.joining("; "));
-                return messageForTemplate;
-            }).filter(messageForTemplate -> Strings.isEmpty(messageForTemplate) == false).collect(Collectors.joining("; "));
+                    })
+                    .filter(messages -> messages.isEmpty() == false)
+                    .flatMap(x -> x.stream())
+                    .collect(Collectors.toList());
+                return Tuple.tuple(templateName, messagesForTemplate);
+            })
+            .filter(templateToMessagesTuple -> templateToMessagesTuple != null && templateToMessagesTuple.v2().isEmpty() == false)
+            .collect(Collectors.toMap(Tuple<String, List<String>>::v1, Tuple<String, List<String>>::v2));
         return detailsForIndexTemplates;
     }
 
     @SuppressWarnings("unchecked")
     static DeprecationIssue checkSparseVectorTemplates(final ClusterState clusterState) {
-        String detailsForComponentTemplates =
-            getDetailsMessageForSparseVectorComponentTemplates(clusterState.getMetadata().componentTemplates());
-        String detailsForIndexTemplates = getDetailsMessageForSparseVectorIndexTemplates(clusterState.getMetadata().getTemplates());
-        boolean deprecationInComponentTemplates = Strings.isEmpty(detailsForComponentTemplates) == false;
-        boolean deprecationInIndexTemplates = Strings.isEmpty(detailsForIndexTemplates) == false;
+        Map<String, List<String>> componentTemplatesToMessagesMap = getComponentTemplatesWithDeprecatedSparseVectorProperties(
+            clusterState.getMetadata().componentTemplates()
+        );
+        Map<String, List<String>> indexTemplatesToMessagesMap = getIndexTemplatesWithDeprecatedSparseVectorProperties(
+            clusterState.getMetadata().getTemplates()
+        );
+        boolean deprecationInComponentTemplates = componentTemplatesToMessagesMap.isEmpty() == false;
+        boolean deprecationInIndexTemplates = indexTemplatesToMessagesMap.isEmpty() == false;
         String url = "https://ela.st/es-deprecation-7-sparse-vector";
         if (deprecationInComponentTemplates && deprecationInIndexTemplates) {
-            String message = "component templates and index templates contain deprecated sparse_vector fields that must be removed";
-            String details = detailsForComponentTemplates + "; " + detailsForIndexTemplates;
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false,
-                null);
-        } if (deprecationInComponentTemplates == false && deprecationInIndexTemplates) {
-            String message = "index templates contain deprecated sparse_vector fields that must be removed";
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, detailsForIndexTemplates, false,
-                null);
+            String message = String.format(
+                Locale.ROOT,
+                "[%s] component template%s and [%s] index template%s use deprecated sparse_vector " + "properties",
+                componentTemplatesToMessagesMap.keySet().stream().collect(Collectors.joining(",")),
+                componentTemplatesToMessagesMap.keySet().size() > 1 ? "s" : "",
+                indexTemplatesToMessagesMap.keySet().stream().collect(Collectors.joining(",")),
+                indexTemplatesToMessagesMap.keySet().size() > 1 ? "s" : ""
+            );
+            String details = String.format(
+                Locale.ROOT,
+                "Remove the following deprecated sparse_vector properties from the mappings: %s; %s.",
+                getDetailsMessageForTemplatesWithDeprecations(componentTemplatesToMessagesMap, true),
+                getDetailsMessageForTemplatesWithDeprecations(indexTemplatesToMessagesMap, true)
+            );
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+        }
+        if (deprecationInComponentTemplates == false && deprecationInIndexTemplates) {
+            String message = String.format(
+                Locale.ROOT,
+                "[%s] index template%s use%s deprecated sparse_vector properties",
+                indexTemplatesToMessagesMap.keySet().stream().collect(Collectors.joining(",")),
+                indexTemplatesToMessagesMap.keySet().size() > 1 ? "s" : "",
+                indexTemplatesToMessagesMap.keySet().size() > 1 ? "" : "s"
+            );
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                message,
+                url,
+                String.format(
+                    Locale.ROOT,
+                    "Remove the following deprecated sparse_vector properties from the mappings: %s.",
+                    getDetailsMessageForTemplatesWithDeprecations(indexTemplatesToMessagesMap, false)
+                ),
+                false,
+                null
+            );
         } else if (deprecationInIndexTemplates == false && deprecationInComponentTemplates) {
-            String message = "component templates contain deprecated sparse_vector fields that must be removed";
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, detailsForComponentTemplates, false,
-                null);
+            String message = String.format(
+                Locale.ROOT,
+                "[%s] component template%s use%s deprecated sparse_vector properties",
+                componentTemplatesToMessagesMap.keySet().stream().collect(Collectors.joining(",")),
+                componentTemplatesToMessagesMap.keySet().size() > 1 ? "s" : "",
+                componentTemplatesToMessagesMap.keySet().size() > 1 ? "" : "s"
+            );
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                message,
+                url,
+                String.format(
+                    Locale.ROOT,
+                    "Remove the following deprecated sparse_vector properties from the mappings: %s.",
+                    getDetailsMessageForTemplatesWithDeprecations(componentTemplatesToMessagesMap, false)
+                ),
+                false,
+                null
+            );
         } else {
             return null;
         }
@@ -387,28 +992,91 @@ public class ClusterDeprecationChecks {
     static DeprecationIssue checkILMFreezeActions(ClusterState state) {
         IndexLifecycleMetadata indexLifecycleMetadata = state.getMetadata().custom("index_lifecycle");
         if (indexLifecycleMetadata != null) {
-            List<String> policiesWithFreezeActions =
-                indexLifecycleMetadata.getPolicies().entrySet().stream()
-                    .filter(nameAndPolicy ->
-                        nameAndPolicy.getValue().getPhases().values().stream()
-                            .anyMatch(phase -> phase != null && phase.getActions() != null &&
-                                phase.getActions().containsKey(FreezeAction.NAME)))
-                    .map(nameAndPolicy -> nameAndPolicy.getKey())
-                    .collect(Collectors.toList());
+            List<String> policiesWithFreezeActions = indexLifecycleMetadata.getPolicies()
+                .entrySet()
+                .stream()
+                .filter(
+                    nameAndPolicy -> nameAndPolicy.getValue()
+                        .getPhases()
+                        .values()
+                        .stream()
+                        .anyMatch(phase -> phase != null && phase.getActions() != null && phase.getActions().containsKey(FreezeAction.NAME))
+                )
+                .map(nameAndPolicy -> nameAndPolicy.getKey())
+                .collect(Collectors.toList());
             if (policiesWithFreezeActions.isEmpty() == false) {
                 String details = String.format(
                     Locale.ROOT,
-                    "remove freeze action from the following ilm policies: [%s]",
+                    "Remove the freeze action from ILM policies: [%s]",
                     policiesWithFreezeActions.stream().sorted().collect(Collectors.joining(","))
                 );
-                return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                    "some ilm policies contain a freeze action, which is deprecated and will be removed in a future release",
+                return new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "ILM policies use the deprecated freeze action",
                     "https://ela.st/es-deprecation-7-frozen-indices",
                     details,
                     false,
-                    null);
+                    null
+                );
             }
         }
         return null;
     }
+
+    static DeprecationIssue checkTransientSettingsExistence(ClusterState state) {
+        if (state.metadata().transientSettings().isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Transient cluster settings are deprecated",
+                "https://ela.st/es-deprecation-7-transient-cluster-settings",
+                "Use persistent settings to configure your cluster.",
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    static DeprecationIssue emptyDataTierPreferenceCheck(ClusterState clusterState) {
+        if (DataTier.dataNodesWithoutAllDataRoles(clusterState).isEmpty() == false) {
+            List<String> indices = new ArrayList<>();
+            for (IndexMetadata indexMetadata : clusterState.metadata().getIndices().values()) {
+                List<String> tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(indexMetadata.getSettings()));
+                if (tierPreference.isEmpty()) {
+                    String indexName = indexMetadata.getIndex().getName();
+                    indices.add(indexName);
+                }
+            }
+
+            if (indices.isEmpty() == false) {
+                // this is a bit of a hassle, but the String sort order puts .someindex before someindex, and we
+                // don't want to give the users a list of only just all .ds-somebackingindex-blah indices -- on the other
+                // hand, if that's all that exists, then we don't have much choice. this next little block splits out
+                // all the leading-dot indices and sorts them *after* all the non-leading-dot indices
+                Map<Boolean, List<String>> groups = indices.stream().collect(Collectors.partitioningBy(s -> s.startsWith(".")));
+                List<String> noLeadingPeriod = new ArrayList<>(groups.get(false));
+                List<String> leadingPeriod = new ArrayList<>(groups.get(true));
+                Collections.sort(noLeadingPeriod);
+                Collections.sort(leadingPeriod);
+                noLeadingPeriod.addAll(leadingPeriod);
+                indices = noLeadingPeriod;
+
+                // if there's more than a few indices, or their names are surprisingly long, then we need to cut off the list.
+                // this is not ideal, but our message here is displayed unmodified in the UA, so we have to think about this.
+                StringBuilder builder = new StringBuilder();
+                Strings.collectionToDelimitedStringWithLimit(indices, ", ", "", "", 256, builder);
+
+                return new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "No [" + DataTier.TIER_PREFERENCE + "] is set for indices [" + builder + "].",
+                    "https://ela.st/es-deprecation-7-empty-tier-preference",
+                    "Specify a data tier preference for these indices.",
+                    false,
+                    null
+                );
+            }
+        }
+        return null;
+    }
+
 }

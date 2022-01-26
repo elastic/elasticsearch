@@ -50,7 +50,7 @@ public interface ServerTransportFilter {
      * be sent back to the sender.
      */
     void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener)
-            throws IOException;
+        throws IOException;
 
     /**
      * The server transport filter that should be used in nodes as it ensures that an incoming
@@ -69,9 +69,16 @@ public interface ServerTransportFilter {
         private final SecurityContext securityContext;
         private final XPackLicenseState licenseState;
 
-        NodeProfile(AuthenticationService authcService, AuthorizationService authzService,
-                    ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations,
-                    boolean reservedRealmEnabled, SecurityContext securityContext, XPackLicenseState licenseState) {
+        NodeProfile(
+            AuthenticationService authcService,
+            AuthorizationService authzService,
+            ThreadContext threadContext,
+            boolean extractClientCert,
+            DestructiveOperations destructiveOperations,
+            boolean reservedRealmEnabled,
+            SecurityContext securityContext,
+            XPackLicenseState licenseState
+        ) {
             this.authcService = authcService;
             this.authzService = authzService;
             this.threadContext = threadContext;
@@ -84,12 +91,12 @@ public interface ServerTransportFilter {
 
         @Override
         public void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener)
-                throws IOException {
+            throws IOException {
             if (CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action) || DeleteIndexAction.NAME.equals(action)) {
                 IndicesRequest indicesRequest = (IndicesRequest) request;
                 try {
                     destructiveOperations.failDestructive(indicesRequest.indices());
-                } catch(IllegalArgumentException e) {
+                } catch (IllegalArgumentException e) {
                     listener.onFailure(e);
                     return;
                 }
@@ -120,8 +127,7 @@ public interface ServerTransportFilter {
             final Version version = transportChannel.getVersion();
             authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
                 if (authentication != null) {
-                    if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
-                        SystemUser.is(authentication.getUser()) == false) {
+                    if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) && SystemUser.is(authentication.getUser()) == false) {
                         securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
                             final Authentication replaced = securityContext.getAuthentication();
                             authzService.authorize(replaced, securityAction, request, listener);
@@ -146,16 +152,31 @@ public interface ServerTransportFilter {
      */
     class ClientProfile extends NodeProfile {
 
-        ClientProfile(AuthenticationService authcService, AuthorizationService authzService,
-                             ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations,
-                             boolean reservedRealmEnabled, SecurityContext securityContext, XPackLicenseState licenseState) {
-            super(authcService, authzService, threadContext, extractClientCert, destructiveOperations, reservedRealmEnabled,
-                securityContext, licenseState);
+        ClientProfile(
+            AuthenticationService authcService,
+            AuthorizationService authzService,
+            ThreadContext threadContext,
+            boolean extractClientCert,
+            DestructiveOperations destructiveOperations,
+            boolean reservedRealmEnabled,
+            SecurityContext securityContext,
+            XPackLicenseState licenseState
+        ) {
+            super(
+                authcService,
+                authzService,
+                threadContext,
+                extractClientCert,
+                destructiveOperations,
+                reservedRealmEnabled,
+                securityContext,
+                licenseState
+            );
         }
 
         @Override
         public void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener)
-                throws IOException {
+            throws IOException {
             // TODO is ']' sufficient to mark as shard action?
             final boolean isInternalOrShardAction = action.startsWith("internal:") || action.endsWith("]");
             if (isInternalOrShardAction && TransportService.HANDSHAKE_ACTION_NAME.equals(action) == false) {

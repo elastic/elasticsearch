@@ -15,7 +15,6 @@ import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -33,8 +32,9 @@ import org.gradle.api.tasks.TaskState;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.process.ExecOperations;
 
-import javax.inject.Inject;
 import java.io.File;
+
+import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.util.GradleUtils.noop;
 

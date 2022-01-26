@@ -7,18 +7,18 @@
  */
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Holds the result of what a pipeline did to a sample document via the simulate api, but instead of {@link SimulateDocumentBaseResult}
@@ -29,12 +29,11 @@ public final class SimulateDocumentVerboseResult implements SimulateDocumentResu
     private final List<SimulateProcessorResult> processorResults;
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<SimulateDocumentVerboseResult, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "simulate_document_verbose_result",
-            true,
-            a -> new SimulateDocumentVerboseResult((List<SimulateProcessorResult>)a[0])
-        );
+    public static final ConstructingObjectParser<SimulateDocumentVerboseResult, Void> PARSER = new ConstructingObjectParser<>(
+        "simulate_document_verbose_result",
+        true,
+        a -> new SimulateDocumentVerboseResult((List<SimulateProcessorResult>) a[0])
+    );
     static {
         PARSER.declareObjectArray(constructorArg(), SimulateProcessorResult.PARSER, new ParseField(PROCESSOR_RESULT_FIELD));
     }

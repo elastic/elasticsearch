@@ -14,9 +14,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
@@ -63,15 +63,37 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         // create policy_1 and policy_2
         Map<String, Phase> phases1 = new HashMap<>();
         phases1.put("hot", new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1L))));
-        phases1.put("warm", new Phase("warm", TimeValue.ZERO,
-                singletonMap(AllocateAction.NAME, new AllocateAction(1, null, singletonMap("_name", "foobarbaz"), null, null))));
+        phases1.put(
+            "warm",
+            new Phase(
+                "warm",
+                TimeValue.ZERO,
+                singletonMap(AllocateAction.NAME, new AllocateAction(1, null, singletonMap("_name", "foobarbaz"), null, null))
+            )
+        );
         LifecyclePolicy lifecyclePolicy1 = new LifecyclePolicy("policy_1", phases1);
         Map<String, Phase> phases2 = new HashMap<>();
-        phases2.put("hot", new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1000L))));
-        phases2.put("warm", new Phase("warm", TimeValue.ZERO,
-                singletonMap(AllocateAction.NAME,
-                    new AllocateAction(1, null, singletonMap("_name", "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3"),
-                        null, null))));
+        phases2.put(
+            "hot",
+            new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1000L)))
+        );
+        phases2.put(
+            "warm",
+            new Phase(
+                "warm",
+                TimeValue.ZERO,
+                singletonMap(
+                    AllocateAction.NAME,
+                    new AllocateAction(
+                        1,
+                        null,
+                        singletonMap("_name", "javaRestTest-0,javaRestTest-1,javaRestTest-2,javaRestTest-3"),
+                        null,
+                        null
+                    )
+                )
+            )
+        );
         LifecyclePolicy lifecyclePolicy2 = new LifecyclePolicy("policy_2", phases2);
         // PUT policy_1 and policy_2
         XContentBuilder builder1 = jsonBuilder();
@@ -88,12 +110,17 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         assertOK(client().performRequest(request2));
 
         // create the test-index index and set the policy to policy_1
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.allocation.include._name", "javaRestTest-0")
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias").put(LifecycleSettings.LIFECYCLE_NAME, "policy_1").build();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.routing.allocation.include._name", "javaRestTest-0")
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias")
+            .put(LifecycleSettings.LIFECYCLE_NAME, "policy_1")
+            .build();
         Request createIndexRequest = new Request("PUT", "/" + indexName);
         createIndexRequest.setJsonEntity(
-                "{\n \"settings\": " + Strings.toString(settings) + ", \"aliases\" : { \"alias\": { \"is_write_index\": true } } }");
+            "{\n \"settings\": " + Strings.toString(settings) + ", \"aliases\" : { \"alias\": { \"is_write_index\": true } } }"
+        );
         client().performRequest(createIndexRequest);
         // wait for the shards to initialize
         ensureGreen(indexName);
@@ -103,8 +130,10 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
 
         // Change the policy to policy_2
         Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");
-        final StringEntity changePolicyEntity = new StringEntity("{ \"index.lifecycle.name\": \"policy_2\" }",
-                ContentType.APPLICATION_JSON);
+        final StringEntity changePolicyEntity = new StringEntity(
+            "{ \"index.lifecycle.name\": \"policy_2\" }",
+            ContentType.APPLICATION_JSON
+        );
         changePolicyRequest.setEntity(changePolicyEntity);
         assertOK(client().performRequest(changePolicyRequest));
 
@@ -134,22 +163,33 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         String alias = "thealias";
         createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, null, 1L));
 
-        createIndexWithSettings(client(), indexName, alias, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
-            .put(LifecycleSettings.LIFECYCLE_NAME, policyName));
+        createIndexWithSettings(
+            client(),
+            indexName,
+            alias,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+        );
 
         // Check the index is on the check-rollover-ready step
-        assertBusy(() -> assertStep(indexName, new StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME)), 30,
-            TimeUnit.SECONDS);
+        assertBusy(
+            () -> assertStep(indexName, new StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME)),
+            30,
+            TimeUnit.SECONDS
+        );
 
         // update the policy to not contain rollover
         createNewSingletonPolicy(client(), policyName, "hot", new SetPriorityAction(200));
 
         // Check the index is on the check-rollover-ready step
-        assertBusy(() -> assertStep(indexName, new StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME)), 30,
-            TimeUnit.SECONDS);
+        assertBusy(
+            () -> assertStep(indexName, new StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME)),
+            30,
+            TimeUnit.SECONDS
+        );
 
         indexDocument(client(), indexName, true);
 
@@ -164,8 +204,9 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         assertOK(explainResponse);
         Map<String, Object> explainResponseMap = entityAsMap(explainResponse);
         @SuppressWarnings("unchecked")
-        Map<String, Object> indexExplainResponse = (Map<String, Object>) ((Map<String, Object>) explainResponseMap.get("indices"))
-                .get(indexName);
+        Map<String, Object> indexExplainResponse = (Map<String, Object>) ((Map<String, Object>) explainResponseMap.get("indices")).get(
+            indexName
+        );
         assertEquals(expectedStep.getPhase(), indexExplainResponse.get("phase"));
         assertEquals(expectedStep.getAction(), indexExplainResponse.get("action"));
         assertEquals(expectedStep.getName(), indexExplainResponse.get("step"));

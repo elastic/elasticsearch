@@ -67,15 +67,17 @@ public class SecurityTestUtils {
     }
 
     public static RoutingTable buildIndexRoutingTable(Index index) {
-        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), true, ExistingStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+        ShardRouting shardRouting = ShardRouting.newUnassigned(
+            new ShardId(index, 0),
+            true,
+            ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
+        );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
-        IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0))
-                .addShard(shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted())
-                .build();
-        return RoutingTable.builder()
-                .add(IndexRoutingTable.builder(index).addIndexShard(table).build())
-                .build();
+        IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
+            shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted()
+        ).build();
+        return RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(table).build()).build();
     }
 
     /**
@@ -83,7 +85,7 @@ public class SecurityTestUtils {
      */
     public static Metadata addAliasToMetadata(Metadata metadata, String indexName) {
         AliasMetadata aliasMetadata = AliasMetadata.newAliasMetadataBuilder(SECURITY_MAIN_ALIAS).build();
-        Metadata.Builder metadataBuilder = new Metadata.Builder(metadata);
+        Metadata.Builder metadataBuilder = Metadata.builder(metadata);
         IndexMetadata indexMetadata = metadata.index(indexName);
         metadataBuilder.put(IndexMetadata.builder(indexMetadata).putAlias(aliasMetadata));
         return metadataBuilder.build();

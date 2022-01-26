@@ -9,8 +9,9 @@
 package org.elasticsearch.test.fixture;
 
 import com.sun.net.httpserver.HttpServer;
-import org.elasticsearch.core.SuppressForbidden;
+
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -77,7 +78,7 @@ public abstract class AbstractHttpFixture {
         final HttpServer httpServer = HttpServer.create(socketAddress, 0);
 
         try {
-            if(exposePidAndPort) {
+            if (exposePidAndPort) {
                 /// Writes the PID of the current Java process in a `pid` file located in the working directory
                 writeFile(workingDirectory, "pid", ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
 

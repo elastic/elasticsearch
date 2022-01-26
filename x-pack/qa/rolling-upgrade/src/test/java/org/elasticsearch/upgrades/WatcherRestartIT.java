@@ -13,7 +13,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -27,11 +27,11 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
 public class WatcherRestartIT extends AbstractUpgradeTestCase {
-    private static final Version UPGRADE_FROM_VERSION =
-        Version.fromString(System.getProperty("tests.upgrade_from_version"));
+    private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     private static final String templatePrefix = ".watch-history-";
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79895")
     public void testWatcherRestart() throws Exception {
         client().performRequest(new Request("POST", "/_watcher/_stop"));
         ensureWatcherStopped();
@@ -121,7 +121,7 @@ public class WatcherRestartIT extends AbstractUpgradeTestCase {
             true
         );
 
-        List<Map<String,Object>> templates = (List<Map<String,Object>>) responseMap.get("index_templates");
+        List<Map<String, Object>> templates = (List<Map<String, Object>>) responseMap.get("index_templates");
 
         final List<String> templateNames = templates.stream().map(each -> (String) each.get("name")).collect(Collectors.toList());
 

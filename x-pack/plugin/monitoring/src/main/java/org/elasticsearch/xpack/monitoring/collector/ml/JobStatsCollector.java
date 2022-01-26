@@ -12,8 +12,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.ML_API_FEATURE;
 import static org.elasticsearch.xpack.monitoring.collector.TimeoutUtils.ensureNoTimeouts;
 
 /**
@@ -47,13 +48,22 @@ public class JobStatsCollector extends Collector {
     private final ThreadContext threadContext;
     private final MachineLearningClient client;
 
-    public JobStatsCollector(final Settings settings, final ClusterService clusterService,
-                             final XPackLicenseState licenseState, final Client client) {
+    public JobStatsCollector(
+        final Settings settings,
+        final ClusterService clusterService,
+        final XPackLicenseState licenseState,
+        final Client client
+    ) {
         this(settings, clusterService, licenseState, new XPackClient(client).machineLearning(), client.threadPool().getThreadContext());
     }
 
-    JobStatsCollector(final Settings settings, final ClusterService clusterService,
-                      final XPackLicenseState licenseState, final MachineLearningClient client, final ThreadContext threadContext) {
+    JobStatsCollector(
+        final Settings settings,
+        final ClusterService clusterService,
+        final XPackLicenseState licenseState,
+        final MachineLearningClient client,
+        final ThreadContext threadContext
+    ) {
         super(JobStatsMonitoringDoc.TYPE, clusterService, JOB_STATS_TIMEOUT, licenseState);
         this.settings = settings;
         this.client = client;
@@ -64,15 +74,14 @@ public class JobStatsCollector extends Collector {
     protected boolean shouldCollect(final boolean isElectedMaster) {
         // This can only run when monitoring is allowed + ML is enabled/allowed, but also only on the elected master node
         return isElectedMaster
-                && super.shouldCollect(isElectedMaster)
-                && XPackSettings.MACHINE_LEARNING_ENABLED.get(settings)
-                && licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING);
+            && super.shouldCollect(isElectedMaster)
+            && XPackSettings.MACHINE_LEARNING_ENABLED.get(settings)
+            && ML_API_FEATURE.checkWithoutTracking(licenseState);
     }
 
     @Override
-    protected List<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
-                                            final long interval,
-                                            final ClusterState clusterState) throws Exception {
+    protected List<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval, final ClusterState clusterState)
+        throws Exception {
         // fetch details about all jobs
         try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(MONITORING_ORIGIN)) {
             final GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(Metadata.ALL).setTimeout(getCollectionTimeout());
@@ -83,9 +92,11 @@ public class JobStatsCollector extends Collector {
             final long timestamp = timestamp();
             final String clusterUuid = clusterUuid(clusterState);
 
-            return jobs.getResponse().results().stream()
-                    .map(jobStats -> new JobStatsMonitoringDoc(clusterUuid, timestamp, interval, node, jobStats))
-                    .collect(Collectors.toList());
+            return jobs.getResponse()
+                .results()
+                .stream()
+                .map(jobStats -> new JobStatsMonitoringDoc(clusterUuid, timestamp, interval, node, jobStats))
+                .collect(Collectors.toList());
         }
     }
 

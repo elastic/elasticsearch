@@ -7,18 +7,19 @@ dependencies {
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
-task copyXPackPluginProps(type: Copy) {
+def copyXPackPluginProps = tasks.register("copyXPackPluginProps", Copy) {
   from project(xpackModule('core')).file('src/main/plugin-metadata')
+  // TODO revisit resolving other modules plugin properties
   from project(xpackModule('core')).tasks.pluginProperties
   into outputDir
 }
 project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
 
-integTest {
+tasks.named("integTest").configure {
   systemProperty 'tests.security.manager', 'false'
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = "default"
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'

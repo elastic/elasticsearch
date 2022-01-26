@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
@@ -64,27 +64,24 @@ public abstract class ESXPackSmokeClientTestCase extends LuceneTestCase {
 
     private static Client startClient(Path tempDir, TransportAddress... transportAddresses) {
         Settings.Builder builder = Settings.builder()
-                .put("node.name", "qa_xpack_smoke_client_" + counter.getAndIncrement())
-                .put("client.transport.ignore_cluster_name", true)
-                .put("xpack.security.enabled", false)
-                .put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
-        TransportClient client = new PreBuiltXPackTransportClient(builder.build())
-                .addTransportAddresses(transportAddresses);
+            .put("node.name", "qa_xpack_smoke_client_" + counter.getAndIncrement())
+            .put("client.transport.ignore_cluster_name", true)
+            .put("xpack.security.enabled", false)
+            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
+        TransportClient client = new PreBuiltXPackTransportClient(builder.build()).addTransportAddresses(transportAddresses);
 
         logger.info("--> Elasticsearch Java TransportClient started");
 
         Exception clientException = null;
         try {
             ClusterHealthResponse health = client.admin().cluster().prepareHealth().get();
-            logger.info("--> connected to [{}] cluster which is running [{}] node(s).",
-                    health.getClusterName(), health.getNumberOfNodes());
+            logger.info("--> connected to [{}] cluster which is running [{}] node(s).", health.getClusterName(), health.getNumberOfNodes());
         } catch (Exception e) {
             logger.error("Error getting cluster health", e);
             clientException = e;
         }
 
-        assumeNoException("Sounds like your cluster is not running at " + clusterAddresses,
-                clientException);
+        assumeNoException("Sounds like your cluster is not running at " + clusterAddresses, clientException);
 
         return client;
     }
@@ -96,8 +93,7 @@ public abstract class ESXPackSmokeClientTestCase extends LuceneTestCase {
         for (String stringAddress : stringAddresses) {
             URL url = new URL("http://" + stringAddress);
             InetAddress inetAddress = InetAddress.getByName(url.getHost());
-            transportAddresses[i++] = new TransportAddress(
-                    new InetSocketAddress(inetAddress, url.getPort()));
+            transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
         }
         return startClient(createTempDir(), transportAddresses);
     }
@@ -133,8 +129,7 @@ public abstract class ESXPackSmokeClientTestCase extends LuceneTestCase {
     @Before
     public void defineIndexName() {
         doClean();
-        index = "qa-xpack-smoke-test-client-"
-                + randomAsciiOfLength(10).toLowerCase(Locale.getDefault());
+        index = "qa-xpack-smoke-test-client-" + randomAsciiOfLength(10).toLowerCase(Locale.getDefault());
     }
 
     @After

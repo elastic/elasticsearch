@@ -25,6 +25,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 
 /**
@@ -44,19 +45,16 @@ public class BalanceUnbalancedClusterTests extends CatAllocationTestCase {
     @Override
     protected ClusterState allocateNew(ClusterState state) {
         String index = "tweets-2014-12-29:00";
-        AllocationService strategy = createAllocationService(Settings.builder()
-                .build());
+        AllocationService strategy = createAllocationService(Settings.builder().build());
         Metadata metadata = Metadata.builder(state.metadata())
-                .put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
-                .build();
+            .put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
+            .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder(state.routingTable())
-                .addAsNew(metadata.index(index))
-                .build();
+        RoutingTable initialRoutingTable = RoutingTable.builder(state.routingTable()).addAsNew(metadata.index(index)).build();
 
         ClusterState clusterState = ClusterState.builder(state).metadata(metadata).routingTable(initialRoutingTable).build();
         clusterState = strategy.reroute(clusterState, "reroute");
-        while (clusterState.routingTable().shardsWithState(INITIALIZING).isEmpty() == false) {
+        while (shardsWithState(clusterState.getRoutingNodes(), INITIALIZING).isEmpty() == false) {
             clusterState = ESAllocationTestCase.startInitializingShardsAndReroute(strategy, clusterState);
         }
         Map<String, Integer> counts = new HashMap<>();

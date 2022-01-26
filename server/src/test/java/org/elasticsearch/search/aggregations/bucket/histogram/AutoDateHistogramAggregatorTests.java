@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
@@ -427,7 +428,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             d.add(new SortedNumericDocValuesField(fieldName, 0));
             iw.addDocument(d);
         }, a -> {}, new BooleanFieldMapper.BooleanFieldType(fieldName));
-        assertWarnings("Running AutoIntervalDateHistogram aggregations on [boolean] fields is deprecated");
+        assertWarnings(Level.WARN, "Running AutoIntervalDateHistogram aggregations on [boolean] fields is deprecated");
     }
 
     public void testUnmappedMissing() throws IOException {

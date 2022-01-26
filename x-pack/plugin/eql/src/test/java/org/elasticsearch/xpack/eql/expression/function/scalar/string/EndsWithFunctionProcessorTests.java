@@ -73,22 +73,18 @@ public class EndsWithFunctionProcessorTests extends ESTestCase {
 
     public void testEndsWithFunctionInputsValidation() {
         boolean caseSensitive = randomBoolean();
-        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
-            () -> untypedEndsWith(5, "foo"));
+        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class, () -> untypedEndsWith(5, "foo"));
         assertEquals("A string/char is required; received [5]", siae.getMessage());
-        siae = expectThrows(QlIllegalArgumentException.class,
-            () -> untypedEndsWith("bar", false));
+        siae = expectThrows(QlIllegalArgumentException.class, () -> untypedEndsWith("bar", false));
         assertEquals("A string/char is required; received [false]", siae.getMessage());
     }
 
     public void testEndsWithFunctionWithRandomInvalidDataType() {
         boolean caseSensitive = randomBoolean();
         Literal literal = randomValueOtherThanMany(v -> v.dataType() == KEYWORD, () -> LiteralTests.randomLiteral());
-        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
-            () -> untypedEndsWith(literal, "foo"));
+        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class, () -> untypedEndsWith(literal, "foo"));
         assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
-        siae = expectThrows(QlIllegalArgumentException.class,
-            () -> untypedEndsWith("foo", literal));
+        siae = expectThrows(QlIllegalArgumentException.class, () -> untypedEndsWith("foo", literal));
         assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
     }
 }

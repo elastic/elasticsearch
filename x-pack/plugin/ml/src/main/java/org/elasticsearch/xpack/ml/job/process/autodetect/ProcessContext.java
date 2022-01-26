@@ -69,9 +69,9 @@ final class ProcessContext {
         lock.unlock();
     }
 
-    void setRunning(AutodetectCommunicator autodetectCommunicator) {
+    void setRunning(AutodetectCommunicator communicator) {
         assert lock.isHeldByCurrentThread();
-        state.setRunning(this, autodetectCommunicator);
+        state.setRunning(this, communicator);
     }
 
     boolean setDying() {
@@ -144,7 +144,9 @@ final class ProcessContext {
     }
 
     enum ProcessStateName {
-        NOT_RUNNING, RUNNING, DYING
+        NOT_RUNNING,
+        RUNNING,
+        DYING
     }
 
     private interface ProcessState {
@@ -152,10 +154,12 @@ final class ProcessContext {
          * @return was a state change made?
          * */
         boolean setRunning(ProcessContext processContext, AutodetectCommunicator autodetectCommunicator);
+
         /**
          * @return was a state change made?
          */
         boolean setDying(ProcessContext processContext);
+
         ProcessStateName getName();
     }
 

@@ -24,9 +24,9 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -65,8 +65,13 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
     private volatile Long reindexingTaskId;
     private volatile boolean isReindexingFinished;
 
-    public ReindexingStep(ClusterService clusterService, NodeClient client, DataFrameAnalyticsTask task, DataFrameAnalyticsAuditor auditor,
-                          DataFrameAnalyticsConfig config) {
+    public ReindexingStep(
+        ClusterService clusterService,
+        NodeClient client,
+        DataFrameAnalyticsTask task,
+        DataFrameAnalyticsAuditor auditor,
+        DataFrameAnalyticsConfig config
+    ) {
         super(client, task, auditor, config);
         this.clusterService = Objects.requireNonNull(clusterService);
     }
@@ -83,134 +88,149 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         final ParentTaskAssigningClient parentTaskClient = parentTaskClient();
 
         // Reindexing is complete
-        ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(
-            reindexResponse -> {
+        ActionListener<BulkByScrollResponse> reindexCompletedListener = ActionListener.wrap(reindexResponse -> {
 
-                // If the reindex task is canceled, this listener is called.
-                // Consequently, we should not signal reindex completion.
-                if (isTaskStopping()) {
-                    LOGGER.debug("[{}] task is stopping. Stopping reindexing before it is finished.", config.getId());
-                    listener.onResponse(new StepResponse(true));
-                    return;
-                }
-
-                synchronized (this) {
-                    reindexingTaskId = null;
-                }
-
-                Exception reindexError = getReindexError(config.getId(), reindexResponse);
-                if (reindexError != null) {
-                    listener.onFailure(reindexError);
-                    return;
-                }
-
-                auditor.info(
-                    config.getId(),
-                    Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING, config.getDest().getIndex(),
-                        reindexResponse.getTook()));
-
-                isReindexingFinished = true;
-                task.getStatsHolder().getProgressTracker().updateReindexingProgress(100);
-
-                LOGGER.debug("[{}] Reindex completed; created [{}]; retries [{}]", config.getId(), reindexResponse.getCreated(),
-                    reindexResponse.getBulkRetries());
-
-                listener.onResponse(new StepResponse(false));
-            },
-            error -> {
-                if (isTaskStopping() && isTaskCancelledException(error)) {
-                    LOGGER.debug(new ParameterizedMessage("[{}] Caught task cancelled exception while task is stopping",
-                        config.getId()), error);
-                    listener.onResponse(new StepResponse(true));
-                } else {
-                    listener.onFailure(error);
-                }
+            // If the reindex task is canceled, this listener is called.
+            // Consequently, we should not signal reindex completion.
+            if (isTaskStopping()) {
+                LOGGER.debug("[{}] task is stopping. Stopping reindexing before it is finished.", config.getId());
+                listener.onResponse(new StepResponse(true));
+                return;
             }
-        );
+
+            synchronized (this) {
+                reindexingTaskId = null;
+            }
+
+            Exception reindexError = getReindexError(config.getId(), reindexResponse);
+            if (reindexError != null) {
+                listener.onFailure(reindexError);
+                return;
+            }
+
+            auditor.info(
+                config.getId(),
+                Messages.getMessage(
+                    Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_REINDEXING,
+                    config.getDest().getIndex(),
+                    reindexResponse.getTook()
+                )
+            );
+
+            isReindexingFinished = true;
+            task.getStatsHolder().getProgressTracker().updateReindexingProgress(100);
+
+            LOGGER.debug(
+                "[{}] Reindex completed; created [{}]; retries [{}]",
+                config.getId(),
+                reindexResponse.getCreated(),
+                reindexResponse.getBulkRetries()
+            );
+
+            listener.onResponse(new StepResponse(false));
+        }, error -> {
+            if (isTaskStopping() && isTaskCancelledException(error)) {
+                LOGGER.debug(
+                    new ParameterizedMessage("[{}] Caught task cancelled exception while task is stopping", config.getId()),
+                    error
+                );
+                listener.onResponse(new StepResponse(true));
+            } else {
+                listener.onFailure(error);
+            }
+        });
 
         // Reindex
-        ActionListener<CreateIndexResponse> copyIndexCreatedListener = ActionListener.wrap(
-            createIndexResponse -> {
-                ReindexRequest reindexRequest = new ReindexRequest();
-                reindexRequest.setRefresh(true);
-                reindexRequest.setSourceIndices(config.getSource().getIndex());
-                reindexRequest.setSourceQuery(config.getSource().getParsedQuery());
-                reindexRequest.getSearchRequest().allowPartialSearchResults(false);
-                reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
-                reindexRequest.getSearchRequest().source().sort(SeqNoFieldMapper.NAME, SortOrder.ASC);
-                reindexRequest.setDestIndex(config.getDest().getIndex());
+        ActionListener<CreateIndexResponse> copyIndexCreatedListener = ActionListener.wrap(createIndexResponse -> {
+            ReindexRequest reindexRequest = new ReindexRequest();
+            reindexRequest.setRefresh(true);
+            reindexRequest.setSourceIndices(config.getSource().getIndex());
+            reindexRequest.setSourceQuery(config.getSource().getParsedQuery());
+            reindexRequest.getSearchRequest().allowPartialSearchResults(false);
+            reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
+            reindexRequest.getSearchRequest().source().sort(SeqNoFieldMapper.NAME, SortOrder.ASC);
+            reindexRequest.setDestIndex(config.getDest().getIndex());
 
-                // We explicitly set slices to 1 as we cannot parallelize in order to have the incremental id
-                reindexRequest.setSlices(1);
-                Map<String, Object> counterValueParam = new HashMap<>();
-                counterValueParam.put("value", -1);
-                reindexRequest.setScript(
-                    new Script(
-                        Script.DEFAULT_SCRIPT_TYPE,
-                        Script.DEFAULT_SCRIPT_LANG,
-                        // We use indirection here because top level params are immutable.
-                        // This is a work around at the moment but the plan is to make this a feature of reindex API.
-                        "ctx._source." + DestinationIndex.INCREMENTAL_ID + " = ++params.counter.value",
-                        Collections.singletonMap("counter", counterValueParam)
-                    )
-                );
+            // We explicitly set slices to 1 as we cannot parallelize in order to have the incremental id
+            reindexRequest.setSlices(1);
+            Map<String, Object> counterValueParam = new HashMap<>();
+            counterValueParam.put("value", -1);
+            reindexRequest.setScript(
+                new Script(
+                    Script.DEFAULT_SCRIPT_TYPE,
+                    Script.DEFAULT_SCRIPT_LANG,
+                    // We use indirection here because top level params are immutable.
+                    // This is a work around at the moment but the plan is to make this a feature of reindex API.
+                    "ctx._source." + DestinationIndex.INCREMENTAL_ID + " = ++params.counter.value",
+                    Collections.singletonMap("counter", counterValueParam)
+                )
+            );
 
-                reindexRequest.setParentTask(getParentTaskId());
+            reindexRequest.setParentTask(getParentTaskId());
 
-                final ThreadContext threadContext = parentTaskClient.threadPool().getThreadContext();
-                final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-                try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(ML_ORIGIN)) {
-                    synchronized (this) {
-                        if (isTaskStopping()) {
-                            LOGGER.debug("[{}] task is stopping. Stopping reindexing before it is finished.", config.getId());
-                            listener.onResponse(new StepResponse(true));
-                            return;
-                        }
-                        LOGGER.info("[{}] Started reindexing", config.getId());
-                        Task reindexTask = client.executeLocally(ReindexAction.INSTANCE, reindexRequest,
-                            new ContextPreservingActionListener<>(supplier, reindexCompletedListener));
-                        reindexingTaskId = reindexTask.getId();
+            final ThreadContext threadContext = parentTaskClient.threadPool().getThreadContext();
+            final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
+            try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(ML_ORIGIN)) {
+                synchronized (this) {
+                    if (isTaskStopping()) {
+                        LOGGER.debug("[{}] task is stopping. Stopping reindexing before it is finished.", config.getId());
+                        listener.onResponse(new StepResponse(true));
+                        return;
                     }
-                    auditor.info(config.getId(),
-                        Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED_REINDEXING, config.getDest().getIndex()));
+                    LOGGER.info("[{}] Started reindexing", config.getId());
+                    Task reindexTask = client.executeLocally(
+                        ReindexAction.INSTANCE,
+                        reindexRequest,
+                        new ContextPreservingActionListener<>(supplier, reindexCompletedListener)
+                    );
+                    reindexingTaskId = reindexTask.getId();
                 }
-            },
-            reindexCompletedListener::onFailure
-        );
-
-        // Create destination index if it does not exist
-        ActionListener<GetIndexResponse> destIndexListener = ActionListener.wrap(
-            indexResponse -> {
                 auditor.info(
                     config.getId(),
-                    Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_REUSING_DEST_INDEX, indexResponse.indices()[0]));
-                LOGGER.info("[{}] Using existing destination index [{}]", config.getId(), indexResponse.indices()[0]);
-                DestinationIndex.updateMappingsToDestIndex(parentTaskClient, config, indexResponse, ActionListener.wrap(
-                    acknowledgedResponse -> copyIndexCreatedListener.onResponse(null),
-                    copyIndexCreatedListener::onFailure
-                ));
-            },
-            e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                    auditor.info(
-                        config.getId(),
-                        Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATING_DEST_INDEX, config.getDest().getIndex()));
-                    LOGGER.info("[{}] Creating destination index [{}]", config.getId(), config.getDest().getIndex());
-                    DestinationIndex.createDestinationIndex(parentTaskClient, Clock.systemUTC(), config, copyIndexCreatedListener);
-                } else {
-                    copyIndexCreatedListener.onFailure(e);
-                }
+                    Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED_REINDEXING, config.getDest().getIndex())
+                );
             }
-        );
+        }, reindexCompletedListener::onFailure);
 
-        ClientHelper.executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, parentTaskClient, GetIndexAction.INSTANCE,
-            new GetIndexRequest().indices(config.getDest().getIndex()), destIndexListener);
+        // Create destination index if it does not exist
+        ActionListener<GetIndexResponse> destIndexListener = ActionListener.wrap(indexResponse -> {
+            auditor.info(
+                config.getId(),
+                Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_REUSING_DEST_INDEX, indexResponse.indices()[0])
+            );
+            LOGGER.info("[{}] Using existing destination index [{}]", config.getId(), indexResponse.indices()[0]);
+            DestinationIndex.updateMappingsToDestIndex(
+                parentTaskClient,
+                config,
+                indexResponse,
+                ActionListener.wrap(acknowledgedResponse -> copyIndexCreatedListener.onResponse(null), copyIndexCreatedListener::onFailure)
+            );
+        }, e -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                auditor.info(
+                    config.getId(),
+                    Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATING_DEST_INDEX, config.getDest().getIndex())
+                );
+                LOGGER.info("[{}] Creating destination index [{}]", config.getId(), config.getDest().getIndex());
+                DestinationIndex.createDestinationIndex(parentTaskClient, Clock.systemUTC(), config, copyIndexCreatedListener);
+            } else {
+                copyIndexCreatedListener.onFailure(e);
+            }
+        });
+
+        ClientHelper.executeWithHeadersAsync(
+            config.getHeaders(),
+            ML_ORIGIN,
+            parentTaskClient,
+            GetIndexAction.INSTANCE,
+            new GetIndexRequest().indices(config.getDest().getIndex()),
+            destIndexListener
+        );
     }
 
     private static Exception getReindexError(String jobId, BulkByScrollResponse reindexResponse) {
         if (reindexResponse.getBulkFailures().isEmpty() == false) {
-            LOGGER.error("[{}] reindexing encountered {} failures", jobId,
-                reindexResponse.getBulkFailures().size());
+            LOGGER.error("[{}] reindexing encountered {} failures", jobId, reindexResponse.getBulkFailures().size());
             for (BulkItemResponse.Failure failure : reindexResponse.getBulkFailures()) {
                 LOGGER.error("[{}] reindexing failure: {}", jobId, failure);
             }
@@ -280,15 +300,17 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
 
     @Override
     public void updateProgress(ActionListener<Void> listener) {
-        getReindexTaskProgress(ActionListener.wrap(
-            // We set reindexing progress at least to 1 for a running process to be able to
-            // distinguish a job that is running for the first time against a job that is restarting.
-            reindexTaskProgress -> {
-                task.getStatsHolder().getProgressTracker().updateReindexingProgress(Math.max(1, reindexTaskProgress));
-                listener.onResponse(null);
-            },
-            listener::onFailure
-        ));
+        getReindexTaskProgress(
+            ActionListener.wrap(
+                // We set reindexing progress at least to 1 for a running process to be able to
+                // distinguish a job that is running for the first time against a job that is restarting.
+                reindexTaskProgress -> {
+                    task.getStatsHolder().getProgressTracker().updateReindexingProgress(Math.max(1, reindexTaskProgress));
+                    listener.onResponse(null);
+                },
+                listener::onFailure
+            )
+        );
     }
 
     private void getReindexTaskProgress(ActionListener<Integer> listener) {
@@ -300,22 +322,19 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
 
         GetTaskRequest getTaskRequest = new GetTaskRequest();
         getTaskRequest.setTaskId(reindexTaskId);
-        client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(
-            taskResponse -> {
-                TaskResult taskResult = taskResponse.getTask();
-                BulkByScrollTask.Status taskStatus = (BulkByScrollTask.Status) taskResult.getTask().getStatus();
-                int progress = (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal());
-                listener.onResponse(progress);
-            },
-            error -> {
-                if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
-                    // The task is not present which means either it has not started yet or it finished.
-                    listener.onResponse(isReindexingFinished ? 100 : 0);
-                } else {
-                    listener.onFailure(error);
-                }
+        client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(taskResponse -> {
+            TaskResult taskResult = taskResponse.getTask();
+            BulkByScrollTask.Status taskStatus = (BulkByScrollTask.Status) taskResult.getTask().getStatus();
+            int progress = (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal());
+            listener.onResponse(progress);
+        }, error -> {
+            if (ExceptionsHelper.unwrapCause(error) instanceof ResourceNotFoundException) {
+                // The task is not present which means either it has not started yet or it finished.
+                listener.onResponse(isReindexingFinished ? 100 : 0);
+            } else {
+                listener.onFailure(error);
             }
-        ));
+        }));
     }
 
     @Nullable

@@ -7,12 +7,10 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
-
-import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -30,6 +28,8 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
+
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * Trust configuration that is backed by a {@link java.security.KeyStore}
@@ -67,7 +67,7 @@ class StoreTrustConfig extends TrustConfig {
             return CertParsingUtils.trustManager(trustStore, trustStoreAlgorithm);
         } catch (FileNotFoundException | NoSuchFileException e) {
             throw missingTrustConfigFile(e, TRUSTSTORE_FILE, storePath);
-        } catch (AccessDeniedException  e) {
+        } catch (AccessDeniedException e) {
             throw unreadableTrustConfigFile(e, TRUSTSTORE_FILE, storePath);
         } catch (AccessControlException e) {
             throw blockedTrustConfigFile(e, environment, TRUSTSTORE_FILE, Collections.singletonList(storePath));
@@ -122,8 +122,6 @@ class StoreTrustConfig extends TrustConfig {
 
     @Override
     public String toString() {
-        return "trustStorePath=[" + trustStorePath +
-                "], trustStoreAlgorithm=[" + trustStoreAlgorithm +
-                "]";
+        return "trustStorePath=[" + trustStorePath + "], trustStoreAlgorithm=[" + trustStoreAlgorithm + "]";
     }
 }

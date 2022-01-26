@@ -114,11 +114,10 @@ public abstract class SearchAfterDocumentsIterator<T> implements BatchedIterator
         return mapHits(searchResponse);
     }
 
-    private SearchResponse doSearch(Object [] searchAfterValues) {
+    private SearchResponse doSearch(Object[] searchAfterValues) {
         SearchRequest searchRequest = new SearchRequest(index);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
-        SearchSourceBuilder sourceBuilder = (new SearchSourceBuilder()
-            .size(batchSize)
+        SearchSourceBuilder sourceBuilder = (new SearchSourceBuilder().size(batchSize)
             .query(getQuery())
             .fetchSource(shouldFetchSource())
             .sort(sortField()));

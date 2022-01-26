@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import joptsimple.OptionSet;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cli.Command;
@@ -58,30 +59,38 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
     }
 
     public void testUserJson() throws Exception {
-        assertThat(ESNativeRealmMigrateTool.MigrateUserOrRoles.createUserJson(Strings.EMPTY_ARRAY, "hash".toCharArray()),
-                equalTo("{\"password_hash\":\"hash\",\"roles\":[]}"));
-        assertThat(ESNativeRealmMigrateTool.MigrateUserOrRoles.createUserJson(new String[]{"role1", "role2"}, "hash".toCharArray()),
-                equalTo("{\"password_hash\":\"hash\",\"roles\":[\"role1\",\"role2\"]}"));
+        assertThat(
+            ESNativeRealmMigrateTool.MigrateUserOrRoles.createUserJson(Strings.EMPTY_ARRAY, "hash".toCharArray()),
+            equalTo("{\"password_hash\":\"hash\",\"roles\":[]}")
+        );
+        assertThat(
+            ESNativeRealmMigrateTool.MigrateUserOrRoles.createUserJson(new String[] { "role1", "role2" }, "hash".toCharArray()),
+            equalTo("{\"password_hash\":\"hash\",\"roles\":[\"role1\",\"role2\"]}")
+        );
     }
 
     public void testRoleJson() throws Exception {
         RoleDescriptor.IndicesPrivileges ip = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(new String[]{"i1", "i2", "i3"})
-                .privileges(new String[]{"all"})
-                .grantedFields("body")
-                .build();
+            .indices(new String[] { "i1", "i2", "i3" })
+            .privileges(new String[] { "all" })
+            .grantedFields("body")
+            .build();
         RoleDescriptor.IndicesPrivileges[] ips = new RoleDescriptor.IndicesPrivileges[1];
         ips[0] = ip;
         String[] cluster = Strings.EMPTY_ARRAY;
         String[] runAs = Strings.EMPTY_ARRAY;
         RoleDescriptor rd = new RoleDescriptor("rolename", cluster, ips, runAs);
-        assertThat(ESNativeRealmMigrateTool.MigrateUserOrRoles.createRoleJson(rd),
-                equalTo("{\"cluster\":[]," +
-                        "\"indices\":[{\"names\":[\"i1\",\"i2\",\"i3\"]," +
-                        "\"privileges\":[\"all\"],\"field_security\":{\"grant\":[\"body\"]}," +
-                        "\"allow_restricted_indices\":false}]," +
-                        "\"applications\":[]," +
-                        "\"run_as\":[],\"metadata\":{},\"type\":\"role\"}"));
+        assertThat(
+            ESNativeRealmMigrateTool.MigrateUserOrRoles.createRoleJson(rd),
+            equalTo(
+                "{\"cluster\":[],"
+                    + "\"indices\":[{\"names\":[\"i1\",\"i2\",\"i3\"],"
+                    + "\"privileges\":[\"all\"],\"field_security\":{\"grant\":[\"body\"]},"
+                    + "\"allow_restricted_indices\":false}],"
+                    + "\"applications\":[],"
+                    + "\"run_as\":[],\"metadata\":{},\"type\":\"role\"}"
+            )
+        );
     }
 
     public void testTerminalLogger() throws Exception {
@@ -127,24 +136,21 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
 
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
 
-        OptionSet options = muor.getParser().parse("-u", "elastic", "-p", SecuritySettingsSourceField.TEST_PASSWORD,
-                "-U", "http://localhost:9200");
+        OptionSet options = muor.getParser()
+            .parse("-u", "elastic", "-p", SecuritySettingsSourceField.TEST_PASSWORD, "-U", "http://localhost:9200");
         Settings settings = Settings.builder().put("path.home", homeDir).build();
         Environment environment = new Environment(settings, confDir);
 
         MockTerminal mockTerminal = new MockTerminal();
 
-        FileNotFoundException fnfe = expectThrows(FileNotFoundException.class,
-                () -> muor.importUsers(mockTerminal, environment, options));
+        FileNotFoundException fnfe = expectThrows(FileNotFoundException.class, () -> muor.importUsers(mockTerminal, environment, options));
         assertThat(fnfe.getMessage(), containsString("users file"));
 
         Files.createFile(xpackConfDir.resolve("users"));
-        fnfe = expectThrows(FileNotFoundException.class,
-                () -> muor.importUsers(mockTerminal, environment, options));
+        fnfe = expectThrows(FileNotFoundException.class, () -> muor.importUsers(mockTerminal, environment, options));
         assertThat(fnfe.getMessage(), containsString("users_roles file"));
 
-        fnfe = expectThrows(FileNotFoundException.class,
-                () -> muor.importRoles(mockTerminal, environment, options));
+        fnfe = expectThrows(FileNotFoundException.class, () -> muor.importRoles(mockTerminal, environment, options));
         assertThat(fnfe.getMessage(), containsString("roles.yml file"));
     }
 }

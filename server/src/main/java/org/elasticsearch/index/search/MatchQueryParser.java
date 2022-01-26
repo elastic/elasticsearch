@@ -122,8 +122,10 @@ public class MatchQueryParser {
 
     protected int maxExpansions = FuzzyQuery.defaultMaxExpansions;
 
-    protected SpanMultiTermQueryWrapper.SpanRewriteMethod spanRewriteMethod =
-        new SpanBooleanQueryRewriteWithMaxClause(FuzzyQuery.defaultMaxExpansions, false);
+    protected SpanMultiTermQueryWrapper.SpanRewriteMethod spanRewriteMethod = new SpanBooleanQueryRewriteWithMaxClause(
+        FuzzyQuery.defaultMaxExpansions,
+        false
+    );
 
     protected boolean transpositions = FuzzyQuery.defaultTranspositions;
 
@@ -213,8 +215,9 @@ public class MatchQueryParser {
         // We check here that the field supports text searches -
         // if it doesn't, we can bail out early without doing any further parsing.
         if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
-            IllegalArgumentException iae = new IllegalArgumentException("Field [" + fieldType.name() + "] of type [" +
-                fieldType.typeName() + "] does not support match queries");
+            IllegalArgumentException iae = new IllegalArgumentException(
+                "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "] does not support match queries"
+            );
             if (lenient) {
                 return newLenientFieldQuery(fieldName, iae);
             }
@@ -237,7 +240,7 @@ public class MatchQueryParser {
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
             final Term term = new Term(resolvedFieldName, stringValue);
             if (type == Type.BOOLEAN_PREFIX
-                    && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
+                && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
                 return builder.newPrefixQuery(term);
             } else {
                 return builder.newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
@@ -268,8 +271,14 @@ public class MatchQueryParser {
         return query == null ? zeroTermsQuery.asQuery() : query;
     }
 
-    private Query createCommonTermsQuery(MatchQueryBuilder builder, String field, String queryText,
-                                         Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency) {
+    private Query createCommonTermsQuery(
+        MatchQueryBuilder builder,
+        String field,
+        String queryText,
+        Occur highFreqOccur,
+        Occur lowFreqOccur,
+        float maxTermFrequency
+    ) {
         Query booleanQuery = builder.createBooleanQuery(field, queryText, lowFreqOccur);
         if (booleanQuery != null && booleanQuery instanceof BooleanQuery) {
             BooleanQuery bq = (BooleanQuery) booleanQuery;
@@ -278,10 +287,7 @@ public class MatchQueryParser {
         return booleanQuery;
     }
 
-    private Query boolToExtendedCommonTermsQuery(BooleanQuery bq,
-                                                 Occur highFreqOccur,
-                                                 Occur lowFreqOccur,
-                                                 float maxTermFrequency) {
+    private Query boolToExtendedCommonTermsQuery(BooleanQuery bq, Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency) {
         ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency);
         for (BooleanClause clause : bq.clauses()) {
             if ((clause.getQuery() instanceof TermQuery) == false) {
@@ -308,8 +314,12 @@ public class MatchQueryParser {
         /**
          * Creates a new QueryBuilder using the given analyzer.
          */
-        MatchQueryBuilder(Analyzer analyzer, MappedFieldType fieldType,
-                            boolean enablePositionIncrements, boolean autoGenerateSynonymsPhraseQuery) {
+        MatchQueryBuilder(
+            Analyzer analyzer,
+            MappedFieldType fieldType,
+            boolean enablePositionIncrements,
+            boolean autoGenerateSynonymsPhraseQuery
+        ) {
             super(analyzer);
             this.fieldType = fieldType;
             setEnablePositionIncrements(enablePositionIncrements);
@@ -321,8 +331,14 @@ public class MatchQueryParser {
         }
 
         @Override
-        protected Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field,
-                                         String queryText, boolean quoted, int slop) {
+        protected Query createFieldQuery(
+            Analyzer analyzer,
+            BooleanClause.Occur operator,
+            String field,
+            String queryText,
+            boolean quoted,
+            int slop
+        ) {
             assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
             Type type = quoted ? Type.PHRASE : Type.BOOLEAN;
             return createQuery(field, queryText, type, operator, slop);
@@ -460,8 +476,9 @@ public class MatchQueryParser {
             }
             SpanQuery[] spanQueries = new SpanQuery[terms.length];
             for (int i = 0; i < terms.length; i++) {
-                spanQueries[i] = isPrefix ? fieldType.spanPrefixQuery(terms[i].text(), spanRewriteMethod, context) :
-                    new SpanTermQuery(terms[i]);
+                spanQueries[i] = isPrefix
+                    ? fieldType.spanPrefixQuery(terms[i].text(), spanRewriteMethod, context)
+                    : new SpanTermQuery(terms[i]);
             }
             return new SpanOrQuery(spanQueries);
         }
@@ -482,7 +499,7 @@ public class MatchQueryParser {
             Term lastTerm = null;
             while (in.incrementToken()) {
                 if (posIncAtt.getPositionIncrement() > 1) {
-                    builder.addGap(posIncAtt.getPositionIncrement()-1);
+                    builder.addGap(posIncAtt.getPositionIncrement() - 1);
                 }
                 if (lastTerm != null) {
                     builder.addClause(new SpanTermQuery(lastTerm));
@@ -490,8 +507,9 @@ public class MatchQueryParser {
                 lastTerm = new Term(field, termAtt.getBytesRef());
             }
             if (lastTerm != null) {
-                SpanQuery spanQuery = isPrefix ?
-                    fieldType.spanPrefixQuery(lastTerm.text(), spanRewriteMethod, context) : new SpanTermQuery(lastTerm);
+                SpanQuery spanQuery = isPrefix
+                    ? fieldType.spanPrefixQuery(lastTerm.text(), spanRewriteMethod, context)
+                    : new SpanTermQuery(lastTerm);
                 builder.addClause(spanQuery);
             }
             SpanNearQuery query = builder.build();
@@ -508,8 +526,7 @@ public class MatchQueryParser {
             Supplier<Query> querySupplier;
             if (fuzziness != null) {
                 querySupplier = () -> {
-                    Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions,
-                            transpositions, context);
+                    Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions, context);
                     if (query instanceof FuzzyQuery) {
                         QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
                     }
@@ -555,8 +572,9 @@ public class MatchQueryParser {
             final Term term = new Term(field, termAtt.getBytesRef());
             int lastOffset = offsetAtt.endOffset();
             stream.end();
-            return isPrefix && lastOffset == offsetAtt.endOffset() ?
-                newPrefixQuery(term) : newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
+            return isPrefix && lastOffset == offsetAtt.endOffset()
+                ? newPrefixQuery(term)
+                : newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
         }
 
         private void add(BooleanQuery.Builder q, String field, List<Term> current, BooleanClause.Occur operator, boolean isPrefix) {
@@ -578,8 +596,8 @@ public class MatchQueryParser {
             }
         }
 
-        private Query analyzeMultiBoolean(String field, TokenStream stream,
-                                          BooleanClause.Occur operator, boolean isPrefix) throws IOException {
+        private Query analyzeMultiBoolean(String field, TokenStream stream, BooleanClause.Occur operator, boolean isPrefix)
+            throws IOException {
             BooleanQuery.Builder q = newBooleanQuery();
             List<Term> currentQuery = new ArrayList<>();
 
@@ -637,8 +655,8 @@ public class MatchQueryParser {
             }
         }
 
-        private Query analyzeGraphBoolean(String field, TokenStream source,
-                                            BooleanClause.Occur operator, boolean isPrefix) throws IOException {
+        private Query analyzeGraphBoolean(String field, TokenStream source, BooleanClause.Occur operator, boolean isPrefix)
+            throws IOException {
             source.reset();
             GraphTokenStreamFiniteStrings graph = new GraphTokenStreamFiniteStrings(source);
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -666,9 +684,7 @@ public class MatchQueryParser {
                             TokenStream ts = it.next();
                             final Type type;
                             if (getAutoGenerateMultiTermSynonymsPhraseQuery()) {
-                                type = usePrefix
-                                    ? Type.PHRASE_PREFIX
-                                    : Type.PHRASE;
+                                type = usePrefix ? Type.PHRASE_PREFIX : Type.PHRASE;
                             } else {
                                 type = Type.BOOLEAN;
                             }

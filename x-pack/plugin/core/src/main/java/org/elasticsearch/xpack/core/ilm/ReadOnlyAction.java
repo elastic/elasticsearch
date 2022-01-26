@@ -10,9 +10,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -31,11 +31,9 @@ public class ReadOnlyAction implements LifecycleAction {
         return PARSER.apply(parser, null);
     }
 
-    public ReadOnlyAction() {
-    }
+    public ReadOnlyAction() {}
 
-    public ReadOnlyAction(StreamInput in) {
-    }
+    public ReadOnlyAction(StreamInput in) {}
 
     @Override
     public String getWriteableName() {
@@ -50,8 +48,7 @@ public class ReadOnlyAction implements LifecycleAction {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-    }
+    public void writeTo(StreamOutput out) throws IOException {}
 
     @Override
     public boolean isSafeAction() {
@@ -62,8 +59,7 @@ public class ReadOnlyAction implements LifecycleAction {
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, NAME);
-        CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
-            readOnlyKey);
+        CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex, readOnlyKey);
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, nextStepKey, client);
         return Arrays.asList(checkNotWriteIndexStep, readOnlyStep);
     }

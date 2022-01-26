@@ -45,8 +45,9 @@ public class LenientCompare {
                     return null;
                 }
             }
-            return ((Number) v1).doubleValue() > ((Number) v2).doubleValue() ? 1 :
-                    ((Number) v1).doubleValue() < ((Number) v2).doubleValue() ? -1 : 0;
+            return ((Number) v1).doubleValue() > ((Number) v2).doubleValue() ? 1
+                : ((Number) v1).doubleValue() < ((Number) v2).doubleValue() ? -1
+                : 0;
         }
 
         // special case for strings. If v1 is not a string, we'll convert it to a string

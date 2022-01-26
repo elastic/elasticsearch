@@ -10,7 +10,6 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.test.ESTestCase;
 
-
 public class SlowLogLevelTests extends ESTestCase {
 
     public void testTracePrecedence() {

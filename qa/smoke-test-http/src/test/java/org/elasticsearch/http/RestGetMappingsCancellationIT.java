@@ -49,7 +49,8 @@ public class RestGetMappingsCancellationIT extends HttpSmokeTestCase {
         final String actionName = GetMappingsAction.NAME;
         // Add a retryable cluster block that would block the request execution
         updateClusterState(currentState -> {
-            ClusterBlock clusterBlock = new ClusterBlock(1000,
+            ClusterBlock clusterBlock = new ClusterBlock(
+                1000,
                 "Get mappings cancellation test cluster block",
                 true,
                 false,
@@ -58,9 +59,7 @@ public class RestGetMappingsCancellationIT extends HttpSmokeTestCase {
                 EnumSet.of(ClusterBlockLevel.METADATA_READ)
             );
 
-            return ClusterState.builder(currentState)
-                .blocks(ClusterBlocks.builder().addGlobalBlock(clusterBlock).build())
-                .build();
+            return ClusterState.builder(currentState).blocks(ClusterBlocks.builder().addGlobalBlock(clusterBlock).build()).build();
         });
 
         final Request request = new Request(HttpGet.METHOD_NAME, "/test/_mappings");
@@ -97,8 +96,8 @@ public class RestGetMappingsCancellationIT extends HttpSmokeTestCase {
         };
 
         PlainActionFuture<AcknowledgedResponse> future = PlainActionFuture.newFuture();
-        internalCluster().getMasterNodeInstance(ClusterService.class).submitStateUpdateTask("get_mappings_cancellation_test",
-            new AckedClusterStateUpdateTask(ackedRequest, future) {
+        internalCluster().getMasterNodeInstance(ClusterService.class)
+            .submitStateUpdateTask("get_mappings_cancellation_test", new AckedClusterStateUpdateTask(ackedRequest, future) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     return transformationFn.apply(currentState);

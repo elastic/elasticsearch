@@ -12,8 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,7 +36,7 @@ public class ScriptStats implements Writeable, ToXContentFragment {
         long compilations = 0;
         long cacheEvictions = 0;
         long compilationLimitTriggered = 0;
-        for (ScriptContextStats stats: contextStats) {
+        for (ScriptContextStats stats : contextStats) {
             compilations += stats.getCompilations();
             cacheEvictions += stats.getCacheEvictions();
             compilationLimitTriggered += stats.getCompilationLimitTriggered();

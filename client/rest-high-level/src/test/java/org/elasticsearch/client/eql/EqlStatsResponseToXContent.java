@@ -10,8 +10,8 @@ package org.elasticsearch.client.eql;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.NodesResponseHeader;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;

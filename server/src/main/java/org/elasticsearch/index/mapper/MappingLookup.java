@@ -77,20 +77,19 @@ public final class MappingLookup {
         for (Mapper child : mapping.getRoot()) {
             collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers);
         }
-        return new MappingLookup(
-            mapping,
-            newFieldMappers,
-            newObjectMappers,
-            newFieldAliasMappers);
+        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers);
     }
 
-    private static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers,
-                               Collection<FieldMapper> fieldMappers,
-                               Collection<FieldAliasMapper> fieldAliasMappers) {
+    private static void collect(
+        Mapper mapper,
+        Collection<ObjectMapper> objectMappers,
+        Collection<FieldMapper> fieldMappers,
+        Collection<FieldAliasMapper> fieldAliasMappers
+    ) {
         if (mapper instanceof ObjectMapper) {
-            objectMappers.add((ObjectMapper)mapper);
+            objectMappers.add((ObjectMapper) mapper);
         } else if (mapper instanceof FieldMapper) {
-            fieldMappers.add((FieldMapper)mapper);
+            fieldMappers.add((FieldMapper) mapper);
         } else if (mapper instanceof FieldAliasMapper) {
             fieldAliasMappers.add((FieldAliasMapper) mapper);
         } else {
@@ -116,17 +115,21 @@ public final class MappingLookup {
      * @param aliasMappers the field alias mappers
      * @return the newly created lookup instance
      */
-    public static MappingLookup fromMappers(Mapping mapping,
-                                            Collection<FieldMapper> mappers,
-                                            Collection<ObjectMapper> objectMappers,
-                                            Collection<FieldAliasMapper> aliasMappers) {
+    public static MappingLookup fromMappers(
+        Mapping mapping,
+        Collection<FieldMapper> mappers,
+        Collection<ObjectMapper> objectMappers,
+        Collection<FieldAliasMapper> aliasMappers
+    ) {
         return new MappingLookup(mapping, mappers, objectMappers, aliasMappers);
     }
 
-    private MappingLookup(Mapping mapping,
-                         Collection<FieldMapper> mappers,
-                         Collection<ObjectMapper> objectMappers,
-                         Collection<FieldAliasMapper> aliasMappers) {
+    private MappingLookup(
+        Mapping mapping,
+        Collection<FieldMapper> mappers,
+        Collection<ObjectMapper> objectMappers,
+        Collection<FieldAliasMapper> aliasMappers
+    ) {
         this.mapping = mapping;
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
@@ -166,7 +169,7 @@ public final class MappingLookup {
                 throw new MapperParsingException("Alias [" + aliasMapper.name() + "] is defined both as an alias and a concrete field");
             }
         }
-        
+
         this.shadowedFields = new HashSet<>();
         for (RuntimeField runtimeField : mapping.getRoot().runtimeFields()) {
             runtimeField.asMappedFieldTypes().forEach(mft -> shadowedFields.add(mft.name()));
@@ -244,8 +247,12 @@ public final class MappingLookup {
 
     void checkFieldLimit(long limit, int additionalFieldsToAdd) {
         if (fieldMappers.size() + objectMappers.size() + additionalFieldsToAdd - mapping.getSortedMetadataMappers().length > limit) {
-            throw new IllegalArgumentException("Limit of total fields [" + limit + "] has been exceeded" +
-                (additionalFieldsToAdd > 0 ? " while adding new fields [" + additionalFieldsToAdd + "]" : ""));
+            throw new IllegalArgumentException(
+                "Limit of total fields ["
+                    + limit
+                    + "] has been exceeded"
+                    + (additionalFieldsToAdd > 0 ? " while adding new fields [" + additionalFieldsToAdd + "]" : "")
+            );
         }
     }
 
@@ -269,8 +276,9 @@ public final class MappingLookup {
             }
             final int depth = numDots + 2;
             if (depth > limit) {
-                throw new IllegalArgumentException("Limit of mapping depth [" + limit +
-                    "] has been exceeded due to object field [" + objectPath + "]");
+                throw new IllegalArgumentException(
+                    "Limit of mapping depth [" + limit + "] has been exceeded due to object field [" + objectPath + "]"
+                );
             }
         }
     }
@@ -452,7 +460,7 @@ public final class MappingLookup {
             }
             ObjectMapper parent = objectMappers().get(nestedParentPath);
             if (parent.isNested()) {
-                parents.add((NestedObjectMapper)parent);
+                parents.add((NestedObjectMapper) parent);
             }
         }
         return parents;
@@ -485,6 +493,6 @@ public final class MappingLookup {
             if (path.contains(".") == false) {
                 return null;
             }
-        } while(true);
+        } while (true);
     }
 }

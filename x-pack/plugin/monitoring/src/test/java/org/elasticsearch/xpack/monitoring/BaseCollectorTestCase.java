@@ -18,9 +18,10 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,7 +39,7 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
     protected ClusterState clusterState;
     protected DiscoveryNodes nodes;
     protected Metadata metadata;
-    protected XPackLicenseState licenseState;
+    protected MockLicenseState licenseState;
     protected Client client;
     protected Settings settings;
 
@@ -50,14 +51,12 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
         clusterState = mock(ClusterState.class);
         nodes = mock(DiscoveryNodes.class);
         metadata = mock(Metadata.class);
-        licenseState = mock(XPackLicenseState.class);
+        licenseState = mock(MockLicenseState.class);
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        settings = Settings.builder()
-                .put("path.home", createTempDir())
-                .build();
+        settings = Settings.builder().put("path.home", createTempDir()).build();
     }
 
     protected void whenLocalNodeElectedMaster(final boolean electedMaster) {
@@ -92,17 +91,13 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
     }
 
     protected void withCollectionSetting(final Function<Settings.Builder, Settings.Builder> builder) throws Exception {
-        settings = Settings.builder()
-                           .put(settings)
-                           .put(builder.apply(Settings.builder()).build())
-                           .build();
-        when(clusterService.getClusterSettings())
-                .thenReturn(new ClusterSettings(settings, Sets.newHashSet(new Monitoring(settings) {
-                    @Override
-                    protected XPackLicenseState getLicenseState() {
-                        return licenseState;
-                    }
-                }.getSettings())));
+        settings = Settings.builder().put(settings).put(builder.apply(Settings.builder()).build()).build();
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, Sets.newHashSet(new Monitoring(settings) {
+            @Override
+            protected XPackLicenseState getLicenseState() {
+                return licenseState;
+            }
+        }.getSettings())));
     }
 
     protected static DiscoveryNode localNode(final String uuid) {

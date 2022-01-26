@@ -46,7 +46,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         } // can we set on both - node and index level, some nodes might be running on NFS so they might need simple rather than native
     }, Property.IndexScope, Property.NodeScope);
 
-
     @Override
     public Directory newDirectory(IndexSettings indexSettings, ShardPath path) throws IOException {
         final Path location = path.resolveIndex();
@@ -56,16 +55,15 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     }
 
     protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
-        final String storeType =
-            indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey());
+        final String storeType = indexSettings.getSettings()
+            .get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey());
         IndexModule.Type type;
         if (IndexModule.Type.FS.match(storeType)) {
             type = IndexModule.defaultStoreType(IndexModule.NODE_STORE_ALLOW_MMAP.get(indexSettings.getNodeSettings()));
         } else {
             type = IndexModule.Type.fromSettingsKey(storeType);
         }
-        Set<String> preLoadExtensions = new HashSet<>(
-            indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING));
+        Set<String> preLoadExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING));
         switch (type) {
             case HYBRIDFS:
                 // Use Lucene defaults
@@ -86,8 +84,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
     }
 
-    public static MMapDirectory setPreload(MMapDirectory mMapDirectory, LockFactory lockFactory,
-                                           Set<String> preLoadExtensions) throws IOException {
+    public static MMapDirectory setPreload(MMapDirectory mMapDirectory, LockFactory lockFactory, Set<String> preLoadExtensions)
+        throws IOException {
         assert mMapDirectory.getPreload() == false;
         if (preLoadExtensions.isEmpty() == false) {
             if (preLoadExtensions.contains("*")) {
@@ -157,6 +155,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             return delegate;
         }
     }
+
     // TODO it would be nice to share code between PreLoadMMapDirectory and HybridDirectory but due to the nesting aspect of
     // directories here makes it tricky. It would be nice to allow MMAPDirectory to pre-load on a per IndexInput basis.
     static final class PreLoadMMapDirectory extends MMapDirectory {

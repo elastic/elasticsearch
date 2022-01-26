@@ -21,13 +21,13 @@ public abstract class EqlExtraSpecTestCase extends BaseEqlSpecTestCase {
     }
 
     // constructor for "local" rest tests
-    public EqlExtraSpecTestCase(String query, String name, long[] eventIds) {
-        this(TEST_EXTRA_INDEX, query, name, eventIds);
+    public EqlExtraSpecTestCase(String query, String name, long[] eventIds, String[] joinKeys) {
+        this(TEST_EXTRA_INDEX, query, name, eventIds, joinKeys);
     }
 
     // constructor for multi-cluster tests
-    public EqlExtraSpecTestCase(String index, String query, String name, long[] eventIds) {
-        super(index, query, name, eventIds);
+    public EqlExtraSpecTestCase(String index, String query, String name, long[] eventIds, String[] joinKeys) {
+        super(index, query, name, eventIds, joinKeys);
     }
 
     @Override

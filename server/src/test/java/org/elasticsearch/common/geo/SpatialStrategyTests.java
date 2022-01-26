@@ -61,7 +61,7 @@ public class SpatialStrategyTests extends ESTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 SpatialStrategy.readFromStream(in);
                 fail("Expected IOException");
-            } catch(IOException e) {
+            } catch (IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown SpatialStrategy ordinal ["));
             }
         }

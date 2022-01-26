@@ -74,10 +74,16 @@ public class StateStreamer {
             try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 SearchResponse stateResponse = client.prepareSearch(indexName)
                     .setSize(1)
-                    .setQuery(QueryBuilders.idsQuery().addIds(stateDocId)).get();
+                    .setQuery(QueryBuilders.idsQuery().addIds(stateDocId))
+                    .get();
                 if (stateResponse.getHits().getHits().length == 0) {
-                    LOGGER.error("Expected {} documents for model state for {} snapshot {} but failed to find {}",
-                            modelSnapshot.getSnapshotDocCount(), jobId, modelSnapshot.getSnapshotId(), stateDocId);
+                    LOGGER.error(
+                        "Expected {} documents for model state for {} snapshot {} but failed to find {}",
+                        modelSnapshot.getSnapshotDocCount(),
+                        jobId,
+                        modelSnapshot.getSnapshotId(),
+                        stateDocId
+                    );
                     break;
                 }
                 writeStateToStream(stateResponse.getHits().getAt(0).getSourceRef(), restoreStream);
@@ -85,8 +91,8 @@ public class StateStreamer {
         }
 
         // Secondly try to restore categorizer state. This must come after model state because that's
-        // the order the C++ process expects.  There are no snapshots for this, so the IDs simply
-        // count up until a document is not found.  It's NOT an error to have no categorizer state.
+        // the order the C++ process expects. There are no snapshots for this, so the IDs simply
+        // count up until a document is not found. It's NOT an error to have no categorizer state.
         int docNum = 0;
         while (true) {
             if (isCancelled) {
@@ -100,7 +106,8 @@ public class StateStreamer {
             try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 SearchResponse stateResponse = client.prepareSearch(indexName)
                     .setSize(1)
-                    .setQuery(QueryBuilders.idsQuery().addIds(docId)).get();
+                    .setQuery(QueryBuilders.idsQuery().addIds(docId))
+                    .get();
                 if (stateResponse.getHits().getHits().length == 0) {
                     break;
                 }

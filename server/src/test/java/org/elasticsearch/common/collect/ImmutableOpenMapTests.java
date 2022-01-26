@@ -49,13 +49,17 @@ public class ImmutableOpenMapTests extends ESTestCase {
         .build();
 
     public void testStreamOperationsAreSupported() {
-        assertThat(regionCurrencySymbols.stream().filter(e -> e.getKey().startsWith("U")).map(Map.Entry::getValue)
-                .collect(Collectors.toSet()), equalTo(Stream.of("£", "$").collect(Collectors.toSet())));
+        assertThat(
+            regionCurrencySymbols.stream().filter(e -> e.getKey().startsWith("U")).map(Map.Entry::getValue).collect(Collectors.toSet()),
+            equalTo(Stream.of("£", "$").collect(Collectors.toSet()))
+        );
     }
 
     public void testSortedStream() {
-        assertThat(regionCurrencySymbols.stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).collect(Collectors.toList()),
-            equalTo(Stream.of("€", "¥", "₩", "£", "$").collect(Collectors.toList())));
+        assertThat(
+            regionCurrencySymbols.stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).collect(Collectors.toList()),
+            equalTo(Stream.of("€", "¥", "₩", "£", "$").collect(Collectors.toList()))
+        );
     }
 
     public void testStreamOperationsOnRandomMap() {
@@ -91,25 +95,21 @@ public class ImmutableOpenMapTests extends ESTestCase {
     }
 
     public void testKeySetStreamOperationsAreSupported() {
-        assertThat(regionCurrencySymbols.keySet().stream().filter(e -> e.startsWith("U") == false).collect(Collectors.toSet()),
-            equalTo(Stream.of("Japan", "EU", "Korea").collect(Collectors.toSet())));
+        assertThat(
+            regionCurrencySymbols.keySet().stream().filter(e -> e.startsWith("U") == false).collect(Collectors.toSet()),
+            equalTo(Stream.of("Japan", "EU", "Korea").collect(Collectors.toSet()))
+        );
     }
 
     public void testSortedKeysSet() {
-        assertThat(regionCurrencySymbols.keySet(),
-            equalTo(Stream.of("EU", "Japan", "Korea", "UK", "USA").collect(Collectors.toSet())));
+        assertThat(regionCurrencySymbols.keySet(), equalTo(Stream.of("EU", "Japan", "Korea", "UK", "USA").collect(Collectors.toSet())));
     }
 
     public void testStreamOperationsOnRandomMapKeys() {
         ImmutableOpenMap<Long, String> map = randomImmutableOpenMap();
 
         int limit = randomIntBetween(0, map.size());
-        List<Long> collectedViaStream = map.keySet()
-            .stream()
-            .filter(e -> e > 0)
-            .sorted()
-            .limit(limit)
-            .collect(Collectors.toList());
+        List<Long> collectedViaStream = map.keySet().stream().filter(e -> e > 0).sorted().limit(limit).collect(Collectors.toList());
 
         SortedSet<Long> positiveNumbers = new TreeSet<>();
         for (ObjectObjectCursor<Long, String> cursor : map) {
@@ -147,11 +147,15 @@ public class ImmutableOpenMapTests extends ESTestCase {
     }
 
     public void testStreamOperationOnValues() {
-        assertThat(countryPopulations.values().stream()
+        assertThat(
+            countryPopulations.values()
+                .stream()
                 .filter(e -> e > 60_000_000)
                 .sorted(Comparator.reverseOrder())
-                .limit(2).collect(Collectors.toList()),
-            equalTo(org.elasticsearch.core.List.of(83_783_942, 65_273_511)));
+                .limit(2)
+                .collect(Collectors.toList()),
+            equalTo(org.elasticsearch.core.List.of(83_783_942, 65_273_511))
+        );
     }
 
     public void testStreamOperationsOnRandomMapValues() {
@@ -183,10 +187,14 @@ public class ImmutableOpenMapTests extends ESTestCase {
     }
 
     private static ImmutableOpenMap<Long, String> randomImmutableOpenMap() {
-        return Randomness.get().longs(randomIntBetween(1, 1000))
+        return Randomness.get()
+            .longs(randomIntBetween(1, 1000))
             .mapToObj(e -> Tuple.tuple(e, randomAlphaOfLength(8)))
-            .collect(ImmutableOpenMap::<Long, String>builder, (builder, t) -> builder.fPut(t.v1(), t.v2()),
-                ImmutableOpenMap.Builder::putAll)
+            .collect(
+                ImmutableOpenMap::<Long, String>builder,
+                (builder, t) -> builder.fPut(t.v1(), t.v2()),
+                ImmutableOpenMap.Builder::putAll
+            )
             .build();
     }
 }

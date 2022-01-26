@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.ssl.cert;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.security.cert.X509Certificate;
@@ -94,14 +94,14 @@ public class CertificateInfo implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
-                .field("path", path)
-                .field("format", format)
-                .field("alias", alias)
-                .field("subject_dn", subjectDn)
-                .field("serial_number", serialNumber)
-                .field("has_private_key", hasPrivateKey)
-                .timeField("expiry", expiry)
-                .endObject();
+            .field("path", path)
+            .field("format", format)
+            .field("alias", alias)
+            .field("subject_dn", subjectDn)
+            .field("serial_number", serialNumber)
+            .field("has_private_key", hasPrivateKey)
+            .timeField("expiry", expiry)
+            .endObject();
     }
 
     @Override
@@ -115,12 +115,12 @@ public class CertificateInfo implements ToXContentObject, Writeable {
 
         final CertificateInfo that = (CertificateInfo) other;
         return this.path.equals(that.path)
-                && this.format.equals(that.format)
-                && this.hasPrivateKey == that.hasPrivateKey
-                && Objects.equals(this.alias, that.alias)
-                && Objects.equals(this.serialNumber, that.serialNumber)
-                && Objects.equals(this.subjectDn, that.subjectDn)
-                && Objects.equals(this.expiry, that.expiry);
+            && this.format.equals(that.format)
+            && this.hasPrivateKey == that.hasPrivateKey
+            && Objects.equals(this.alias, that.alias)
+            && Objects.equals(this.serialNumber, that.serialNumber)
+            && Objects.equals(this.subjectDn, that.subjectDn)
+            && Objects.equals(this.expiry, that.expiry);
     }
 
     @Override

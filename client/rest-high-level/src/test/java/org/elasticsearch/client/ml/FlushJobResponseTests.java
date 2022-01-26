@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Date;
@@ -17,8 +17,7 @@ public class FlushJobResponseTests extends AbstractXContentTestCase<FlushJobResp
 
     @Override
     protected FlushJobResponse createTestInstance() {
-        return new FlushJobResponse(randomBoolean(),
-            randomBoolean() ? null : new Date(randomNonNegativeLong()));
+        return new FlushJobResponse(randomBoolean(), randomBoolean() ? null : new Date(randomNonNegativeLong()));
     }
 
     @Override

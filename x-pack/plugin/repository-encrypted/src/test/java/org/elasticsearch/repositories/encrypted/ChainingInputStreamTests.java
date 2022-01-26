@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.repositories.encrypted.EncryptionPacketsInputStreamTests.readAllBytes;
 import static org.elasticsearch.repositories.encrypted.EncryptionPacketsInputStreamTests.readNBytes;
-import static org.mockito.Matchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -394,17 +394,22 @@ public class ChainingInputStreamTests extends ESTestCase {
         test.read();
         verify(mockCurrentIn).read();
         // verify "array read" is proxied to the current component stream
-        when(mockCurrentIn.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt()))
-            .thenAnswer(invocationOnMock -> {
-                final int len = (int) invocationOnMock.getArguments()[2];
-                if (len == 0) {
-                    return 0;
-                } else {
-                    // partial read return
-                    int bytesCount = randomIntBetween(1, len);
-                    return bytesCount;
-                }
-            });
+        when(
+            mockCurrentIn.read(
+                org.mockito.ArgumentMatchers.<byte[]>any(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyInt()
+            )
+        ).thenAnswer(invocationOnMock -> {
+            final int len = (int) invocationOnMock.getArguments()[2];
+            if (len == 0) {
+                return 0;
+            } else {
+                // partial read return
+                int bytesCount = randomIntBetween(1, len);
+                return bytesCount;
+            }
+        });
         byte[] b = randomByteArrayOfLength(randomIntBetween(2, 33));
         int len = randomIntBetween(1, b.length - 1);
         int offset = randomInt(b.length - len - 1);
@@ -434,16 +439,21 @@ public class ChainingInputStreamTests extends ESTestCase {
         verify(mockCurrentIn).read();
         // test "array read"
         test.currentIn = new ByteArrayInputStream(new byte[0]);
-        when(mockCurrentIn.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt()))
-            .thenAnswer(invocationOnMock -> {
-                final int len = (int) invocationOnMock.getArguments()[2];
-                if (len == 0) {
-                    return 0;
-                } else {
-                    int bytesCount = randomIntBetween(1, len);
-                    return bytesCount;
-                }
-            });
+        when(
+            mockCurrentIn.read(
+                org.mockito.ArgumentMatchers.<byte[]>any(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyInt()
+            )
+        ).thenAnswer(invocationOnMock -> {
+            final int len = (int) invocationOnMock.getArguments()[2];
+            if (len == 0) {
+                return 0;
+            } else {
+                int bytesCount = randomIntBetween(1, len);
+                return bytesCount;
+            }
+        });
         byte[] b = new byte[randomIntBetween(2, 33)];
         int len = randomIntBetween(1, b.length - 1);
         int offset = randomInt(b.length - len - 1);
@@ -543,20 +553,25 @@ public class ChainingInputStreamTests extends ESTestCase {
             when(mockIn.markSupported()).thenReturn(true);
             try {
                 when(mockIn.read()).thenAnswer(invocationOnMock -> randomFrom(-1, randomInt(1)));
-                when(mockIn.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt()))
-                    .thenAnswer(invocationOnMock -> {
-                        final int len = (int) invocationOnMock.getArguments()[2];
-                        if (len == 0) {
-                            return 0;
+                when(
+                    mockIn.read(
+                        org.mockito.ArgumentMatchers.<byte[]>any(),
+                        org.mockito.ArgumentMatchers.anyInt(),
+                        org.mockito.ArgumentMatchers.anyInt()
+                    )
+                ).thenAnswer(invocationOnMock -> {
+                    final int len = (int) invocationOnMock.getArguments()[2];
+                    if (len == 0) {
+                        return 0;
+                    } else {
+                        if (randomBoolean()) {
+                            return -1;
                         } else {
-                            if (randomBoolean()) {
-                                return -1;
-                            } else {
-                                // partial read return
-                                return randomIntBetween(1, len);
-                            }
+                            // partial read return
+                            return randomIntBetween(1, len);
                         }
-                    });
+                    }
+                });
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -618,20 +633,25 @@ public class ChainingInputStreamTests extends ESTestCase {
             try {
                 // single byte read never returns "-1" so it never advances component
                 when(mockIn.read()).thenAnswer(invocationOnMock -> randomInt(255));
-                when(mockIn.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt()))
-                    .thenAnswer(invocationOnMock -> {
-                        final int len = (int) invocationOnMock.getArguments()[2];
-                        if (len == 0) {
-                            return 0;
+                when(
+                    mockIn.read(
+                        org.mockito.ArgumentMatchers.<byte[]>any(),
+                        org.mockito.ArgumentMatchers.anyInt(),
+                        org.mockito.ArgumentMatchers.anyInt()
+                    )
+                ).thenAnswer(invocationOnMock -> {
+                    final int len = (int) invocationOnMock.getArguments()[2];
+                    if (len == 0) {
+                        return 0;
+                    } else {
+                        if (randomBoolean()) {
+                            return -1;
                         } else {
-                            if (randomBoolean()) {
-                                return -1;
-                            } else {
-                                // partial read return
-                                return randomIntBetween(1, len);
-                            }
+                            // partial read return
+                            return randomIntBetween(1, len);
                         }
-                    });
+                    }
+                });
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -785,20 +805,25 @@ public class ChainingInputStreamTests extends ESTestCase {
             try {
                 // single byte read never returns "-1" so it never advances component
                 when(mockIn.read()).thenAnswer(invocationOnMock -> randomInt(255));
-                when(mockIn.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt()))
-                    .thenAnswer(invocationOnMock -> {
-                        final int len = (int) invocationOnMock.getArguments()[2];
-                        if (len == 0) {
-                            return 0;
+                when(
+                    mockIn.read(
+                        org.mockito.ArgumentMatchers.<byte[]>any(),
+                        org.mockito.ArgumentMatchers.anyInt(),
+                        org.mockito.ArgumentMatchers.anyInt()
+                    )
+                ).thenAnswer(invocationOnMock -> {
+                    final int len = (int) invocationOnMock.getArguments()[2];
+                    if (len == 0) {
+                        return 0;
+                    } else {
+                        if (randomBoolean()) {
+                            return -1;
                         } else {
-                            if (randomBoolean()) {
-                                return -1;
-                            } else {
-                                // partial read return
-                                return randomIntBetween(1, len);
-                            }
+                            // partial read return
+                            return randomIntBetween(1, len);
                         }
-                    });
+                    }
+                });
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -886,20 +911,25 @@ public class ChainingInputStreamTests extends ESTestCase {
             try {
                 // single byte read never returns "-1" so it never advances component
                 when(mockIn.read()).thenAnswer(invocationOnMock -> randomInt(255));
-                when(mockIn.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt()))
-                    .thenAnswer(invocationOnMock -> {
-                        final int len = (int) invocationOnMock.getArguments()[2];
-                        if (len == 0) {
-                            return 0;
+                when(
+                    mockIn.read(
+                        org.mockito.ArgumentMatchers.<byte[]>any(),
+                        org.mockito.ArgumentMatchers.anyInt(),
+                        org.mockito.ArgumentMatchers.anyInt()
+                    )
+                ).thenAnswer(invocationOnMock -> {
+                    final int len = (int) invocationOnMock.getArguments()[2];
+                    if (len == 0) {
+                        return 0;
+                    } else {
+                        if (randomBoolean()) {
+                            return -1;
                         } else {
-                            if (randomBoolean()) {
-                                return -1;
-                            } else {
-                                // partial read return
-                                return randomIntBetween(1, len);
-                            }
+                            // partial read return
+                            return randomIntBetween(1, len);
                         }
-                    });
+                    }
+                });
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

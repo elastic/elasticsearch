@@ -44,7 +44,7 @@ public interface Rescorer {
      * @return the explain for the given top level document ID.
      * @throws IOException if an {@link IOException} occurs
      */
-    Explanation explain(int topLevelDocId, IndexSearcher searcher, RescoreContext rescoreContext,
-                        Explanation sourceExplanation) throws IOException;
+    Explanation explain(int topLevelDocId, IndexSearcher searcher, RescoreContext rescoreContext, Explanation sourceExplanation)
+        throws IOException;
 
 }

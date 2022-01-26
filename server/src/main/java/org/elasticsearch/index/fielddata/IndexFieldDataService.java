@@ -32,8 +32,10 @@ import java.util.function.Supplier;
 public class IndexFieldDataService extends AbstractIndexComponent implements Closeable {
     public static final String FIELDDATA_CACHE_VALUE_NODE = "node";
     public static final String FIELDDATA_CACHE_KEY = "index.fielddata.cache";
-    public static final Setting<String> INDEX_FIELDDATA_CACHE_KEY =
-        new Setting<>(FIELDDATA_CACHE_KEY, (s) -> FIELDDATA_CACHE_VALUE_NODE, (s) -> {
+    public static final Setting<String> INDEX_FIELDDATA_CACHE_KEY = new Setting<>(
+        FIELDDATA_CACHE_KEY,
+        (s) -> FIELDDATA_CACHE_VALUE_NODE,
+        (s) -> {
             switch (s) {
                 case "node":
                 case "none":
@@ -41,7 +43,9 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
                 default:
                     throw new IllegalArgumentException("failed to parse [" + s + "] must be one of [node,none]");
             }
-        }, Property.IndexScope);
+        },
+        Property.IndexScope
+    );
 
     private final CircuitBreakerService circuitBreakerService;
 
@@ -50,17 +54,18 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     private final Map<String, IndexFieldDataCache> fieldDataCaches = new HashMap<>();
     private static final IndexFieldDataCache.Listener DEFAULT_NOOP_LISTENER = new IndexFieldDataCache.Listener() {
         @Override
-        public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
-        }
+        public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {}
 
         @Override
-        public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
-        }
+        public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {}
     };
     private volatile IndexFieldDataCache.Listener listener = DEFAULT_NOOP_LISTENER;
 
-    public IndexFieldDataService(IndexSettings indexSettings, IndicesFieldDataCache indicesFieldDataCache,
-                                 CircuitBreakerService circuitBreakerService) {
+    public IndexFieldDataService(
+        IndexSettings indexSettings,
+        IndicesFieldDataCache indicesFieldDataCache,
+        CircuitBreakerService circuitBreakerService
+    ) {
         super(indexSettings);
         this.indicesFieldDataCache = indicesFieldDataCache;
         this.circuitBreakerService = circuitBreakerService;
@@ -98,9 +103,11 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
      * a {@link SearchLookup} supplier available that is required for runtime fields.
      */
     @SuppressWarnings("unchecked")
-    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType,
-                                                           String fullyQualifiedIndexName,
-                                                           Supplier<SearchLookup> searchLookup) {
+    public <IFD extends IndexFieldData<?>> IFD getForField(
+        MappedFieldType fieldType,
+        String fullyQualifiedIndexName,
+        Supplier<SearchLookup> searchLookup
+    ) {
         final String fieldName = fieldType.name();
         IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName, searchLookup);
 
@@ -111,7 +118,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
                 String cacheType = indexSettings.getValue(INDEX_FIELDDATA_CACHE_KEY);
                 if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
                     cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldName);
-                } else if ("none".equals(cacheType)){
+                } else if ("none".equals(cacheType)) {
                     cache = new IndexFieldDataCache.None();
                 } else {
                     throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldName + "]");

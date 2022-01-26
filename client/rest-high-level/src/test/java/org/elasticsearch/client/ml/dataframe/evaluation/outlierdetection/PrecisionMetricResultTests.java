@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.Predicate;
@@ -19,10 +19,10 @@ public class PrecisionMetricResultTests extends AbstractXContentTestCase<Precisi
 
     public static PrecisionMetric.Result randomResult() {
         return new PrecisionMetric.Result(
-            Stream
-                .generate(() -> randomDouble())
+            Stream.generate(() -> randomDouble())
                 .limit(randomIntBetween(1, 5))
-                .collect(Collectors.toMap(v -> String.valueOf(randomDouble()), v -> v)));
+                .collect(Collectors.toMap(v -> String.valueOf(randomDouble()), v -> v))
+        );
     }
 
     @Override

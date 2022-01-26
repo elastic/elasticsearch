@@ -13,8 +13,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.yaml.snakeyaml.util.UriEncoder;
 
 import java.io.IOException;
@@ -24,7 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -34,8 +34,13 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
     private static final String BASE_PATH = "/_ml/";
 
     private static final RequestOptions POST_DATA_OPTIONS = RequestOptions.DEFAULT.toBuilder()
-        .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
-            "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
+        .setWarningsHandler(
+            warnings -> Collections.singletonList(
+                "Posting data directly to anomaly detection jobs is deprecated, "
+                    + "in a future major version it will be compulsory to use a datafeed"
+            ).equals(warnings) == false
+        )
+        .build();
 
     public void testMachineLearningInstalled() throws Exception {
         Response response = client().performRequest(new Request("GET", "/_xpack"));
@@ -52,8 +57,8 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         ResponseException e = expectThrows(ResponseException.class, () -> createFarequoteJob(jobId));
         assertTrue(e.getMessage(), e.getMessage().contains("can contain lowercase alphanumeric (a-z and 0-9), hyphens or underscores"));
         // If validation of the invalid job is not done until after transportation to the master node then the
-        // root cause gets reported as a remote_transport_exception.  The code in PubJobAction is supposed to
-        // validate before transportation to avoid this.  This test must be done in a multi-node cluster to have
+        // root cause gets reported as a remote_transport_exception. The code in PubJobAction is supposed to
+        // validate before transportation to avoid this. This test must be done in a multi-node cluster to have
         // a chance of catching a problem, hence it is here rather than in the single node integration tests.
         assertFalse(e.getMessage(), e.getMessage().contains("remote_transport_exception"));
     }
@@ -62,15 +67,17 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         String jobId = "mini-farequote-job";
         createFarequoteJob(jobId);
 
-        Response openResponse = client().performRequest(
-                new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
+        Response openResponse = client().performRequest(new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
         assertThat(entityAsMap(openResponse), hasEntry("opened", true));
 
         Request addData = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
-        addData.setEntity(new NStringEntity(
-                "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n" +
-                "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}",
-                randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))));
+        addData.setEntity(
+            new NStringEntity(
+                "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n"
+                    + "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}",
+                randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))
+            )
+        );
         addData.setOptions(POST_DATA_OPTIONS);
         Response addDataResponse = client().performRequest(addData);
         assertEquals(202, addDataResponse.getStatusLine().getStatusCode());
@@ -86,8 +93,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(1403481600000L, responseBody.get("earliest_record_timestamp"));
         assertEquals(1403481700000L, responseBody.get("latest_record_timestamp"));
 
-        Response flushResponse = client().performRequest(
-                new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_flush"));
+        Response flushResponse = client().performRequest(new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_flush"));
         assertFlushResponse(flushResponse, true, 1403481600000L);
 
         Request closeRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
@@ -95,10 +101,8 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         Response closeResponse = client().performRequest(closeRequest);
         assertEquals(Collections.singletonMap("closed", true), entityAsMap(closeResponse));
 
-        Response statsResponse = client().performRequest(
-                new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
-        Map<?, ?> dataCountsDoc = (Map<?, ?>)
-                ((Map<?, ?>)((List<?>) entityAsMap(statsResponse).get("jobs")).get(0)).get("data_counts");
+        Response statsResponse = client().performRequest(new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+        Map<?, ?> dataCountsDoc = (Map<?, ?>) ((Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("jobs")).get(0)).get("data_counts");
         assertEquals(2, dataCountsDoc.get("processed_record_count"));
         assertEquals(4, dataCountsDoc.get("processed_field_count"));
         assertEquals(177, dataCountsDoc.get("input_bytes"));
@@ -120,8 +124,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         String datafeedId = "bar";
         createDatafeed(datafeedId, jobId);
 
-        Response openResponse = client().performRequest(
-                new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
+        Response openResponse = client().performRequest(new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
         assertThat(entityAsMap(openResponse), hasEntry("opened", true));
 
         Request startRequest = new Request("POST", BASE_PATH + "datafeeds/" + datafeedId + "/_start");
@@ -131,10 +134,10 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
 
         assertBusy(() -> {
             try {
-                Response statsResponse = client().performRequest(
-                        new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
-                Map<?, ?> dataCountsDoc = (Map<?, ?>)
-                        ((Map<?, ?>)((List<?>) entityAsMap(statsResponse).get("jobs")).get(0)).get("data_counts");
+                Response statsResponse = client().performRequest(new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+                Map<?, ?> dataCountsDoc = (Map<?, ?>) ((Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("jobs")).get(0)).get(
+                    "data_counts"
+                );
                 assertEquals(2, dataCountsDoc.get("input_record_count"));
                 assertEquals(2, dataCountsDoc.get("processed_record_count"));
             } catch (IOException e) {
@@ -142,14 +145,12 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
             }
         });
 
-        Response stopResponse = client().performRequest(
-                new Request("POST", BASE_PATH + "datafeeds/" + datafeedId + "/_stop"));
+        Response stopResponse = client().performRequest(new Request("POST", BASE_PATH + "datafeeds/" + datafeedId + "/_stop"));
         assertEquals(Collections.singletonMap("stopped", true), entityAsMap(stopResponse));
 
         Request closeRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
         closeRequest.addParameter("timeout", "20s");
-        assertEquals(Collections.singletonMap("closed", true),
-                entityAsMap(client().performRequest(closeRequest)));
+        assertEquals(Collections.singletonMap("closed", true), entityAsMap(client().performRequest(closeRequest)));
 
         client().performRequest(new Request("DELETE", BASE_PATH + "datafeeds/" + datafeedId));
         client().performRequest(new Request("DELETE", BASE_PATH + "anomaly_detectors/" + jobId));
@@ -159,18 +160,20 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         String jobId = "mini-farequote-reopen";
         createFarequoteJob(jobId);
 
-        Response openResponse = client().performRequest(
-                new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
+        Response openResponse = client().performRequest(new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_open"));
         assertThat(entityAsMap(openResponse), hasEntry("opened", true));
 
         Request addDataRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
-        addDataRequest.setEntity(new NStringEntity(
-                "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n" +
-                "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}\n" +
-                "{\"airline\":\"JBU\",\"responsetime\":\"877.5927\",\"sourcetype\":\"farequote\",\"time\":\"1403481800\"}\n" +
-                "{\"airline\":\"KLM\",\"responsetime\":\"1355.4812\",\"sourcetype\":\"farequote\",\"time\":\"1403481900\"}\n" +
-                "{\"airline\":\"NKS\",\"responsetime\":\"9991.3981\",\"sourcetype\":\"farequote\",\"time\":\"1403482000\"}",
-                randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))));
+        addDataRequest.setEntity(
+            new NStringEntity(
+                "{\"airline\":\"AAL\",\"responsetime\":\"132.2046\",\"sourcetype\":\"farequote\",\"time\":\"1403481600\"}\n"
+                    + "{\"airline\":\"JZA\",\"responsetime\":\"990.4628\",\"sourcetype\":\"farequote\",\"time\":\"1403481700\"}\n"
+                    + "{\"airline\":\"JBU\",\"responsetime\":\"877.5927\",\"sourcetype\":\"farequote\",\"time\":\"1403481800\"}\n"
+                    + "{\"airline\":\"KLM\",\"responsetime\":\"1355.4812\",\"sourcetype\":\"farequote\",\"time\":\"1403481900\"}\n"
+                    + "{\"airline\":\"NKS\",\"responsetime\":\"9991.3981\",\"sourcetype\":\"farequote\",\"time\":\"1403482000\"}",
+                randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))
+            )
+        );
         // Post data is deprecated, so expect a deprecation warning
         addDataRequest.setOptions(POST_DATA_OPTIONS);
         Response addDataResponse = client().performRequest(addDataRequest);
@@ -187,14 +190,12 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(1403481600000L, responseBody.get("earliest_record_timestamp"));
         assertEquals(1403482000000L, responseBody.get("latest_record_timestamp"));
 
-        Response flushResponse = client().performRequest(
-                new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_flush"));
+        Response flushResponse = client().performRequest(new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_flush"));
         assertFlushResponse(flushResponse, true, 1403481600000L);
 
         Request closeRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
         closeRequest.addParameter("timeout", "20s");
-        assertEquals(Collections.singletonMap("closed", true),
-                entityAsMap(client().performRequest(closeRequest)));
+        assertEquals(Collections.singletonMap("closed", true), entityAsMap(client().performRequest(closeRequest)));
 
         Request statsRequest = new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
         client().performRequest(statsRequest);
@@ -206,13 +207,16 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
 
         // feed some more data points
         Request addDataRequest2 = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_data");
-        addDataRequest2.setEntity(new NStringEntity(
-                "{\"airline\":\"AAL\",\"responsetime\":\"136.2361\",\"sourcetype\":\"farequote\",\"time\":\"1407081600\"}\n" +
-                "{\"airline\":\"VRD\",\"responsetime\":\"282.9847\",\"sourcetype\":\"farequote\",\"time\":\"1407081700\"}\n" +
-                "{\"airline\":\"JAL\",\"responsetime\":\"493.0338\",\"sourcetype\":\"farequote\",\"time\":\"1407081800\"}\n" +
-                "{\"airline\":\"UAL\",\"responsetime\":\"8.4275\",\"sourcetype\":\"farequote\",\"time\":\"1407081900\"}\n" +
-                "{\"airline\":\"FFT\",\"responsetime\":\"221.8693\",\"sourcetype\":\"farequote\",\"time\":\"1407082000\"}",
-                randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))));
+        addDataRequest2.setEntity(
+            new NStringEntity(
+                "{\"airline\":\"AAL\",\"responsetime\":\"136.2361\",\"sourcetype\":\"farequote\",\"time\":\"1407081600\"}\n"
+                    + "{\"airline\":\"VRD\",\"responsetime\":\"282.9847\",\"sourcetype\":\"farequote\",\"time\":\"1407081700\"}\n"
+                    + "{\"airline\":\"JAL\",\"responsetime\":\"493.0338\",\"sourcetype\":\"farequote\",\"time\":\"1407081800\"}\n"
+                    + "{\"airline\":\"UAL\",\"responsetime\":\"8.4275\",\"sourcetype\":\"farequote\",\"time\":\"1407081900\"}\n"
+                    + "{\"airline\":\"FFT\",\"responsetime\":\"221.8693\",\"sourcetype\":\"farequote\",\"time\":\"1407082000\"}",
+                randomFrom(ContentType.APPLICATION_JSON, ContentType.create("application/x-ndjson"))
+            )
+        );
         // Post data is deprecated, so expect a deprecation warning
         addDataRequest2.setOptions(POST_DATA_OPTIONS);
         Response addDataResponse2 = client().performRequest(addDataRequest2);
@@ -231,14 +235,12 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertNull(responseBody2.get("earliest_record_timestamp"));
         assertEquals(1407082000000L, responseBody2.get("latest_record_timestamp"));
 
-        assertEquals(Collections.singletonMap("closed", true),
-                entityAsMap(client().performRequest(closeRequest)));
+        assertEquals(Collections.singletonMap("closed", true), entityAsMap(client().performRequest(closeRequest)));
 
         // counts should be summed up
         Response statsResponse = client().performRequest(statsRequest);
 
-        Map<?, ?> dataCountsDoc = (Map<?, ?>)
-                ((Map<?, ?>)((List<?>) entityAsMap(statsResponse).get("jobs")).get(0)).get("data_counts");
+        Map<?, ?> dataCountsDoc = (Map<?, ?>) ((Map<?, ?>) ((List<?>) entityAsMap(statsResponse).get("jobs")).get(0)).get("data_counts");
         assertEquals(10, dataCountsDoc.get("processed_record_count"));
         assertEquals(20, dataCountsDoc.get("processed_field_count"));
         assertEquals(888, dataCountsDoc.get("input_bytes"));
@@ -258,8 +260,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         String jobId = "test-export-import-job";
         createFarequoteJob(jobId);
         Response jobResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "?exclude_generated=true"));
-        Map<String, Object> originalJobBody = (Map<String, Object>)((List<?>) entityAsMap(jobResponse).get("jobs")).get(0);
+            new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "?exclude_generated=true")
+        );
+        Map<String, Object> originalJobBody = (Map<String, Object>) ((List<?>) entityAsMap(jobResponse).get("jobs")).get(0);
         originalJobBody.remove("job_id");
 
         XContentBuilder xContentBuilder = jsonBuilder().map(originalJobBody);
@@ -268,8 +271,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response importedJobResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "-import" + "?exclude_generated=true"));
-        Map<String, Object> importedJobBody = (Map<String, Object>)((List<?>) entityAsMap(importedJobResponse).get("jobs")).get(0);
+            new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "-import" + "?exclude_generated=true")
+        );
+        Map<String, Object> importedJobBody = (Map<String, Object>) ((List<?>) entityAsMap(importedJobResponse).get("jobs")).get(0);
         importedJobBody.remove("job_id");
         assertThat(originalJobBody, equalTo(importedJobBody));
     }
@@ -283,11 +287,12 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         createDatafeed(datafeedId, jobId);
 
         Response dfResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "datafeeds/" + datafeedId + "?exclude_generated=true"));
-        Map<String, Object> originalDfBody = (Map<String, Object>)((List<?>) entityAsMap(dfResponse).get("datafeeds")).get(0);
+            new Request("GET", BASE_PATH + "datafeeds/" + datafeedId + "?exclude_generated=true")
+        );
+        Map<String, Object> originalDfBody = (Map<String, Object>) ((List<?>) entityAsMap(dfResponse).get("datafeeds")).get(0);
         originalDfBody.remove("datafeed_id");
 
-        //Delete this so we can PUT another datafeed for the same job
+        // Delete this so we can PUT another datafeed for the same job
         client().performRequest(new Request("DELETE", BASE_PATH + "datafeeds/" + datafeedId));
 
         Map<String, Object> toPut = new HashMap<>(originalDfBody);
@@ -298,8 +303,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response importedDfResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "datafeeds/" + datafeedId + "-import" + "?exclude_generated=true"));
-        Map<String, Object> importedDfBody = (Map<String, Object>)((List<?>) entityAsMap(importedDfResponse).get("datafeeds")).get(0);
+            new Request("GET", BASE_PATH + "datafeeds/" + datafeedId + "-import" + "?exclude_generated=true")
+        );
+        Map<String, Object> importedDfBody = (Map<String, Object>) ((List<?>) entityAsMap(importedDfResponse).get("datafeeds")).get(0);
         importedDfBody.remove("datafeed_id");
         assertThat(originalDfBody, equalTo(importedDfBody));
     }
@@ -340,8 +346,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response jobResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?exclude_generated=true"));
-        Map<String, Object> originalJobBody = (Map<String, Object>)((List<?>) entityAsMap(jobResponse).get("data_frame_analytics")).get(0);
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?exclude_generated=true")
+        );
+        Map<String, Object> originalJobBody = (Map<String, Object>) ((List<?>) entityAsMap(jobResponse).get("data_frame_analytics")).get(0);
         originalJobBody.remove("id");
 
         XContentBuilder newBuilder = jsonBuilder().map(originalJobBody);
@@ -350,9 +357,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response importedJobResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?exclude_generated=true"));
-        Map<String, Object> importedJobBody = (Map<String, Object>)((List<?>) entityAsMap(importedJobResponse)
-            .get("data_frame_analytics"))
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?exclude_generated=true")
+        );
+        Map<String, Object> importedJobBody = (Map<String, Object>) ((List<?>) entityAsMap(importedJobResponse).get("data_frame_analytics"))
             .get(0);
         importedJobBody.remove("id");
         assertThat(originalJobBody, equalTo(importedJobBody));
@@ -395,8 +402,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response jobResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?exclude_generated=true"));
-        Map<String, Object> originalJobBody = (Map<String, Object>)((List<?>) entityAsMap(jobResponse).get("data_frame_analytics")).get(0);
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?exclude_generated=true")
+        );
+        Map<String, Object> originalJobBody = (Map<String, Object>) ((List<?>) entityAsMap(jobResponse).get("data_frame_analytics")).get(0);
         originalJobBody.remove("id");
 
         XContentBuilder newBuilder = jsonBuilder().map(originalJobBody);
@@ -405,9 +413,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response importedJobResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?exclude_generated=true"));
-        Map<String, Object> importedJobBody = (Map<String, Object>)((List<?>) entityAsMap(importedJobResponse)
-            .get("data_frame_analytics"))
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?exclude_generated=true")
+        );
+        Map<String, Object> importedJobBody = (Map<String, Object>) ((List<?>) entityAsMap(importedJobResponse).get("data_frame_analytics"))
             .get(0);
         importedJobBody.remove("id");
         assertThat(originalJobBody, equalTo(importedJobBody));
@@ -450,8 +458,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response jobResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?exclude_generated=true"));
-        Map<String, Object> originalJobBody = (Map<String, Object>)((List<?>) entityAsMap(jobResponse).get("data_frame_analytics")).get(0);
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "?exclude_generated=true")
+        );
+        Map<String, Object> originalJobBody = (Map<String, Object>) ((List<?>) entityAsMap(jobResponse).get("data_frame_analytics")).get(0);
         originalJobBody.remove("id");
 
         XContentBuilder newBuilder = jsonBuilder().map(originalJobBody);
@@ -460,9 +469,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         client().performRequest(request);
 
         Response importedJobResponse = client().performRequest(
-            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?exclude_generated=true"));
-        Map<String, Object> importedJobBody = (Map<String, Object>)((List<?>) entityAsMap(importedJobResponse)
-            .get("data_frame_analytics"))
+            new Request("GET", BASE_PATH + "data_frame/analytics/" + analyticsId + "-import" + "?exclude_generated=true")
+        );
+        Map<String, Object> importedJobBody = (Map<String, Object>) ((List<?>) entityAsMap(importedJobResponse).get("data_frame_analytics"))
             .get(0);
         importedJobBody.remove("id");
         assertThat(originalJobBody, equalTo(importedJobBody));
@@ -519,7 +528,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
     }
 
     private static void assertFlushResponse(Response response, boolean expectedFlushed, long expectedLastFinalizedBucketEnd)
-            throws IOException {
+        throws IOException {
         Map<String, Object> asMap = entityAsMap(response);
         assertThat(asMap.size(), equalTo(2));
         assertThat(asMap.get("flushed"), is(true));
@@ -532,15 +541,21 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         String dateFormat = datesHaveNanoSecondResolution ? "strict_date_optional_time_nanos" : "strict_date_optional_time";
         String randomNanos = datesHaveNanoSecondResolution ? "," + randomIntBetween(100000000, 999999999) : "";
         Request createAirlineDataRequest = new Request("PUT", "/airline-data");
-        createAirlineDataRequest.setJsonEntity("{"
-            + "  \"mappings\": {"
-            + "    \"properties\": {"
-            + "      \"time\": { \"type\":\"" + dateMappingType + "\", \"format\":\"" + dateFormat + "\"},"
-            + "      \"airline\": { \"type\":\"keyword\"},"
-            + "      \"responsetime\": { \"type\":\"float\"}"
-            + "    }"
-            + "  }"
-            + "}");
+        createAirlineDataRequest.setJsonEntity(
+            "{"
+                + "  \"mappings\": {"
+                + "    \"properties\": {"
+                + "      \"time\": { \"type\":\""
+                + dateMappingType
+                + "\", \"format\":\""
+                + dateFormat
+                + "\"},"
+                + "      \"airline\": { \"type\":\"keyword\"},"
+                + "      \"responsetime\": { \"type\":\"float\"}"
+                + "    }"
+                + "  }"
+                + "}"
+        );
         client().performRequest(createAirlineDataRequest);
         Request airlineData1 = new Request("PUT", "/airline-data/_doc/1");
         airlineData1.setJsonEntity("{\"time\":\"2016-06-01T00:00:00" + randomNanos + "Z\",\"airline\":\"AAA\",\"responsetime\":135.22}");

@@ -62,8 +62,8 @@ public class RepositoryMetadata implements Writeable {
         this.settings = settings;
         this.generation = generation;
         this.pendingGeneration = pendingGeneration;
-        assert generation <= pendingGeneration :
-            "Pending generation [" + pendingGeneration + "] must be greater or equal to generation [" + generation + "]";
+        assert generation <= pendingGeneration
+            : "Pending generation [" + pendingGeneration + "] must be greater or equal to generation [" + generation + "]";
     }
 
     /**
@@ -199,8 +199,19 @@ public class RepositoryMetadata implements Writeable {
 
     @Override
     public String toString() {
-        return "RepositoryMetadata{" + name + "}{" + uuid + "}{" + type + "}{" + settings + "}{"
-                + generation + "}{" + pendingGeneration + "}";
+        return "RepositoryMetadata{"
+            + name
+            + "}{"
+            + uuid
+            + "}{"
+            + type
+            + "}{"
+            + settings
+            + "}{"
+            + generation
+            + "}{"
+            + pendingGeneration
+            + "}";
     }
 
     public RepositoryMetadata withUuid(String uuid) {

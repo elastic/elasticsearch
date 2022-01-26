@@ -11,11 +11,11 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.cluster.coordination.NoMasterBlockService.LEGACY_NO_MASTER_BLOCK_SETTING;
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ALL;
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_METADATA_WRITES;
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_SETTING;
 import static org.elasticsearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
-import static org.elasticsearch.cluster.coordination.NoMasterBlockService.LEGACY_NO_MASTER_BLOCK_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.BUILT_IN_CLUSTER_SETTINGS;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -30,8 +30,10 @@ public class NoMasterBlockServiceTests extends ESTestCase {
     }
 
     private void assertDeprecatedWarningEmitted() {
-        assertWarnings("[discovery.zen.no_master_block] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-            "See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[discovery.zen.no_master_block] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testBlocksWritesByDefault() {
@@ -67,13 +69,17 @@ public class NoMasterBlockServiceTests extends ESTestCase {
     }
 
     public void testRejectsInvalidSetting() {
-        expectThrows(IllegalArgumentException.class, () ->
-            createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "unknown").build()));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> createService(Settings.builder().put(NO_MASTER_BLOCK_SETTING.getKey(), "unknown").build())
+        );
     }
 
     public void testRejectsInvalidLegacySetting() {
-        expectThrows(IllegalArgumentException.class, () ->
-            createService(Settings.builder().put(LEGACY_NO_MASTER_BLOCK_SETTING.getKey(), "unknown").build()));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> createService(Settings.builder().put(LEGACY_NO_MASTER_BLOCK_SETTING.getKey(), "unknown").build())
+        );
         assertDeprecatedWarningEmitted();
     }
 

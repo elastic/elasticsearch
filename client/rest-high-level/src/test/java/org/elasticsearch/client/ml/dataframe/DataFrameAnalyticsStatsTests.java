@@ -16,9 +16,9 @@ import org.elasticsearch.client.ml.dataframe.stats.common.DataCountsTests;
 import org.elasticsearch.client.ml.dataframe.stats.common.MemoryUsageTests;
 import org.elasticsearch.client.ml.dataframe.stats.outlierdetection.OutlierDetectionStatsTests;
 import org.elasticsearch.client.ml.dataframe.stats.regression.RegressionStatsTests;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,18 +36,20 @@ public class DataFrameAnalyticsStatsTests extends ESTestCase {
     }
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
+        xContentTester(
+            this::createParser,
             DataFrameAnalyticsStatsTests::randomDataFrameAnalyticsStats,
             DataFrameAnalyticsStatsTests::toXContent,
-            DataFrameAnalyticsStats::fromXContent)
-            .supportsUnknownFields(true)
+            DataFrameAnalyticsStats::fromXContent
+        ).supportsUnknownFields(true)
             .randomFieldsExcludeFilter(field -> field.startsWith("node.attributes") || field.startsWith("analysis_stats"))
             .test();
     }
 
     public static DataFrameAnalyticsStats randomDataFrameAnalyticsStats() {
-        AnalysisStats analysisStats = randomBoolean() ? null :
-            randomFrom(
+        AnalysisStats analysisStats = randomBoolean()
+            ? null
+            : randomFrom(
                 ClassificationStatsTests.createRandom(),
                 OutlierDetectionStatsTests.createRandom(),
                 RegressionStatsTests.createRandom()
@@ -62,7 +64,8 @@ public class DataFrameAnalyticsStatsTests extends ESTestCase {
             randomBoolean() ? null : MemoryUsageTests.createRandom(),
             analysisStats,
             randomBoolean() ? null : NodeAttributesTests.createRandom(),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20));
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20)
+        );
     }
 
     private static List<PhaseProgress> createRandomProgress() {

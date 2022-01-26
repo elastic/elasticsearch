@@ -16,7 +16,7 @@ import org.apache.lucene.util.StringHelper;
 public final class Murmur3HashFunction {
 
     private Murmur3HashFunction() {
-        //no instance
+        // no instance
     }
 
     public static int hash(String routing) {

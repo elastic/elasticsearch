@@ -18,21 +18,28 @@ import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCre
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
-public class TransportGetServiceAccountCredentialsAction
-    extends HandledTransportAction<GetServiceAccountCredentialsRequest, GetServiceAccountCredentialsResponse> {
+public class TransportGetServiceAccountCredentialsAction extends HandledTransportAction<
+    GetServiceAccountCredentialsRequest,
+    GetServiceAccountCredentialsResponse> {
 
     private final ServiceAccountService serviceAccountService;
 
     @Inject
-    public TransportGetServiceAccountCredentialsAction(TransportService transportService, ActionFilters actionFilters,
-                                                       ServiceAccountService serviceAccountService) {
+    public TransportGetServiceAccountCredentialsAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ServiceAccountService serviceAccountService
+    ) {
         super(GetServiceAccountCredentialsAction.NAME, transportService, actionFilters, GetServiceAccountCredentialsRequest::new);
         this.serviceAccountService = serviceAccountService;
     }
 
     @Override
-    protected void doExecute(Task task, GetServiceAccountCredentialsRequest request,
-                             ActionListener<GetServiceAccountCredentialsResponse> listener) {
+    protected void doExecute(
+        Task task,
+        GetServiceAccountCredentialsRequest request,
+        ActionListener<GetServiceAccountCredentialsResponse> listener
+    ) {
         serviceAccountService.findTokensFor(request, listener);
     }
 }

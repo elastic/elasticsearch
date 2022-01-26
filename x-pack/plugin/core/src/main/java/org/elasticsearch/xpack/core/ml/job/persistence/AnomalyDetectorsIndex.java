@@ -8,13 +8,19 @@ package org.elasticsearch.xpack.core.ml.job.persistence;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Methods for handling index naming related functions
@@ -70,10 +76,13 @@ public final class AnomalyDetectorsIndex {
      * Creates the .ml-state-000001 index (if necessary)
      * Creates the .ml-state-write alias for the .ml-state-000001 index (if necessary)
      */
-    public static void createStateIndexAndAliasIfNecessary(Client client, ClusterState state,
-                                                           IndexNameExpressionResolver resolver,
-                                                           TimeValue masterNodeTimeout,
-                                                           final ActionListener<Boolean> finalListener) {
+    public static void createStateIndexAndAliasIfNecessary(
+        Client client,
+        ClusterState state,
+        IndexNameExpressionResolver resolver,
+        TimeValue masterNodeTimeout,
+        final ActionListener<Boolean> finalListener
+    ) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client,
             state,
@@ -81,7 +90,39 @@ public final class AnomalyDetectorsIndex {
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
             masterNodeTimeout,
-            finalListener);
+            finalListener
+        );
+    }
+
+    public static void createStateIndexAndAliasIfNecessaryAndWaitForYellow(
+        Client client,
+        ClusterState state,
+        IndexNameExpressionResolver resolver,
+        TimeValue masterNodeTimeout,
+        final ActionListener<Boolean> finalListener
+    ) {
+        final ActionListener<Boolean> stateIndexAndAliasCreated = ActionListener.wrap(success -> {
+            final ClusterHealthRequest request = Requests.clusterHealthRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
+                .waitForYellowStatus()
+                .masterNodeTimeout(masterNodeTimeout);
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                ClusterHealthAction.INSTANCE,
+                request,
+                ActionListener.wrap(r -> finalListener.onResponse(r.isTimedOut() == false), finalListener::onFailure)
+            );
+        }, finalListener::onFailure);
+
+        MlIndexAndAlias.createIndexAndAliasIfNecessary(
+            client,
+            state,
+            resolver,
+            AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
+            AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
+            masterNodeTimeout,
+            stateIndexAndAliasCreated
+        );
     }
 
     public static String wrappedResultsMapping() {
@@ -93,7 +134,10 @@ public final class AnomalyDetectorsIndex {
     }
 
     public static String resultsMapping() {
-        return TemplateUtils.loadTemplate(RESOURCE_PATH + "results_index_mappings.json",
-            Version.CURRENT.toString(), RESULTS_MAPPINGS_VERSION_VARIABLE);
+        return TemplateUtils.loadTemplate(
+            RESOURCE_PATH + "results_index_mappings.json",
+            Version.CURRENT.toString(),
+            RESULTS_MAPPINGS_VERSION_VARIABLE
+        );
     }
 }

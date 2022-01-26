@@ -10,13 +10,13 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -25,7 +25,7 @@ import static org.elasticsearch.common.geo.GeoBoundingBox.BOUNDS_FIELD;
 import static org.elasticsearch.common.geo.GeoBoundingBox.LAT_FIELD;
 import static org.elasticsearch.common.geo.GeoBoundingBox.LON_FIELD;
 import static org.elasticsearch.common.geo.GeoBoundingBox.TOP_LEFT_FIELD;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class ParsedGeoBounds extends ParsedAggregation implements GeoBounds {
 

@@ -13,25 +13,25 @@ public class IncrementTests extends ScriptTestCase {
 
     /** incrementing byte values */
     public void testIncrementByte() {
-        assertEquals((byte)0, exec("byte x = (byte)0; return x++;"));
-        assertEquals((byte)0, exec("byte x = (byte)0; return x--;"));
-        assertEquals((byte)1, exec("byte x = (byte)0; return ++x;"));
-        assertEquals((byte)-1, exec("byte x = (byte)0; return --x;"));
+        assertEquals((byte) 0, exec("byte x = (byte)0; return x++;"));
+        assertEquals((byte) 0, exec("byte x = (byte)0; return x--;"));
+        assertEquals((byte) 1, exec("byte x = (byte)0; return ++x;"));
+        assertEquals((byte) -1, exec("byte x = (byte)0; return --x;"));
     }
 
     /** incrementing char values */
     public void testIncrementChar() {
-        assertEquals((char)0, exec("char x = (char)0; return x++;"));
-        assertEquals((char)1, exec("char x = (char)1; return x--;"));
-        assertEquals((char)1, exec("char x = (char)0; return ++x;"));
+        assertEquals((char) 0, exec("char x = (char)0; return x++;"));
+        assertEquals((char) 1, exec("char x = (char)1; return x--;"));
+        assertEquals((char) 1, exec("char x = (char)0; return ++x;"));
     }
 
     /** incrementing short values */
     public void testIncrementShort() {
-        assertEquals((short)0, exec("short x = (short)0; return x++;"));
-        assertEquals((short)0, exec("short x = (short)0; return x--;"));
-        assertEquals((short)1, exec("short x = (short)0; return ++x;"));
-        assertEquals((short)-1, exec("short x = (short)0; return --x;"));
+        assertEquals((short) 0, exec("short x = (short)0; return x++;"));
+        assertEquals((short) 0, exec("short x = (short)0; return x--;"));
+        assertEquals((short) 1, exec("short x = (short)0; return ++x;"));
+        assertEquals((short) -1, exec("short x = (short)0; return --x;"));
     }
 
     /** incrementing integer values */
@@ -68,17 +68,17 @@ public class IncrementTests extends ScriptTestCase {
 
     /** incrementing def values */
     public void testIncrementDef() {
-        assertEquals((byte)0, exec("def x = (byte)0; return x++;"));
-        assertEquals((byte)0, exec("def x = (byte)0; return x--;"));
-        assertEquals((byte)1, exec("def x = (byte)0; return ++x;"));
-        assertEquals((byte)-1, exec("def x = (byte)0; return --x;"));
-        assertEquals((char)0, exec("def x = (char)0; return x++;"));
-        assertEquals((char)1, exec("def x = (char)1; return x--;"));
-        assertEquals((char)1, exec("def x = (char)0; return ++x;"));
-        assertEquals((short)0, exec("def x = (short)0; return x++;"));
-        assertEquals((short)0, exec("def x = (short)0; return x--;"));
-        assertEquals((short)1, exec("def x = (short)0; return ++x;"));
-        assertEquals((short)-1, exec("def x = (short)0; return --x;"));
+        assertEquals((byte) 0, exec("def x = (byte)0; return x++;"));
+        assertEquals((byte) 0, exec("def x = (byte)0; return x--;"));
+        assertEquals((byte) 1, exec("def x = (byte)0; return ++x;"));
+        assertEquals((byte) -1, exec("def x = (byte)0; return --x;"));
+        assertEquals((char) 0, exec("def x = (char)0; return x++;"));
+        assertEquals((char) 1, exec("def x = (char)1; return x--;"));
+        assertEquals((char) 1, exec("def x = (char)0; return ++x;"));
+        assertEquals((short) 0, exec("def x = (short)0; return x++;"));
+        assertEquals((short) 0, exec("def x = (short)0; return x--;"));
+        assertEquals((short) 1, exec("def x = (short)0; return ++x;"));
+        assertEquals((short) -1, exec("def x = (short)0; return --x;"));
         assertEquals(0, exec("def x = 0; return x++;"));
         assertEquals(0, exec("def x = 0; return x--;"));
         assertEquals(1, exec("def x = 0; return ++x;"));

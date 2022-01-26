@@ -29,8 +29,7 @@ public class StopSLMAction extends ActionType<AcknowledgedResponse> {
             super(in);
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         @Override
         public ActionRequestValidationException validate() {

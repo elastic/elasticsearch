@@ -63,9 +63,18 @@ public class SamlValidateAuthnRequestResponse extends ActionResponse {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{ spEntityId='" + getSpEntityId() + "',\n" +
-            " acs='" + getAssertionConsumerService() + "',\n" +
-            " forceAuthn='" + isForceAuthn() + "',\n" +
-            " authnState='" + getAuthnState() + "' }";
+        return getClass().getSimpleName()
+            + "{ spEntityId='"
+            + getSpEntityId()
+            + "',\n"
+            + " acs='"
+            + getAssertionConsumerService()
+            + "',\n"
+            + " forceAuthn='"
+            + isForceAuthn()
+            + "',\n"
+            + " authnState='"
+            + getAuthnState()
+            + "' }";
     }
 }

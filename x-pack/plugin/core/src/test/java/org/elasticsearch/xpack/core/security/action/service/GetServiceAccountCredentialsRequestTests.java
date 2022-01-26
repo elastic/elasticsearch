@@ -34,27 +34,36 @@ public class GetServiceAccountCredentialsRequestTests extends AbstractWireSerial
         switch (randomIntBetween(0, 2)) {
             case 0:
                 return new GetServiceAccountCredentialsRequest(
-                    randomValueOtherThan(instance.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)), instance.getServiceName());
+                    randomValueOtherThan(instance.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
+                    instance.getServiceName()
+                );
             case 1:
                 return new GetServiceAccountCredentialsRequest(
-                    instance.getNamespace(), randomValueOtherThan(instance.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)));
+                    instance.getNamespace(),
+                    randomValueOtherThan(instance.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8))
+                );
             default:
                 return new GetServiceAccountCredentialsRequest(
                     randomValueOtherThan(instance.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    randomValueOtherThan(instance.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)));
+                    randomValueOtherThan(instance.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8))
+                );
         }
     }
 
     public void testValidate() {
         assertNull(createTestInstance().validate());
 
-        final GetServiceAccountCredentialsRequest request1 =
-            new GetServiceAccountCredentialsRequest(randomFrom("", null), randomAlphaOfLengthBetween(3, 8));
+        final GetServiceAccountCredentialsRequest request1 = new GetServiceAccountCredentialsRequest(
+            randomFrom("", null),
+            randomAlphaOfLengthBetween(3, 8)
+        );
         final ActionRequestValidationException e1 = request1.validate();
         assertThat(e1.getMessage(), containsString("service account namespace is required"));
 
-        final GetServiceAccountCredentialsRequest request2 =
-            new GetServiceAccountCredentialsRequest(randomAlphaOfLengthBetween(3, 8), randomFrom("", null));
+        final GetServiceAccountCredentialsRequest request2 = new GetServiceAccountCredentialsRequest(
+            randomAlphaOfLengthBetween(3, 8),
+            randomFrom("", null)
+        );
         final ActionRequestValidationException e2 = request2.validate();
         assertThat(e2.getMessage(), containsString("service account service-name is required"));
     }

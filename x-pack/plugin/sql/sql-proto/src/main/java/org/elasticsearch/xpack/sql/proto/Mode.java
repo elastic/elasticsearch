@@ -25,7 +25,6 @@ public enum Mode {
         return Mode.valueOf(mode.toUpperCase(Locale.ROOT));
     }
 
-
     @Override
     public String toString() {
         return this.name().toLowerCase(Locale.ROOT);

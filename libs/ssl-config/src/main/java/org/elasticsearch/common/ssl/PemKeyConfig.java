@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.X509ExtendedKeyManager;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -23,6 +21,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.X509ExtendedKeyManager;
 
 /**
  * A {@link SslKeyConfig} that reads from PEM formatted paths.
@@ -77,7 +78,7 @@ public final class PemKeyConfig implements SslKeyConfig {
         } catch (FileNotFoundException | NoSuchFileException e) {
             throw new SslConfigException("the configured ssl certificate file [" + certificate.toAbsolutePath() + "] does not exist", e);
         } catch (IOException e) {
-            throw new SslConfigException("the configured ssl certificate file [" + certificate .toAbsolutePath()+ "] cannot be read", e);
+            throw new SslConfigException("the configured ssl certificate file [" + certificate.toAbsolutePath() + "] cannot be read", e);
         } catch (GeneralSecurityException e) {
             throw new SslConfigException("cannot load ssl certificate from [" + certificate.toAbsolutePath() + "]", e);
         }
@@ -97,9 +98,9 @@ public final class PemKeyConfig implements SslKeyConfig {
             return false;
         }
         final PemKeyConfig that = (PemKeyConfig) o;
-        return Objects.equals(this.certificate, that.certificate) &&
-            Objects.equals(this.key, that.key) &&
-            Arrays.equals(this.keyPassword, that.keyPassword);
+        return Objects.equals(this.certificate, that.certificate)
+            && Objects.equals(this.key, that.key)
+            && Arrays.equals(this.keyPassword, that.keyPassword);
     }
 
     @Override

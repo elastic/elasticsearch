@@ -50,12 +50,17 @@ public class RollupActionIT extends ESRestTestCase {
     }
 
     public void testRollupIndex() throws Exception {
-        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        createIndexWithSettings(
+            client(),
+            index,
+            alias,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        );
         index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
         RollupActionConfig rollupConfig = new RollupActionConfig(
             new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
-            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))));
+            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max")))
+        );
 
         createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, null));
         updatePolicy(client(), index, policy);
@@ -68,12 +73,17 @@ public class RollupActionIT extends ESRestTestCase {
     }
 
     public void testRollupIndexAndSetNewRollupPolicy() throws Exception {
-        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        createIndexWithSettings(
+            client(),
+            index,
+            alias,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        );
         index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
         RollupActionConfig rollupConfig = new RollupActionConfig(
             new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
-            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))));
+            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max")))
+        );
 
         createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, policy));
         updatePolicy(client(), index, policy);

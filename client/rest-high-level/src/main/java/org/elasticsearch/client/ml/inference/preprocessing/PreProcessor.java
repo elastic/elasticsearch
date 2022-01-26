@@ -9,7 +9,6 @@ package org.elasticsearch.client.ml.inference.preprocessing;
 
 import org.elasticsearch.client.ml.inference.NamedXContentObject;
 
-
 /**
  * Describes a pre-processor for a defined machine learning model
  */

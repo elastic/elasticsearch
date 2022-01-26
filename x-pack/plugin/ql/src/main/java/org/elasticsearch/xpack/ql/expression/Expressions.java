@@ -25,7 +25,6 @@ import static java.util.Collections.emptyList;
 
 public final class Expressions {
 
-
     private Expressions() {}
 
     public static NamedExpression wrapAsNamed(Expression exp) {

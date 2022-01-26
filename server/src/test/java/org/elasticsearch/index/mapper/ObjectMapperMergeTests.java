@@ -25,8 +25,12 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
     private final RootObjectMapper rootObjectMapper = createMapping(false, true, true, false);
 
-    private RootObjectMapper createMapping(boolean disabledFieldEnabled, boolean fooFieldEnabled,
-                                                  boolean includeBarField, boolean includeBazField) {
+    private RootObjectMapper createMapping(
+        boolean disabledFieldEnabled,
+        boolean fooFieldEnabled,
+        boolean includeBarField,
+        boolean includeBazField
+    ) {
         Map<String, Mapper> mappers = new HashMap<>();
         mappers.put("disabled", createObjectMapper("disabled", disabledFieldEnabled, emptyMap()));
         Map<String, Mapper> fooMappers = new HashMap<>();
@@ -36,7 +40,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
         if (includeBazField) {
             fooMappers.put("baz", bazFieldMapper);
         }
-        mappers.put("foo", createObjectMapper("foo", fooFieldEnabled,  Collections.unmodifiableMap(fooMappers)));
+        mappers.put("foo", createObjectMapper("foo", fooFieldEnabled, Collections.unmodifiableMap(fooMappers)));
         return createRootObjectMapper("type1", true, Collections.unmodifiableMap(mappers));
     }
 
@@ -66,12 +70,12 @@ public class ObjectMapperMergeTests extends ESTestCase {
     public void testMergeDisabledField() {
         // GIVEN a mapping with "foo" field disabled
         Map<String, Mapper> mappers = new HashMap<>();
-        //the field is disabled, and we are not trying to re-enable it, hence merge should work
+        // the field is disabled, and we are not trying to re-enable it, hence merge should work
         mappers.put("disabled", new ObjectMapper.Builder("disabled").build(MapperBuilderContext.ROOT));
         RootObjectMapper mergeWith = createRootObjectMapper("type1", true, Collections.unmodifiableMap(mappers));
 
-        RootObjectMapper merged = (RootObjectMapper)rootObjectMapper.merge(mergeWith);
-        assertFalse(((ObjectMapper)merged.getMapper("disabled")).isEnabled());
+        RootObjectMapper merged = (RootObjectMapper) rootObjectMapper.merge(mergeWith);
+        assertFalse(((ObjectMapper) merged.getMapper("disabled")).isEnabled());
     }
 
     public void testMergeEnabled() {
@@ -98,13 +102,12 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
     public void testMergeDisabledRootMapper() {
         String type = MapperService.SINGLE_MAPPING_NAME;
-        final RootObjectMapper rootObjectMapper =
-            (RootObjectMapper) new RootObjectMapper.Builder(type).enabled(false).build(MapperBuilderContext.ROOT);
-        //the root is disabled, and we are not trying to re-enable it, but we do want to be able to add runtime fields
-        final RootObjectMapper mergeWith =
-            new RootObjectMapper.Builder(type)
-                .setRuntime(Collections.singletonMap("test", new TestRuntimeField("test", "long")))
-                .build(MapperBuilderContext.ROOT);
+        final RootObjectMapper rootObjectMapper = (RootObjectMapper) new RootObjectMapper.Builder(type).enabled(false)
+            .build(MapperBuilderContext.ROOT);
+        // the root is disabled, and we are not trying to re-enable it, but we do want to be able to add runtime fields
+        final RootObjectMapper mergeWith = new RootObjectMapper.Builder(type).setRuntime(
+            Collections.singletonMap("test", new TestRuntimeField("test", "long"))
+        ).build(MapperBuilderContext.ROOT);
 
         RootObjectMapper merged = (RootObjectMapper) rootObjectMapper.merge(mergeWith);
         assertFalse(merged.isEnabled());
@@ -114,14 +117,12 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
     public void testMergeNested() {
 
-        NestedObjectMapper firstMapper = new NestedObjectMapper.Builder("nested1", Version.CURRENT)
-            .includeInParent(true)
+        NestedObjectMapper firstMapper = new NestedObjectMapper.Builder("nested1", Version.CURRENT).includeInParent(true)
             .includeInRoot(true)
             .build(MapperBuilderContext.ROOT);
-        NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested1", Version.CURRENT)
-            .includeInParent(false)
+        NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested1", Version.CURRENT).includeInParent(false)
             .includeInRoot(true)
-        .build(MapperBuilderContext.ROOT);
+            .build(MapperBuilderContext.ROOT);
 
         MapperException e = expectThrows(MapperException.class, () -> firstMapper.merge(secondMapper));
         assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
@@ -132,8 +133,8 @@ public class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private static RootObjectMapper createRootObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
-        final RootObjectMapper rootObjectMapper
-            = (RootObjectMapper) new RootObjectMapper.Builder(name).enabled(enabled).build(MapperBuilderContext.ROOT);
+        final RootObjectMapper rootObjectMapper = (RootObjectMapper) new RootObjectMapper.Builder(name).enabled(enabled)
+            .build(MapperBuilderContext.ROOT);
 
         mappers.values().forEach(rootObjectMapper::putMapper);
 

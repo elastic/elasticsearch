@@ -26,8 +26,13 @@ public final class ExtensionComponents implements SecurityExtension.SecurityComp
     private final ResourceWatcherService resourceWatcherService;
     private final UserRoleMapper roleMapper;
 
-    public ExtensionComponents(Environment environment, Client client, ClusterService clusterService,
-                               ResourceWatcherService resourceWatcherService, UserRoleMapper roleMapper) {
+    public ExtensionComponents(
+        Environment environment,
+        Client client,
+        ClusterService clusterService,
+        ResourceWatcherService resourceWatcherService,
+        UserRoleMapper roleMapper
+    ) {
         this.environment = environment;
         this.client = client;
         this.clusterService = clusterService;

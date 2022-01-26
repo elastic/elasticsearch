@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.security.cli;
 
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
@@ -35,7 +35,7 @@ import static org.mockito.Mockito.when;
 public class CertGenUtilsTests extends ESTestCase {
 
     @BeforeClass
-    public static void muteInFips(){
+    public static void muteInFips() {
         assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
     }
 

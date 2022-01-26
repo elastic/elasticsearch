@@ -8,8 +8,13 @@
 
 package org.elasticsearch.packaging.util.docker;
 
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.packaging.util.Shell;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -63,5 +68,44 @@ public class DockerShell extends Shell {
             }
             throw e;
         }
+    }
+
+    /**
+     * Execute a command inside the Docker container, but without invoking a local shell. The caller
+     * is entirely responsible for correctly escaping command arguments, or for invoking a shell
+     * inside the container if required.
+     * @param args the command and arguments to execute inside the container
+     * @return the result of executing the command
+     */
+    public static Shell.Result executeCommand(String... args) {
+        assert Docker.containerId != null;
+
+        final String[] prefix = new String[] { "docker", "exec", "--tty", Docker.containerId };
+        final String[] command = ArrayUtils.concat(prefix, args);
+        final ProcessBuilder pb = new ProcessBuilder(command);
+
+        final Process p;
+        final int exitCode;
+        final String stdout;
+        final String stderr;
+        try {
+            p = pb.start();
+            exitCode = p.waitFor();
+            stdout = readFully(p.getInputStream()).trim();
+            stderr = readFully(p.getErrorStream()).trim();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        return new Shell.Result(exitCode, stdout, stderr);
+    }
+
+    private static String readFully(InputStream inputStream) throws IOException {
+        ByteArrayOutputStream result = new ByteArrayOutputStream();
+        byte[] buffer = new byte[1024];
+        for (int length; (length = inputStream.read(buffer)) != -1;) {
+            result.write(buffer, 0, length);
+        }
+        return result.toString(StandardCharsets.UTF_8.name());
     }
 }

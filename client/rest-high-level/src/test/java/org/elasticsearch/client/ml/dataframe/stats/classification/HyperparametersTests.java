@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.dataframe.stats.classification;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 

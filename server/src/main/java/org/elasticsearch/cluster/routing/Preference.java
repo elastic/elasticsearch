@@ -7,11 +7,10 @@
  */
 package org.elasticsearch.cluster.routing;
 
-
 /**
  * Routing Preference Type
  */
-public enum  Preference {
+public enum Preference {
 
     /**
      * Route to specific shards
@@ -47,6 +46,7 @@ public enum  Preference {
     public String type() {
         return type;
     }
+
     /**
      * Parses the Preference Type given a string
      */
@@ -77,6 +77,3 @@ public enum  Preference {
     }
 
 }
-
-
-

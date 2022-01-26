@@ -34,17 +34,28 @@ public class DefaultSemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope>
         int parameterCount = canonicalTypeNameParameters.size();
 
         if (parameterCount != parameterNames.size()) {
-            throw userFunctionNode.createError(new IllegalStateException("invalid function definition: " +
-                    "parameter types size [" + canonicalTypeNameParameters.size() + "] is not equal to " +
-                    "parameter names size [" + parameterNames.size() + "] for function [" + functionName +"]"));
+            throw userFunctionNode.createError(
+                new IllegalStateException(
+                    "invalid function definition: "
+                        + "parameter types size ["
+                        + canonicalTypeNameParameters.size()
+                        + "] is not equal to "
+                        + "parameter names size ["
+                        + parameterNames.size()
+                        + "] for function ["
+                        + functionName
+                        + "]"
+                )
+            );
         }
 
         FunctionTable functionTable = scriptScope.getFunctionTable();
         String functionKey = FunctionTable.buildLocalFunctionKey(functionName, canonicalTypeNameParameters.size());
 
         if (functionTable.getFunction(functionKey) != null) {
-            throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
-                    "found duplicate function [" + functionKey + "]."));
+            throw userFunctionNode.createError(
+                new IllegalArgumentException("invalid function definition: " + "found duplicate function [" + functionKey + "].")
+            );
         }
 
         PainlessLookup painlessLookup = scriptScope.getPainlessLookup();
@@ -52,8 +63,16 @@ public class DefaultSemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope>
         Class<?> returnType = painlessLookup.canonicalTypeNameToType(returnCanonicalTypeName);
 
         if (returnType == null) {
-            throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
-                    "return type [" + returnCanonicalTypeName + "] not found for function [" + functionKey + "]"));
+            throw userFunctionNode.createError(
+                new IllegalArgumentException(
+                    "invalid function definition: "
+                        + "return type ["
+                        + returnCanonicalTypeName
+                        + "] not found for function ["
+                        + functionKey
+                        + "]"
+                )
+            );
         }
 
         List<Class<?>> typeParameters = new ArrayList<>();
@@ -62,14 +81,27 @@ public class DefaultSemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope>
             Class<?> paramType = painlessLookup.canonicalTypeNameToType(typeParameter);
 
             if (paramType == null) {
-                throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
-                        "parameter type [" + typeParameter + "] not found for function [" + functionKey + "]"));
+                throw userFunctionNode.createError(
+                    new IllegalArgumentException(
+                        "invalid function definition: "
+                            + "parameter type ["
+                            + typeParameter
+                            + "] not found for function ["
+                            + functionKey
+                            + "]"
+                    )
+                );
             }
 
             typeParameters.add(paramType);
         }
 
-        functionTable.addMangledFunction(functionName, returnType, typeParameters, userFunctionNode.isInternal(),
-                userFunctionNode.isStatic());
+        functionTable.addMangledFunction(
+            functionName,
+            returnType,
+            typeParameters,
+            userFunctionNode.isInternal(),
+            userFunctionNode.isStatic()
+        );
     }
 }

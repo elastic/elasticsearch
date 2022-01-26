@@ -67,11 +67,13 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
         IndexMetadata originalIndexMetadata = IndexMetadata.builder(originalIndexName)
             .settings(settings(Version.CURRENT))
             .numberOfShards(originalNumberOfShards)
-            .numberOfReplicas(0).build();
+            .numberOfReplicas(0)
+            .build();
         IndexMetadata shrunkIndexMetadata = IndexMetadata.builder(SHRUNKEN_INDEX_PREFIX + originalIndexName)
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(shrinkNumberOfShards)
-                .numberOfReplicas(0).build();
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(shrinkNumberOfShards)
+            .numberOfReplicas(0)
+            .build();
         Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .put(IndexMetadata.builder(originalIndexMetadata))
@@ -83,17 +85,18 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
         DiscoveryNode masterNode = DiscoveryNode.createLocal(
             NodeRoles.masterNode(settings(Version.CURRENT).build()),
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId);
+            nodeId
+        );
 
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(shrinkIndex);
         for (int i = 0; i < shrinkNumberOfShards; i++) {
-            builder.addShard(TestShardRouting.newShardRouting(new ShardId(shrinkIndex, i),
-                nodeId, true, ShardRoutingState.STARTED));
+            builder.addShard(TestShardRouting.newShardRouting(new ShardId(shrinkIndex, i), nodeId, true, ShardRoutingState.STARTED));
         }
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
-            .routingTable(RoutingTable.builder().add(builder.build()).build()).build();
+            .routingTable(RoutingTable.builder().add(builder.build()).build())
+            .build();
 
         Result result = step.isConditionMet(originalIndexMetadata.getIndex(), clusterState);
         assertTrue(result.isComplete());
@@ -108,11 +111,13 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
         IndexMetadata originalIndexMetadata = IndexMetadata.builder(originalIndexName)
             .settings(settings(Version.CURRENT))
             .numberOfShards(originalNumberOfShards)
-            .numberOfReplicas(0).build();
+            .numberOfReplicas(0)
+            .build();
         IndexMetadata shrunkIndexMetadata = IndexMetadata.builder(SHRUNKEN_INDEX_PREFIX + originalIndexName)
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(shrinkNumberOfShards)
-                .numberOfReplicas(0).build();
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(shrinkNumberOfShards)
+            .numberOfReplicas(0)
+            .build();
         Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .put(IndexMetadata.builder(originalIndexMetadata))
@@ -124,22 +129,22 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
         DiscoveryNode masterNode = DiscoveryNode.createLocal(
             NodeRoles.masterNode(settings(Version.CURRENT).build()),
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId);
+            nodeId
+        );
 
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(shrinkIndex);
         for (int i = 0; i < shrinkNumberOfShards; i++) {
-            builder.addShard(TestShardRouting.newShardRouting(new ShardId(shrinkIndex, i),
-                nodeId, true, ShardRoutingState.INITIALIZING));
+            builder.addShard(TestShardRouting.newShardRouting(new ShardId(shrinkIndex, i), nodeId, true, ShardRoutingState.INITIALIZING));
         }
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
-            .routingTable(RoutingTable.builder().add(builder.build()).build()).build();
+            .routingTable(RoutingTable.builder().add(builder.build()).build())
+            .build();
 
         Result result = step.isConditionMet(originalIndexMetadata.getIndex(), clusterState);
         assertFalse(result.isComplete());
-        assertEquals(new ShrunkShardsAllocatedStep.Info(true, shrinkNumberOfShards, false),
-                result.getInfomationContext());
+        assertEquals(new ShrunkShardsAllocatedStep.Info(true, shrinkNumberOfShards, false), result.getInfomationContext());
     }
 
     public void testConditionNotMetBecauseOfShrunkIndexDoesntExistYet() {
@@ -149,7 +154,8 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
         IndexMetadata originalIndexMetadata = IndexMetadata.builder(originalIndexName)
             .settings(settings(Version.CURRENT))
             .numberOfShards(originalNumberOfShards)
-            .numberOfReplicas(0).build();
+            .numberOfReplicas(0)
+            .build();
         Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .put(IndexMetadata.builder(originalIndexMetadata))
@@ -159,7 +165,8 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
         DiscoveryNode masterNode = DiscoveryNode.createLocal(
             NodeRoles.masterNode(settings(Version.CURRENT).build()),
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId);
+            nodeId
+        );
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())

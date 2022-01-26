@@ -8,10 +8,10 @@
 package org.elasticsearch.client.graph;
 
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -119,7 +119,7 @@ public class Hop implements ToXContentFragment {
             builder.field("query");
             guidingQuery.toXContent(builder, params);
         }
-        if(vertices != null && vertices.size()>0) {
+        if (vertices != null && vertices.size() > 0) {
             builder.startArray("vertices");
             for (VertexRequest vertexRequest : vertices) {
                 vertexRequest.toXContent(builder, params);

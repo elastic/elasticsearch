@@ -183,10 +183,11 @@ public abstract class NetworkUtils {
     /** Returns all global scope addresses for interfaces that are up. */
     static InetAddress[] getGlobalAddresses() throws IOException {
         return filterAllAddresses(
-                address -> address.isLoopbackAddress() == false
-                        && address.isSiteLocalAddress() == false
-                        && address.isLinkLocalAddress() == false,
-                "no up-and-running global-scope (public) addresses found");
+            address -> address.isLoopbackAddress() == false
+                && address.isSiteLocalAddress() == false
+                && address.isLinkLocalAddress() == false,
+            "no up-and-running global-scope (public) addresses found"
+        );
     }
 
     /** Returns all addresses (any scope) for interfaces that are up.
@@ -204,18 +205,34 @@ public abstract class NetworkUtils {
         Optional<NetworkInterface> networkInterface = maybeGetInterfaceByName(getInterfaces(), interfaceName);
 
         if (networkInterface.isPresent() == false) {
-            throw new IllegalArgumentException("setting [" + settingValue + "] matched no network interfaces; valid values include [" +
-                    getInterfaces().stream().map(otherInterface -> "_" + otherInterface.getName() + suffix + "_")
-                            .collect(Collectors.joining(", ")) + "]");
+            throw new IllegalArgumentException(
+                "setting ["
+                    + settingValue
+                    + "] matched no network interfaces; valid values include ["
+                    + getInterfaces().stream()
+                        .map(otherInterface -> "_" + otherInterface.getName() + suffix + "_")
+                        .collect(Collectors.joining(", "))
+                    + "]"
+            );
         }
         if (networkInterface.get().isUp() == false) {
-            throw new IllegalArgumentException("setting [" + settingValue + "] matched network interface [" +
-                    networkInterface.get().getName() + "] but this interface is not up and running");
+            throw new IllegalArgumentException(
+                "setting ["
+                    + settingValue
+                    + "] matched network interface ["
+                    + networkInterface.get().getName()
+                    + "] but this interface is not up and running"
+            );
         }
         List<InetAddress> list = Collections.list(networkInterface.get().getInetAddresses());
         if (list.isEmpty()) {
-            throw new IllegalArgumentException("setting [" + settingValue + "] matched network interface [" +
-                    networkInterface.get().getName() + "] but this interface has no internet addresses");
+            throw new IllegalArgumentException(
+                "setting ["
+                    + settingValue
+                    + "] matched network interface ["
+                    + networkInterface.get().getName()
+                    + "] but this interface has no internet addresses"
+            );
         }
         return list.toArray(new InetAddress[list.size()]);
     }

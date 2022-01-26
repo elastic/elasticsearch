@@ -8,7 +8,6 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.client.watcher.PutWatchRequest;
 
 import java.util.Objects;
 
@@ -28,4 +27,3 @@ public class DeactivateWatchRequest implements Validatable {
         return watchId;
     }
 }
-

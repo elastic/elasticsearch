@@ -1,10 +1,12 @@
 [role="xpack"]
-[testenv="basic"]
 [[unfreeze-index-api]]
 === Unfreeze index API
 ++++
 <titleabbrev>Unfreeze index</titleabbrev>
 ++++
+
+include::{es-repo-dir}/indices/apis/freeze.asciidoc[tag=freeze-api-dep]
+
 
 Unfreezes an index.
 

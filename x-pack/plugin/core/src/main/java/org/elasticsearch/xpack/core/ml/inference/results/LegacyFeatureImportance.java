@@ -28,17 +28,15 @@ public class LegacyFeatureImportance implements Writeable {
         return new LegacyFeatureImportance(
             classificationFeatureImportance.getFeatureName(),
             classificationFeatureImportance.getTotalImportance(),
-            classificationFeatureImportance.getClassImportance().stream().map(classImportance -> new ClassImportance(
-                classImportance.getClassName(), classImportance.getImportance())).collect(Collectors.toList())
+            classificationFeatureImportance.getClassImportance()
+                .stream()
+                .map(classImportance -> new ClassImportance(classImportance.getClassName(), classImportance.getImportance()))
+                .collect(Collectors.toList())
         );
     }
 
     public static LegacyFeatureImportance fromRegression(RegressionFeatureImportance regressionFeatureImportance) {
-        return new LegacyFeatureImportance(
-            regressionFeatureImportance.getFeatureName(),
-            regressionFeatureImportance.getImportance(),
-            null
-        );
+        return new LegacyFeatureImportance(regressionFeatureImportance.getFeatureName(), regressionFeatureImportance.getImportance(), null);
     }
 
     private final List<ClassImportance> classImportance;
@@ -82,8 +80,12 @@ public class LegacyFeatureImportance implements Writeable {
 
     @Override
     public boolean equals(Object object) {
-        if (object == this) { return true; }
-        if (object == null || getClass() != object.getClass()) { return false; }
+        if (object == this) {
+            return true;
+        }
+        if (object == null || getClass() != object.getClass()) {
+            return false;
+        }
         LegacyFeatureImportance that = (LegacyFeatureImportance) object;
         return Objects.equals(featureName, that.featureName)
             && Objects.equals(importance, that.importance)
@@ -102,9 +104,17 @@ public class LegacyFeatureImportance implements Writeable {
 
     public ClassificationFeatureImportance forClassification() {
         assert classImportance != null;
-        return new ClassificationFeatureImportance(featureName, classImportance.stream().map(
-            aClassImportance -> new ClassificationFeatureImportance.ClassImportance(
-                aClassImportance.className, aClassImportance.importance)).collect(Collectors.toList()));
+        return new ClassificationFeatureImportance(
+            featureName,
+            classImportance.stream()
+                .map(
+                    aClassImportance -> new ClassificationFeatureImportance.ClassImportance(
+                        aClassImportance.className,
+                        aClassImportance.importance
+                    )
+                )
+                .collect(Collectors.toList())
+        );
     }
 
     public static class ClassImportance implements Writeable {
@@ -149,8 +159,7 @@ public class LegacyFeatureImportance implements Writeable {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ClassImportance that = (ClassImportance) o;
-            return Double.compare(that.importance, importance) == 0 &&
-                Objects.equals(className, that.className);
+            return Double.compare(that.importance, importance) == 0 && Objects.equals(className, that.className);
         }
 
         @Override

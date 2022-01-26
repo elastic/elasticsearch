@@ -149,7 +149,9 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
         try {
             Releasables.close(queue);
         } finally {
-            Releasables.close(sources);
+            if (sources != null) {
+                Releasables.close(sources);
+            }
         }
     }
 

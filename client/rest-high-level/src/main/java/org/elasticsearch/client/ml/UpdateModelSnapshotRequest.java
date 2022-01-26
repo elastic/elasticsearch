@@ -11,9 +11,9 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,10 +23,10 @@ import java.util.Objects;
  */
 public class UpdateModelSnapshotRequest extends ActionRequest implements ToXContentObject {
 
-
     public static final ConstructingObjectParser<UpdateModelSnapshotRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "update_model_snapshot_request", a -> new UpdateModelSnapshotRequest((String) a[0], (String) a[1]));
-
+        "update_model_snapshot_request",
+        a -> new UpdateModelSnapshotRequest((String) a[0], (String) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);

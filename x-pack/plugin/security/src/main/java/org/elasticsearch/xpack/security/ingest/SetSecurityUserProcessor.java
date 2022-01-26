@@ -45,14 +45,25 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
     private final String field;
     private final Set<Property> properties;
 
-    public SetSecurityUserProcessor(String tag, String description, SecurityContext securityContext, XPackLicenseState licenseState,
-                                    String field, Set<Property> properties) {
+    public SetSecurityUserProcessor(
+        String tag,
+        String description,
+        SecurityContext securityContext,
+        XPackLicenseState licenseState,
+        String field,
+        Set<Property> properties
+    ) {
         super(tag, description);
         this.securityContext = securityContext;
         this.licenseState = Objects.requireNonNull(licenseState, "license state cannot be null");
         if (licenseState.isSecurityEnabled() == false) {
-            logger.warn("Creating processor [{}] (tag [{}]) on field [{}] but authentication is not currently enabled on this cluster " +
-                " - this processor is likely to fail at runtime if it is used", TYPE, tag, field);
+            logger.warn(
+                "Creating processor [{}] (tag [{}]) on field [{}] but authentication is not currently enabled on this cluster "
+                    + " - this processor is likely to fail at runtime if it is used",
+                TYPE,
+                tag,
+                field
+            );
         } else if (this.securityContext == null) {
             throw new IllegalArgumentException("Authentication is allowed on this cluster state, but there is no security context");
         }
@@ -73,15 +84,24 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
         if (user == null) {
             logger.debug(
-                "Failed to find active user. SecurityContext=[{}] Authentication=[{}] User=[{}]", securityContext, authentication, user);
+                "Failed to find active user. SecurityContext=[{}] Authentication=[{}] User=[{}]",
+                securityContext,
+                authentication,
+                user
+            );
             if (licenseState.isSecurityEnabled()) {
                 // This shouldn't happen. If authentication is allowed (and active), then there _should_ always be an authenticated user.
                 // If we ever see this error message, then one of our assumptions are wrong.
-                throw new IllegalStateException("There is no authenticated user - the [" + TYPE
-                    + "] processor requires an authenticated user");
+                throw new IllegalStateException(
+                    "There is no authenticated user - the [" + TYPE + "] processor requires an authenticated user"
+                );
             } else {
-                throw new IllegalStateException("Security (authentication) is not enabled on this cluster, so there is no active user - " +
-                    "the [" + TYPE + "] processor cannot be used without security");
+                throw new IllegalStateException(
+                    "Security (authentication) is not enabled on this cluster, so there is no active user - "
+                        + "the ["
+                        + TYPE
+                        + "] processor cannot be used without security"
+                );
             }
         }
 
@@ -122,8 +142,9 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                         final String apiKey = "api_key";
                         final Object existingApiKeyField = userObject.get(apiKey);
                         @SuppressWarnings("unchecked")
-                        final Map<String, Object> apiKeyField =
-                            existingApiKeyField instanceof Map ? (Map<String, Object>) existingApiKeyField : new HashMap<>();
+                        final Map<String, Object> apiKeyField = existingApiKeyField instanceof Map
+                            ? (Map<String, Object>) existingApiKeyField
+                            : new HashMap<>();
                         Object apiKeyName = authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY);
                         if (apiKeyName != null) {
                             apiKeyField.put("name", apiKeyName);
@@ -132,7 +153,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                         if (apiKeyId != null) {
                             apiKeyField.put("id", apiKeyId);
                         }
-                        final Map<String,Object> apiKeyMetadata = ApiKeyService.getApiKeyMetadata(authentication);
+                        final Map<String, Object> apiKeyMetadata = ApiKeyService.getApiKeyMetadata(authentication);
                         if (false == apiKeyMetadata.isEmpty()) {
                             apiKeyField.put("metadata", apiKeyMetadata);
                         }
@@ -145,8 +166,9 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     final String realmKey = "realm";
                     final Object existingRealmField = userObject.get(realmKey);
                     @SuppressWarnings("unchecked")
-                    final Map<String, Object> realmField =
-                        existingRealmField instanceof Map ? (Map<String, Object>) existingRealmField : new HashMap<>();
+                    final Map<String, Object> realmField = existingRealmField instanceof Map
+                        ? (Map<String, Object>) existingRealmField
+                        : new HashMap<>();
 
                     final Object realmName = ApiKeyService.getCreatorRealmName(authentication);
                     if (realmName != null) {
@@ -197,8 +219,12 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         }
 
         @Override
-        public SetSecurityUserProcessor create(Map<String, Processor.Factory> processorFactories, String tag,
-                                               String description, Map<String, Object> config) throws Exception {
+        public SetSecurityUserProcessor create(
+            Map<String, Processor.Factory> processorFactories,
+            String tag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = readStringProperty(TYPE, tag, config, "field");
             List<String> propertyNames = readOptionalList(TYPE, tag, config, "properties");
             Set<Property> properties;

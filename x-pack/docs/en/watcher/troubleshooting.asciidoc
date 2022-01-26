@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="gold"]
 [[watcher-troubleshooting]]
 == Troubleshooting {watcher}
 [subs="attributes"]

@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.core.common.notifications;
 import java.util.Locale;
 
 public enum Level {
-    INFO, WARNING, ERROR;
+    INFO,
+    WARNING,
+    ERROR;
 
     /**
      * Case-insensitive from string method.

@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 
 import java.io.IOException;
 
-
 public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
 
     public static final GetFiltersAction INSTANCE = new GetFiltersAction();
@@ -83,4 +82,3 @@ public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
     }
 
 }
-

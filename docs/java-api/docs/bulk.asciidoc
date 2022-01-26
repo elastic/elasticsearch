@@ -6,7 +6,7 @@ single request. Here is a sample usage:
 
 [source,java]
 --------------------------------------------------
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.elasticsearch.xcontent.XContentFactory.*;
 
 BulkRequestBuilder bulkRequest = client.prepareBulk();
 

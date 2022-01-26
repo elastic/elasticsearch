@@ -24,8 +24,7 @@ public class PrioritizedRunnableTests extends ESTestCase {
 
         PrioritizedRunnable runnable = new PrioritizedRunnable(Priority.NORMAL, time::get) {
             @Override
-            public void run() {
-            }
+            public void run() {}
         };
         assertEquals(0, runnable.getAgeInMillis());
         int milliseconds = randomIntBetween(1, 256);
@@ -37,8 +36,7 @@ public class PrioritizedRunnableTests extends ESTestCase {
     public void testGetAgeInMillisWithRealClock() throws InterruptedException {
         PrioritizedRunnable runnable = new PrioritizedRunnable(Priority.NORMAL) {
             @Override
-            public void run() {
-            }
+            public void run() {}
         };
 
         long elapsed = spinForAtLeastOneMillisecond();

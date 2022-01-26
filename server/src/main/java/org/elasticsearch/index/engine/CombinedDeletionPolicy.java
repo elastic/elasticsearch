@@ -9,6 +9,7 @@
 package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
@@ -43,8 +44,12 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private volatile IndexCommit lastCommit; // the most recent commit point
     private volatile SafeCommitInfo safeCommitInfo = SafeCommitInfo.EMPTY;
 
-    CombinedDeletionPolicy(Logger logger, TranslogDeletionPolicy translogDeletionPolicy,
-                           SoftDeletesPolicy softDeletesPolicy, LongSupplier globalCheckpointSupplier) {
+    CombinedDeletionPolicy(
+        Logger logger,
+        TranslogDeletionPolicy translogDeletionPolicy,
+        SoftDeletesPolicy softDeletesPolicy,
+        LongSupplier globalCheckpointSupplier
+    ) {
         this.logger = logger;
         this.translogDeletionPolicy = translogDeletionPolicy;
         this.softDeletesPolicy = softDeletesPolicy;
@@ -57,10 +62,16 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert commits.isEmpty() == false : "index is opened, but we have no commits";
         onCommit(commits);
         if (safeCommit != commits.get(commits.size() - 1)) {
-            throw new IllegalStateException("Engine is opened, but the last commit isn't safe. Global checkpoint ["
-                + globalCheckpointSupplier.getAsLong() + "], seqNo is last commit ["
-                + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(lastCommit.getUserData().entrySet()) + "], "
-                + "seqNos in safe commit [" + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet()) + "]");
+            throw new IllegalStateException(
+                "Engine is opened, but the last commit isn't safe. Global checkpoint ["
+                    + globalCheckpointSupplier.getAsLong()
+                    + "], seqNo is last commit ["
+                    + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(lastCommit.getUserData().entrySet())
+                    + "], "
+                    + "seqNos in safe commit ["
+                    + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet())
+                    + "]"
+            );
         }
     }
 
@@ -87,8 +98,10 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         }
 
         assert Thread.holdsLock(this) == false : "should not block concurrent acquire or relesase";
-        safeCommitInfo = new SafeCommitInfo(Long.parseLong(
-            safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)), getDocCountOfCommit(safeCommit));
+        safeCommitInfo = new SafeCommitInfo(
+            Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
+            getDocCountOfCommit(safeCommit)
+        );
 
         // This is protected from concurrent calls by a lock on the IndexWriter, but this assertion makes sure that we notice if that ceases
         // to be true in future. It is not disastrous if safeCommitInfo refers to an older safeCommit, it just means that we might retain a
@@ -144,8 +157,13 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      */
     synchronized boolean releaseCommit(final IndexCommit snapshotCommit) {
         final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).getIndexCommit();
-        assert snapshottedCommits.containsKey(releasingCommit) : "Release non-snapshotted commit;" +
-            "snapshotted commits [" + snapshottedCommits + "], releasing commit [" + releasingCommit + "]";
+        assert snapshottedCommits.containsKey(releasingCommit)
+            : "Release non-snapshotted commit;"
+                + "snapshotted commits ["
+                + snapshottedCommits
+                + "], releasing commit ["
+                + releasingCommit
+                + "]";
         final int refCount = snapshottedCommits.addTo(releasingCommit, -1); // release refCount
         assert refCount >= 0 : "Number of snapshots can not be negative [" + refCount + "]";
         if (refCount == 0) {

@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
-import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.xpack.ql.util.Check;
 
 import java.io.IOException;
@@ -65,12 +65,12 @@ public class CIDRMatchFunctionProcessor implements Processor {
 
         String[] arr = new String[addresses.size()];
         int i = 0;
-        for (Object address: addresses) {
+        for (Object address : addresses) {
             Check.isString(address);
-            arr[i++] = (String)address;
+            arr[i++] = (String) address;
         }
         try {
-            return CIDRUtils.isInRange((String)source, arr);
+            return CIDRUtils.isInRange((String) source, arr);
         } catch (IllegalArgumentException e) {
             throw new EqlIllegalArgumentException(e.getMessage());
         }
@@ -83,7 +83,6 @@ public class CIDRMatchFunctionProcessor implements Processor {
     public List<Processor> addresses() {
         return addresses;
     }
-
 
     @Override
     public int hashCode() {
@@ -101,7 +100,6 @@ public class CIDRMatchFunctionProcessor implements Processor {
         }
 
         CIDRMatchFunctionProcessor other = (CIDRMatchFunctionProcessor) obj;
-        return Objects.equals(source(), other.source())
-                && Objects.equals(addresses(), other.addresses());
+        return Objects.equals(source(), other.source()) && Objects.equals(addresses(), other.addresses());
     }
 }

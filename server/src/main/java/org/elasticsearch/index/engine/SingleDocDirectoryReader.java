@@ -48,13 +48,18 @@ import java.util.concurrent.atomic.AtomicReference;
 final class SingleDocDirectoryReader extends DirectoryReader {
     private final SingleDocLeafReader leafReader;
 
-    SingleDocDirectoryReader(ShardId shardId, Translog.Index operation, MappingLookup mappingLookup, DocumentParser documentParser,
-                             Analyzer analyzer) throws IOException {
+    SingleDocDirectoryReader(
+        ShardId shardId,
+        Translog.Index operation,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Analyzer analyzer
+    ) throws IOException {
         this(new SingleDocLeafReader(shardId, operation, mappingLookup, documentParser, analyzer));
     }
 
     private SingleDocDirectoryReader(SingleDocLeafReader leafReader) throws IOException {
-        super(leafReader.directory, new LeafReader[]{leafReader}, null);
+        super(leafReader.directory, new LeafReader[] { leafReader }, null);
         this.leafReader = leafReader;
     }
 
@@ -117,8 +122,13 @@ final class SingleDocDirectoryReader extends DirectoryReader {
         private final Directory directory;
         private final AtomicReference<LeafReader> delegate = new AtomicReference<>();
 
-        SingleDocLeafReader(ShardId shardId, Translog.Index operation, MappingLookup mappingLookup, DocumentParser documentParser,
-                            Analyzer analyzer) {
+        SingleDocLeafReader(
+            ShardId shardId,
+            Translog.Index operation,
+            MappingLookup mappingLookup,
+            DocumentParser documentParser,
+            Analyzer analyzer
+        ) {
             this.shardId = shardId;
             this.operation = operation;
             this.mappingLookup = mappingLookup;
@@ -145,9 +155,18 @@ final class SingleDocDirectoryReader extends DirectoryReader {
 
         private LeafReader createInMemoryLeafReader() {
             assert Thread.holdsLock(this);
-            final ParsedDocument parsedDocs = documentParser.parseDocument(new SourceToParse(shardId.getIndexName(),  operation.type(),
-                operation.id(), operation.source(), XContentHelper.xContentType(operation.source()), operation.routing(),
-                Collections.emptyMap()), mappingLookup);
+            final ParsedDocument parsedDocs = documentParser.parseDocument(
+                new SourceToParse(
+                    shardId.getIndexName(),
+                    operation.type(),
+                    operation.id(),
+                    operation.source(),
+                    XContentHelper.xContentType(operation.source()),
+                    operation.routing(),
+                    Collections.emptyMap()
+                ),
+                mappingLookup
+            );
             parsedDocs.updateSeqID(operation.seqNo(), operation.primaryTerm());
             parsedDocs.version().setLongValue(operation.version());
             final IndexWriterConfig writeConfig = new IndexWriterConfig(analyzer).setOpenMode(IndexWriterConfig.OpenMode.CREATE);
@@ -156,8 +175,14 @@ final class SingleDocDirectoryReader extends DirectoryReader {
                 final DirectoryReader reader = open(writer);
                 if (reader.leaves().size() != 1 || reader.leaves().get(0).reader().numDocs() != 1) {
                     reader.close();
-                    throw new IllegalStateException("Expected a single document segment; " +
-                        "but [" + reader.leaves().size() + " segments with " + reader.leaves().get(0).reader().numDocs() + " documents");
+                    throw new IllegalStateException(
+                        "Expected a single document segment; "
+                            + "but ["
+                            + reader.leaves().size()
+                            + " segments with "
+                            + reader.leaves().get(0).reader().numDocs()
+                            + " documents"
+                    );
                 }
                 return reader.leaves().get(0).reader();
             } catch (IOException e) {
@@ -226,8 +251,7 @@ final class SingleDocDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public void checkIntegrity() throws IOException {
-        }
+        public void checkIntegrity() throws IOException {}
 
         @Override
         public LeafMetaData getMetaData() {
@@ -251,11 +275,11 @@ final class SingleDocDirectoryReader extends DirectoryReader {
 
         synchronized boolean assertMemorySegmentStatus(boolean loaded) {
             if (loaded) {
-                assert delegate.get() != null :
-                    "Expected an in memory segment was loaded; but it wasn't. Please check the reader wrapper implementation";
+                assert delegate.get() != null
+                    : "Expected an in memory segment was loaded; but it wasn't. Please check the reader wrapper implementation";
             } else {
-                assert delegate.get() == null :
-                    "Expected an in memory segment wasn't loaded; but it was. Please check the reader wrapper implementation";
+                assert delegate.get() == null
+                    : "Expected an in memory segment wasn't loaded; but it was. Please check the reader wrapper implementation";
             }
             return true;
         }

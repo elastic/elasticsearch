@@ -45,10 +45,10 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class IPFilterTests extends ESTestCase {
@@ -68,15 +68,21 @@ public class IPFilterTests extends ESTestCase {
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
         auditTrail = mock(AuditTrail.class);
         auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
-        clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(
-                IPFilter.HTTP_FILTER_ALLOW_SETTING,
-                IPFilter.HTTP_FILTER_DENY_SETTING,
-                IPFilter.IP_FILTER_ENABLED_HTTP_SETTING,
-                IPFilter.IP_FILTER_ENABLED_SETTING,
-                IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
-                IPFilter.TRANSPORT_FILTER_DENY_SETTING,
-                IPFilter.PROFILE_FILTER_ALLOW_SETTING,
-                IPFilter.PROFILE_FILTER_DENY_SETTING)));
+        clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(
+                Arrays.asList(
+                    IPFilter.HTTP_FILTER_ALLOW_SETTING,
+                    IPFilter.HTTP_FILTER_DENY_SETTING,
+                    IPFilter.IP_FILTER_ENABLED_HTTP_SETTING,
+                    IPFilter.IP_FILTER_ENABLED_SETTING,
+                    IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
+                    IPFilter.TRANSPORT_FILTER_DENY_SETTING,
+                    IPFilter.PROFILE_FILTER_ALLOW_SETTING,
+                    IPFilter.PROFILE_FILTER_DENY_SETTING
+                )
+            )
+        );
 
         httpTransport = mock(HttpServerTransport.class);
         TransportAddress httpAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 9200);
@@ -85,20 +91,21 @@ public class IPFilterTests extends ESTestCase {
 
         transport = mock(Transport.class);
         TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
-        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[]{ address }, address));
+        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { address }, address));
         when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
 
-        Map<String, BoundTransportAddress> profileBoundAddresses = Collections.singletonMap("client",
-                new BoundTransportAddress(new TransportAddress[]{ new TransportAddress(InetAddress.getLoopbackAddress(), 9500) },
-                        address));
+        Map<String, BoundTransportAddress> profileBoundAddresses = Collections.singletonMap(
+            "client",
+            new BoundTransportAddress(new TransportAddress[] { new TransportAddress(InetAddress.getLoopbackAddress(), 9500) }, address)
+        );
         when(transport.profileBoundAddresses()).thenReturn(profileBoundAddresses);
     }
 
     public void testThatIpV4AddressesCanBeProcessed() throws Exception {
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.filter.allow", "127.0.0.1")
-                .put("xpack.security.transport.filter.deny", "10.0.0.0/8")
-                .build();
+            .put("xpack.security.transport.filter.allow", "127.0.0.1")
+            .put("xpack.security.transport.filter.deny", "10.0.0.0/8")
+            .build();
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
         assertAddressIsAllowed("127.0.0.1");
@@ -109,9 +116,9 @@ public class IPFilterTests extends ESTestCase {
         // you have to use the shortest possible notation in order to match, so
         // 1234:0db8:85a3:0000:0000:8a2e:0370:7334 becomes 1234:db8:85a3:0:0:8a2e:370:7334
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.filter.allow", "2001:0db8:1234::/48")
-                .putList("xpack.security.transport.filter.deny", "1234:db8:85a3:0:0:8a2e:370:7334", "4321:db8:1234::/48")
-                .build();
+            .put("xpack.security.transport.filter.allow", "2001:0db8:1234::/48")
+            .putList("xpack.security.transport.filter.deny", "1234:db8:85a3:0:0:8a2e:370:7334", "4321:db8:1234::/48")
+            .build();
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
 
@@ -123,10 +130,10 @@ public class IPFilterTests extends ESTestCase {
     @Network // requires network for name resolution
     public void testThatHostnamesCanBeProcessed() throws Exception {
         Settings settings = Settings.builder()
-                .put("xpack.ml.autodetect_process", false)
-                .put("xpack.security.transport.filter.allow", "127.0.0.1")
-                .put("xpack.security.transport.filter.deny", "*.google.com")
-                .build();
+            .put("xpack.ml.autodetect_process", false)
+            .put("xpack.security.transport.filter.allow", "127.0.0.1")
+            .put("xpack.security.transport.filter.deny", "*.google.com")
+            .build();
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
 
@@ -135,9 +142,7 @@ public class IPFilterTests extends ESTestCase {
     }
 
     public void testThatAnAllowAllAuthenticatorWorks() throws Exception {
-        Settings settings = Settings.builder()
-                .put("xpack.security.transport.filter.allow", "_all")
-                .build();
+        Settings settings = Settings.builder().put("xpack.security.transport.filter.allow", "_all").build();
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
         assertAddressIsAllowed("127.0.0.1");
@@ -146,11 +151,11 @@ public class IPFilterTests extends ESTestCase {
 
     public void testThatProfilesAreSupported() throws Exception {
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.filter.allow", "localhost")
-                .put("xpack.security.transport.filter.deny", "_all")
-                .put("transport.profiles.client.xpack.security.filter.allow", "192.168.0.1")
-                .put("transport.profiles.client.xpack.security.filter.deny", "_all")
-                .build();
+            .put("xpack.security.transport.filter.allow", "localhost")
+            .put("xpack.security.transport.filter.deny", "_all")
+            .put("transport.profiles.client.xpack.security.filter.allow", "192.168.0.1")
+            .put("transport.profiles.client.xpack.security.filter.deny", "_all")
+            .build();
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
         assertAddressIsAllowed("127.0.0.1");
@@ -162,16 +167,17 @@ public class IPFilterTests extends ESTestCase {
 
     public void testThatProfilesAreUpdateable() throws Exception {
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.filter.allow", "localhost")
-                .put("xpack.security.transport.filter.deny", "_all")
-                .put("transport.profiles.client.xpack.security.filter.allow", "192.168.0.1")
-                .put("transport.profiles.client.xpack.security.filter.deny", "_all")
-                .build();
+            .put("xpack.security.transport.filter.allow", "localhost")
+            .put("xpack.security.transport.filter.deny", "_all")
+            .put("transport.profiles.client.xpack.security.filter.allow", "192.168.0.1")
+            .put("transport.profiles.client.xpack.security.filter.deny", "_all")
+            .build();
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
-        Settings newSettings = Settings.builder().putList("transport.profiles.client.xpack.security.filter.allow", "192.168.0.1",
-                "192.168.0.2")
-                .put("transport.profiles.client.xpack.security.filter.deny", "192.168.0.3").build();
+        Settings newSettings = Settings.builder()
+            .putList("transport.profiles.client.xpack.security.filter.allow", "192.168.0.1", "192.168.0.2")
+            .put("transport.profiles.client.xpack.security.filter.deny", "192.168.0.3")
+            .build();
         Settings.Builder updatedSettingsBuilder = Settings.builder();
         clusterSettings.updateDynamicSettings(newSettings, updatedSettingsBuilder, Settings.builder(), "test");
         clusterSettings.applySettings(updatedSettingsBuilder.build());
@@ -184,9 +190,9 @@ public class IPFilterTests extends ESTestCase {
 
     public void testThatAllowWinsOverDeny() throws Exception {
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.filter.allow", "10.0.0.1")
-                .put("xpack.security.transport.filter.deny", "10.0.0.0/8")
-                .build();
+            .put("xpack.security.transport.filter.allow", "10.0.0.1")
+            .put("xpack.security.transport.filter.deny", "10.0.0.0/8")
+            .build();
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
         assertAddressIsAllowed("10.0.0.1");
@@ -203,11 +209,11 @@ public class IPFilterTests extends ESTestCase {
 
     public void testThatHttpWorks() throws Exception {
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.filter.allow", "127.0.0.1")
-                .put("xpack.security.transport.filter.deny", "10.0.0.0/8")
-                .put("xpack.security.http.filter.allow", "10.0.0.0/8")
-                .put("xpack.security.http.filter.deny", "192.168.0.1")
-                .build();
+            .put("xpack.security.transport.filter.allow", "127.0.0.1")
+            .put("xpack.security.transport.filter.deny", "10.0.0.0/8")
+            .put("xpack.security.http.filter.allow", "10.0.0.0/8")
+            .put("xpack.security.http.filter.deny", "192.168.0.1")
+            .build();
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundHttpTransportAddress(httpTransport.boundAddress());
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
@@ -217,9 +223,9 @@ public class IPFilterTests extends ESTestCase {
 
     public void testThatHttpFallsbackToDefault() throws Exception {
         Settings settings = Settings.builder()
-                .put("xpack.security.transport.filter.allow", "127.0.0.1")
-                .put("xpack.security.transport.filter.deny", "10.0.0.0/8")
-                .build();
+            .put("xpack.security.transport.filter.allow", "127.0.0.1")
+            .put("xpack.security.transport.filter.deny", "10.0.0.0/8")
+            .build();
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundHttpTransportAddress(httpTransport.boundAddress());
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
@@ -236,8 +242,9 @@ public class IPFilterTests extends ESTestCase {
 
         Settings settings;
         if (randomBoolean()) {
-            settings = Settings.builder().putList("xpack.security.transport.filter.deny",
-                    addressStrings.toArray(new String[addressStrings.size()])).build();
+            settings = Settings.builder()
+                .putList("xpack.security.transport.filter.deny", addressStrings.toArray(new String[addressStrings.size()]))
+                .build();
         } else {
             settings = Settings.builder().put("xpack.security.transport.filter.deny", "_all").build();
         }
@@ -252,9 +259,7 @@ public class IPFilterTests extends ESTestCase {
     }
 
     public void testThatAllAddressesAreAllowedWhenLicenseDisablesSecurity() {
-        Settings settings = Settings.builder()
-                .put("xpack.security.transport.filter.deny", "_all")
-                .build();
+        Settings settings = Settings.builder().put("xpack.security.transport.filter.deny", "_all").build();
         when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(false);
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
@@ -263,7 +268,7 @@ public class IPFilterTests extends ESTestCase {
         String message = String.format(Locale.ROOT, "Expected address %s to be allowed", "8.8.8.8");
         InetAddress address = InetAddresses.forString("8.8.8.8");
         assertThat(message, ipFilter.accept("default", new InetSocketAddress(address, 0)), is(true));
-        verifyZeroInteractions(auditTrail);
+        verifyNoMoreInteractions(auditTrail);
 
         // for sanity enable license and check that it is denied
         when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(true);
@@ -279,17 +284,16 @@ public class IPFilterTests extends ESTestCase {
         if (inFipsJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
-        Settings settings = builder
-                .put("path.home", createTempDir())
-                .put("xpack.security.transport.filter.enabled", randomBoolean())
-                .put("xpack.security.http.filter.enabled", randomBoolean())
-                .build();
+        Settings settings = builder.put("path.home", createTempDir())
+            .put("xpack.security.transport.filter.enabled", randomBoolean())
+            .put("xpack.security.http.filter.enabled", randomBoolean())
+            .build();
         try (Node node = new MockNode(settings, Arrays.asList(LocalStateSecurity.class))) {
             assertNotNull(node);
         }
     }
 
-    private void assertAddressIsAllowedForProfile(String profile, String ... inetAddresses) {
+    private void assertAddressIsAllowedForProfile(String profile, String... inetAddresses) {
         for (String inetAddress : inetAddresses) {
             String message = String.format(Locale.ROOT, "Expected address %s to be allowed", inetAddress);
             InetAddress address = InetAddresses.forString(inetAddress);
@@ -300,11 +304,11 @@ public class IPFilterTests extends ESTestCase {
         }
     }
 
-    private void assertAddressIsAllowed(String ... inetAddresses) {
+    private void assertAddressIsAllowed(String... inetAddresses) {
         assertAddressIsAllowedForProfile("default", inetAddresses);
     }
 
-    private void assertAddressIsDeniedForProfile(String profile, String ... inetAddresses) {
+    private void assertAddressIsDeniedForProfile(String profile, String... inetAddresses) {
         for (String inetAddress : inetAddresses) {
             String message = String.format(Locale.ROOT, "Expected address %s to be denied", inetAddress);
             InetAddress address = InetAddresses.forString(inetAddress);
@@ -315,7 +319,7 @@ public class IPFilterTests extends ESTestCase {
         }
     }
 
-    private void assertAddressIsDenied(String ... inetAddresses) {
+    private void assertAddressIsDenied(String... inetAddresses) {
         assertAddressIsDeniedForProfile("default", inetAddresses);
     }
 

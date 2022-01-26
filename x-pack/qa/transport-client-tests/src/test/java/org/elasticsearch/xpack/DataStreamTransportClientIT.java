@@ -26,16 +26,16 @@ public class DataStreamTransportClientIT extends ESXPackSmokeClientTestCase {
 
         dataStreamClient.createDataStream(new CreateDataStreamAction.Request("logs-http-eu1")).actionGet();
 
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[]{"logs-http-eu1"});
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "logs-http-eu1" });
         GetDataStreamAction.Response response = dataStreamClient.getDataStream(getDataStreamRequest).actionGet();
         assertThat(response.getDataStreams().size(), equalTo(1));
         assertThat(response.getDataStreams().get(0).getDataStream().getName(), equalTo("logs-http-eu1"));
 
-        DataStreamsStatsAction.Response dataStreamStatsResponse =
-            dataStreamClient.dataStreamsStats(new DataStreamsStatsAction.Request()).actionGet();
+        DataStreamsStatsAction.Response dataStreamStatsResponse = dataStreamClient.dataStreamsStats(new DataStreamsStatsAction.Request())
+            .actionGet();
         assertThat(dataStreamStatsResponse.getDataStreamCount(), equalTo(1));
 
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(new String[]{"logs-http-eu1"});
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(new String[] { "logs-http-eu1" });
         dataStreamClient.deleteDataStream(deleteDataStreamRequest).actionGet();
     }
 

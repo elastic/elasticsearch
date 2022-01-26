@@ -18,7 +18,7 @@ public class WatcherStatsRequest implements Validatable {
     private final boolean includeCurrentWatches;
     private final boolean includeQueuedWatches;
 
-    public WatcherStatsRequest( ) {
+    public WatcherStatsRequest() {
         this(true, true);
     }
 

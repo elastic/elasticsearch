@@ -47,18 +47,30 @@ public class SecurityStatusChangeListener implements LicenseStateListener {
         if (Objects.equals(newState, securityEnabled) == false) {
             logger.info("Active license is now [{}]; Security is {}", licenseState.getOperationMode(), newState ? "enabled" : "disabled");
             if (newState == false) {
-                logger.warn("Elasticsearch built-in security features are not enabled. Without authentication, your cluster could be " +
-                    "accessible to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
-                    Version.CURRENT.minor + "/security-minimal-setup.html to enable security.");
+                logger.warn(
+                    "Elasticsearch built-in security features are not enabled. Without authentication, your cluster could be "
+                        + "accessible to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/"
+                        + Version.CURRENT.major
+                        + "."
+                        + Version.CURRENT.minor
+                        + "/security-minimal-setup.html to enable security."
+                );
                 if (licenseState.getOperationMode().equals(License.OperationMode.BASIC)
                     || licenseState.getOperationMode().equals(License.OperationMode.TRIAL)) {
-                    deprecationLogger.critical(DeprecationCategory.SECURITY, "security_implicitly_disabled",
-                        "The default behavior of disabling security on " + licenseState.getOperationMode().description()
+                    deprecationLogger.critical(
+                        DeprecationCategory.SECURITY,
+                        "security_implicitly_disabled",
+                        "The default behavior of disabling security on "
+                            + licenseState.getOperationMode().description()
                             + " licenses is deprecated. In a later version of Elasticsearch, the value of [xpack.security.enabled] will "
                             + "default to \"true\" , regardless of the license level. "
-                            + "See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "."
-                            + Version.CURRENT.minor + "/security-minimal-setup.html to enable security, or explicitly disable security by "
-                            + "setting [xpack.security.enabled] to false in elasticsearch.yml");
+                            + "See https://www.elastic.co/guide/en/elasticsearch/reference/"
+                            + Version.CURRENT.major
+                            + "."
+                            + Version.CURRENT.minor
+                            + "/security-minimal-setup.html to enable security, or explicitly disable security by "
+                            + "setting [xpack.security.enabled] to false in elasticsearch.yml"
+                    );
                 }
             }
             this.securityEnabled = newState;

@@ -45,7 +45,7 @@ public abstract class NioIntegTestCase extends ESIntegTestCase {
     protected Settings transportClientSettings() {
         Settings.Builder builder = Settings.builder().put(super.transportClientSettings());
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, NioTransportPlugin.NIO_TRANSPORT_NAME);
-        return  builder.build();
+        return builder.build();
     }
 
     @Override

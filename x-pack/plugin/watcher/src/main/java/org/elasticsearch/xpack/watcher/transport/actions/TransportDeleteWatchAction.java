@@ -43,11 +43,16 @@ public class TransportDeleteWatchAction extends HandledTransportAction<DeleteWat
     protected void doExecute(Task task, DeleteWatchRequest request, ActionListener<DeleteWatchResponse> listener) {
         DeleteRequest deleteRequest = new DeleteRequest(Watch.INDEX, request.getId());
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, deleteRequest,
-                ActionListener.<DeleteResponse>wrap(deleteResponse -> {
-                    boolean deleted = deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
-                    DeleteWatchResponse response = new DeleteWatchResponse(deleteResponse.getId(), deleteResponse.getVersion(), deleted);
-                    listener.onResponse(response);
-                }, listener::onFailure), client::delete);
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            WATCHER_ORIGIN,
+            deleteRequest,
+            ActionListener.<DeleteResponse>wrap(deleteResponse -> {
+                boolean deleted = deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
+                DeleteWatchResponse response = new DeleteWatchResponse(deleteResponse.getId(), deleteResponse.getVersion(), deleted);
+                listener.onResponse(response);
+            }, listener::onFailure),
+            client::delete
+        );
     }
 }

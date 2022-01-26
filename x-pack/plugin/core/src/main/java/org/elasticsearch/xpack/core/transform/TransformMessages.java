@@ -55,6 +55,9 @@ public class TransformMessages {
     public static final String TRANSFORM_FAILED_TO_CREATE_COMPOSITE_AGGREGATION =
         "Failed to create composite aggregation from {0} function";
     public static final String TRANSFORM_CONFIGURATION_INVALID = "Transform configuration [{0}] has invalid elements: [{1}]";
+    public static final String TRANSFORM_CONFIGURATION_DEPRECATED = "Transform configuration is at version [{0}]. Use [{1}] or ["
+        + TransformField.REST_BASE_PATH_TRANSFORMS
+        + "_upgrade] to update.";
     public static final String UNABLE_TO_GATHER_FIELD_MAPPINGS = "Failed to gather field mappings for index [{0}]";
     public static final String TRANSFORM_UPDATE_CANNOT_CHANGE_SYNC_METHOD =
         "Cannot change the current sync configuration of transform [{0}] from [{1}] to [{2}]";

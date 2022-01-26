@@ -12,6 +12,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.rest.XPackRestHandler;
+
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -25,10 +26,8 @@ public class RestPutLicenseAction extends XPackRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             // TODO: remove POST endpoint?
-            Route.builder(POST, "/_license")
-                .replaces(POST, URI_BASE + "/license", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_license")
-                .replaces(PUT, URI_BASE + "/license", RestApiVersion.V_7).build()
+            Route.builder(POST, "/_license").replaces(POST, URI_BASE + "/license", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_license").replaces(PUT, URI_BASE + "/license", RestApiVersion.V_7).build()
         );
     }
 
@@ -49,12 +48,16 @@ public class RestPutLicenseAction extends XPackRestHandler {
         putLicenseRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putLicenseRequest.masterNodeTimeout()));
 
         if (License.LicenseType.isBasic(putLicenseRequest.license().type())) {
-            throw new IllegalArgumentException("Installing basic licenses is no longer allowed. Use the POST " +
-                "/_license/start_basic API to install a basic license that does not expire.");
+            throw new IllegalArgumentException(
+                "Installing basic licenses is no longer allowed. Use the POST "
+                    + "/_license/start_basic API to install a basic license that does not expire."
+            );
         }
 
-        return channel -> client.es().admin().cluster().execute(PutLicenseAction.INSTANCE, putLicenseRequest,
-                new RestToXContentListener<>(channel));
+        return channel -> client.es()
+            .admin()
+            .cluster()
+            .execute(PutLicenseAction.INSTANCE, putLicenseRequest, new RestToXContentListener<>(channel));
     }
 
 }

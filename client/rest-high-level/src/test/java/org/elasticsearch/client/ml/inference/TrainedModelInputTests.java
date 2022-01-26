@@ -7,14 +7,13 @@
  */
 package org.elasticsearch.client.ml.inference;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 
 public class TrainedModelInputTests extends AbstractXContentTestCase<TrainedModelInput> {
 
@@ -34,9 +33,9 @@ public class TrainedModelInputTests extends AbstractXContentTestCase<TrainedMode
     }
 
     public static TrainedModelInput createRandomInput() {
-        return new TrainedModelInput(Stream.generate(() -> randomAlphaOfLength(10))
-            .limit(randomLongBetween(1, 10))
-            .collect(Collectors.toList()));
+        return new TrainedModelInput(
+            Stream.generate(() -> randomAlphaOfLength(10)).limit(randomLongBetween(1, 10)).collect(Collectors.toList())
+        );
     }
 
     @Override

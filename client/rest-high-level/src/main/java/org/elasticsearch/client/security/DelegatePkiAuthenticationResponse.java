@@ -8,15 +8,15 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public final class DelegatePkiAuthenticationResponse {
 
@@ -25,8 +25,7 @@ public final class DelegatePkiAuthenticationResponse {
     private final TimeValue expiresIn;
     private final AuthenticateResponse authentication;
 
-    public DelegatePkiAuthenticationResponse(String accessToken, String type, TimeValue expiresIn,
-                                             AuthenticateResponse authentication) {
+    public DelegatePkiAuthenticationResponse(String accessToken, String type, TimeValue expiresIn, AuthenticateResponse authentication) {
         this.accessToken = accessToken;
         this.type = type;
         this.expiresIn = expiresIn;
@@ -45,7 +44,9 @@ public final class DelegatePkiAuthenticationResponse {
         return expiresIn;
     }
 
-    public AuthenticateResponse getAuthentication() { return authentication; }
+    public AuthenticateResponse getAuthentication() {
+        return authentication;
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -56,10 +57,10 @@ public final class DelegatePkiAuthenticationResponse {
             return false;
         }
         final DelegatePkiAuthenticationResponse that = (DelegatePkiAuthenticationResponse) o;
-        return Objects.equals(accessToken, that.accessToken) &&
-            Objects.equals(type, that.type) &&
-            Objects.equals(expiresIn, that.expiresIn) &&
-            Objects.equals(authentication, that.authentication);
+        return Objects.equals(accessToken, that.accessToken)
+            && Objects.equals(type, that.type)
+            && Objects.equals(expiresIn, that.expiresIn)
+            && Objects.equals(authentication, that.authentication);
     }
 
     @Override
@@ -69,9 +70,15 @@ public final class DelegatePkiAuthenticationResponse {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DelegatePkiAuthenticationResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "delegate_pki_response", true,
-            args -> new DelegatePkiAuthenticationResponse((String) args[0], (String) args[1], TimeValue.timeValueSeconds((Long) args[2]),
-                (AuthenticateResponse) args[3]));
+        "delegate_pki_response",
+        true,
+        args -> new DelegatePkiAuthenticationResponse(
+            (String) args[0],
+            (String) args[1],
+            TimeValue.timeValueSeconds((Long) args[2]),
+            (AuthenticateResponse) args[3]
+        )
+    );
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("access_token"));

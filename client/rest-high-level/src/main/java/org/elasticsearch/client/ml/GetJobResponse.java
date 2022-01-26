@@ -8,17 +8,17 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Contains a {@link List} of the found {@link Job} objects and the total count found
@@ -28,9 +28,11 @@ public class GetJobResponse extends AbstractResultResponse<Job> {
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<GetJobResponse, Void> PARSER =
-        new ConstructingObjectParser<>("jobs_response", true,
-            a -> new GetJobResponse((List<Job.Builder>) a[0], (long) a[1]));
+    public static final ConstructingObjectParser<GetJobResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "jobs_response",
+        true,
+        a -> new GetJobResponse((List<Job.Builder>) a[0], (long) a[1])
+    );
 
     static {
         PARSER.declareObjectArray(constructorArg(), Job.PARSER, RESULTS_FIELD);

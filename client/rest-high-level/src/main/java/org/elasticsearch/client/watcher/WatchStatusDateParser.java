@@ -11,8 +11,8 @@ package org.elasticsearch.client.watcher;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -39,8 +39,11 @@ public final class WatchStatusDateParser {
         if (token == XContentParser.Token.VALUE_NULL) {
             return null;
         }
-        throw new ElasticsearchParseException("could not parse date/time. expected date field [{}] " +
-            "to be either a number or a string but found [{}] instead", fieldName, token);
+        throw new ElasticsearchParseException(
+            "could not parse date/time. expected date field [{}] " + "to be either a number or a string but found [{}] instead",
+            fieldName,
+            token
+        );
     }
 
     public static ZonedDateTime parseDate(String text) {

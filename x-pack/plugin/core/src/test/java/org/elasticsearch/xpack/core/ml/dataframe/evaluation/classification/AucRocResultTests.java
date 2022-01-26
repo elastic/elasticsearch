@@ -21,11 +21,9 @@ public class AucRocResultTests extends AbstractWireSerializingTestCase<Result> {
 
     public static Result createRandom() {
         double score = randomDoubleBetween(0.0, 1.0, true);
-        List<AucRocPoint> curve =
-            Stream
-                .generate(() -> new AucRocPoint(randomDouble(), randomDouble(), randomDouble()))
-                .limit(randomIntBetween(0, 20))
-                .collect(Collectors.toList());
+        List<AucRocPoint> curve = Stream.generate(() -> new AucRocPoint(randomDouble(), randomDouble(), randomDouble()))
+            .limit(randomIntBetween(0, 20))
+            .collect(Collectors.toList());
         return new Result(score, curve);
     }
 

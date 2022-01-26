@@ -28,13 +28,18 @@ public final class PainlessClass {
     public final Map<String, MethodHandle> getterMethodHandles;
     public final Map<String, MethodHandle> setterMethodHandles;
 
-    PainlessClass(Map<String, PainlessConstructor> constructors,
-            Map<String, PainlessMethod> staticMethods, Map<String, PainlessMethod> methods,
-            Map<String, PainlessField> staticFields, Map<String, PainlessField> fields,
-            PainlessMethod functionalInterfaceMethod,
-            Map<Class<?>, Object> annotations,
-            Map<String, PainlessMethod> runtimeMethods,
-            Map<String, MethodHandle> getterMethodHandles, Map<String, MethodHandle> setterMethodHandles) {
+    PainlessClass(
+        Map<String, PainlessConstructor> constructors,
+        Map<String, PainlessMethod> staticMethods,
+        Map<String, PainlessMethod> methods,
+        Map<String, PainlessField> staticFields,
+        Map<String, PainlessField> fields,
+        PainlessMethod functionalInterfaceMethod,
+        Map<Class<?>, Object> annotations,
+        Map<String, PainlessMethod> runtimeMethods,
+        Map<String, MethodHandle> getterMethodHandles,
+        Map<String, MethodHandle> setterMethodHandles
+    ) {
 
         this.constructors = CollectionUtils.copyMap(constructors);
         this.staticMethods = CollectionUtils.copyMap(staticMethods);
@@ -59,15 +64,15 @@ public final class PainlessClass {
             return false;
         }
 
-        PainlessClass that = (PainlessClass)object;
+        PainlessClass that = (PainlessClass) object;
 
-        return Objects.equals(constructors, that.constructors) &&
-                Objects.equals(staticMethods, that.staticMethods) &&
-                Objects.equals(methods, that.methods) &&
-                Objects.equals(staticFields, that.staticFields) &&
-                Objects.equals(fields, that.fields) &&
-                Objects.equals(functionalInterfaceMethod, that.functionalInterfaceMethod) &&
-                Objects.equals(annotations, that.annotations);
+        return Objects.equals(constructors, that.constructors)
+            && Objects.equals(staticMethods, that.staticMethods)
+            && Objects.equals(methods, that.methods)
+            && Objects.equals(staticFields, that.staticFields)
+            && Objects.equals(fields, that.fields)
+            && Objects.equals(functionalInterfaceMethod, that.functionalInterfaceMethod)
+            && Objects.equals(annotations, that.annotations);
     }
 
     @Override

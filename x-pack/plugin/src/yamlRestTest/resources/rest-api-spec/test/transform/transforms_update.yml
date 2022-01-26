@@ -315,3 +315,75 @@ setup:
           {
             "dest": { "index": "destination#dest" }
           }
+
+---
+"Test update transform metadata":
+  - do:
+      transform.get_transform:
+        transform_id: "updating-airline-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "updating-airline-transform" }
+  - is_false: transforms.0._meta  # no metadata exists yet
+
+  - do:
+      transform.update_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "_meta": {
+              "foo": 123,
+              "bar": 456,
+              "baz": {
+                "a1": 11,
+                "a2": 22
+              }
+            }
+          }
+  - match: { id: "updating-airline-transform" }
+  - match: { _meta.foo: 123 }
+  - match: { _meta.bar: 456 }
+  - match: { _meta.baz.a1: 11 }
+  - match: { _meta.baz.a2: 22 }
+  - is_false: _meta.baz.a3
+
+  - do:
+      transform.get_transform:
+        transform_id: "updating-airline-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "updating-airline-transform" }
+  - match: { transforms.0._meta.foo: 123 }
+  - match: { transforms.0._meta.bar: 456 }
+  - match: { transforms.0._meta.baz.a1: 11 }
+  - match: { transforms.0._meta.baz.a2: 22 }
+  - is_false: transforms.0._meta.baz.a3
+
+  - do:
+      transform.update_transform:
+        transform_id: "updating-airline-transform"
+        body: >
+          {
+            "_meta": {
+              "bar": "some bar note",
+              "baz": {
+                "a2": 222,
+                "a3": 333
+              }
+            }
+          }
+  - match: { id: "updating-airline-transform" }
+  - is_false: _meta.foo  # "foo" disappeared as the metadata update is implemented as full replace
+  - match: { _meta.bar: "some bar note" }  # "bar" value type has changed from int to string
+  - is_false: _meta.baz.a1  # "baz.a1" disappeared as the metadata update is implemented as full replace
+  - match: { _meta.baz.a2: 222 }
+  - match: { _meta.baz.a3: 333 }
+
+  - do:
+      transform.get_transform:
+        transform_id: "updating-airline-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "updating-airline-transform" }
+  - is_false: transforms.0._meta.foo
+  - match: { transforms.0._meta.bar: "some bar note" }
+  - is_false: transforms.0._meta.baz.a1
+  - match: { transforms.0._meta.baz.a2: 222 }
+  - match: { transforms.0._meta.baz.a3: 333 }

@@ -13,9 +13,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -34,8 +34,7 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
     protected String index;
     ShardId internalShardId;
 
-    public SingleShardRequest() {
-    }
+    public SingleShardRequest() {}
 
     public SingleShardRequest(StreamInput in) throws IOException {
         super(in);
@@ -83,7 +82,7 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
 
     @Override
     public String[] indices() {
-        return new String[]{index};
+        return new String[] { index };
     }
 
     @Override
@@ -98,4 +97,3 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
         out.writeOptionalString(index);
     }
 }
-

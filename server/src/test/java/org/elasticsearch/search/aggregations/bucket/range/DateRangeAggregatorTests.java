@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
@@ -63,7 +64,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             d.add(new SortedNumericDocValuesField(fieldName, 0));
             iw.addDocument(d);
         }, a -> {}, new BooleanFieldMapper.BooleanFieldType(fieldName));
-        assertWarnings("Running Range or DateRange aggregations on [boolean] fields is deprecated");
+        assertWarnings(Level.WARN, "Running Range or DateRange aggregations on [boolean] fields is deprecated");
     }
 
     public void testNoMatchingField() throws IOException {

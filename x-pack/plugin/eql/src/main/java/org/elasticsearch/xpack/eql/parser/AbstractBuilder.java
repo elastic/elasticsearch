@@ -41,8 +41,11 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
 
         // catch old method of ?" and ?' to define unescaped strings
         if (text.startsWith("?")) {
-            throw new ParsingException(source,
-                "Use triple double quotes [\"\"\"] to define unescaped string literals, not [?{}]", text.charAt(1));
+            throw new ParsingException(
+                source,
+                "Use triple double quotes [\"\"\"] to define unescaped string literals, not [?{}]",
+                text.charAt(1)
+            );
         }
 
         // unescaped strings can be interpreted directly
@@ -106,8 +109,12 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
         unicodeSequence = text.substring(startIdx, endIdx);
         int length = unicodeSequence.length();
         if (length < 2 || length > 8) {
-            throw new ParsingException(source, "Unicode sequence should use [2-8] hex digits, [{}] has [{}]",
-                    text.substring(startIdx - 3, endIdx + 1), length);
+            throw new ParsingException(
+                source,
+                "Unicode sequence should use [2-8] hex digits, [{}] has [{}]",
+                text.substring(startIdx - 3, endIdx + 1),
+                length
+            );
         }
         sb.append(hexToUnicode(source, unicodeSequence));
         return endIdx;
@@ -128,8 +135,7 @@ abstract class AbstractBuilder extends EqlBaseBaseVisitor<Object> {
 
     private static void checkForSingleQuotedString(Source source, String text, int i) {
         if (text.charAt(i) == '\'') {
-            throw new ParsingException(source,
-                    "Use double quotes [\"] to define string literals, not single quotes [']");
+            throw new ParsingException(source, "Use double quotes [\"] to define string literals, not single quotes [']");
         }
     }
 }

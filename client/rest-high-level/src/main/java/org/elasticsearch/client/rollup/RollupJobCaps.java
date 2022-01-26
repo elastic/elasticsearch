@@ -7,13 +7,13 @@
  */
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,21 +34,22 @@ public class RollupJobCaps implements ToXContentObject {
     private static final ParseField FIELDS = new ParseField("fields");
     private static final String NAME = "rollup_job_caps";
 
-    public static final ConstructingObjectParser<RollupJobCaps, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
-        a -> {
-            @SuppressWarnings("unchecked")
-            List<Tuple<String, RollupFieldCaps>> caps = (List<Tuple<String, RollupFieldCaps>>) a[3];
-            Map<String, RollupFieldCaps> mapCaps =
-                new HashMap<>(caps.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
-            return new RollupJobCaps((String) a[0], (String) a[1], (String) a[2], mapCaps);
-        });
+    public static final ConstructingObjectParser<RollupJobCaps, Void> PARSER = new ConstructingObjectParser<>(NAME, true, a -> {
+        @SuppressWarnings("unchecked")
+        List<Tuple<String, RollupFieldCaps>> caps = (List<Tuple<String, RollupFieldCaps>>) a[3];
+        Map<String, RollupFieldCaps> mapCaps = new HashMap<>(caps.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
+        return new RollupJobCaps((String) a[0], (String) a[1], (String) a[2], mapCaps);
+    });
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ROLLUP_INDEX);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_PATTERN);
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
-            (p, c, name) -> new Tuple<>(name, RollupFieldCaps.fromXContent(p)), FIELDS);
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.constructorArg(),
+            (p, c, name) -> new Tuple<>(name, RollupFieldCaps.fromXContent(p)),
+            FIELDS
+        );
     }
 
     private final String jobID;
@@ -56,8 +57,12 @@ public class RollupJobCaps implements ToXContentObject {
     private final String indexPattern;
     private final Map<String, RollupFieldCaps> fieldCapLookup;
 
-    RollupJobCaps(final String jobID, final String rollupIndex,
-                  final String indexPattern, final Map<String, RollupFieldCaps> fieldCapLookup) {
+    RollupJobCaps(
+        final String jobID,
+        final String rollupIndex,
+        final String indexPattern,
+        final Map<String, RollupFieldCaps> fieldCapLookup
+    ) {
         this.jobID = jobID;
         this.rollupIndex = rollupIndex;
         this.indexPattern = indexPattern;

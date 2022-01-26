@@ -26,11 +26,10 @@ public final class GetBuiltinPrivilegesResponse extends ActionResponse {
 
     public GetBuiltinPrivilegesResponse(String[] clusterPrivileges, String[] indexPrivileges) {
         this.clusterPrivileges = Objects.requireNonNull(clusterPrivileges, "Cluster privileges cannot be null");
-        this.indexPrivileges =  Objects.requireNonNull(indexPrivileges, "Index privileges cannot be null");
+        this.indexPrivileges = Objects.requireNonNull(indexPrivileges, "Index privileges cannot be null");
     }
 
-    public GetBuiltinPrivilegesResponse(Collection<String> clusterPrivileges,
-                                        Collection<String> indexPrivileges) {
+    public GetBuiltinPrivilegesResponse(Collection<String> clusterPrivileges, Collection<String> indexPrivileges) {
         this(clusterPrivileges.toArray(Strings.EMPTY_ARRAY), indexPrivileges.toArray(Strings.EMPTY_ARRAY));
     }
 

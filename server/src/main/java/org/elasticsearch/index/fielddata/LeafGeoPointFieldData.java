@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.index.fielddata;
 
-
 /**
  * {@link LeafFieldData} specialization for geo points.
  */

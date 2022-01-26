@@ -25,9 +25,9 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
@@ -50,19 +50,37 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
     private final NodeClient client;
 
     @Inject
-    public TransportUpgradeAction(ClusterService clusterService, TransportService transportService, IndicesService indicesService,
-                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                  NodeClient client) {
-        super(UpgradeAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-            UpgradeRequest::new, ThreadPool.Names.FORCE_MERGE);
+    public TransportUpgradeAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        NodeClient client
+    ) {
+        super(
+            UpgradeAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            UpgradeRequest::new,
+            ThreadPool.Names.FORCE_MERGE
+        );
         this.indicesService = indicesService;
         this.client = client;
     }
 
     @Override
-    protected UpgradeResponse newResponse(UpgradeRequest request, int totalShards, int successfulShards, int failedShards,
-                                          List<ShardUpgradeResult> shardUpgradeResults,
-                                          List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
+    protected UpgradeResponse newResponse(
+        UpgradeRequest request,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<ShardUpgradeResult> shardUpgradeResults,
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
+    ) {
         Map<String, Integer> successfulPrimaryShards = new HashMap<>();
         Map<String, Tuple<Version, org.apache.lucene.util.Version>> versions = new HashMap<>();
         for (ShardUpgradeResult result : shardUpgradeResults) {
@@ -101,8 +119,13 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
             if (primaryCount == metadata.index(index).getNumberOfShards()) {
                 updatedVersions.put(index, new Tuple<>(versionEntry.getValue().v1(), versionEntry.getValue().v2().toString()));
             } else {
-                logger.warn("Not updating settings for the index [{}] because upgraded of some primary shards failed - " +
-                        "expected[{}], received[{}]", index, expectedPrimaryCount, primaryCount == null ? 0 : primaryCount);
+                logger.warn(
+                    "Not updating settings for the index [{}] because upgraded of some primary shards failed - "
+                        + "expected[{}], received[{}]",
+                    index,
+                    expectedPrimaryCount,
+                    primaryCount == null ? 0 : primaryCount
+                );
             }
         }
 
@@ -110,15 +133,23 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
     }
 
     @Override
-    protected void shardOperation(UpgradeRequest request, ShardRouting shardRouting, Task task,
-                                  ActionListener<ShardUpgradeResult> listener) {
+    protected void shardOperation(
+        UpgradeRequest request,
+        ShardRouting shardRouting,
+        Task task,
+        ActionListener<ShardUpgradeResult> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex())
                 .getShard(shardRouting.shardId().id());
             org.apache.lucene.util.Version oldestLuceneSegment = indexShard.upgrade(request);
             // We are using the current version of Elasticsearch as upgrade version since we update mapping to match the current version
-            return new ShardUpgradeResult(shardRouting.shardId(), indexShard.routingEntry().primary(), Version.CURRENT,
-                oldestLuceneSegment);
+            return new ShardUpgradeResult(
+                shardRouting.shardId(),
+                indexShard.routingEntry().primary(),
+                Version.CURRENT,
+                oldestLuceneSegment
+            );
         });
     }
 
@@ -143,8 +174,9 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
             return iterator;
         }
         // If some primary shards are not available the request should fail.
-        throw new PrimaryMissingActionException("Cannot upgrade indices because the following indices are missing primary shards " +
-            indicesWithMissingPrimaries);
+        throw new PrimaryMissingActionException(
+            "Cannot upgrade indices because the following indices are missing primary shards " + indicesWithMissingPrimaries
+        );
     }
 
     /**
@@ -185,7 +217,10 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
 
     private void updateSettings(final UpgradeResponse upgradeResponse, final ActionListener<UpgradeResponse> listener) {
         UpgradeSettingsRequest upgradeSettingsRequest = new UpgradeSettingsRequest(upgradeResponse.versions());
-        client.executeLocally(UpgradeSettingsAction.INSTANCE, upgradeSettingsRequest,
-            listener.delegateFailure((delegatedListener, updateSettingsResponse) -> delegatedListener.onResponse(upgradeResponse)));
+        client.executeLocally(
+            UpgradeSettingsAction.INSTANCE,
+            upgradeSettingsRequest,
+            listener.delegateFailure((delegatedListener, updateSettingsResponse) -> delegatedListener.onResponse(upgradeResponse))
+        );
     }
 }

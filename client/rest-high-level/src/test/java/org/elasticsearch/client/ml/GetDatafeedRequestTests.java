@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,7 +25,7 @@ public class GetDatafeedRequestTests extends AbstractXContentTestCase<GetDatafee
     }
 
     public void testNewWithDatafeedId() {
-        Exception exception = expectThrows(NullPointerException.class, () -> new GetDatafeedRequest("feed",null));
+        Exception exception = expectThrows(NullPointerException.class, () -> new GetDatafeedRequest("feed", null));
         assertEquals(exception.getMessage(), "datafeedIds must not contain null values");
     }
 

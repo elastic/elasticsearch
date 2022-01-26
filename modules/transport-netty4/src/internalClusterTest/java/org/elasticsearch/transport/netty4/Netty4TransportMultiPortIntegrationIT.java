@@ -91,8 +91,10 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
             // bound addresses
             for (TransportAddress transportAddress : boundTransportAddress.boundAddresses()) {
                 assertThat(transportAddress, instanceOf(TransportAddress.class));
-                assertThat(transportAddress.address().getPort(),
-                    is(allOf(greaterThanOrEqualTo(randomPort), lessThanOrEqualTo(randomPort + 10))));
+                assertThat(
+                    transportAddress.address().getPort(),
+                    is(allOf(greaterThanOrEqualTo(randomPort), lessThanOrEqualTo(randomPort + 10)))
+                );
             }
 
             // publish address

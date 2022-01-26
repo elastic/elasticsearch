@@ -23,11 +23,11 @@ These logs contain a timestamp, IP address, and user agent. You want to give
 these three items their own field in {es} for faster searches and
 visualizations. You also want to know where the request is coming from.
 
-. In {kib}, open the main menu and click **Stack Management** > **Ingest Node
+. In {kib}, open the main menu and click **Stack Management** > **Ingest
 Pipelines**.
 +
 [role="screenshot"]
-image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Node Pipelines list view,align="center"]
+image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Pipelines list view,align="center"]
 
 . Click **Create pipeline**.
 . Provide a name and description for the pipeline.
@@ -74,7 +74,7 @@ the processors as follows:
 Your form should look similar to this:
 
 [role="screenshot"]
-image::images/ingest/ingest-pipeline-processor.png[Processors for Ingest Node Pipelines,align="center"]
+image::images/ingest/ingest-pipeline-processor.png[Processors for Ingest Pipelines,align="center"]
 
 The four processors will run sequentially: +
 Grok > Date > GeoIP > User agent +

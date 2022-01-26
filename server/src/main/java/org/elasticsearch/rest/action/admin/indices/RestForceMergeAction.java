@@ -31,9 +31,7 @@ public class RestForceMergeAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(POST, "/_forcemerge"),
-            new Route(POST, "/{index}/_forcemerge")));
+        return unmodifiableList(asList(new Route(POST, "/_forcemerge"), new Route(POST, "/{index}/_forcemerge")));
     }
 
     @Override
@@ -49,8 +47,11 @@ public class RestForceMergeAction extends BaseRestHandler {
         mergeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", mergeRequest.onlyExpungeDeletes()));
         mergeRequest.flush(request.paramAsBoolean("flush", mergeRequest.flush()));
         if (mergeRequest.onlyExpungeDeletes() && mergeRequest.maxNumSegments() != ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS) {
-            deprecationLogger.critical(DeprecationCategory.API, "force_merge_expunge_deletes_and_max_num_segments_deprecation",
-               "setting only_expunge_deletes and max_num_segments at the same time is deprecated and will be rejected in a future version");
+            deprecationLogger.critical(
+                DeprecationCategory.API,
+                "force_merge_expunge_deletes_and_max_num_segments_deprecation",
+                "setting only_expunge_deletes and max_num_segments at the same time is deprecated and will be rejected in a future version"
+            );
         }
         return channel -> client.admin().indices().forceMerge(mergeRequest, new RestToXContentListener<>(channel));
     }

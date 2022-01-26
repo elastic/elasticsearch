@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
@@ -17,8 +17,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 
@@ -44,11 +44,13 @@ public final class AggregationTestUtils {
         return bucket;
     }
 
-    static CompositeAggregation.Bucket createCompositeBucket(long timestamp,
-                                                             String dateValueSource,
-                                                             long docCount,
-                                                             List<Aggregation> subAggregations,
-                                                             List<Tuple<String, String>> termValues) {
+    static CompositeAggregation.Bucket createCompositeBucket(
+        long timestamp,
+        String dateValueSource,
+        long docCount,
+        List<Aggregation> subAggregations,
+        List<Tuple<String, String>> termValues
+    ) {
         CompositeAggregation.Bucket bucket = mock(CompositeAggregation.Bucket.class);
         when(bucket.getDocCount()).thenReturn(docCount);
         Aggregations aggs = createAggs(subAggregations);
@@ -81,7 +83,7 @@ public final class AggregationTestUtils {
     @SuppressWarnings("unchecked")
     static Histogram createHistogramAggregation(String name, List<Histogram.Bucket> histogramBuckets) {
         Histogram histogram = mock(Histogram.class);
-        when((List<Histogram.Bucket>)histogram.getBuckets()).thenReturn(histogramBuckets);
+        when((List<Histogram.Bucket>) histogram.getBuckets()).thenReturn(histogramBuckets);
         when(histogram.getName()).thenReturn(name);
         return histogram;
     }
@@ -89,7 +91,7 @@ public final class AggregationTestUtils {
     @SuppressWarnings("unchecked")
     static CompositeAggregation createCompositeAggregation(String name, List<CompositeAggregation.Bucket> buckets) {
         CompositeAggregation compositeAggregation = mock(CompositeAggregation.class);
-        when((List<CompositeAggregation.Bucket>)compositeAggregation.getBuckets()).thenReturn(buckets);
+        when((List<CompositeAggregation.Bucket>) compositeAggregation.getBuckets()).thenReturn(buckets);
         when(compositeAggregation.getName()).thenReturn(name);
         return compositeAggregation;
 
@@ -132,7 +134,7 @@ public final class AggregationTestUtils {
         Terms termsAgg = mock(Terms.class);
         when(termsAgg.getName()).thenReturn(name);
         List<Terms.Bucket> buckets = new ArrayList<>();
-        for (Term term: terms) {
+        for (Term term : terms) {
             StringTerms.Bucket bucket = mock(StringTerms.Bucket.class);
             when(bucket.getKey()).thenReturn(term.key);
             when(bucket.getDocCount()).thenReturn(term.count);

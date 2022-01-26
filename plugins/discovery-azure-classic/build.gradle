@@ -102,6 +102,7 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
+  'javax.jms.Message',
   'javax.servlet.ServletContextEvent',
   'javax.servlet.ServletContextListener',
   'org.apache.avalon.framework.logger.Logger',

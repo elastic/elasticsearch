@@ -25,9 +25,7 @@ final class TasksRequestConverters {
         req.getTimeout().ifPresent(params::withTimeout);
         req.getTaskId().ifPresent(params::withTaskId);
         req.getParentTaskId().ifPresent(params::withParentTaskId);
-        params
-            .withNodes(req.getNodes())
-            .withActions(req.getActions());
+        params.withNodes(req.getNodes()).withActions(req.getActions());
         if (req.getWaitForCompletion() != null) {
             params.withWaitForCompletion(req.getWaitForCompletion());
         }
@@ -39,7 +37,7 @@ final class TasksRequestConverters {
         if (listTaskRequest.getTaskId() != null && listTaskRequest.getTaskId().isSet()) {
             throw new IllegalArgumentException("TaskId cannot be used for list tasks request");
         }
-        Request request  = new Request(HttpGet.METHOD_NAME, "/_tasks");
+        Request request = new Request(HttpGet.METHOD_NAME, "/_tasks");
         RequestConverters.Params params = new RequestConverters.Params();
         params.withTimeout(listTaskRequest.getTimeout())
             .withDetailed(listTaskRequest.getDetailed())
@@ -54,12 +52,11 @@ final class TasksRequestConverters {
 
     static Request getTask(GetTaskRequest getTaskRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_tasks")
-                .addPathPartAsIs(getTaskRequest.getNodeId() + ":" + Long.toString(getTaskRequest.getTaskId()))
-                .build();
+            .addPathPartAsIs(getTaskRequest.getNodeId() + ":" + Long.toString(getTaskRequest.getTaskId()))
+            .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
-        params.withTimeout(getTaskRequest.getTimeout())
-            .withWaitForCompletion(getTaskRequest.getWaitForCompletion());
+        params.withTimeout(getTaskRequest.getTimeout()).withWaitForCompletion(getTaskRequest.getWaitForCompletion());
         request.addParameters(params.asMap());
         return request;
     }

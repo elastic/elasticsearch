@@ -39,9 +39,10 @@ public class SamlIdpMetadataBuilderTests extends IdpSamlTestCase {
 
     public void testSimpleMetadataGeneration() throws Exception {
         final String entityId = "https://idp.org";
-        final EntityDescriptor entityDescriptor = new SamlIdPMetadataBuilder(entityId)
-            .withSingleSignOnServiceUrl(SAML2_REDIRECT_BINDING_URI, new URL(entityId + "/sso/redirect"))
-            .build();
+        final EntityDescriptor entityDescriptor = new SamlIdPMetadataBuilder(entityId).withSingleSignOnServiceUrl(
+            SAML2_REDIRECT_BINDING_URI,
+            new URL(entityId + "/sso/redirect")
+        ).build();
         final Element element = new EntityDescriptorMarshaller().marshall(entityDescriptor);
         final String xml = samlFactory.toString(element, false);
         assertThat(
@@ -61,8 +62,7 @@ public class SamlIdpMetadataBuilderTests extends IdpSamlTestCase {
 
     public void testMetadataGenerationWithAllParameters() throws Exception {
         final String entityId = "https://idp.org";
-        final EntityDescriptor entityDescriptor = new SamlIdPMetadataBuilder(entityId)
-            .withLocale(Locale.forLanguageTag("en"))
+        final EntityDescriptor entityDescriptor = new SamlIdPMetadataBuilder(entityId).withLocale(Locale.forLanguageTag("en"))
             .withSingleSignOnServiceUrl(SAML2_REDIRECT_BINDING_URI, new URL(entityId + "/sso/redirect"))
             .withSingleSignOnServiceUrl(SAML2_POST_BINDING_URI, new URL(entityId + "/sso/post"))
             .withSingleLogoutServiceUrl(SAML2_REDIRECT_BINDING_URI, new URL(entityId + "/slo/redirect"))
@@ -96,7 +96,7 @@ public class SamlIdpMetadataBuilderTests extends IdpSamlTestCase {
             "8TDTdZlV3d26STLy5h7Uy6vyCka8Xu8HFQ4hH2qf2L6EhBbzVTB6tuyPQOQwrlLE65nhUNkfBbjZ",
             "lre45UMc9GuxzHkbvd3HEQaroMHZxnu+/n/JDlgsrCYUEXnZnOXvgUPupPynoRdDN1F6r95TLyU9",
             "pYjDf/6zNPE854VF6y1TqQ=="
-            );
+        );
         // RSA_4096
         final String signingCertificateTwo = joinCertificateLines(
             "MIIFCTCCAvGgAwIBAgIUei1EtkLvWStQusThWwgO14R+gFowDQYJKoZIhvcNAQELBQAwFDESMBAG",
@@ -122,7 +122,7 @@ public class SamlIdpMetadataBuilderTests extends IdpSamlTestCase {
             "L9JH3IKNtUgodr6Z+CcyZswWKutHyyZE5vteNQFKeTidCQAw9kRW6gtGUVRU0+PrMvD/8WhSd6Wk",
             "FS4XjN+BXrmruCSGugdL9fgpg21qKcZwkR9rYQXqRPK+nTiVCRrOzUyTFnPmusz8fg7eg6ONaf2x",
             "MUeWfI+F8kK4NH5GkGggGqQDtes3Y+bWQ28lV7ny44TkMBARz6zH"
-            );
+        );
 
         final String expectedXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             + "<md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://idp.org\">"

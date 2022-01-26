@@ -1,6 +1,5 @@
 [[query-dsl-shape-query]]
 [role="xpack"]
-[testenv="basic"]
 === Shape query
 ++++
 <titleabbrev>Shape</titleabbrev>

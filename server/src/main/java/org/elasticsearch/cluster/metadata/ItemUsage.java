@@ -12,9 +12,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -35,9 +35,11 @@ public class ItemUsage implements Writeable, ToXContentObject {
      * Create a new usage, a {@code null} value indicates that the item *cannot* be used by the
      * thing, otherwise use an empty collection to indicate no usage.
      */
-    public ItemUsage(@Nullable Collection<String> indices,
-                     @Nullable Collection<String> dataStreams,
-                     @Nullable Collection<String> composableTemplates) {
+    public ItemUsage(
+        @Nullable Collection<String> indices,
+        @Nullable Collection<String> dataStreams,
+        @Nullable Collection<String> composableTemplates
+    ) {
         this.indices = indices == null ? null : new HashSet<>(indices);
         this.dataStreams = dataStreams == null ? null : new HashSet<>(dataStreams);
         this.composableTemplates = composableTemplates == null ? null : new HashSet<>(composableTemplates);
@@ -110,9 +112,9 @@ public class ItemUsage implements Writeable, ToXContentObject {
             return false;
         }
         ItemUsage other = (ItemUsage) obj;
-        return Objects.equals(indices, other.indices) &&
-            Objects.equals(dataStreams, other.dataStreams) &&
-            Objects.equals(composableTemplates, other.composableTemplates);
+        return Objects.equals(indices, other.indices)
+            && Objects.equals(dataStreams, other.dataStreams)
+            && Objects.equals(composableTemplates, other.composableTemplates);
     }
 
     @Override

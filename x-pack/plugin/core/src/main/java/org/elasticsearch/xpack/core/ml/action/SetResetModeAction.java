@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-
 public class SetResetModeAction extends ActionType<AcknowledgedResponse> {
 
     public static final SetResetModeAction INSTANCE = new SetResetModeAction();

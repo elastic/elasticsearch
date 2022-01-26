@@ -8,13 +8,14 @@
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.net.Socket;
 import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.util.Collection;
 import java.util.Collections;
+
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * A {@link SslTrustConfig} that trusts all certificates. Used when {@link SslVerificationMode#isCertificateVerificationEnabled()} is
@@ -35,28 +36,22 @@ final class TrustEverythingConfig implements SslTrustConfig {
      */
     private static final X509ExtendedTrustManager TRUST_MANAGER = new X509ExtendedTrustManager() {
         @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) {
-        }
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) {}
 
         @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket) {
-        }
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket) {}
 
         @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) {
-        }
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) {}
 
         @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) {
-        }
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) {}
 
         @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s) {
-        }
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s) {}
 
         @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s) {
-        }
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s) {}
 
         @Override
         public X509Certificate[] getAcceptedIssuers() {

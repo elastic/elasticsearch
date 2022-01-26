@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderExtension;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilderExtension;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.time.ZonedDateTime;

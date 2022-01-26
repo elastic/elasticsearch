@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[sql-functions-type-conversion]]
 === Type Conversion Functions
 

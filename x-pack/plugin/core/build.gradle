@@ -45,7 +45,6 @@ dependencies {
     exclude group: "org.elasticsearch", module: "elasticsearch-core"
   }
 
-  testImplementation 'org.elasticsearch:securemock:1.2'
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
   testImplementation "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
   testImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
@@ -126,6 +125,7 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
           'org.apache.log.Logger',
+          'javax.jms.Message',
           //commons-logging provided dependencies
           'javax.servlet.ServletContextEvent',
           'javax.servlet.ServletContextListener'

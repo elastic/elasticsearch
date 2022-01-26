@@ -23,17 +23,24 @@ public class UpgradeIndexSettingsIT extends ESSingleNodeTestCase {
 
     public void testSettingsVersion() {
         createIndex(
-                "test",
-                Settings
-                        .builder()
-                        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT.minimumIndexCompatibilityVersion())
-                        .build());
-        final long settingsVersion =
-                client().admin().cluster().prepareState().get().getState().metadata().index("test").getSettingsVersion();
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT.minimumIndexCompatibilityVersion())
+                .build()
+        );
+        final long settingsVersion = client().admin()
+            .cluster()
+            .prepareState()
+            .get()
+            .getState()
+            .metadata()
+            .index("test")
+            .getSettingsVersion();
         client().admin().indices().prepareUpgrade("test").get();
         assertThat(
-                client().admin().cluster().prepareState().get().getState().metadata().index("test").getSettingsVersion(),
-                equalTo(1 + settingsVersion));
+            client().admin().cluster().prepareState().get().getState().metadata().index("test").getSettingsVersion(),
+            equalTo(1 + settingsVersion)
+        );
     }
 
 }

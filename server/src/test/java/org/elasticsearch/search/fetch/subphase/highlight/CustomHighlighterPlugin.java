@@ -10,7 +10,6 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 
 import java.util.Map;
 

@@ -68,7 +68,8 @@ public class NetUtils {
                 if (keepalive.booleanValue()) {
                     for (SocketOption<Integer> option : Arrays.asList(
                         NetUtils.getTcpKeepIdleSocketOptionOrNull(),
-                        NetUtils.getTcpKeepIntervalSocketOptionOrNull())) {
+                        NetUtils.getTcpKeepIntervalSocketOptionOrNull()
+                    )) {
                         setMinValueForSocketOption(socketChannel, option, 300);
                     }
                 }

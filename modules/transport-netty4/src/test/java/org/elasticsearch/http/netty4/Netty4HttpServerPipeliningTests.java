@@ -17,6 +17,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.util.ReferenceCounted;
+
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -70,9 +71,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
     }
 
     public void testThatHttpPipeliningWorks() throws Exception {
-        final Settings settings = Settings.builder()
-            .put("http.port", "0")
-            .build();
+        final Settings settings = Settings.builder().put("http.port", "0").build();
         try (HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
             httpServerTransport.start();
             final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
@@ -88,7 +87,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             }
 
             try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
-                Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[]{}));
+                Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[] {}));
                 try {
                     Collection<String> responseBodies = Netty4HttpClient.returnHttpResponseBodies(responses);
                     assertThat(responseBodies, contains(requests.toArray()));
@@ -104,12 +103,16 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
         private final ExecutorService executorService = Executors.newCachedThreadPool();
 
         CustomNettyHttpServerTransport(final Settings settings) {
-            super(settings,
+            super(
+                settings,
                 Netty4HttpServerPipeliningTests.this.networkService,
                 Netty4HttpServerPipeliningTests.this.bigArrays,
                 Netty4HttpServerPipeliningTests.this.threadPool,
-                xContentRegistry(), new NullDispatcher(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                new SharedGroupFactory(settings));
+                xContentRegistry(),
+                new NullDispatcher(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                new SharedGroupFactory(settings)
+            );
         }
 
         @Override
@@ -180,8 +183,10 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
 
                 final ByteBuf buffer = Unpooled.copiedBuffer(uri, StandardCharsets.UTF_8);
 
-                HttpResponse response =
-                    pipelinedRequest.createResponse(RestStatus.OK, new BytesArray(uri.getBytes(StandardCharsets.UTF_8)));
+                HttpResponse response = pipelinedRequest.createResponse(
+                    RestStatus.OK,
+                    new BytesArray(uri.getBytes(StandardCharsets.UTF_8))
+                );
                 response.addHeader("content-length", Integer.toString(buffer.readableBytes()));
 
                 final boolean slow = uri.matches("/slow/\\d+");

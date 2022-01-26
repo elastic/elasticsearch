@@ -13,12 +13,12 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -68,12 +68,20 @@ public class HunspellService {
 
     private static final Logger logger = LogManager.getLogger(HunspellService.class);
 
-    public static final Setting<Boolean> HUNSPELL_LAZY_LOAD =
-        Setting.boolSetting("indices.analysis.hunspell.dictionary.lazy", Boolean.FALSE, Property.NodeScope);
-    public static final Setting<Boolean> HUNSPELL_IGNORE_CASE =
-        Setting.boolSetting("indices.analysis.hunspell.dictionary.ignore_case", Boolean.FALSE, Property.NodeScope);
-    public static final Setting<Settings> HUNSPELL_DICTIONARY_OPTIONS =
-        Setting.groupSetting("indices.analysis.hunspell.dictionary.", Property.NodeScope);
+    public static final Setting<Boolean> HUNSPELL_LAZY_LOAD = Setting.boolSetting(
+        "indices.analysis.hunspell.dictionary.lazy",
+        Boolean.FALSE,
+        Property.NodeScope
+    );
+    public static final Setting<Boolean> HUNSPELL_IGNORE_CASE = Setting.boolSetting(
+        "indices.analysis.hunspell.dictionary.ignore_case",
+        Boolean.FALSE,
+        Property.NodeScope
+    );
+    public static final Setting<Settings> HUNSPELL_DICTIONARY_OPTIONS = Setting.groupSetting(
+        "indices.analysis.hunspell.dictionary.",
+        Property.NodeScope
+    );
     private final ConcurrentHashMap<String, Dictionary> dictionaries = new ConcurrentHashMap<>();
     private final Map<String, Dictionary> knownDictionaries;
     private final boolean defaultIgnoreCase;
@@ -81,7 +89,7 @@ public class HunspellService {
     private final Function<String, Dictionary> loadingFunction;
 
     public HunspellService(final Settings settings, final Environment env, final Map<String, Dictionary> knownDictionaries)
-            throws IOException {
+        throws IOException {
         this.knownDictionaries = Collections.unmodifiableMap(knownDictionaries);
         this.hunspellDir = resolveHunspellDirectory(env);
         this.defaultIgnoreCase = HUNSPELL_IGNORE_CASE.get(settings);
@@ -130,8 +138,10 @@ public class HunspellService {
                                 } catch (Exception e) {
                                     // The cache loader throws unchecked exception (see #loadDictionary()),
                                     // here we simply report the exception and continue loading the dictionaries
-                                    logger.error(() -> new ParameterizedMessage(
-                                            "exception while loading dictionary {}", file.getFileName()), e);
+                                    logger.error(
+                                        () -> new ParameterizedMessage("exception while loading dictionary {}", file.getFileName()),
+                                        e
+                                    );
                                 }
                             }
                         }
@@ -219,4 +229,3 @@ public class HunspellService {
         return defaults;
     }
 }
-

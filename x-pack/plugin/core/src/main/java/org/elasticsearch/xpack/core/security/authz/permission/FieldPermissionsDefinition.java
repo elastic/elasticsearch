@@ -106,8 +106,10 @@ public final class FieldPermissionsDefinition implements CacheKey {
         @Override
         public String toString() {
             return getClass().getSimpleName()
-                + "[grant=" + Strings.arrayToCommaDelimitedString(grantedFields)
-                + "; exclude=" + Strings.arrayToCommaDelimitedString(excludedFields)
+                + "[grant="
+                + Strings.arrayToCommaDelimitedString(grantedFields)
+                + "; exclude="
+                + Strings.arrayToCommaDelimitedString(excludedFields)
                 + "]";
         }
 
@@ -133,20 +135,17 @@ public final class FieldPermissionsDefinition implements CacheKey {
             if (fields == null || otherFields == null) {
                 return fields == null ? -1 : 1;
             }
-            final OptionalInt compare = IntStream.range(0, Math.min(fields.length, otherFields.length))
-                .map(i -> {
-                    final String field = fields[i];
-                    final String otherField = otherFields[i];
-                    if (field == otherField) {
-                        return 0;
-                    }
-                    if (field == null || otherField == null) {
-                        return field == null ? -1 : 1;
-                    }
-                    return field.compareTo(otherField);
-                })
-                .filter(v -> v != 0)
-                .findFirst();
+            final OptionalInt compare = IntStream.range(0, Math.min(fields.length, otherFields.length)).map(i -> {
+                final String field = fields[i];
+                final String otherField = otherFields[i];
+                if (field == otherField) {
+                    return 0;
+                }
+                if (field == null || otherField == null) {
+                    return field == null ? -1 : 1;
+                }
+                return field.compareTo(otherField);
+            }).filter(v -> v != 0).findFirst();
 
             return compare.orElseGet(() -> fields.length - otherFields.length);
         }

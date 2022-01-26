@@ -9,10 +9,11 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.sun.net.httpserver.HttpServer;
+
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -50,7 +51,7 @@ public class Ec2NetworkTests extends ESTestCase {
     public static void startHttp() throws Exception {
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
 
-        BiConsumer<String, String> registerContext = (path, v) ->{
+        BiConsumer<String, String> registerContext = (path, v) -> {
             final byte[] message = v.getBytes(UTF_8);
             httpServer.createContext(path, (s) -> {
                 s.sendResponseHeaders(RestStatus.OK.getStatus(), message.length);
@@ -59,10 +60,10 @@ public class Ec2NetworkTests extends ESTestCase {
                 responseBody.close();
             });
         };
-        registerContext.accept("/latest/meta-data/local-ipv4","127.0.0.1");
-        registerContext.accept("/latest/meta-data/public-ipv4","165.168.10.2");
-        registerContext.accept("/latest/meta-data/public-hostname","165.168.10.3");
-        registerContext.accept("/latest/meta-data/local-hostname","10.10.10.5");
+        registerContext.accept("/latest/meta-data/local-ipv4", "127.0.0.1");
+        registerContext.accept("/latest/meta-data/public-ipv4", "165.168.10.2");
+        registerContext.accept("/latest/meta-data/public-hostname", "165.168.10.3");
+        registerContext.accept("/latest/meta-data/local-hostname", "10.10.10.5");
 
         httpServer.start();
     }
@@ -70,8 +71,12 @@ public class Ec2NetworkTests extends ESTestCase {
     @Before
     public void setup() {
         // redirect EC2 metadata service to httpServer
-        AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty(EC2_METADATA_SERVICE_OVERRIDE_SYSTEM_PROPERTY,
-            "http://" + httpServer.getAddress().getHostName() + ":" + httpServer.getAddress().getPort()));
+        AccessController.doPrivileged(
+            (PrivilegedAction<String>) () -> System.setProperty(
+                EC2_METADATA_SERVICE_OVERRIDE_SYSTEM_PROPERTY,
+                "http://" + httpServer.getAddress().getHostName() + ":" + httpServer.getAddress().getPort()
+            )
+        );
     }
 
     @AfterClass
@@ -92,14 +97,17 @@ public class Ec2NetworkTests extends ESTestCase {
      */
     public void testNetworkHostUnableToResolveEc2() {
         // redirect EC2 metadata service to unknown location
-        AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty(EC2_METADATA_SERVICE_OVERRIDE_SYSTEM_PROPERTY,
-            "http://127.0.0.1/"));
+        AccessController.doPrivileged(
+            (PrivilegedAction<String>) () -> System.setProperty(EC2_METADATA_SERVICE_OVERRIDE_SYSTEM_PROPERTY, "http://127.0.0.1/")
+        );
 
         try {
             resolveEc2("_ec2_", (InetAddress[]) null);
         } catch (IOException e) {
-            assertThat(e.getMessage(),
-                equalTo("IOException caught when fetching InetAddress from [http://127.0.0.1//latest/meta-data/local-ipv4]"));
+            assertThat(
+                e.getMessage(),
+                equalTo("IOException caught when fetching InetAddress from [http://127.0.0.1//latest/meta-data/local-ipv4]")
+            );
         }
     }
 
@@ -145,15 +153,14 @@ public class Ec2NetworkTests extends ESTestCase {
         resolveEc2("_ec2:publicDns_", InetAddress.getByName("165.168.10.3"));
     }
 
-    private InetAddress[] resolveEc2(String host, InetAddress ... expected) throws IOException {
-        Settings nodeSettings = Settings.builder()
-            .put("network.host", host)
-            .build();
+    private InetAddress[] resolveEc2(String host, InetAddress... expected) throws IOException {
+        Settings nodeSettings = Settings.builder().put("network.host", host).build();
 
         NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver()));
 
         InetAddress[] addresses = networkService.resolveBindHostAddresses(
-            NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(nodeSettings).toArray(Strings.EMPTY_ARRAY));
+            NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(nodeSettings).toArray(Strings.EMPTY_ARRAY)
+        );
         if (expected == null) {
             fail("We should get an IOException, resolved addressed:" + Arrays.toString(addresses));
         }

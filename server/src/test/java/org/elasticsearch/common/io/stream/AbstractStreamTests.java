@@ -70,7 +70,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
         final Set<Byte> set = IntStream.range(Byte.MIN_VALUE, Byte.MAX_VALUE).mapToObj(v -> (byte) v).collect(Collectors.toSet());
         set.remove((byte) 0);
         set.remove((byte) 1);
-        final byte[] corruptBytes = new byte[]{randomFrom(set)};
+        final byte[] corruptBytes = new byte[] { randomFrom(set) };
         final BytesReference corrupt = new BytesArray(corruptBytes);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> getStreamInput(corrupt).readBoolean());
         final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", corruptBytes[0]);
@@ -105,7 +105,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
         set.remove((byte) 0);
         set.remove((byte) 1);
         set.remove((byte) 2);
-        final byte[] corruptBytes = new byte[]{randomFrom(set)};
+        final byte[] corruptBytes = new byte[] { randomFrom(set) };
         final BytesReference corrupt = new BytesArray(corruptBytes);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> getStreamInput(corrupt).readOptionalBoolean());
         final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", corruptBytes[0]);
@@ -123,17 +123,16 @@ public abstract class AbstractStreamTests extends ESTestCase {
     }
 
     public void testSpecificVLongSerialization() throws IOException {
-        List<Tuple<Long, byte[]>> values =
-            Arrays.asList(
-                new Tuple<>(0L, new byte[]{0}),
-                new Tuple<>(-1L, new byte[]{1}),
-                new Tuple<>(1L, new byte[]{2}),
-                new Tuple<>(-2L, new byte[]{3}),
-                new Tuple<>(2L, new byte[]{4}),
-                new Tuple<>(Long.MIN_VALUE, new byte[]{-1, -1, -1, -1, -1, -1, -1, -1, -1, 1}),
-                new Tuple<>(Long.MAX_VALUE, new byte[]{-2, -1, -1, -1, -1, -1, -1, -1, -1, 1})
+        List<Tuple<Long, byte[]>> values = Arrays.asList(
+            new Tuple<>(0L, new byte[] { 0 }),
+            new Tuple<>(-1L, new byte[] { 1 }),
+            new Tuple<>(1L, new byte[] { 2 }),
+            new Tuple<>(-2L, new byte[] { 3 }),
+            new Tuple<>(2L, new byte[] { 4 }),
+            new Tuple<>(Long.MIN_VALUE, new byte[] { -1, -1, -1, -1, -1, -1, -1, -1, -1, 1 }),
+            new Tuple<>(Long.MAX_VALUE, new byte[] { -2, -1, -1, -1, -1, -1, -1, -1, -1, 1 })
 
-            );
+        );
         for (Tuple<Long, byte[]> value : values) {
             BytesStreamOutput out = new BytesStreamOutput();
             out.writeZLong(value.v1());
@@ -254,7 +253,10 @@ public abstract class AbstractStreamTests extends ESTestCase {
         }
 
         runWriteReadCollectionTest(
-            () -> new FooBar(randomInt(), randomInt()), StreamOutput::writeCollection, in -> in.readList(FooBar::new));
+            () -> new FooBar(randomInt(), randomInt()),
+            StreamOutput::writeCollection,
+            in -> in.readList(FooBar::new)
+        );
     }
 
     public void testStringCollection() throws IOException {
@@ -264,7 +266,8 @@ public abstract class AbstractStreamTests extends ESTestCase {
     private <T> void runWriteReadCollectionTest(
         final Supplier<T> supplier,
         final CheckedBiConsumer<StreamOutput, Collection<T>, IOException> writer,
-        final CheckedFunction<StreamInput, Collection<T>, IOException> reader) throws IOException {
+        final CheckedFunction<StreamInput, Collection<T>, IOException> reader
+    ) throws IOException {
         final int length = randomIntBetween(0, 10);
         final Collection<T> collection = new ArrayList<>(length);
         for (int i = 0; i < length; i++) {
@@ -403,11 +406,9 @@ public abstract class AbstractStreamTests extends ESTestCase {
             array[i] = randomByte();
         }
         stream.writeByteArray(array);
-        StreamInput streamInput = new InputStreamStreamInput(getStreamInput(stream.bytes()), array
-            .length - 1);
+        StreamInput streamInput = new InputStreamStreamInput(getStreamInput(stream.bytes()), array.length - 1);
         expectThrows(EOFException.class, streamInput::readByteArray);
-        streamInput = new InputStreamStreamInput(getStreamInput(stream.bytes()), BytesReference.toBytes(stream
-            .bytes()).length);
+        streamInput = new InputStreamStreamInput(getStreamInput(stream.bytes()), BytesReference.toBytes(stream.bytes()).length);
 
         assertArrayEquals(array, streamInput.readByteArray());
     }
@@ -456,12 +457,14 @@ public abstract class AbstractStreamTests extends ESTestCase {
     }
 
     public void testObjectArrayIsWriteable() throws IOException {
-        StreamOutput.checkWriteable(new Object[] {"a", "b"});
-        assertNotWriteable(new Object[] {new Unwriteable()}, Unwriteable.class);
+        StreamOutput.checkWriteable(new Object[] { "a", "b" });
+        assertNotWriteable(new Object[] { new Unwriteable() }, Unwriteable.class);
     }
 
-    private void assertSerialization(CheckedConsumer<StreamOutput, IOException> outputAssertions,
-                                     CheckedConsumer<StreamInput, IOException> inputAssertions) throws IOException {
+    private void assertSerialization(
+        CheckedConsumer<StreamOutput, IOException> outputAssertions,
+        CheckedConsumer<StreamInput, IOException> inputAssertions
+    ) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             outputAssertions.accept(output);
             final StreamInput input = getStreamInput(output.bytes());
@@ -470,9 +473,7 @@ public abstract class AbstractStreamTests extends ESTestCase {
     }
 
     private void assertGenericRoundtrip(Object original) throws IOException {
-        assertSerialization(output -> {
-            output.writeGenericValue(original);
-        }, input -> {
+        assertSerialization(output -> { output.writeGenericValue(original); }, input -> {
             Object read = input.readGenericValue();
             assertThat(read, equalTo(original));
         });

@@ -45,7 +45,7 @@ public enum DistanceUnit implements Writeable {
     private double meters;
     private final String[] names;
 
-    DistanceUnit(double meters, String...names) {
+    DistanceUnit(double meters, String... names) {
         this.meters = meters;
         this.names = names;
     }
@@ -173,7 +173,7 @@ public enum DistanceUnit implements Writeable {
     public static DistanceUnit fromString(String unit) {
         for (DistanceUnit dunit : values()) {
             for (String name : dunit.names) {
-                if(name.equals(unit)) {
+                if (name.equals(unit)) {
                     return dunit;
                 }
             }
@@ -191,7 +191,7 @@ public enum DistanceUnit implements Writeable {
     public static DistanceUnit parseUnit(String distance, DistanceUnit defaultUnit) {
         for (DistanceUnit unit : values()) {
             for (String name : unit.names) {
-                if(distance.endsWith(name)) {
+                if (distance.endsWith(name)) {
                     return unit;
                 }
             }
@@ -220,7 +220,7 @@ public enum DistanceUnit implements Writeable {
          * @return converted distance
          */
         public Distance convert(DistanceUnit unit) {
-            if(this.unit == unit) {
+            if (this.unit == unit) {
                 return this;
             } else {
                 return new Distance(DistanceUnit.convert(value, this.unit, unit), unit);
@@ -229,7 +229,7 @@ public enum DistanceUnit implements Writeable {
 
         @Override
         public boolean equals(Object obj) {
-            if(obj == null) {
+            if (obj == null) {
                 return false;
             } else if (obj instanceof Distance) {
                 Distance other = (Distance) obj;
@@ -276,7 +276,7 @@ public enum DistanceUnit implements Writeable {
         private static Distance parseDistance(String distance, DistanceUnit defaultUnit) {
             for (DistanceUnit unit : values()) {
                 for (String name : unit.names) {
-                    if(distance.endsWith(name)) {
+                    if (distance.endsWith(name)) {
                         return new Distance(Double.parseDouble(distance.substring(0, distance.length() - name.length())), unit);
                     }
                 }

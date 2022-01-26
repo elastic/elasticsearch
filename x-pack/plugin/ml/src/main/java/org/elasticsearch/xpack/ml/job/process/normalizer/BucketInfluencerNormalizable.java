@@ -6,12 +6,11 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 
 import java.io.IOException;
 import java.util.Objects;
-
 
 class BucketInfluencerNormalizable extends AbstractLeafNormalizable {
     private final BucketInfluencer bucketInfluencer;
@@ -28,8 +27,7 @@ class BucketInfluencerNormalizable extends AbstractLeafNormalizable {
 
     @Override
     public Level getLevel() {
-        return BucketInfluencer.BUCKET_TIME.equals(bucketInfluencer.getInfluencerFieldName()) ?
-                Level.ROOT : Level.BUCKET_INFLUENCER;
+        return BucketInfluencer.BUCKET_TIME.equals(bucketInfluencer.getInfluencerFieldName()) ? Level.ROOT : Level.BUCKET_INFLUENCER;
     }
 
     @Override

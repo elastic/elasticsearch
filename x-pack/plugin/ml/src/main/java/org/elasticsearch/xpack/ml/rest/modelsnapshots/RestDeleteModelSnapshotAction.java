@@ -28,8 +28,12 @@ public class RestDeleteModelSnapshotAction extends BaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}")
-                .replaces(DELETE, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}",
-                    RestApiVersion.V_7).build()
+                .replaces(
+                    DELETE,
+                    PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}",
+                    RestApiVersion.V_7
+                )
+                .build()
         );
     }
 
@@ -41,8 +45,9 @@ public class RestDeleteModelSnapshotAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         DeleteModelSnapshotAction.Request deleteModelSnapshot = new DeleteModelSnapshotAction.Request(
-                restRequest.param(Job.ID.getPreferredName()),
-                restRequest.param(SNAPSHOT_ID.getPreferredName()));
+            restRequest.param(Job.ID.getPreferredName()),
+            restRequest.param(SNAPSHOT_ID.getPreferredName())
+        );
 
         return channel -> client.execute(DeleteModelSnapshotAction.INSTANCE, deleteModelSnapshot, new RestToXContentListener<>(channel));
     }

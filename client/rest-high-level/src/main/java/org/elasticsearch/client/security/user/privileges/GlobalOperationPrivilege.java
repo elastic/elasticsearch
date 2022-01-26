@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client.security.user.privileges;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;

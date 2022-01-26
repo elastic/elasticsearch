@@ -21,7 +21,13 @@ public enum DataFrameAnalyticsState implements Writeable, MemoryTrackedTaskState
     // States reindexing and analyzing are no longer used.
     // However, we need to keep them for BWC as tasks may be
     // awaiting assignment in older versioned nodes.
-    STARTED, REINDEXING, ANALYZING, STOPPING, STOPPED, FAILED, STARTING;
+    STARTED,
+    REINDEXING,
+    ANALYZING,
+    STOPPING,
+    STOPPED,
+    FAILED,
+    STARTING;
 
     public static DataFrameAnalyticsState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

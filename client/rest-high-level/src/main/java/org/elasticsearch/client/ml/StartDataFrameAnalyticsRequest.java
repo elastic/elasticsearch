@@ -52,8 +52,7 @@ public class StartDataFrameAnalyticsRequest implements Validatable {
         if (o == null || getClass() != o.getClass()) return false;
 
         StartDataFrameAnalyticsRequest other = (StartDataFrameAnalyticsRequest) o;
-        return Objects.equals(id, other.id)
-            && Objects.equals(timeout, other.timeout);
+        return Objects.equals(id, other.id) && Objects.equals(timeout, other.timeout);
     }
 
     @Override

@@ -50,11 +50,14 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
                     final List<PutUserRequest> requests = new ArrayList<>(numRequests);
                     final SecureString password = new SecureString("test-user-password".toCharArray());
                     for (int i = 0; i < numRequests; i++) {
-                        requests.add(securityClient()
-                                .preparePutUser("user" + userNumber.getAndIncrement(), password,
-                                    getFastStoredHashAlgoForTests(),
-                                    randomAlphaOfLengthBetween(1, 16))
-                                .request());
+                        requests.add(
+                            securityClient().preparePutUser(
+                                "user" + userNumber.getAndIncrement(),
+                                password,
+                                getFastStoredHashAlgoForTests(),
+                                randomAlphaOfLengthBetween(1, 16)
+                            ).request()
+                        );
                     }
 
                     barrier.await(10L, TimeUnit.SECONDS);

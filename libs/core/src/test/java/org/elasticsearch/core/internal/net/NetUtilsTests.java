@@ -9,8 +9,8 @@
 package org.elasticsearch.core.internal.net;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 public class NetUtilsTests extends ESTestCase {

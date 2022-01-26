@@ -41,13 +41,27 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     @Inject
-    public TransportDeleteDatafeedAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver,
-                                         Client client, PersistentTasksService persistentTasksService,
-                                         DatafeedManager datafeedManager) {
-        super(DeleteDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                DeleteDatafeedAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportDeleteDatafeedAction(
+        Settings settings,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client,
+        PersistentTasksService persistentTasksService,
+        DatafeedManager datafeedManager
+    ) {
+        super(
+            DeleteDatafeedAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            DeleteDatafeedAction.Request::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.client = client;
         this.persistentTasksService = persistentTasksService;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
@@ -55,8 +69,11 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
     }
 
     @Override
-    protected void masterOperation(DeleteDatafeedAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        DeleteDatafeedAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
 
         if (migrationEligibilityCheck.datafeedIsEligibleForMigration(request.getDatafeedId(), state)) {
             listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("delete datafeed", request.getDatafeedId()));
@@ -70,17 +87,20 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         }
     }
 
-    private void forceDeleteDatafeed(DeleteDatafeedAction.Request request, ClusterState state,
-                                     ActionListener<AcknowledgedResponse> listener) {
+    private void forceDeleteDatafeed(
+        DeleteDatafeedAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         ActionListener<Boolean> finalListener = ActionListener.wrap(
-                // use clusterService.state() here so that the updated state without the task is available
-                response -> datafeedManager.deleteDatafeed(request, clusterService.state(), listener),
-                listener::onFailure
+            // use clusterService.state() here so that the updated state without the task is available
+            response -> datafeedManager.deleteDatafeed(request, clusterService.state(), listener),
+            listener::onFailure
         );
 
         ActionListener<IsolateDatafeedAction.Response> isolateDatafeedHandler = ActionListener.wrap(
-                response -> removeDatafeedTask(request, state, finalListener),
-                listener::onFailure
+            response -> removeDatafeedTask(request, state, finalListener),
+            listener::onFailure
         );
 
         IsolateDatafeedAction.Request isolateDatafeedRequest = new IsolateDatafeedAction.Request(request.getDatafeedId());
@@ -93,23 +113,25 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         if (datafeedTask == null) {
             listener.onResponse(true);
         } else {
-            persistentTasksService.sendRemoveRequest(datafeedTask.getId(),
-                    new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
-                        @Override
-                        public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
-                            listener.onResponse(Boolean.TRUE);
-                        }
+            persistentTasksService.sendRemoveRequest(
+                datafeedTask.getId(),
+                new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+                        listener.onResponse(Boolean.TRUE);
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                                // the task has been removed in between
-                                listener.onResponse(true);
-                            } else {
-                                listener.onFailure(e);
-                            }
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                            // the task has been removed in between
+                            listener.onResponse(true);
+                        } else {
+                            listener.onFailure(e);
                         }
-                    });
+                    }
+                }
+            );
         }
     }
 

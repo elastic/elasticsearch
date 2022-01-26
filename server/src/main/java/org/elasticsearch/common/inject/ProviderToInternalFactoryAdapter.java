@@ -30,8 +30,7 @@ class ProviderToInternalFactoryAdapter<T> implements Provider<T> {
     private final InjectorImpl injector;
     private final InternalFactory<? extends T> internalFactory;
 
-    ProviderToInternalFactoryAdapter(InjectorImpl injector,
-                                            InternalFactory<? extends T> internalFactory) {
+    ProviderToInternalFactoryAdapter(InjectorImpl injector, InternalFactory<? extends T> internalFactory) {
         this.injector = injector;
         this.internalFactory = internalFactory;
     }

@@ -39,7 +39,7 @@ public class SBlock extends AStatement {
 
     @Override
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
-        for (AStatement statementNode: statementNodes) {
+        for (AStatement statementNode : statementNodes) {
             statementNode.visit(userTreeVisitor, scope);
         }
     }

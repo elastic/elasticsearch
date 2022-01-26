@@ -11,8 +11,8 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene87.Lucene87Codec;
 import org.apache.lucene.codecs.lucene87.Lucene87Codec.Mode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.util.Map;
@@ -38,10 +38,8 @@ public class CodecService {
             codecs.put(DEFAULT_CODEC, new Lucene87Codec());
             codecs.put(BEST_COMPRESSION_CODEC, new Lucene87Codec(Mode.BEST_COMPRESSION));
         } else {
-            codecs.put(DEFAULT_CODEC,
-                    new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService));
-            codecs.put(BEST_COMPRESSION_CODEC,
-                    new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService));
+            codecs.put(DEFAULT_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService));
+            codecs.put(BEST_COMPRESSION_CODEC, new PerFieldMappingPostingFormatCodec(Mode.BEST_COMPRESSION, mapperService));
         }
         codecs.put(LUCENE_DEFAULT_CODEC, Codec.getDefault());
         for (String codec : Codec.availableCodecs()) {

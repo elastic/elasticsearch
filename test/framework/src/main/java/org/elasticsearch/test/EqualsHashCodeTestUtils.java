@@ -56,20 +56,21 @@ public class EqualsHashCodeTestUtils {
      * from the input in one aspect. The output of this call is used to check that it is not equal()
      * to the input object
      */
-    public static <T> void checkEqualsAndHashCode(T original, CopyFunction<T> copyFunction,
-            MutateFunction<T> mutationFunction) {
+    public static <T> void checkEqualsAndHashCode(T original, CopyFunction<T> copyFunction, MutateFunction<T> mutationFunction) {
         try {
             String objectName = original.getClass().getSimpleName();
             assertFalse(objectName + " is equal to null", original.equals(null));
             // TODO not sure how useful the following test is
             assertFalse(objectName + " is equal to incompatible type", original.equals(ESTestCase.randomFrom(someObjects)));
             assertTrue(objectName + " is not equal to self", original.equals(original));
-            assertThat(objectName + " hashcode returns different values if called multiple times", original.hashCode(),
-                    equalTo(original.hashCode()));
+            assertThat(
+                objectName + " hashcode returns different values if called multiple times",
+                original.hashCode(),
+                equalTo(original.hashCode())
+            );
             if (mutationFunction != null) {
                 T mutation = mutationFunction.mutate(original);
-                assertThat(objectName + " mutation should not be equal to original", mutation,
-                        not(equalTo(original)));
+                assertThat(objectName + " mutation should not be equal to original", mutation, not(equalTo(original)));
             }
 
             T copy = copyFunction.copy(original);

@@ -36,10 +36,17 @@ final class TypeUtils {
     private static final Map<String, EsType> ENUM_NAME_TO_TYPE;
     private static final Map<Integer, EsType> SQL_TO_TYPE;
 
-    private static final Set<EsType> SIGNED_TYPE = EnumSet.of(EsType.BYTE,
-            EsType.SHORT, EsType.INTEGER, EsType.LONG,
-            EsType.FLOAT, EsType.HALF_FLOAT, EsType.SCALED_FLOAT, EsType.DOUBLE, EsType.DATETIME);
-
+    private static final Set<EsType> SIGNED_TYPE = EnumSet.of(
+        EsType.BYTE,
+        EsType.SHORT,
+        EsType.INTEGER,
+        EsType.LONG,
+        EsType.FLOAT,
+        EsType.HALF_FLOAT,
+        EsType.SCALED_FLOAT,
+        EsType.DOUBLE,
+        EsType.DATETIME
+    );
 
     static {
         Map<Class<?>, EsType> aMap = new LinkedHashMap<>();
@@ -98,7 +105,6 @@ final class TypeUtils {
         types.put(EsType.SHAPE, String.class);
 
         TYPE_TO_CLASS = unmodifiableMap(types);
-
 
         Map<String, EsType> strings = new LinkedHashMap<>();
         Map<Integer, EsType> numbers = new LinkedHashMap<>();

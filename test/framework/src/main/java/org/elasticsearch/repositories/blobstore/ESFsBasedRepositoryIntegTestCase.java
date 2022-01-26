@@ -38,10 +38,7 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
         final String repoName = randomRepositoryName();
         final Path repoPath = randomRepoPath();
 
-        final Settings repoSettings = Settings.builder()
-                .put(repositorySettings(repoName))
-                .put("location", repoPath)
-                .build();
+        final Settings repoSettings = Settings.builder().put(repositorySettings(repoName)).put("location", repoPath).build();
         createRepository(repoName, repoSettings, randomBoolean());
 
         final String indexName = randomName();
@@ -52,15 +49,16 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
 
         final String snapshotName = randomName();
         logger.info("-->  create snapshot {}:{}", repoName, snapshotName);
-        assertSuccessfulSnapshot(client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
-            .setWaitForCompletion(true).setIndices(indexName));
+        assertSuccessfulSnapshot(
+            client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).setIndices(indexName)
+        );
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
         assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
 
         final Path deletedPath;
         try (Stream<Path> contents = Files.list(repoPath.resolve("indices"))) {
-            //noinspection OptionalGetWithoutIsPresent because we know there's a subdirectory
+            // noinspection OptionalGetWithoutIsPresent because we know there's a subdirectory
             deletedPath = contents.filter(Files::isDirectory).findAny().get();
             IOUtils.rm(deletedPath);
         }
@@ -68,8 +66,10 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
 
         createRepository(repoName, Settings.builder().put(repoSettings).put(READONLY_SETTING_KEY, true).build(), randomBoolean());
 
-        final ElasticsearchException exception = expectThrows(ElasticsearchException.class, () ->
-            client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(randomBoolean()).get());
+        final ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> client().admin().cluster().prepareRestoreSnapshot(repoName, snapshotName).setWaitForCompletion(randomBoolean()).get()
+        );
         assertThat(exception.getRootCause(), instanceOf(NoSuchFileException.class));
 
         assertFalse("deleted path is not recreated in readonly repository", Files.exists(deletedPath));
@@ -79,11 +79,11 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
         final String repoName = randomRepositoryName();
         final Path repoPath = randomRepoPath();
         final Settings repoSettings = Settings.builder()
-                .put(repositorySettings(repoName))
-                .put(READONLY_SETTING_KEY, true)
-                .put(FsRepository.LOCATION_SETTING.getKey(), repoPath)
-                .put(BlobStoreRepository.BUFFER_SIZE_SETTING.getKey(), String.valueOf(randomIntBetween(1, 8) * 1024) + "kb")
-                .build();
+            .put(repositorySettings(repoName))
+            .put(READONLY_SETTING_KEY, true)
+            .put(FsRepository.LOCATION_SETTING.getKey(), repoPath)
+            .put(BlobStoreRepository.BUFFER_SIZE_SETTING.getKey(), String.valueOf(randomIntBetween(1, 8) * 1024) + "kb")
+            .build();
         createRepository(repoName, repoSettings, false);
 
         try (BlobStore store = newBlobStore(repoName)) {

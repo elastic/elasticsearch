@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
 import org.elasticsearch.xpack.ql.expression.predicate.PredicateBiFunction;
 
-class StDistanceFunction  implements PredicateBiFunction<Object, Object, Double> {
+class StDistanceFunction implements PredicateBiFunction<Object, Object, Double> {
 
     @Override
     public String name() {

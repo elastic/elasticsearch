@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.ccr.action.repositories;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,18 +40,33 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
         super(NAME, PutCcrRestoreSessionAction.PutCcrRestoreSessionResponse::new);
     }
 
-    public static class TransportPutCcrRestoreSessionAction
-        extends TransportSingleShardAction<PutCcrRestoreSessionRequest, PutCcrRestoreSessionResponse> {
+    public static class TransportPutCcrRestoreSessionAction extends TransportSingleShardAction<
+        PutCcrRestoreSessionRequest,
+        PutCcrRestoreSessionResponse> {
 
         private final IndicesService indicesService;
         private final CcrRestoreSourceService ccrRestoreService;
 
         @Inject
-        public TransportPutCcrRestoreSessionAction(ThreadPool threadPool, ClusterService clusterService, ActionFilters actionFilters,
-                                                   IndexNameExpressionResolver resolver, TransportService transportService,
-                                                   IndicesService indicesService, CcrRestoreSourceService ccrRestoreService) {
-            super(NAME, threadPool, clusterService, transportService, actionFilters, resolver, PutCcrRestoreSessionRequest::new,
-                ThreadPool.Names.GENERIC);
+        public TransportPutCcrRestoreSessionAction(
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver resolver,
+            TransportService transportService,
+            IndicesService indicesService,
+            CcrRestoreSourceService ccrRestoreService
+        ) {
+            super(
+                NAME,
+                threadPool,
+                clusterService,
+                transportService,
+                actionFilters,
+                resolver,
+                PutCcrRestoreSessionRequest::new,
+                ThreadPool.Names.GENERIC
+            );
             this.indicesService = indicesService;
             this.ccrRestoreService = ccrRestoreService;
         }
@@ -83,7 +98,6 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
             return state.routingTable().shardRoutingTable(shardId).primaryShardIt();
         }
     }
-
 
     public static class PutCcrRestoreSessionResponse extends ActionResponse {
 

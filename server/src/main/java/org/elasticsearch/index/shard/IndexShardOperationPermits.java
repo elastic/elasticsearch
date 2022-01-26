@@ -13,11 +13,11 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -87,8 +87,7 @@ final class IndexShardOperationPermits implements Closeable {
      * @param timeUnit   the time unit of the {@code timeout} argument
      * @param executor   executor on which to wait for in-flight operations to finish and acquire all permits
      */
-    public void blockOperations(final ActionListener<Releasable> onAcquired, final long timeout, final TimeUnit timeUnit,
-                                String executor)  {
+    public void blockOperations(final ActionListener<Releasable> onAcquired, final long timeout, final TimeUnit timeUnit, String executor) {
         delayOperations();
         threadPool.executor(executor).execute(new AbstractRunnable() {
 
@@ -185,8 +184,12 @@ final class IndexShardOperationPermits implements Closeable {
      *                        isn't used
      *
      */
-    public void acquire(final ActionListener<Releasable> onAcquired, final String executorOnDelay, final boolean forceExecution,
-                        final Object debugInfo) {
+    public void acquire(
+        final ActionListener<Releasable> onAcquired,
+        final String executorOnDelay,
+        final boolean forceExecution,
+        final Object debugInfo
+    ) {
         final StackTraceElement[] stackTrace;
         if (Assertions.ENABLED) {
             stackTrace = Thread.currentThread().getStackTrace();
@@ -196,8 +199,13 @@ final class IndexShardOperationPermits implements Closeable {
         acquire(onAcquired, executorOnDelay, forceExecution, debugInfo, stackTrace);
     }
 
-    private void acquire(final ActionListener<Releasable> onAcquired, final String executorOnDelay, final boolean forceExecution,
-                        final Object debugInfo, final StackTraceElement[] stackTrace) {
+    private void acquire(
+        final ActionListener<Releasable> onAcquired,
+        final String executorOnDelay,
+        final boolean forceExecution,
+        final Object debugInfo,
+        final StackTraceElement[] stackTrace
+    ) {
         if (closed) {
             onAcquired.onFailure(new IndexShardClosedException(shardId));
             return;
@@ -226,7 +234,8 @@ final class IndexShardOperationPermits implements Closeable {
                                     IOUtils.closeWhileHandlingException(r);
                                     super.onRejection(e);
                                 }
-                            }));
+                            })
+                        );
                     } else {
                         wrappedListener = new ContextPreservingActionListener<>(contextSupplier, onAcquired);
                     }
@@ -281,7 +290,6 @@ final class IndexShardOperationPermits implements Closeable {
         }
     }
 
-
     synchronized boolean isBlocked() {
         return queuedBlockOperations > 0;
     }
@@ -291,8 +299,9 @@ final class IndexShardOperationPermits implements Closeable {
      *         when the permit was acquired plus a stack traces that was captured when the permit was request.
      */
     List<String> getActiveOperations() {
-        return issuedPermits.values().stream().map(
-            t -> t.v1() + "\n" + ExceptionsHelper.formatStackTrace(t.v2()))
+        return issuedPermits.values()
+            .stream()
+            .map(t -> t.v1() + "\n" + ExceptionsHelper.formatStackTrace(t.v2()))
             .collect(Collectors.toList());
     }
 

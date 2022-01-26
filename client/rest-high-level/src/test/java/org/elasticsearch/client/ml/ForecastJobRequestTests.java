@@ -10,8 +10,8 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -28,9 +28,11 @@ public class ForecastJobRequestTests extends AbstractXContentTestCase<ForecastJo
             request.setDuration(TimeValue.timeValueHours(randomIntBetween(24, 72)));
         }
         if (randomBoolean()) {
-            request.setMaxModelMemory(new ByteSizeValue(randomLongBetween(
-                new ByteSizeValue(1, ByteSizeUnit.MB).getBytes(),
-                new ByteSizeValue(499, ByteSizeUnit.MB).getBytes())));
+            request.setMaxModelMemory(
+                new ByteSizeValue(
+                    randomLongBetween(new ByteSizeValue(1, ByteSizeUnit.MB).getBytes(), new ByteSizeValue(499, ByteSizeUnit.MB).getBytes())
+                )
+            );
         }
         return request;
     }

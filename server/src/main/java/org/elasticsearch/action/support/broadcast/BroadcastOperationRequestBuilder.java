@@ -15,10 +15,11 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 
 public abstract class BroadcastOperationRequestBuilder<
-            Request extends BroadcastRequest<Request>,
-            Response extends BroadcastResponse,
-            RequestBuilder extends BroadcastOperationRequestBuilder<Request, Response, RequestBuilder>
-        > extends ActionRequestBuilder<Request, Response> {
+    Request extends BroadcastRequest<Request>,
+    Response extends BroadcastResponse,
+    RequestBuilder extends BroadcastOperationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<
+        Request,
+        Response> {
 
     protected BroadcastOperationRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);

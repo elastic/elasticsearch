@@ -43,8 +43,6 @@ public class RestPostFeatureUpgradeAction extends BaseRestHandler {
         final PostFeatureUpgradeRequest req = new PostFeatureUpgradeRequest();
         req.masterNodeTimeout(request.paramAsTime("master_timeout", req.masterNodeTimeout()));
 
-        return restChannel -> {
-            client.execute(PostFeatureUpgradeAction.INSTANCE, req, new RestToXContentListener<>(restChannel));
-        };
+        return restChannel -> { client.execute(PostFeatureUpgradeAction.INSTANCE, req, new RestToXContentListener<>(restChannel)); };
     }
 }

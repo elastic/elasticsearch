@@ -60,8 +60,9 @@ public abstract class AbstractCatAction extends BaseRestHandler {
         }
     }
 
-    static Set<String> RESPONSE_PARAMS =
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList("format", "h", "v", "ts", "pri", "bytes", "size", "time", "s")));
+    static Set<String> RESPONSE_PARAMS = Collections.unmodifiableSet(
+        new HashSet<>(Arrays.asList("format", "h", "v", "ts", "pri", "bytes", "size", "time", "s"))
+    );
 
     @Override
     protected Set<String> responseParams() {

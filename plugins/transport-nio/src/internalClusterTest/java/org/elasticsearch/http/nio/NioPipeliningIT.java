@@ -9,6 +9,7 @@
 package org.elasticsearch.http.nio;
 
 import io.netty.handler.codec.http.FullHttpResponse;
+
 import org.elasticsearch.NioIntegTestCase;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
@@ -30,7 +31,7 @@ public class NioPipeliningIT extends NioIntegTestCase {
     }
 
     public void testThatNioHttpServerSupportsPipelining() throws Exception {
-        String[] requests = new String[]{"/", "/_nodes/stats", "/", "/_cluster/state", "/"};
+        String[] requests = new String[] { "/", "/_nodes/stats", "/", "/_cluster/state", "/" };
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();

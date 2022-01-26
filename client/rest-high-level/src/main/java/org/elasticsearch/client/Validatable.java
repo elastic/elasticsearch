@@ -14,7 +14,8 @@ import java.util.Optional;
  */
 public interface Validatable {
 
-    Validatable EMPTY = new Validatable() {};
+    Validatable EMPTY = new Validatable() {
+    };
 
     /**
      * Perform validation. This method does not have to be overridden in the event that no validation needs to be done,

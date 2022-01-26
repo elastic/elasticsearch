@@ -30,8 +30,8 @@ public class CategorizationAnalyzer implements Releasable {
     private final Analyzer analyzer;
     private final boolean closeAnalyzer;
 
-    public CategorizationAnalyzer(AnalysisRegistry analysisRegistry,
-                                  CategorizationAnalyzerConfig categorizationAnalyzerConfig) throws IOException {
+    public CategorizationAnalyzer(AnalysisRegistry analysisRegistry, CategorizationAnalyzerConfig categorizationAnalyzerConfig)
+        throws IOException {
 
         Tuple<Analyzer, Boolean> tuple = makeAnalyzer(categorizationAnalyzerConfig, analysisRegistry);
         analyzer = tuple.v1();
@@ -43,8 +43,7 @@ public class CategorizationAnalyzer implements Releasable {
         this.closeAnalyzer = closeAnalyzer;
     }
 
-    public final TokenStream tokenStream(final String fieldName,
-                                         final String text) {
+    public final TokenStream tokenStream(final String fieldName, final String text) {
         return analyzer.tokenStream(fieldName, text);
     }
 
@@ -112,8 +111,10 @@ public class CategorizationAnalyzer implements Releasable {
             }
             return new Tuple<>(globalAnalyzer, Boolean.FALSE);
         } else {
-            return new Tuple<>(analysisRegistry.buildCustomAnalyzer(null, false,
-                config.getTokenizer(), config.getCharFilters(), config.getTokenFilters()), Boolean.TRUE);
+            return new Tuple<>(
+                analysisRegistry.buildCustomAnalyzer(null, false, config.getTokenizer(), config.getCharFilters(), config.getTokenFilters()),
+                Boolean.TRUE
+            );
         }
     }
 

@@ -34,8 +34,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
-        "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
+        + "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 
     @Override
     public String getName() {
@@ -44,12 +44,15 @@ public class RestGetAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/{index}/_doc/{id}"),
-            new Route(HEAD, "/{index}/_doc/{id}"),
-            // Deprecated typed endpoints.
-            new Route(GET, "/{index}/{type}/{id}"),
-            new Route(HEAD, "/{index}/{type}/{id}")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/{index}/_doc/{id}"),
+                new Route(HEAD, "/{index}/_doc/{id}"),
+                // Deprecated typed endpoints.
+                new Route(GET, "/{index}/{type}/{id}"),
+                new Route(HEAD, "/{index}/{type}/{id}")
+            )
+        );
     }
 
     @Override
@@ -67,8 +70,10 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBoolean("realtime", getRequest.realtime()));
         if (request.param("fields") != null) {
-            throw new IllegalArgumentException("the parameter [fields] is no longer supported, " +
-                "please use [stored_fields] to retrieve stored fields or [_source] to load the field from _source");
+            throw new IllegalArgumentException(
+                "the parameter [fields] is no longer supported, "
+                    + "please use [stored_fields] to retrieve stored fields or [_source] to load the field from _source"
+            );
         }
         final String fieldsParam = request.param("stored_fields");
         if (fieldsParam != null) {

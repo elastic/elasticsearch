@@ -150,10 +150,10 @@ public class VersionsTests extends ESTestCase {
         DirectoryReader reader = DirectoryReader.open(writer);
         // should increase cache size by 1
         assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
-        assertEquals(size+1, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
         // should be cache hit
         assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
-        assertEquals(size+1, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
 
         reader.close();
         writer.close();
@@ -176,12 +176,12 @@ public class VersionsTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
         assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
-        assertEquals(size+1, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
         // now wrap the reader
         DirectoryReader wrapped = ElasticsearchDirectoryReader.wrap(reader, new ShardId("bogus", "_na_", 5));
         assertEquals(87, loadDocIdAndVersion(wrapped, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
         // same size map: core cache key is shared
-        assertEquals(size+1, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
 
         reader.close();
         writer.close();
@@ -195,8 +195,7 @@ public class VersionsTests extends ESTestCase {
 
         // should have the same Lucene version as the latest 6.x version
         Version version = Version.fromString("6.88.50");
-        assertEquals(allVersions.get(Collections.binarySearch(allVersions, Version.V_7_0_0) - 1).luceneVersion,
-                version.luceneVersion);
+        assertEquals(allVersions.get(Collections.binarySearch(allVersions, Version.V_7_0_0) - 1).luceneVersion, version.luceneVersion);
 
         // between two known versions, should use the lucene version of the previous version
         version = Version.fromString("6.2.50");

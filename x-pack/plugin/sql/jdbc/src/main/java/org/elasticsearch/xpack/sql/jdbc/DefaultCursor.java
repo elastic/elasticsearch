@@ -39,8 +39,7 @@ class DefaultCursor implements Cursor {
         if (row < rows.size() - 1) {
             row++;
             return true;
-        }
-        else {
+        } else {
             if (cursor.isEmpty() == false) {
                 Tuple<String, List<List<Object>>> nextPage = client.nextPage(cursor, meta);
                 cursor = nextPage.v1();

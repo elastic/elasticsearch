@@ -46,6 +46,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     private ImmutableOpenMap(ObjectObjectHashMap<KType, VType> map) {
         this.map = map;
     }
+
     /**
      * @return Returns the value associated with the given key or the default value
      * for the key type, if the key is not associated with any value.
@@ -126,7 +127,9 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         final Iterator<ObjectCursor<KType>> iterator = map.keys().iterator();
         return new Iterator<KType>() {
             @Override
-            public boolean hasNext() { return iterator.hasNext(); }
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
 
             @Override
             public KType next() {
@@ -191,7 +194,9 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         final Iterator<ObjectCursor<T>> iterator = collection.iterator();
         return new Iterator<T>() {
             @Override
-            public boolean hasNext() { return iterator.hasNext(); }
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
 
             @Override
             public T next() {
@@ -212,18 +217,20 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
      */
     public Stream<Map.Entry<KType, VType>> stream() {
         final Iterator<ObjectObjectCursor<KType, VType>> mapIterator = map.iterator();
-        return StreamSupport.stream(new Spliterators.AbstractSpliterator<Map.Entry<KType, VType>>(map.size(),
-            Spliterator.SIZED | Spliterator.DISTINCT) {
-            @Override
-            public boolean tryAdvance(Consumer<? super Map.Entry<KType, VType>> action) {
-                if (mapIterator.hasNext() == false) {
-                    return false;
+        return StreamSupport.stream(
+            new Spliterators.AbstractSpliterator<Map.Entry<KType, VType>>(map.size(), Spliterator.SIZED | Spliterator.DISTINCT) {
+                @Override
+                public boolean tryAdvance(Consumer<? super Map.Entry<KType, VType>> action) {
+                    if (mapIterator.hasNext() == false) {
+                        return false;
+                    }
+                    ObjectObjectCursor<KType, VType> cursor = mapIterator.next();
+                    action.accept(new AbstractMap.SimpleImmutableEntry<>(cursor.key, cursor.value));
+                    return true;
                 }
-                ObjectObjectCursor<KType, VType> cursor = mapIterator.next();
-                action.accept(new AbstractMap.SimpleImmutableEntry<>(cursor.key, cursor.value));
-                return true;
-            }
-        }, false);
+            },
+            false
+        );
     }
 
     @Override
@@ -249,7 +256,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         return map.hashCode();
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private static final ImmutableOpenMap EMPTY = new ImmutableOpenMap(new ObjectObjectHashMap());
 
     @SuppressWarnings("unchecked")

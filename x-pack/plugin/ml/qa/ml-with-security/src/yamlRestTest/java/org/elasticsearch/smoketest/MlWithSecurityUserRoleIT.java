@@ -7,6 +7,7 @@
 package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
@@ -54,10 +55,11 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
                 }
             }
         } catch (AssertionError ae) {
-            assertThat(ae.getMessage(),
-                either(containsString("action [cluster:monitor/xpack/ml"))
-                    .or(containsString("action [cluster:admin/xpack/ml"))
-                    .or(containsString("action [cluster:admin/ingest")));
+            assertThat(
+                ae.getMessage(),
+                either(containsString("action [cluster:monitor/xpack/ml")).or(containsString("action [cluster:admin/xpack/ml"))
+                    .or(containsString("action [cluster:admin/ingest"))
+            );
             assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
             assertThat(ae.getMessage(), containsString("is unauthorized for user [ml_user]"));
         }
@@ -74,6 +76,6 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
 
     @Override
     protected String[] getCredentials() {
-        return new String[]{"ml_user", "x-pack-test-password"};
+        return new String[] { "ml_user", "x-pack-test-password" };
     }
 }

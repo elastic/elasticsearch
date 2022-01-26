@@ -46,14 +46,14 @@ public class EnrichTransportClientIT extends ESXPackSmokeClientTestCase {
         EnrichPolicy policy = new EnrichPolicy("match", null, Collections.emptyList(), "test", Collections.emptyList());
         String policyName = "my-policy";
 
-        AcknowledgedResponse acknowledgedResponse = enrichClient.putEnrichPolicy(
-            new PutEnrichPolicyAction.Request(policyName,
-                policy)).actionGet();
+        AcknowledgedResponse acknowledgedResponse = enrichClient.putEnrichPolicy(new PutEnrichPolicyAction.Request(policyName, policy))
+            .actionGet();
 
         assertTrue(acknowledgedResponse.isAcknowledged());
 
         GetEnrichPolicyAction.Response getResponse = enrichClient.getEnrichPolicy(
-            new GetEnrichPolicyAction.Request(new String[] {policyName})).actionGet();
+            new GetEnrichPolicyAction.Request(new String[] { policyName })
+        ).actionGet();
 
         assertThat(getResponse.getPolicies().size(), equalTo(1));
         assertThat(policyName, equalTo(getResponse.getPolicies().get(0).getName()));

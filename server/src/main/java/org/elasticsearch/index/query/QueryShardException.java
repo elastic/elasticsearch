@@ -38,7 +38,7 @@ public class QueryShardException extends ElasticsearchException {
         setIndex(index);
     }
 
-    public QueryShardException(StreamInput in) throws IOException{
+    public QueryShardException(StreamInput in) throws IOException {
         super(in);
     }
 

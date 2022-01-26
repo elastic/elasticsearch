@@ -33,7 +33,6 @@ import java.util.stream.Stream;
  */
 public class NioSelectorGroup implements NioGroup {
 
-
     private final List<NioSelector> dedicatedAcceptors;
     private final RoundRobinSupplier<NioSelector> acceptorSupplier;
 
@@ -51,8 +50,11 @@ public class NioSelectorGroup implements NioGroup {
      * @param eventHandlerFunction function for creating event handlers
      * @throws IOException occurs if there is a problem while opening a java.nio.Selector
      */
-    public NioSelectorGroup(ThreadFactory threadFactory, int selectorCount,
-                            Function<Supplier<NioSelector>, EventHandler> eventHandlerFunction) throws IOException {
+    public NioSelectorGroup(
+        ThreadFactory threadFactory,
+        int selectorCount,
+        Function<Supplier<NioSelector>, EventHandler> eventHandlerFunction
+    ) throws IOException {
         this(null, 0, threadFactory, selectorCount, eventHandlerFunction);
     }
 
@@ -68,8 +70,13 @@ public class NioSelectorGroup implements NioGroup {
      * @param eventHandlerFunction function for creating event handlers
      * @throws IOException occurs if there is a problem while opening a java.nio.Selector
      */
-    public NioSelectorGroup(ThreadFactory acceptorThreadFactory, int dedicatedAcceptorCount, ThreadFactory selectorThreadFactory,
-                            int selectorCount, Function<Supplier<NioSelector>, EventHandler> eventHandlerFunction) throws IOException {
+    public NioSelectorGroup(
+        ThreadFactory acceptorThreadFactory,
+        int dedicatedAcceptorCount,
+        ThreadFactory selectorThreadFactory,
+        int selectorCount,
+        Function<Supplier<NioSelector>, EventHandler> eventHandlerFunction
+    ) throws IOException {
         dedicatedAcceptors = new ArrayList<>(dedicatedAcceptorCount);
         selectors = new ArrayList<>(selectorCount);
 

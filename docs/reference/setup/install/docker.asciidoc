@@ -1,12 +1,10 @@
 [[docker]]
 === Install {es} with Docker
 
-{es} is also available as Docker images.
-The images use https://hub.docker.com/_/centos/[centos:8] as the base image.
-
-A list of all published Docker images and tags is available at
-https://www.docker.elastic.co[www.docker.elastic.co]. The source files
-are in
+{es} is also available as Docker images. A list of all published Docker
+images and tags is available at
+https://www.docker.elastic.co[www.docker.elastic.co]. The source files are
+in
 https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Github].
 
 include::license.asciidoc[]
@@ -48,7 +46,7 @@ To start a single-node {es} cluster for development or testing, specify
 
 [source,sh,subs="attributes"]
 --------------------------------------------
-docker run -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" {docker-image}
+docker run -p 127.0.0.1:9200:9200 -p 127.0.0.1:9300:9300 -e "discovery.type=single-node" {docker-image}
 --------------------------------------------
 
 endif::[]
@@ -83,7 +81,7 @@ This sample Docker Compose file brings up a three-node {es} cluster.
 Node `es01` listens on `localhost:9200` and `es02` and `es03` talk to `es01` over a Docker network.
 
 Please note that this configuration exposes port 9200 on all network interfaces, and given how
-Docker manipulates `iptables` on Linux, this means that your {es} cluster is publically accessible,
+Docker manipulates `iptables` on Linux, this means that your {es} cluster is publicly accessible,
 potentially ignoring any firewall settings. If you don't want to expose port 9200 and instead use
 a reverse proxy, replace `9200:9200` with `127.0.0.1:9200:9200` in the docker-compose.yml file.
 {es} will then only be accessible from the host machine itself.
@@ -231,11 +229,17 @@ chmod g+rwx esdatadir
 chgrp 0 esdatadir
 --------------------------------------------
 
-You can also run an {es} container using both a custom UID and GID. Unless you
-bind-mount each of the `config`, data` and `logs` directories, you must pass
-the command line option `--group-add 0` to `docker run`. This ensures that the user
-under which {es} is running is also a member of the `root` (GID 0) group inside the
-container.
+You can also run an {es} container using both a custom UID and GID. You
+must ensure that file permissions will not prevent {es} from executing. You
+can use one of two options:
+
+* Bind-mount the `config`, `data` and `logs`
+  directories. If you intend to install plugins and prefer not to
+  <<_c_customized_image, create a custom Docker image>>, you must also
+  bind-mount the `plugins` directory.
+* Pass the `--group-add 0` command line option to `docker run`. This
+  ensures that the user under which {es} is running is also a member of the
+  `root` (GID 0) group inside the container.
 
 As a last resort, you can force the container to mutate the ownership of
 any bind-mounts used for the <<path-settings,data and log dirs>> through the
@@ -254,7 +258,7 @@ To check the Docker daemon defaults for ulimits, run:
 
 [source,sh]
 --------------------------------------------
-docker run --rm centos:8 /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
+docker run --rm docker.elastic.co/elasticsearch/elasticsearch:{version} /bin/bash -c 'ulimit -Hn && ulimit -Sn && ulimit -Hu && ulimit -Su'
 --------------------------------------------
 
 If needed, adjust them in the Daemon or override them per container.
@@ -276,7 +280,10 @@ https://docs.docker.com/engine/reference/commandline/dockerd/#default-ulimits[Do
 or explicitly set for the container as shown in the  <<docker-compose-file, sample compose file>>.
 When using `docker run`, you can specify:
 
-  -e "bootstrap.memory_lock=true" --ulimit memlock=-1:-1
+[source,sh]
+----
+-e "bootstrap.memory_lock=true" --ulimit memlock=-1:-1
+----
 
 ===== Randomize published ports
 
@@ -300,9 +307,8 @@ includes your desired <<set-jvm-heap-size,heap size>> settings.
 For testing, you can also manually set the heap size using the `ES_JAVA_OPTS`
 environment variable. For example, to use 16GB, specify `-e
 ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. The `ES_JAVA_OPTS` variable
-overrides all other JVM options. The `ES_JAVA_OPTS` variable overrides all other
-JVM options. We do not recommend using `ES_JAVA_OPTS` in production. The
-`docker-compose.yml` file above sets the heap size to 512MB.
+overrides all other JVM options. We do not recommend using `ES_JAVA_OPTS` in
+production. The `docker-compose.yml` file above sets the heap size to 512MB.
 
 ===== Pin deployments to a specific image version
 
@@ -394,6 +400,11 @@ For example, to bind-mount `custom_elasticsearch.yml` with `docker run`, specify
 --------------------------------------------
 -v full_path_to/custom_elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
 --------------------------------------------
+
+If you bind-mount a custom `elasticsearch.yml` file, ensure it includes the
+`network.host: 0.0.0.0` setting. This setting ensures the node is reachable for
+HTTP and transport traffic, provided its ports are exposed. The Docker image's
+built-in `elasticsearch.yml` file includes this setting by default.
 
 IMPORTANT: The container **runs {es} as user `elasticsearch` using
 uid:gid `1000:0`**. Bind mounted host directories and files must be accessible by this user,

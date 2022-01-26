@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml.dataframe.stats.outlierdetection;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -19,7 +19,6 @@ public class TimingStatsTests extends AbstractXContentTestCase<TimingStats> {
     protected boolean supportsUnknownFields() {
         return true;
     }
-
 
     @Override
     protected TimingStats doParseInstance(XContentParser parser) throws IOException {

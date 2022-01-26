@@ -23,7 +23,7 @@ import org.mockito.ArgumentCaptor;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,7 +43,6 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
     public void teardown() {
         licenseService.stop();
     }
-
 
     public void testNotificationOnNewLicense() throws Exception {
         ClusterState oldState = ClusterState.builder(new ClusterName("a")).build();
@@ -67,7 +66,8 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
     public void testSelfGeneratedLicenseGeneration() throws Exception {
         DiscoveryNode master = new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         ClusterState oldState = ClusterState.builder(new ClusterName("a"))
-                .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).add(master)).build();
+            .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).add(master))
+            .build();
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
         ClusterState newState = ClusterState.builder(oldState).nodes(discoveryNodes).build();
 

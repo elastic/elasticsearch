@@ -20,7 +20,8 @@ public class ThreadPermissionTests extends TestCase {
     public void testEquals() {
         assertEquals(new ThreadPermission("modifyArbitraryThread"), new ThreadPermission("modifyArbitraryThread"));
         assertFalse(new ThreadPermission("modifyArbitraryThread").equals(new AllPermission()));
-        assertFalse(new ThreadPermission("modifyArbitraryThread").equals(new ThreadPermission("modifyArbitraryThreadGroup"))); }
+        assertFalse(new ThreadPermission("modifyArbitraryThread").equals(new ThreadPermission("modifyArbitraryThreadGroup")));
+    }
 
     public void testImplies() {
         assertTrue(new ThreadPermission("modifyArbitraryThread").implies(new ThreadPermission("modifyArbitraryThread")));

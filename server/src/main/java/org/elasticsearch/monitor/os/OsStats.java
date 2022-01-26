@@ -15,8 +15,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -59,7 +59,9 @@ public class OsStats implements Writeable, ToXContentFragment {
         return timestamp;
     }
 
-    public Cpu getCpu() { return cpu; }
+    public Cpu getCpu() {
+        return cpu;
+    }
 
     public Mem getMem() {
         return mem;
@@ -439,7 +441,8 @@ public class OsStats implements Writeable, ToXContentFragment {
             final CpuStat cpuStat,
             final String memoryControlGroup,
             final String memoryLimitInBytes,
-            final String memoryUsageInBytes) {
+            final String memoryUsageInBytes
+        ) {
             this.cpuAcctControlGroup = Objects.requireNonNull(cpuAcctControlGroup);
             this.cpuAcctUsageNanos = cpuAcctUsageNanos;
             this.cpuControlGroup = Objects.requireNonNull(cpuControlGroup);

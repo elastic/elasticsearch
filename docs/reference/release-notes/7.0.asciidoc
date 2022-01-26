@@ -254,6 +254,7 @@ Core::
 
 Cluster Coordination::
 * Deprecate size in cluster state response {es-pull}39951[#39951] (issue: {es-issue}39806[#39806])
+* Deprecate `discovery.zen.*` settings {es-pull}38289[#38289], {es-pull}38333[#38333], {es-pull}38350[#38350], {es-pull}37868[#37868]
 
 Features/Indices APIs::
 * Default copy settings to true and deprecate on the REST layer {es-pull}30598[#30598]

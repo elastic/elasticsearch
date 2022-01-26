@@ -12,11 +12,11 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.client.license.StartTrialRequest;
-import org.elasticsearch.client.license.StartBasicRequest;
 import org.elasticsearch.client.license.DeleteLicenseRequest;
 import org.elasticsearch.client.license.GetLicenseRequest;
 import org.elasticsearch.client.license.PutLicenseRequest;
+import org.elasticsearch.client.license.StartBasicRequest;
+import org.elasticsearch.client.license.StartTrialRequest;
 
 final class LicenseRequestConverters {
 
@@ -69,9 +69,7 @@ final class LicenseRequestConverters {
     }
 
     static Request startBasic(StartBasicRequest startBasicRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_license", "start_basic")
-            .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_license", "start_basic").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withTimeout(startBasicRequest.timeout());

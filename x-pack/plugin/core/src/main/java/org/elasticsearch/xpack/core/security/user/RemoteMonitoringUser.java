@@ -21,6 +21,13 @@ public class RemoteMonitoringUser extends User {
     public static final Version DEFINED_SINCE = Version.V_6_5_0;
 
     public RemoteMonitoringUser(boolean enabled) {
-        super(NAME, new String[]{ COLLECTION_ROLE_NAME, INDEXING_ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
+        super(
+            NAME,
+            new String[] { COLLECTION_ROLE_NAME, INDEXING_ROLE_NAME },
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            enabled
+        );
     }
 }

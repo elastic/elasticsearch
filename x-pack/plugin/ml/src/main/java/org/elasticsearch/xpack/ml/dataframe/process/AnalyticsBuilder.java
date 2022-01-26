@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 
@@ -40,8 +40,13 @@ public class AnalyticsBuilder {
     private final List<Path> filesToDelete;
     private boolean performMemoryUsageEstimationOnly;
 
-    public AnalyticsBuilder(Supplier<Path> tempDirPathSupplier, NativeController nativeController,
-                            ProcessPipes processPipes, AnalyticsProcessConfig config, List<Path> filesToDelete) {
+    public AnalyticsBuilder(
+        Supplier<Path> tempDirPathSupplier,
+        NativeController nativeController,
+        ProcessPipes processPipes,
+        AnalyticsProcessConfig config,
+        List<Path> filesToDelete
+    ) {
         this.tempDirPathSupplier = Objects.requireNonNull(tempDirPathSupplier);
         this.nativeController = Objects.requireNonNull(nativeController);
         this.processPipes = Objects.requireNonNull(processPipes);
@@ -77,8 +82,10 @@ public class AnalyticsBuilder {
         Path tempDir = tempDirPathSupplier.get();
         Path configFile = Files.createTempFile(tempDir, "analysis", ".conf");
         filesToDelete.add(configFile);
-        try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(configFile),StandardCharsets.UTF_8);
-             XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
+        try (
+            OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(configFile), StandardCharsets.UTF_8);
+            XContentBuilder jsonBuilder = JsonXContent.contentBuilder()
+        ) {
 
             config.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
             osw.write(Strings.toString(jsonBuilder));

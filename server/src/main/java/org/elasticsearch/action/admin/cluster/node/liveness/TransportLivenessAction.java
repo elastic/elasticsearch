@@ -24,8 +24,14 @@ public final class TransportLivenessAction implements TransportRequestHandler<Li
     @Inject
     public TransportLivenessAction(ClusterService clusterService, TransportService transportService) {
         this.clusterService = clusterService;
-        transportService.registerRequestHandler(NAME, ThreadPool.Names.SAME,
-            false, false /*can not trip circuit breaker*/, LivenessRequest::new, this);
+        transportService.registerRequestHandler(
+            NAME,
+            ThreadPool.Names.SAME,
+            false,
+            false /*can not trip circuit breaker*/,
+            LivenessRequest::new,
+            this
+        );
     }
 
     @Override

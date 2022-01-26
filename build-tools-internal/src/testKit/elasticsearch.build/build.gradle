@@ -5,8 +5,8 @@ plugins {
 
 apply plugin:'elasticsearch.build'
 
-ext.licenseFile = file("LICENSE")
-ext.noticeFile = file("NOTICE")
+licenseFile.set(file("LICENSE"))
+noticeFile.set(file("NOTICE"))
 
 dependencies {
   api "junit:junit:${versions.junit}"

@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.security.rest.action.role;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
@@ -31,7 +31,8 @@ public final class RestClearRolesCacheAction extends SecurityBaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(POST, "/_security/role/{name}/_clear_cache")
-                .replaces(POST, "/_xpack/security/role/{name}/_clear_cache", RestApiVersion.V_7).build()
+                .replaces(POST, "/_xpack/security/role/{name}/_clear_cache", RestApiVersion.V_7)
+                .build()
         );
     }
 

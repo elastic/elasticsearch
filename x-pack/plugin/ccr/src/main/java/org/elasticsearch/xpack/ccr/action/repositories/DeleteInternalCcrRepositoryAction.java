@@ -26,21 +26,24 @@ public class DeleteInternalCcrRepositoryAction extends ActionType<ActionResponse
         super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 
-    public static class TransportDeleteInternalRepositoryAction
-        extends TransportAction<DeleteInternalCcrRepositoryRequest, ActionResponse.Empty> {
+    public static class TransportDeleteInternalRepositoryAction extends TransportAction<
+        DeleteInternalCcrRepositoryRequest,
+        ActionResponse.Empty> {
 
         private final RepositoriesService repositoriesService;
 
         @Inject
-        public TransportDeleteInternalRepositoryAction(RepositoriesService repositoriesService, ActionFilters actionFilters,
-                                                       TransportService transportService) {
+        public TransportDeleteInternalRepositoryAction(
+            RepositoriesService repositoriesService,
+            ActionFilters actionFilters,
+            TransportService transportService
+        ) {
             super(NAME, actionFilters, transportService.getLocalNodeConnection(), transportService.getTaskManager());
             this.repositoriesService = repositoriesService;
         }
 
         @Override
-        protected void doExecute(Task task, DeleteInternalCcrRepositoryRequest request,
-                                 ActionListener<ActionResponse.Empty> listener) {
+        protected void doExecute(Task task, DeleteInternalCcrRepositoryRequest request, ActionListener<ActionResponse.Empty> listener) {
             repositoriesService.unregisterInternalRepository(request.getName());
             listener.onResponse(ActionResponse.Empty.INSTANCE);
         }

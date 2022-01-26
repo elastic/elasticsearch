@@ -11,8 +11,6 @@ package org.elasticsearch.client.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -25,11 +23,13 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -103,17 +103,23 @@ final class TransportClientNodesService implements Closeable {
 
     static {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
-        builder.addConnections(1,
+        builder.addConnections(
+            1,
             TransportRequestOptions.Type.BULK,
             TransportRequestOptions.Type.PING,
             TransportRequestOptions.Type.RECOVERY,
             TransportRequestOptions.Type.REG,
-            TransportRequestOptions.Type.STATE);
+            TransportRequestOptions.Type.STATE
+        );
         LISTED_NODES_PROFILE = builder.build();
     }
 
-    TransportClientNodesService(Settings settings, TransportService transportService,
-                                       ThreadPool threadPool, TransportClient.HostFailureListener hostFailureListener) {
+    TransportClientNodesService(
+        Settings settings,
+        TransportService transportService,
+        ThreadPool threadPool,
+        TransportClient.HostFailureListener hostFailureListener
+    ) {
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.transportService = transportService;
         this.threadPool = threadPool;
@@ -180,8 +186,13 @@ final class TransportClientNodesService implements Closeable {
             }
             List<DiscoveryNode> builder = new ArrayList<>(listedNodes);
             for (TransportAddress transportAddress : filtered) {
-                DiscoveryNode node = new DiscoveryNode("#transport#-" + tempNodeIdGenerator.incrementAndGet(),
-                        transportAddress, Collections.emptyMap(), Collections.emptySet(), minCompatibilityVersion);
+                DiscoveryNode node = new DiscoveryNode(
+                    "#transport#-" + tempNodeIdGenerator.incrementAndGet(),
+                    transportAddress,
+                    Collections.emptyMap(),
+                    Collections.emptySet(),
+                    minCompatibilityVersion
+                );
                 logger.debug("adding address [{}]", node);
                 builder.add(node);
             }
@@ -246,7 +257,7 @@ final class TransportClientNodesService implements Closeable {
             callback.doWithNode(node, retryListener);
         } catch (Exception e) {
             try {
-                //this exception can't come from the TransportService as it doesn't throw exception at all
+                // this exception can't come from the TransportService as it doesn't throw exception at all
                 listener.onFailure(e);
             } finally {
                 retryListener.maybeNodeFailed(node, e);
@@ -263,8 +274,13 @@ final class TransportClientNodesService implements Closeable {
 
         private volatile int i;
 
-        RetryListener(NodeListenerCallback<Response> callback, ActionListener<Response> listener,
-                      List<DiscoveryNode> nodes, int index, TransportClient.HostFailureListener hostFailureListener) {
+        RetryListener(
+            NodeListenerCallback<Response> callback,
+            ActionListener<Response> listener,
+            List<DiscoveryNode> nodes,
+            int index,
+            TransportClient.HostFailureListener hostFailureListener
+        ) {
             this.callback = callback;
             this.listener = listener;
             this.nodes = nodes;
@@ -288,7 +304,7 @@ final class TransportClientNodesService implements Closeable {
                 } else {
                     try {
                         callback.doWithNode(getNode(i), this);
-                    } catch(final Exception inner) {
+                    } catch (final Exception inner) {
                         inner.addSuppressed(e);
                         // this exception can't come from the TransportService as it doesn't throw exceptions at all
                         listener.onFailure(inner);
@@ -356,7 +372,7 @@ final class TransportClientNodesService implements Closeable {
          * node returned in the handshake response is different than the discovery node.
          */
         List<DiscoveryNode> establishNodeConnections(Set<DiscoveryNode> nodes) {
-            for (Iterator<DiscoveryNode> it = nodes.iterator(); it.hasNext(); ) {
+            for (Iterator<DiscoveryNode> it = nodes.iterator(); it.hasNext();) {
                 DiscoveryNode node = it.next();
                 if (transportService.nodeConnected(node) == false) {
                     try {
@@ -394,17 +410,22 @@ final class TransportClientNodesService implements Closeable {
             HashSet<DiscoveryNode> newNodes = new HashSet<>();
             ArrayList<DiscoveryNode> newFilteredNodes = new ArrayList<>();
             for (DiscoveryNode listedNode : listedNodes) {
-                try (Transport.Connection connection = transportService.openConnection(listedNode, LISTED_NODES_PROFILE)){
+                try (Transport.Connection connection = transportService.openConnection(listedNode, LISTED_NODES_PROFILE)) {
                     final PlainTransportFuture<LivenessResponse> handler = new PlainTransportFuture<>(
                         new FutureTransportResponseHandler<LivenessResponse>() {
                             @Override
                             public LivenessResponse read(StreamInput in) throws IOException {
                                 return new LivenessResponse(in);
                             }
-                        });
-                    transportService.sendRequest(connection, TransportLivenessAction.NAME, new LivenessRequest(),
+                        }
+                    );
+                    transportService.sendRequest(
+                        connection,
+                        TransportLivenessAction.NAME,
+                        new LivenessRequest(),
                         TransportRequestOptions.of(pingTimeout, TransportRequestOptions.Type.STATE),
-                        handler);
+                        handler
+                    );
                     final LivenessResponse livenessResponse = handler.txGet();
                     if (ignoreClusterName == false && clusterName.equals(livenessResponse.getClusterName()) == false) {
                         logger.warn("node {} not part of the cluster {}, ignoring...", listedNode, clusterName);
@@ -413,9 +434,19 @@ final class TransportClientNodesService implements Closeable {
                         // use discovered information but do keep the original transport address,
                         // so people can control which address is exactly used.
                         DiscoveryNode nodeWithInfo = livenessResponse.getDiscoveryNode();
-                        newNodes.add(new DiscoveryNode(nodeWithInfo.getName(), nodeWithInfo.getId(), nodeWithInfo.getEphemeralId(),
-                            nodeWithInfo.getHostName(), nodeWithInfo.getHostAddress(), listedNode.getAddress(),
-                            nodeWithInfo.getAttributes(), nodeWithInfo.getRoles(), nodeWithInfo.getVersion()));
+                        newNodes.add(
+                            new DiscoveryNode(
+                                nodeWithInfo.getName(),
+                                nodeWithInfo.getId(),
+                                nodeWithInfo.getEphemeralId(),
+                                nodeWithInfo.getHostName(),
+                                nodeWithInfo.getHostAddress(),
+                                listedNode.getAddress(),
+                                nodeWithInfo.getAttributes(),
+                                nodeWithInfo.getRoles(),
+                                nodeWithInfo.getVersion()
+                            )
+                        );
                     }
                 } catch (ConnectTransportException e) {
                     logger.debug(() -> new ParameterizedMessage("failed to connect to node [{}], ignoring...", listedNode), e);
@@ -471,8 +502,13 @@ final class TransportClientNodesService implements Closeable {
                                 logger.debug(() -> new ParameterizedMessage("failed to connect to node [{}], ignoring...", nodeToPing), e);
                                 hostFailureListener.onNodeDisconnected(nodeToPing, e);
                             } else {
-                                logger.info(() -> new ParameterizedMessage(
-                                        "failed to get local cluster state info for {}, disconnecting...", nodeToPing), e);
+                                logger.info(
+                                    () -> new ParameterizedMessage(
+                                        "failed to get local cluster state info for {}, disconnecting...",
+                                        nodeToPing
+                                    ),
+                                    e
+                                );
                             }
                         }
 
@@ -491,7 +527,9 @@ final class TransportClientNodesService implements Closeable {
                                 connectionToClose = transportService.openConnection(nodeToPing, LISTED_NODES_PROFILE);
                                 pingConnection = connectionToClose;
                             }
-                            transportService.sendRequest(pingConnection, ClusterStateAction.NAME,
+                            transportService.sendRequest(
+                                pingConnection,
+                                ClusterStateAction.NAME,
                                 Requests.clusterStateRequest().clear().nodes(true).local(true),
                                 TransportRequestOptions.of(pingTimeout, TransportRequestOptions.Type.STATE),
                                 new TransportResponseHandler<ClusterStateResponse>() {
@@ -514,15 +552,21 @@ final class TransportClientNodesService implements Closeable {
 
                                     @Override
                                     public void handleException(TransportException e) {
-                                        logger.info(() -> new ParameterizedMessage(
-                                                "failed to get local cluster state for {}, disconnecting...", nodeToPing), e);
+                                        logger.info(
+                                            () -> new ParameterizedMessage(
+                                                "failed to get local cluster state for {}, disconnecting...",
+                                                nodeToPing
+                                            ),
+                                            e
+                                        );
                                         try {
                                             hostFailureListener.onNodeDisconnected(nodeToPing, e);
                                         } finally {
                                             onDone();
                                         }
                                     }
-                                });
+                                }
+                            );
                         }
                     });
                 }
@@ -536,8 +580,11 @@ final class TransportClientNodesService implements Closeable {
             HashSet<DiscoveryNode> newFilteredNodes = new HashSet<>();
             for (Map.Entry<DiscoveryNode, ClusterStateResponse> entry : clusterStateResponses.entrySet()) {
                 if (ignoreClusterName == false && clusterName.equals(entry.getValue().getClusterName()) == false) {
-                    logger.warn("node {} not part of the cluster {}, ignoring...",
-                            entry.getValue().getState().nodes().getLocalNode(), clusterName);
+                    logger.warn(
+                        "node {} not part of the cluster {}, ignoring...",
+                        entry.getValue().getState().nodes().getLocalNode(),
+                        clusterName
+                    );
                     newFilteredNodes.add(entry.getKey());
                     continue;
                 }

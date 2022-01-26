@@ -524,8 +524,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                     assert knownSnapshots != null;
                     final Set<String> knownRepositories = existingRepositories;
                     assert knownRepositories != null;
-                    final Instant expirationTime = this.expirationTime;
-                    assert expirationTime != null;
+                    final Instant expirationTimeCopy = this.expirationTime;
+                    assert expirationTimeCopy != null;
 
                     Object[] lastSortValues = null;
                     for (SearchHit searchHit : searchHits) {
@@ -552,7 +552,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                             }
                             if (delete) {
                                 final Instant creationTime = getCreationTime(searchHit);
-                                if (creationTime.isAfter(expirationTime)) {
+                                if (creationTime.isAfter(expirationTimeCopy)) {
                                     logger.trace(
                                         "blob store cache entry with id [{}] was created recently, skipping deletion",
                                         searchHit.getId()

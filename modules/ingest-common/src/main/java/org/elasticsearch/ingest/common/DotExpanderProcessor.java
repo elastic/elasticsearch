@@ -81,8 +81,9 @@ public final class DotExpanderProcessor extends AbstractProcessor {
                     if (ingestDocument.hasField(partialPath)) {
                         Object val = ingestDocument.getFieldValue(partialPath, Object.class);
                         if ((val instanceof Map) == false) {
-                            throw new IllegalArgumentException("cannot expend [" + path + "], because [" + partialPath +
-                                "] is not an object field, but a value field");
+                            throw new IllegalArgumentException(
+                                "cannot expend [" + path + "], because [" + partialPath + "] is not an object field, but a value field"
+                            );
                         }
                     } else {
                         break;
@@ -110,22 +111,33 @@ public final class DotExpanderProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
 
         @Override
-        public Processor create(Map<String, Processor.Factory> processorFactories, String tag, String description,
-                                Map<String, Object> config) throws Exception {
+        public Processor create(
+            Map<String, Processor.Factory> processorFactories,
+            String tag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
             if (field.contains(".") == false && field.equals("*") == false) {
-                throw ConfigurationUtils.newConfigurationException(ConfigurationUtils.TAG_KEY, tag, "field",
-                        "field does not contain a dot and is not a wildcard");
+                throw ConfigurationUtils.newConfigurationException(
+                    ConfigurationUtils.TAG_KEY,
+                    tag,
+                    "field",
+                    "field does not contain a dot and is not a wildcard"
+                );
             }
             if (field.indexOf('.') == 0 || field.lastIndexOf('.') == field.length() - 1) {
-                throw ConfigurationUtils.newConfigurationException(ConfigurationUtils.TAG_KEY, tag, "field",
-                        "Field can't start or end with a dot");
+                throw ConfigurationUtils.newConfigurationException(
+                    ConfigurationUtils.TAG_KEY,
+                    tag,
+                    "field",
+                    "Field can't start or end with a dot"
+                );
             }
             int firstIndex = -1;
             for (int index = field.indexOf('.'); index != -1; index = field.indexOf('.', index + 1)) {
                 if (index - firstIndex == 1) {
-                    throw ConfigurationUtils.newConfigurationException(ConfigurationUtils.TAG_KEY, tag, "field",
-                            "No space between dots");
+                    throw ConfigurationUtils.newConfigurationException(ConfigurationUtils.TAG_KEY, tag, "field", "No space between dots");
                 }
                 firstIndex = index;
             }

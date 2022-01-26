@@ -37,8 +37,14 @@ public class ScriptScope extends Decorator {
     protected Set<String> usedVariables = Collections.emptySet();
     protected Map<String, Object> staticConstants = new HashMap<>();
 
-    public ScriptScope(PainlessLookup painlessLookup, CompilerSettings compilerSettings,
-                      ScriptClassInfo scriptClassInfo, String scriptName, String scriptSource, int nodeCount) {
+    public ScriptScope(
+        PainlessLookup painlessLookup,
+        CompilerSettings compilerSettings,
+        ScriptClassInfo scriptClassInfo,
+        String scriptName,
+        String scriptSource,
+        int nodeCount
+    ) {
 
         super(nodeCount);
 

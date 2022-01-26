@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.io.IOException;
@@ -16,7 +16,7 @@ import java.io.StringReader;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
+import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 
 public class NdJsonTextStructureFinderFactory implements TextStructureFinderFactory {
 

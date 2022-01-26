@@ -6,28 +6,29 @@
  */
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.sql.proto.ProtoUtils.parseFieldsValue;
 
 /**
  * Represent a strongly typed parameter value
  */
 public class SqlTypedParamValue implements ToXContentObject {
-    private static final ConstructingObjectParser<SqlTypedParamValue, Void> PARSER =
-            new ConstructingObjectParser<>("params", true, objects ->
-            new SqlTypedParamValue((String) objects[1], objects[0]
-                    ));
+    private static final ConstructingObjectParser<SqlTypedParamValue, Void> PARSER = new ConstructingObjectParser<>(
+        "params",
+        true,
+        objects -> new SqlTypedParamValue((String) objects[1], objects[0])
+    );
 
     private static final ParseField VALUE = new ParseField("value");
     private static final ParseField TYPE = new ParseField("type");
@@ -91,8 +92,8 @@ public class SqlTypedParamValue implements ToXContentObject {
         }
         SqlTypedParamValue that = (SqlTypedParamValue) o;
         return Objects.equals(value, that.value)
-                && Objects.equals(type, that.type)
-                && Objects.equals(hasExplicitType, that.hasExplicitType);
+            && Objects.equals(type, that.type)
+            && Objects.equals(hasExplicitType, that.hasExplicitType);
     }
 
     @Override

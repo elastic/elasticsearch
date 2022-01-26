@@ -7,21 +7,21 @@
  */
 package org.elasticsearch.search.collapse;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,8 +36,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     public static final ParseField MAX_CONCURRENT_GROUP_REQUESTS_FIELD = new ParseField("max_concurrent_group_searches");
-    private static final ObjectParser<CollapseBuilder, Void> PARSER =
-        new ObjectParser<>("collapse", CollapseBuilder::new);
+    private static final ObjectParser<CollapseBuilder, Void> PARSER = new ObjectParser<>("collapse", CollapseBuilder::new);
 
     static {
         PARSER.declareString(CollapseBuilder::setField, FIELD_FIELD);
@@ -192,15 +191,17 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("no mapping found for `" + field + "` in order to collapse on");
         }
         if (fieldType.collapseType() == CollapseType.NONE) {
-            throw new IllegalArgumentException("collapse is not supported for the field [" + fieldType.name() +
-                "] of the type [" + fieldType.typeName() + "]");
+            throw new IllegalArgumentException(
+                "collapse is not supported for the field [" + fieldType.name() + "] of the type [" + fieldType.typeName() + "]"
+            );
         }
         if (fieldType.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot collapse on field `" + field + "` without `doc_values`");
         }
         if (fieldType.isSearchable() == false && (innerHits != null && innerHits.isEmpty() == false)) {
-            throw new IllegalArgumentException("cannot expand `inner_hits` for collapse field `"
-                + field + "`, " + "only indexed field can retrieve `inner_hits`");
+            throw new IllegalArgumentException(
+                "cannot expand `inner_hits` for collapse field `" + field + "`, " + "only indexed field can retrieve `inner_hits`"
+            );
         }
 
         return new CollapseContext(field, fieldType, innerHits);

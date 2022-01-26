@@ -11,8 +11,8 @@ package org.elasticsearch.client.ccr;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 
@@ -36,8 +36,15 @@ public class FollowInfoResponseTests extends AbstractResponseTestCase<FollowInfo
                 followParameters = randomFollowParameters();
             }
 
-            infos.add(new FollowInfoAction.Response.FollowerInfo(randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4),
-                randomFrom(FollowInfoAction.Response.Status.values()), followParameters));
+            infos.add(
+                new FollowInfoAction.Response.FollowerInfo(
+                    randomAlphaOfLength(4),
+                    randomAlphaOfLength(4),
+                    randomAlphaOfLength(4),
+                    randomFrom(FollowInfoAction.Response.Status.values()),
+                    followParameters
+                )
+            );
         }
         return new FollowInfoAction.Response(infos);
     }
@@ -72,8 +79,10 @@ public class FollowInfoResponseTests extends AbstractResponseTestCase<FollowInfo
             assertThat(serverFollowInfo.getRemoteCluster(), equalTo(clientFollowerInfo.getRemoteCluster()));
             assertThat(serverFollowInfo.getLeaderIndex(), equalTo(clientFollowerInfo.getLeaderIndex()));
             assertThat(serverFollowInfo.getFollowerIndex(), equalTo(clientFollowerInfo.getFollowerIndex()));
-            assertThat(serverFollowInfo.getStatus().toString().toLowerCase(Locale.ROOT),
-                equalTo(clientFollowerInfo.getStatus().getName().toLowerCase(Locale.ROOT)));
+            assertThat(
+                serverFollowInfo.getStatus().toString().toLowerCase(Locale.ROOT),
+                equalTo(clientFollowerInfo.getStatus().getName().toLowerCase(Locale.ROOT))
+            );
 
             FollowParameters serverParams = serverFollowInfo.getParameters();
             FollowConfig clientParams = clientFollowerInfo.getParameters();

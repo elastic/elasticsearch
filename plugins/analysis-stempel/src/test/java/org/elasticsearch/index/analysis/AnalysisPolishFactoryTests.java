@@ -40,7 +40,7 @@ public class AnalysisPolishFactoryTests extends AnalysisFactoryTestCase {
     }
 
     public void testThreadSafety() throws IOException {
-        // TODO: is this the right boilerplate?  I forked this out of TransportAnalyzeAction.java:
+        // TODO: is this the right boilerplate? I forked this out of TransportAnalyzeAction.java:
         Settings settings = Settings.builder()
             // for _na_
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

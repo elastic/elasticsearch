@@ -18,7 +18,7 @@ public class MockFieldFilterPlugin extends Plugin implements MapperPlugin {
 
     @Override
     public Function<String, Predicate<String>> getFieldFilter() {
-        //this filter doesn't filter any field out, but it's used to exercise the code path executed when the filter is not no-op
+        // this filter doesn't filter any field out, but it's used to exercise the code path executed when the filter is not no-op
         return index -> field -> true;
     }
 }

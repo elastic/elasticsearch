@@ -52,8 +52,7 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         return this;
     }
 
-    public GetSettingsRequest() {
-    }
+    public GetSettingsRequest() {}
 
     public GetSettingsRequest(StreamInput in) throws IOException {
         super(in);
@@ -129,11 +128,11 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetSettingsRequest that = (GetSettingsRequest) o;
-        return humanReadable == that.humanReadable &&
-            includeDefaults == that.includeDefaults &&
-            Arrays.equals(indices, that.indices) &&
-            Objects.equals(indicesOptions, that.indicesOptions) &&
-            Arrays.equals(names, that.names);
+        return humanReadable == that.humanReadable
+            && includeDefaults == that.includeDefaults
+            && Arrays.equals(indices, that.indices)
+            && Objects.equals(indicesOptions, that.indicesOptions)
+            && Arrays.equals(names, that.names);
     }
 
     @Override

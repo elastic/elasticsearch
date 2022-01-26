@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.security.authc.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.support.Validation;
@@ -92,9 +92,13 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
         final byte[] decodedBytes = Base64.getDecoder().decode(bytes);
         final byte[] prefixBytes = Arrays.copyOfRange(decodedBytes, 0, 4);
         if (decodedBytes.length < 4 || false == Arrays.equals(prefixBytes, PREFIX)) {
-            logger.trace(() -> new ParameterizedMessage(
-                "service account token expects the 4 leading bytes to be {}, got {}.",
-                Arrays.toString(PREFIX), Arrays.toString(prefixBytes)));
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "service account token expects the 4 leading bytes to be {}, got {}.",
+                    Arrays.toString(PREFIX),
+                    Arrays.toString(prefixBytes)
+                )
+            );
             return null;
         }
         final byte[] contentBytes = Arrays.copyOfRange(decodedBytes, 4, decodedBytes.length);
@@ -107,12 +111,17 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
         final String qualifiedName = new String(Arrays.copyOfRange(content, 0, i));
         final String[] split = Strings.delimitedListToStringArray(qualifiedName, "/");
         if (split == null || split.length != 3) {
-            logger.trace("The qualified name of a service token should take format of " +
-                "'namespace/service_name/token_name', got [{}]", qualifiedName);
+            logger.trace(
+                "The qualified name of a service token should take format of " + "'namespace/service_name/token_name', got [{}]",
+                qualifiedName
+            );
             return null;
         }
-        return new ServiceAccountToken(new ServiceAccountId(split[0], split[1]), split[2],
-            new SecureString(Arrays.copyOfRange(content, i + 1, content.length)));
+        return new ServiceAccountToken(
+            new ServiceAccountId(split[0], split[1]),
+            split[2],
+            new SecureString(Arrays.copyOfRange(content, i + 1, content.length))
+        );
     }
 
     @Override
@@ -127,10 +136,8 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         ServiceAccountToken that = (ServiceAccountToken) o;
         return tokenId.equals(that.tokenId) && secret.equals(that.secret);
     }
@@ -190,10 +197,8 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
-                return false;
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
             ServiceAccountTokenId that = (ServiceAccountTokenId) o;
             return accountId.equals(that.accountId) && tokenName.equals(that.tokenName);
         }

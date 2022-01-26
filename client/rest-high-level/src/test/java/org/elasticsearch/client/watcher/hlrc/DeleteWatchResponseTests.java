@@ -9,15 +9,16 @@ package org.elasticsearch.client.watcher.hlrc;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.watcher.DeleteWatchResponse;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class DeleteWatchResponseTests extends AbstractResponseTestCase<
-    org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse, DeleteWatchResponse> {
+    org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse,
+    DeleteWatchResponse> {
 
     @Override
     protected org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse createServerTestInstance(XContentType xContentType) {
@@ -33,8 +34,10 @@ public class DeleteWatchResponseTests extends AbstractResponseTestCase<
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse serverTestInstance,
-                                   DeleteWatchResponse clientInstance) {
+    protected void assertInstances(
+        org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse serverTestInstance,
+        DeleteWatchResponse clientInstance
+    ) {
         assertThat(clientInstance.getId(), equalTo(serverTestInstance.getId()));
         assertThat(clientInstance.getVersion(), equalTo(serverTestInstance.getVersion()));
         assertThat(clientInstance.isFound(), equalTo(serverTestInstance.isFound()));

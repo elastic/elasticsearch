@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.watcher.trigger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
@@ -47,8 +47,8 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     @Override
-    public ScheduleTriggerEvent parseTriggerEvent(TriggerService service, String watchId, String context,
-                                                  XContentParser parser) throws IOException {
+    public ScheduleTriggerEvent parseTriggerEvent(TriggerService service, String watchId, String context, XContentParser parser)
+        throws IOException {
         return ScheduleTriggerEvent.parse(parser, watchId, context, clock);
     }
 

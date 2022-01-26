@@ -10,9 +10,9 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
@@ -33,77 +33,97 @@ public interface DataExtractorFactory {
     /**
      * Creates a {@code DataExtractorFactory} for the given datafeed-job combination.
      */
-    static void create(Client client,
-                       DatafeedConfig datafeed,
-                       Job job,
-                       NamedXContentRegistry xContentRegistry,
-                       DatafeedTimingStatsReporter timingStatsReporter,
-                       ActionListener<DataExtractorFactory> listener) {
+    static void create(
+        Client client,
+        DatafeedConfig datafeed,
+        Job job,
+        NamedXContentRegistry xContentRegistry,
+        DatafeedTimingStatsReporter timingStatsReporter,
+        ActionListener<DataExtractorFactory> listener
+    ) {
         final boolean hasAggs = datafeed.hasAggregations();
         final boolean isComposite = hasAggs && datafeed.hasCompositeAgg(xContentRegistry);
         ActionListener<DataExtractorFactory> factoryHandler = ActionListener.wrap(
-            factory -> listener.onResponse(datafeed.getChunkingConfig().isEnabled()
-                ? new ChunkedDataExtractorFactory(client, datafeed, job, xContentRegistry, factory, timingStatsReporter) : factory)
-            , listener::onFailure
+            factory -> listener.onResponse(
+                datafeed.getChunkingConfig().isEnabled()
+                    ? new ChunkedDataExtractorFactory(client, datafeed, job, xContentRegistry, factory, timingStatsReporter)
+                    : factory
+            ),
+            listener::onFailure
         );
 
-        ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(
-            response -> {
-                final boolean hasRollup = response.getJobs().isEmpty() == false;
-                if (hasRollup && hasAggs == false) {
-                    listener.onFailure(new IllegalArgumentException("Aggregations are required when using Rollup indices"));
-                    return;
-                }
-                if (hasAggs == false) {
-                    ScrollDataExtractorFactory.create(client, datafeed, job, xContentRegistry, timingStatsReporter, factoryHandler);
-                    return;
-                }
-                if (hasRollup && datafeed.getRuntimeMappings().isEmpty() == false) {
-                    // TODO Rollup V2 will support runtime fields
-                    listener.onFailure(new IllegalArgumentException("The datafeed has runtime_mappings defined, "
-                        + "runtime fields are not supported in rollup searches"));
-                    return;
-                }
-                if (isComposite) {
-                    String[] indices = datafeed.getIndices().toArray(new String[0]);
-                    IndicesOptions indicesOptions = datafeed.getIndicesOptions();
-                    AggregatedSearchRequestBuilder aggregatedSearchRequestBuilder = hasRollup ?
-                        RollupDataExtractorFactory.requestBuilder(client, indices, indicesOptions) :
-                        AggregationDataExtractorFactory.requestBuilder(client, indices, indicesOptions);
-                    final DataExtractorFactory dataExtractorFactory = new CompositeAggregationDataExtractorFactory(
-                        client,
-                        datafeed,
-                        job,
-                        xContentRegistry,
-                        timingStatsReporter,
-                        aggregatedSearchRequestBuilder
-                    );
-                    if (datafeed.getChunkingConfig().isManual()) {
-                        factoryHandler.onResponse(dataExtractorFactory);
-                    } else {
-                        listener.onResponse(dataExtractorFactory);
-                    }
-                    return;
-                }
-
-                if (hasRollup) {
-                    RollupDataExtractorFactory.create(
-                        client, datafeed, job, response.getJobs(), xContentRegistry, timingStatsReporter, factoryHandler);
-                } else {
-                    factoryHandler.onResponse(
-                        new AggregationDataExtractorFactory(client, datafeed, job, xContentRegistry, timingStatsReporter));
-                }
-            },
-            e -> {
-                Throwable cause = ExceptionsHelper.unwrapCause(e);
-                if (cause instanceof IndexNotFoundException) {
-                    listener.onFailure(new ResourceNotFoundException("datafeed [" + datafeed.getId()
-                        + "] cannot retrieve data because index " + ((IndexNotFoundException) cause).getIndex() + " does not exist"));
-                } else {
-                    listener.onFailure(e);
-                }
+        ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(response -> {
+            final boolean hasRollup = response.getJobs().isEmpty() == false;
+            if (hasRollup && hasAggs == false) {
+                listener.onFailure(new IllegalArgumentException("Aggregations are required when using Rollup indices"));
+                return;
             }
-        );
+            if (hasAggs == false) {
+                ScrollDataExtractorFactory.create(client, datafeed, job, xContentRegistry, timingStatsReporter, factoryHandler);
+                return;
+            }
+            if (hasRollup && datafeed.getRuntimeMappings().isEmpty() == false) {
+                // TODO Rollup V2 will support runtime fields
+                listener.onFailure(
+                    new IllegalArgumentException(
+                        "The datafeed has runtime_mappings defined, " + "runtime fields are not supported in rollup searches"
+                    )
+                );
+                return;
+            }
+            if (isComposite) {
+                String[] indices = datafeed.getIndices().toArray(new String[0]);
+                IndicesOptions indicesOptions = datafeed.getIndicesOptions();
+                AggregatedSearchRequestBuilder aggregatedSearchRequestBuilder = hasRollup
+                    ? RollupDataExtractorFactory.requestBuilder(client, indices, indicesOptions)
+                    : AggregationDataExtractorFactory.requestBuilder(client, indices, indicesOptions);
+                final DataExtractorFactory dataExtractorFactory = new CompositeAggregationDataExtractorFactory(
+                    client,
+                    datafeed,
+                    job,
+                    xContentRegistry,
+                    timingStatsReporter,
+                    aggregatedSearchRequestBuilder
+                );
+                if (datafeed.getChunkingConfig().isManual()) {
+                    factoryHandler.onResponse(dataExtractorFactory);
+                } else {
+                    listener.onResponse(dataExtractorFactory);
+                }
+                return;
+            }
+
+            if (hasRollup) {
+                RollupDataExtractorFactory.create(
+                    client,
+                    datafeed,
+                    job,
+                    response.getJobs(),
+                    xContentRegistry,
+                    timingStatsReporter,
+                    factoryHandler
+                );
+            } else {
+                factoryHandler.onResponse(
+                    new AggregationDataExtractorFactory(client, datafeed, job, xContentRegistry, timingStatsReporter)
+                );
+            }
+        }, e -> {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof IndexNotFoundException) {
+                listener.onFailure(
+                    new ResourceNotFoundException(
+                        "datafeed ["
+                            + datafeed.getId()
+                            + "] cannot retrieve data because index "
+                            + ((IndexNotFoundException) cause).getIndex()
+                            + " does not exist"
+                    )
+                );
+            } else {
+                listener.onFailure(e);
+            }
+        });
 
         if (RemoteClusterLicenseChecker.containsRemoteIndex(datafeed.getIndices())) {
             // If we have remote indices in the data feed, don't bother checking for rollup support
@@ -115,7 +135,8 @@ public interface DataExtractorFactory {
                 ClientHelper.ML_ORIGIN,
                 GetRollupIndexCapsAction.INSTANCE,
                 new GetRollupIndexCapsAction.Request(datafeed.getIndices().toArray(new String[0]), datafeed.getIndicesOptions()),
-                getRollupIndexCapsActionHandler);
+                getRollupIndexCapsActionHandler
+            );
         }
     }
 }

@@ -77,9 +77,7 @@ public class Join extends BinaryPlan {
     }
 
     private static List<Attribute> makeNullable(List<Attribute> output) {
-        return output.stream()
-                .map(a -> a.withNullability(Nullability.TRUE))
-                .collect(toList());
+        return output.stream().map(a -> a.withNullability(Nullability.TRUE)).collect(toList());
     }
 
     @Override
@@ -97,10 +95,10 @@ public class Join extends BinaryPlan {
         // - the children are resolved
         // - there are no conflicts in output
         // - the condition (if present) is resolved to a boolean
-        return childrenResolved() &&
-                duplicatesResolved() &&
-                expressionsResolved() &&
-                (condition == null || DataTypes.BOOLEAN == condition.dataType());
+        return childrenResolved()
+            && duplicatesResolved()
+            && expressionsResolved()
+            && (condition == null || DataTypes.BOOLEAN == condition.dataType());
     }
 
     @Override
@@ -120,8 +118,8 @@ public class Join extends BinaryPlan {
         Join other = (Join) obj;
 
         return Objects.equals(type, other.type)
-                && Objects.equals(condition, other.condition)
-                && Objects.equals(left(), other.left())
-                && Objects.equals(right(), other.right());
+            && Objects.equals(condition, other.condition)
+            && Objects.equals(left(), other.left())
+            && Objects.equals(right(), other.right());
     }
 }

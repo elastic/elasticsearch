@@ -29,19 +29,25 @@ public class GetServiceAccountCredentialsRequestTests extends ESTestCase {
         final String serviceName = randomAlphaOfLengthBetween(3, 8);
         final GetServiceAccountCredentialsRequest request = new GetServiceAccountCredentialsRequest(namespace, serviceName);
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(request,
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            request,
             original -> new GetServiceAccountCredentialsRequest(request.getNamespace(), request.getServiceName()),
-            this::mutateInstance);
+            this::mutateInstance
+        );
     }
 
     private GetServiceAccountCredentialsRequest mutateInstance(GetServiceAccountCredentialsRequest request) {
         switch (randomIntBetween(0, 1)) {
             case 0:
-                return new GetServiceAccountCredentialsRequest(randomValueOtherThan(request.getNamespace(),
-                    () -> randomAlphaOfLengthBetween(3, 8)), request.getServiceName());
+                return new GetServiceAccountCredentialsRequest(
+                    randomValueOtherThan(request.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
+                    request.getServiceName()
+                );
             default:
-                return new GetServiceAccountCredentialsRequest(request.getNamespace(),
-                    randomValueOtherThan(request.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)));
+                return new GetServiceAccountCredentialsRequest(
+                    request.getNamespace(),
+                    randomValueOtherThan(request.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8))
+                );
         }
     }
 }

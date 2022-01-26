@@ -18,8 +18,11 @@ import java.util.Locale;
 public class TransformMessagesTests extends ESTestCase {
 
     public void testGetMessage_WithFormatStrings() {
-        String formattedMessage = TransformMessages.getMessage(TransformMessages.REST_STOP_TRANSFORM_WAIT_FOR_COMPLETION_TIMEOUT, "30s",
-                "my_transform");
+        String formattedMessage = TransformMessages.getMessage(
+            TransformMessages.REST_STOP_TRANSFORM_WAIT_FOR_COMPLETION_TIMEOUT,
+            "30s",
+            "my_transform"
+        );
         assertEquals("Timed out after [30s] while waiting for transform [my_transform] to stop", formattedMessage);
     }
 
@@ -29,8 +32,9 @@ public class TransformMessagesTests extends ESTestCase {
 
         for (Field field : declaredFields) {
             int modifiers = field.getModifiers();
-            if (java.lang.reflect.Modifier.isStatic(modifiers) && java.lang.reflect.Modifier.isFinal(modifiers)
-                    && field.getType().isAssignableFrom(String.class)) {
+            if (java.lang.reflect.Modifier.isStatic(modifiers)
+                && java.lang.reflect.Modifier.isFinal(modifiers)
+                && field.getType().isAssignableFrom(String.class)) {
 
                 assertSingleMessage((String) field.get(TransformMessages.class));
                 ++checkedMessages;

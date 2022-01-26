@@ -9,8 +9,7 @@ package org.elasticsearch.xpack.sql.action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class SqlClearCursorRequestBuilder extends
-        ActionRequestBuilder<SqlClearCursorRequest, SqlClearCursorResponse> {
+public class SqlClearCursorRequestBuilder extends ActionRequestBuilder<SqlClearCursorRequest, SqlClearCursorResponse> {
 
     public SqlClearCursorRequestBuilder(ElasticsearchClient client, SqlClearCursorAction action) {
         super(client, action, new SqlClearCursorRequest());

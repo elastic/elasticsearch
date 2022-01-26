@@ -23,10 +23,7 @@ public class LatestTests extends ESTestCase {
     public void testValidateConfig() {
         LatestConfig latestConfig = LatestConfigTests.randomLatestConfig();
         Function latest = new Latest(latestConfig);
-        latest.validateConfig(
-            ActionListener.wrap(
-                isValid -> assertThat(isValid, is(true)),
-                e -> fail(e.getMessage())));
+        latest.validateConfig(ActionListener.wrap(isValid -> assertThat(isValid, is(true)), e -> fail(e.getMessage())));
     }
 
     public void testGetPerformanceCriticalFields() {

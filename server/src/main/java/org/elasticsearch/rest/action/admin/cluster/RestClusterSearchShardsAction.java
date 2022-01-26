@@ -29,11 +29,14 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_search_shards"),
-            new Route(POST, "/_search_shards"),
-            new Route(GET, "/{index}/_search_shards"),
-            new Route(POST, "/{index}/_search_shards")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_search_shards"),
+                new Route(POST, "/_search_shards"),
+                new Route(GET, "/{index}/_search_shards"),
+                new Route(POST, "/{index}/_search_shards")
+            )
+        );
     }
 
     @Override

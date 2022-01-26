@@ -47,15 +47,17 @@ public class ChildrenIT extends AbstractParentChildTestCase {
 
     public void testChildrenAggs() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(matchQuery("randomized", true))
-                .addAggregation(
-                        terms("category").field("category").size(10000).subAggregation(children("to_comment", "comment")
-                                .subAggregation(
-                                        terms("commenters").field("commenter").size(10000).subAggregation(
-                                                topHits("top_comments")
-                                        ))
+            .setQuery(matchQuery("randomized", true))
+            .addAggregation(
+                terms("category").field("category")
+                    .size(10000)
+                    .subAggregation(
+                        children("to_comment", "comment").subAggregation(
+                            terms("commenters").field("commenter").size(10000).subAggregation(topHits("top_comments"))
                         )
-                ).get();
+                    )
+            )
+            .get();
         assertSearchResponse(searchResponse);
 
         Terms categoryTerms = searchResponse.getAggregations().get("category");
@@ -68,11 +70,10 @@ public class ChildrenIT extends AbstractParentChildTestCase {
             Children childrenBucket = categoryBucket.getAggregations().get("to_comment");
             assertThat(childrenBucket.getName(), equalTo("to_comment"));
             assertThat(childrenBucket.getDocCount(), equalTo((long) entry1.getValue().commentIds.size()));
-            assertThat(((InternalAggregation)childrenBucket).getProperty("_count"),
-                equalTo((long) entry1.getValue().commentIds.size()));
+            assertThat(((InternalAggregation) childrenBucket).getProperty("_count"), equalTo((long) entry1.getValue().commentIds.size()));
 
             Terms commentersTerms = childrenBucket.getAggregations().get("commenters");
-            assertThat(((InternalAggregation)childrenBucket).getProperty("commenters"), sameInstance(commentersTerms));
+            assertThat(((InternalAggregation) childrenBucket).getProperty("commenters"), sameInstance(commentersTerms));
             assertThat(commentersTerms.getBuckets().size(), equalTo(entry1.getValue().commenterToCommentId.size()));
             for (Map.Entry<String, Set<String>> entry2 : entry1.getValue().commenterToCommentId.entrySet()) {
                 Terms.Bucket commentBucket = commentersTerms.getBucketByKey(entry2.getKey());
@@ -89,12 +90,13 @@ public class ChildrenIT extends AbstractParentChildTestCase {
 
     public void testParentWithMultipleBuckets() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(matchQuery("randomized", false))
-                .addAggregation(
-                        terms("category").field("category").size(10000).subAggregation(
-                        children("to_comment", "comment").subAggregation(topHits("top_comments").sort("id", SortOrder.ASC))
-                        )
-                ).get();
+            .setQuery(matchQuery("randomized", false))
+            .addAggregation(
+                terms("category").field("category")
+                    .size(10000)
+                    .subAggregation(children("to_comment", "comment").subAggregation(topHits("top_comments").sort("id", SortOrder.ASC)))
+            )
+            .get();
         assertSearchResponse(searchResponse);
 
         Terms categoryTerms = searchResponse.getAggregations().get("category");
@@ -148,10 +150,10 @@ public class ChildrenIT extends AbstractParentChildTestCase {
     public void testWithDeletes() throws Exception {
         String indexName = "xyz";
         assertAcked(
-                prepareCreate(indexName)
-                    .addMapping("doc",
-                        addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"),
-                            "name", "keyword"))
+            prepareCreate(indexName).addMapping(
+                "doc",
+                addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"), "name", "keyword")
+            )
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -164,8 +166,8 @@ public class ChildrenIT extends AbstractParentChildTestCase {
 
         for (int i = 0; i < 10; i++) {
             SearchResponse searchResponse = client().prepareSearch(indexName)
-                    .addAggregation(children("children", "child").subAggregation(sum("counts").field("count")))
-                    .get();
+                .addAggregation(children("children", "child").subAggregation(sum("counts").field("count")))
+                .get();
 
             assertNoFailures(searchResponse);
             Children children = searchResponse.getAggregations().get("children");
@@ -182,20 +184,17 @@ public class ChildrenIT extends AbstractParentChildTestCase {
              */
             UpdateResponse updateResponse;
             updateResponse = client().prepareUpdate(indexName, "doc", idToUpdate)
-                    .setRouting("1")
-                    .setDoc(Requests.INDEX_CONTENT_TYPE, "count", 1)
-                    .setDetectNoop(false)
-                    .get();
+                .setRouting("1")
+                .setDoc(Requests.INDEX_CONTENT_TYPE, "count", 1)
+                .setDetectNoop(false)
+                .get();
             assertThat(updateResponse.getVersion(), greaterThan(1L));
             refresh();
         }
     }
 
     public void testNonExistingChildType() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .addAggregation(
-                    children("non-existing", "xyz")
-                ).get();
+        SearchResponse searchResponse = client().prepareSearch("test").addAggregation(children("non-existing", "xyz")).get();
         assertSearchResponse(searchResponse);
 
         Children children = searchResponse.getAggregations().get("non-existing");
@@ -208,18 +207,29 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         String masterType = "masterprod";
         String childType = "variantsku";
         assertAcked(
-                prepareCreate(indexName)
-                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
-                    .addMapping("doc",
-                        addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
-                            masterType, childType),
-                            "brand", "text", "name", "keyword", "material", "text", "color", "keyword", "size", "keyword"))
+            prepareCreate(indexName).setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+                .addMapping(
+                    "doc",
+                    addFieldMappings(
+                        buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, masterType, childType),
+                        "brand",
+                        "text",
+                        "name",
+                        "keyword",
+                        "material",
+                        "text",
+                        "color",
+                        "keyword",
+                        "size",
+                        "keyword"
+                    )
+                )
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(createIndexRequest(indexName, masterType, "1", null, "brand", "Levis", "name",
-                "Style 501", "material", "Denim"));
+        requests.add(createIndexRequest(indexName, masterType, "1", null, "brand", "Levis", "name", "Style 501", "material", "Denim"));
         requests.add(createIndexRequest(indexName, childType, "3", "1", "color", "blue", "size", "32"));
         requests.add(createIndexRequest(indexName, childType, "4", "1", "color", "blue", "size", "34"));
         requests.add(createIndexRequest(indexName, childType, "5", "1", "color", "blue", "size", "36"));
@@ -227,8 +237,9 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         requests.add(createIndexRequest(indexName, childType, "7", "1", "color", "black", "size", "40"));
         requests.add(createIndexRequest(indexName, childType, "8", "1", "color", "gray", "size", "36"));
 
-        requests.add(createIndexRequest(indexName, masterType, "2", null, "brand", "Wrangler", "name",
-                "Regular Cut", "material", "Leather"));
+        requests.add(
+            createIndexRequest(indexName, masterType, "2", null, "brand", "Wrangler", "name", "Regular Cut", "material", "Leather")
+        );
         requests.add(createIndexRequest(indexName, childType, "9", "2", "color", "blue", "size", "32"));
         requests.add(createIndexRequest(indexName, childType, "10", "2", "color", "blue", "size", "34"));
         requests.add(createIndexRequest(indexName, childType, "12", "2", "color", "black", "size", "36"));
@@ -239,11 +250,12 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         indexRandom(true, requests);
 
         SearchResponse response = client().prepareSearch(indexName)
-                .setQuery(hasChildQuery(childType, termQuery("color", "orange"), ScoreMode.None))
-                        .addAggregation(children("my-refinements", childType)
-                                .subAggregation(terms("my-colors").field("color"))
-                                .subAggregation(terms("my-sizes").field("size"))
-                ).get();
+            .setQuery(hasChildQuery(childType, termQuery("color", "orange"), ScoreMode.None))
+            .addAggregation(
+                children("my-refinements", childType).subAggregation(terms("my-colors").field("color"))
+                    .subAggregation(terms("my-sizes").field("size"))
+            )
+            .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
 
@@ -273,11 +285,14 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         String parentType = "country";
         String childType = "city";
         assertAcked(
-                prepareCreate(indexName)
-                    .addMapping("doc",
-                        addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
-                            grandParentType, parentType, parentType, childType),
-                            "name", "keyword"))
+            prepareCreate(indexName).addMapping(
+                "doc",
+                addFieldMappings(
+                    buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, grandParentType, parentType, parentType, childType),
+                    "name",
+                    "keyword"
+                )
+            )
         );
 
         createIndexRequest(indexName, grandParentType, "1", null, "name", "europe").get();
@@ -286,14 +301,11 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         refresh();
 
         SearchResponse response = client().prepareSearch(indexName)
-                .setQuery(matchQuery("name", "europe"))
-                .addAggregation(
-                children(parentType, parentType).subAggregation(children(childType, childType).subAggregation(
-                                        terms("name").field("name")
-                                )
-                        )
-                )
-                .get();
+            .setQuery(matchQuery("name", "europe"))
+            .addAggregation(
+                children(parentType, parentType).subAggregation(children(childType, childType).subAggregation(terms("name").field("name")))
+            )
+            .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
 
@@ -316,11 +328,18 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         // Before we only evaluated segments that yielded matches in 'towns' and 'parent_names' aggs, which caused
         // us to miss to evaluate child docs in segments we didn't have parent matches for.
         assertAcked(
-                prepareCreate("index")
-                    .addMapping("doc",
-                        addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
-                            "parentType", "childType"),
-                            "name", "keyword", "town", "keyword", "age", "integer"))
+            prepareCreate("index").addMapping(
+                "doc",
+                addFieldMappings(
+                    buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parentType", "childType"),
+                    "name",
+                    "keyword",
+                    "town",
+                    "keyword",
+                    "age",
+                    "integer"
+                )
+            )
         );
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest("index", "parentType", "1", null, "name", "Bob", "town", "Memphis"));
@@ -335,11 +354,14 @@ public class ChildrenIT extends AbstractParentChildTestCase {
 
         SearchResponse response = client().prepareSearch("index")
             .setSize(0)
-            .addAggregation(AggregationBuilders.terms("towns").field("town")
-                .subAggregation(AggregationBuilders.terms("parent_names").field("name")
-                    .subAggregation(children("child_docs", "childType"))
-                )
-            ).get();
+            .addAggregation(
+                AggregationBuilders.terms("towns")
+                    .field("town")
+                    .subAggregation(
+                        AggregationBuilders.terms("parent_names").field("name").subAggregation(children("child_docs", "childType"))
+                    )
+            )
+            .get();
 
         Terms towns = response.getAggregations().get("towns");
         assertThat(towns.getBuckets().size(), equalTo(2));

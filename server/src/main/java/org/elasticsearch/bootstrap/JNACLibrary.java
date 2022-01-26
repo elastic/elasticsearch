@@ -57,10 +57,10 @@ final class JNACLibrary {
     }
 
     static native int getrlimit(int resource, Rlimit rlimit);
+
     static native int setrlimit(int resource, Rlimit rlimit);
 
     static native String strerror(int errno);
 
-    private JNACLibrary() {
-    }
+    private JNACLibrary() {}
 }

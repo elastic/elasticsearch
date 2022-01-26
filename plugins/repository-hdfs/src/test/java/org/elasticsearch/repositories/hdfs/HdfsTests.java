@@ -8,13 +8,14 @@
 package org.elasticsearch.repositories.hdfs;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryException;
@@ -28,7 +29,7 @@ import java.util.Collection;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-@ThreadLeakFilters(filters = {HdfsClientThreadLeakFilter.class})
+@ThreadLeakFilters(filters = { HdfsClientThreadLeakFilter.class })
 public class HdfsTests extends ESSingleNodeTestCase {
 
     @Override
@@ -40,15 +41,19 @@ public class HdfsTests extends ESSingleNodeTestCase {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/31498", JavaVersion.current().equals(JavaVersion.parse("11")));
         Client client = client();
 
-        AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
-                .setType("hdfs")
-                .setSettings(Settings.builder()
-                        .put("uri", "hdfs:///")
-                        .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
-                        .put("path", "foo")
-                        .put("chunk_size", randomIntBetween(100, 1000) + "k")
-                        .put("compress", randomBoolean())
-                        ).get();
+        AcknowledgedResponse putRepositoryResponse = client.admin()
+            .cluster()
+            .preparePutRepository("test-repo")
+            .setType("hdfs")
+            .setSettings(
+                Settings.builder()
+                    .put("uri", "hdfs:///")
+                    .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
+                    .put("path", "foo")
+                    .put("chunk_size", randomIntBetween(100, 1000) + "k")
+                    .put("compress", randomBoolean())
+            )
+            .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
         createIndex("test-idx-1");
@@ -75,18 +80,15 @@ public class HdfsTests extends ESSingleNodeTestCase {
             .setIndices("test-idx-*", "-test-idx-3")
             .get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        assertThat(
+            createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        );
 
-        assertThat(client.admin()
-            .cluster()
-            .prepareGetSnapshots("test-repo")
-            .setSnapshots("test-snap")
-            .get()
-            .getSnapshots()
-            .get(0)
-            .state(),
-            equalTo(SnapshotState.SUCCESS));
+        assertThat(
+            client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots().get(0).state(),
+            equalTo(SnapshotState.SUCCESS)
+        );
 
         logger.info("--> delete some data");
         for (int i = 0; i < 50; i++) {
@@ -137,16 +139,13 @@ public class HdfsTests extends ESSingleNodeTestCase {
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetadata().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetadata().hasIndex("test-idx-2"), equalTo(false));
-        final BlobStoreRepository repo =
-            (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
+        final BlobStoreRepository repo = (BlobStoreRepository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
         BlobStoreTestUtil.assertConsistency(repo);
     }
 
     public void testMissingUri() {
         try {
-            client().admin().cluster().preparePutRepository("test-repo")
-                .setType("hdfs")
-                .setSettings(Settings.EMPTY).get();
+            client().admin().cluster().preparePutRepository("test-repo").setType("hdfs").setSettings(Settings.EMPTY).get();
             fail();
         } catch (RepositoryException e) {
             assertTrue(e.getCause() instanceof IllegalArgumentException);
@@ -156,10 +155,12 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testEmptyUri() {
         try {
-            client().admin().cluster().preparePutRepository("test-repo")
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
                 .setType("hdfs")
-                .setSettings(Settings.builder()
-                    .put("uri", "/path").build()).get();
+                .setSettings(Settings.builder().put("uri", "/path").build())
+                .get();
             fail();
         } catch (RepositoryException e) {
             assertTrue(e.getCause() instanceof IllegalArgumentException);
@@ -169,10 +170,12 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testNonHdfsUri() {
         try {
-            client().admin().cluster().preparePutRepository("test-repo")
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
                 .setType("hdfs")
-                .setSettings(Settings.builder()
-                    .put("uri", "file:///").build()).get();
+                .setSettings(Settings.builder().put("uri", "file:///").build())
+                .get();
             fail();
         } catch (RepositoryException e) {
             assertTrue(e.getCause() instanceof IllegalArgumentException);
@@ -182,10 +185,12 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testPathSpecifiedInHdfs() {
         try {
-            client().admin().cluster().preparePutRepository("test-repo")
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
                 .setType("hdfs")
-                .setSettings(Settings.builder()
-                    .put("uri", "hdfs:///some/path").build()).get();
+                .setSettings(Settings.builder().put("uri", "hdfs:///some/path").build())
+                .get();
             fail();
         } catch (RepositoryException e) {
             assertTrue(e.getCause() instanceof IllegalArgumentException);
@@ -195,10 +200,12 @@ public class HdfsTests extends ESSingleNodeTestCase {
 
     public void testMissingPath() {
         try {
-            client().admin().cluster().preparePutRepository("test-repo")
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
                 .setType("hdfs")
-                .setSettings(Settings.builder()
-                    .put("uri", "hdfs:///").build()).get();
+                .setSettings(Settings.builder().put("uri", "hdfs:///").build())
+                .get();
             fail();
         } catch (RepositoryException e) {
             assertTrue(e.getCause() instanceof IllegalArgumentException);

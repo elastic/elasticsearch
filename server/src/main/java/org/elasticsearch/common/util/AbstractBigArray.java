@@ -10,8 +10,8 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Releasables;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;

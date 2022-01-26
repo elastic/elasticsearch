@@ -8,22 +8,23 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.function.Predicate;
 
-
 public class NodeAttributeTests extends AbstractSerializingTestCase<NodeAttributes> {
 
     public static NodeAttributes randomNodeAttributes() {
-        return new NodeAttributes(randomAlphaOfLength(10),
+        return new NodeAttributes(
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            randomBoolean() ? Collections.emptyMap() : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+            randomAlphaOfLength(10),
+            randomBoolean() ? Collections.emptyMap() : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10))
+        );
     }
 
     @Override

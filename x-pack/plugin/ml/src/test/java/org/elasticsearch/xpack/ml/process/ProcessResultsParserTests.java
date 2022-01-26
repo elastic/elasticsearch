@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.ml.process;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -38,9 +38,10 @@ public class ProcessResultsParserTests extends ESTestCase {
         String json = "[{\"unknown\":{\"id\": 18}}]";
         try (InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8))) {
             ProcessResultsParser<TestResult> parser = new ProcessResultsParser<>(TestResult.PARSER, NamedXContentRegistry.EMPTY);
-            XContentParseException e = expectThrows(XContentParseException.class,
-                () -> parser.parseResults(inputStream).forEachRemaining(a -> {
-                }));
+            XContentParseException e = expectThrows(
+                XContentParseException.class,
+                () -> parser.parseResults(inputStream).forEachRemaining(a -> {})
+            );
             assertEquals("[1:3] [test_result] unknown field [unknown]", e.getMessage());
         }
     }
@@ -49,16 +50,17 @@ public class ProcessResultsParserTests extends ESTestCase {
         String json = "[[]]";
         try (InputStream inputStream = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8))) {
             ProcessResultsParser<TestResult> parser = new ProcessResultsParser<>(TestResult.PARSER, NamedXContentRegistry.EMPTY);
-            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-                () -> parser.parseResults(inputStream).forEachRemaining(a -> {
-                }));
+            ElasticsearchParseException e = expectThrows(
+                ElasticsearchParseException.class,
+                () -> parser.parseResults(inputStream).forEachRemaining(a -> {})
+            );
             assertEquals("unexpected token [START_ARRAY]", e.getMessage());
         }
     }
 
     public void testParseResults() throws IOException {
         String input = "[{\"field_1\": \"a\", \"field_2\": 1.0}, {\"field_1\": \"b\", \"field_2\": 2.0},"
-                + " {\"field_1\": \"c\", \"field_2\": 3.0}]";
+            + " {\"field_1\": \"c\", \"field_2\": 3.0}]";
         try (InputStream inputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))) {
 
             ProcessResultsParser<TestResult> parser = new ProcessResultsParser<>(TestResult.PARSER, NamedXContentRegistry.EMPTY);
@@ -78,8 +80,10 @@ public class ProcessResultsParserTests extends ESTestCase {
         private static final ParseField FIELD_1 = new ParseField("field_1");
         private static final ParseField FIELD_2 = new ParseField("field_2");
 
-        private static final ConstructingObjectParser<TestResult, Void> PARSER = new ConstructingObjectParser<>("test_result",
-                a -> new TestResult((String) a[0], (Double) a[1]));
+        private static final ConstructingObjectParser<TestResult, Void> PARSER = new ConstructingObjectParser<>(
+            "test_result",
+            a -> new TestResult((String) a[0], (Double) a[1])
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD_1);

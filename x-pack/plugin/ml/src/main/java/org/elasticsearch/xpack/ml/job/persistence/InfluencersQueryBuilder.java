@@ -87,7 +87,6 @@ public final class InfluencersQueryBuilder {
         influencersQuery = new InfluencersQueryBuilder.InfluencersQuery();
     }
 
-
     public class InfluencersQuery {
         private int from = 0;
         private int size = DEFAULT_SIZE;
@@ -135,7 +134,6 @@ public final class InfluencersQueryBuilder {
             return Objects.hash(from, size, includeInterim, influencerScoreFilter, start, end, sortField, sortDescending);
         }
 
-
         @Override
         public boolean equals(Object obj) {
             if (this == obj) {
@@ -149,14 +147,14 @@ public final class InfluencersQueryBuilder {
             }
 
             InfluencersQuery other = (InfluencersQuery) obj;
-            return Objects.equals(from, other.from) &&
-                    Objects.equals(size, other.size) &&
-                    Objects.equals(includeInterim, other.includeInterim) &&
-                    Objects.equals(start, other.start) &&
-                    Objects.equals(end, other.end) &&
-                    Objects.equals(influencerScoreFilter, other.influencerScoreFilter) &&
-                    Objects.equals(sortField, other.sortField) &&
-                    this.sortDescending == other.sortDescending;
+            return Objects.equals(from, other.from)
+                && Objects.equals(size, other.size)
+                && Objects.equals(includeInterim, other.includeInterim)
+                && Objects.equals(start, other.start)
+                && Objects.equals(end, other.end)
+                && Objects.equals(influencerScoreFilter, other.influencerScoreFilter)
+                && Objects.equals(sortField, other.sortField)
+                && this.sortDescending == other.sortDescending;
         }
 
     }

@@ -59,7 +59,7 @@ public class CollectionMatchers {
 
         @Override
         protected boolean matchesSafely(ImmutableOpenMap<String, ?> item) {
-            for (String key: keys) {
+            for (String key : keys) {
                 if (item.containsKey(key) == false) {
                     missingKey = key;
                     return false;
@@ -80,8 +80,7 @@ public class CollectionMatchers {
 
         @Override
         public void describeTo(Description description) {
-            description
-                .appendText("ImmutableOpenMap should contain all keys ")
+            description.appendText("ImmutableOpenMap should contain all keys ")
                 .appendValue(keys)
                 .appendText(", but key [")
                 .appendValue(missingKey)

@@ -68,8 +68,13 @@ public class ListenableFutureTests extends ESTestCase {
         final int numberOfThreads = scaledRandomIntBetween(2, 32);
         final int completingThread = randomIntBetween(0, numberOfThreads - 1);
         final ListenableFuture<String> future = new ListenableFuture<>();
-        executorService = EsExecutors.newFixed("testConcurrentListenerRegistrationAndCompletion", numberOfThreads, 1000,
-            EsExecutors.daemonThreadFactory("listener"), threadContext);
+        executorService = EsExecutors.newFixed(
+            "testConcurrentListenerRegistrationAndCompletion",
+            numberOfThreads,
+            1000,
+            EsExecutors.daemonThreadFactory("listener"),
+            threadContext
+        );
         final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         final CountDownLatch listenersLatch = new CountDownLatch(numberOfThreads - 1);
         final AtomicInteger numResponses = new AtomicInteger(0);

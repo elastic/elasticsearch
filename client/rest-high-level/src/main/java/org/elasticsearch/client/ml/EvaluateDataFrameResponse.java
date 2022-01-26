@@ -10,11 +10,11 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.NamedObjectNotFoundException;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,10 +38,10 @@ public class EvaluateDataFrameResponse implements ToXContentObject {
         String evaluationName = parser.currentName();
         parser.nextToken();
         Map<String, EvaluationMetric.Result> metrics = parser.map(LinkedHashMap::new, p -> parseMetric(evaluationName, p));
-        List<EvaluationMetric.Result> knownMetrics =
-            metrics.values().stream()
-                .filter(Objects::nonNull)  // Filter out null values returned by {@link EvaluateDataFrameResponse::parseMetric}.
-                .collect(Collectors.toList());
+        List<EvaluationMetric.Result> knownMetrics = metrics.values()
+            .stream()
+            .filter(Objects::nonNull)  // Filter out null values returned by {@link EvaluateDataFrameResponse::parseMetric}.
+            .collect(Collectors.toList());
         ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return new EvaluateDataFrameResponse(evaluationName, knownMetrics);
     }
@@ -62,8 +62,9 @@ public class EvaluateDataFrameResponse implements ToXContentObject {
 
     public EvaluateDataFrameResponse(String evaluationName, List<EvaluationMetric.Result> metrics) {
         this.evaluationName = Objects.requireNonNull(evaluationName);
-        this.metrics = Collections.unmodifiableMap(Objects.requireNonNull(metrics)
-            .stream().collect(Collectors.toMap(m -> m.getMetricName(), m -> m)));
+        this.metrics = Collections.unmodifiableMap(
+            Objects.requireNonNull(metrics).stream().collect(Collectors.toMap(m -> m.getMetricName(), m -> m))
+        );
     }
 
     public String getEvaluationName() {
@@ -82,10 +83,7 @@ public class EvaluateDataFrameResponse implements ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        return builder
-            .startObject()
-            .field(evaluationName, metrics)
-            .endObject();
+        return builder.startObject().field(evaluationName, metrics).endObject();
     }
 
     @Override
@@ -93,8 +91,7 @@ public class EvaluateDataFrameResponse implements ToXContentObject {
         if (o == this) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EvaluateDataFrameResponse that = (EvaluateDataFrameResponse) o;
-        return Objects.equals(evaluationName, that.evaluationName)
-            && Objects.equals(metrics, that.metrics);
+        return Objects.equals(evaluationName, that.evaluationName) && Objects.equals(metrics, that.metrics);
     }
 
     @Override

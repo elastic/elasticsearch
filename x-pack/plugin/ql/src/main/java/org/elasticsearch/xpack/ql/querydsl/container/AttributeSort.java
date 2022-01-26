@@ -40,7 +40,7 @@ public class AttributeSort extends Sort {
 
         AttributeSort other = (AttributeSort) obj;
         return Objects.equals(direction(), other.direction())
-                && Objects.equals(missing(), other.missing())
-                && Objects.equals(attribute, other.attribute);
+            && Objects.equals(missing(), other.missing())
+            && Objects.equals(attribute, other.attribute);
     }
 }

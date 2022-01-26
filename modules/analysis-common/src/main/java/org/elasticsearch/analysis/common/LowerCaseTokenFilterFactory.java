@@ -53,5 +53,3 @@ public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory impl
     }
 
 }
-
-

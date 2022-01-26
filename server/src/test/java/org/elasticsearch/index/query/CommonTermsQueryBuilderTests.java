@@ -35,8 +35,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
             text.append(randomAlphaOfLengthBetween(1, 10)).append(" ");
         }
 
-        String fieldName = randomFrom(TEXT_FIELD_NAME,
-                TEXT_ALIAS_FIELD_NAME);
+        String fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
         CommonTermsQueryBuilder query = new CommonTermsQueryBuilder(fieldName, text.toString());
 
         if (randomBoolean()) {
@@ -71,21 +70,26 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     @Override
     protected Map<String, CommonTermsQueryBuilder> getAlternateVersions() {
         Map<String, CommonTermsQueryBuilder> alternateVersions = new HashMap<>();
-        CommonTermsQueryBuilder commonTermsQuery = new CommonTermsQueryBuilder(randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10));
-        String contentString = "{\n" +
-                "    \"common\" : {\n" +
-                "        \"" + commonTermsQuery.fieldName() + "\" : \"" + commonTermsQuery.value() + "\"\n" +
-                "    }\n" +
-                "}";
+        CommonTermsQueryBuilder commonTermsQuery = new CommonTermsQueryBuilder(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
+        String contentString = "{\n"
+            + "    \"common\" : {\n"
+            + "        \""
+            + commonTermsQuery.fieldName()
+            + "\" : \""
+            + commonTermsQuery.value()
+            + "\"\n"
+            + "    }\n"
+            + "}";
         alternateVersions.put(contentString, commonTermsQuery);
         return alternateVersions;
     }
 
     @Override
-    protected void doAssertLuceneQuery(CommonTermsQueryBuilder queryBuilder,
-                                       Query query,
-                                       SearchExecutionContext context) throws IOException {
+    protected void doAssertLuceneQuery(CommonTermsQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
+        throws IOException {
         assertThat(query, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery extendedCommonTermsQuery = (ExtendedCommonTermsQuery) query;
 
@@ -134,22 +138,21 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     }
 
     public void testFromJson() throws IOException {
-        String query =
-                "{\n" +
-                "  \"common\" : {\n" +
-                "    \"body\" : {\n" +
-                "      \"query\" : \"nelly the elephant not as a cartoon\",\n" +
-                "      \"high_freq_operator\" : \"AND\",\n" +
-                "      \"low_freq_operator\" : \"OR\",\n" +
-                "      \"cutoff_frequency\" : 0.001,\n" +
-                "      \"minimum_should_match\" : {\n" +
-                "        \"low_freq\" : \"2\",\n" +
-                "        \"high_freq\" : \"3\"\n" +
-                "      },\n" +
-                "      \"boost\" : 42.0\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+        String query = "{\n"
+            + "  \"common\" : {\n"
+            + "    \"body\" : {\n"
+            + "      \"query\" : \"nelly the elephant not as a cartoon\",\n"
+            + "      \"high_freq_operator\" : \"AND\",\n"
+            + "      \"low_freq_operator\" : \"OR\",\n"
+            + "      \"cutoff_frequency\" : 0.001,\n"
+            + "      \"minimum_should_match\" : {\n"
+            + "        \"low_freq\" : \"2\",\n"
+            + "        \"high_freq\" : \"3\"\n"
+            + "      },\n"
+            + "      \"boost\" : 42.0\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
 
         CommonTermsQueryBuilder queryBuilder = (CommonTermsQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
@@ -205,26 +208,26 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json = "{\n" +
-                "  \"common\" : {\n" +
-                "    \"message1\" : {\n" +
-                "      \"query\" : \"nelly the elephant not as a cartoon\"\n" +
-                "    },\n" +
-                "    \"message2\" : {\n" +
-                "      \"query\" : \"nelly the elephant not as a cartoon\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"common\" : {\n"
+            + "    \"message1\" : {\n"
+            + "      \"query\" : \"nelly the elephant not as a cartoon\"\n"
+            + "    },\n"
+            + "    \"message2\" : {\n"
+            + "      \"query\" : \"nelly the elephant not as a cartoon\"\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
 
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[common] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
 
-        String shortJson = "{\n" +
-                "  \"common\" : {\n" +
-                "    \"message1\" : \"nelly the elephant not as a cartoon\",\n" +
-                "    \"message2\" : \"nelly the elephant not as a cartoon\"\n" +
-                "  }\n" +
-                "}";
+        String shortJson = "{\n"
+            + "  \"common\" : {\n"
+            + "    \"message1\" : \"nelly the elephant not as a cartoon\",\n"
+            + "    \"message2\" : \"nelly the elephant not as a cartoon\"\n"
+            + "  }\n"
+            + "}";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[common] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
 

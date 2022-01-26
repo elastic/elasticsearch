@@ -9,10 +9,9 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 import org.apache.http.client.config.RequestConfig;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-
 import org.junit.Before;
 
-import static org.mockito.Matchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -31,8 +30,8 @@ public class TimeoutRequestConfigCallbackTests extends ESTestCase {
 
     @Before
     public void configureTimeouts() {
-        when(connectTimeout.millis()).thenReturn((long)connectTimeoutMillis);
-        when(socketTimeout.millis()).thenReturn((long)socketTimeoutMillis);
+        when(connectTimeout.millis()).thenReturn((long) connectTimeoutMillis);
+        when(socketTimeout.millis()).thenReturn((long) socketTimeoutMillis);
     }
 
     public void testCustomizeRequestConfig() {

@@ -105,7 +105,7 @@ public class UUIDTests extends ESTestCase {
         for (UUIDGenRunner runner : runners) {
             globalSet.addAll(runner.uuidSet);
         }
-        assertEquals(count*uuids, globalSet.size());
+        assertEquals(count * uuids, globalSet.size());
     }
 
     public void testCompression() throws Exception {
@@ -142,9 +142,8 @@ public class UUIDTests extends ESTestCase {
         // Avoid randomization which will slow down things without improving
         // the quality of this test
         Directory dir = newFSDirectory(createTempDir());
-        IndexWriterConfig config = new IndexWriterConfig()
-                .setCodec(Codec.forName(Lucene.LATEST_CODEC))
-                .setMergeScheduler(new SerialMergeScheduler()); // for reproducibility
+        IndexWriterConfig config = new IndexWriterConfig().setCodec(Codec.forName(Lucene.LATEST_CODEC))
+            .setMergeScheduler(new SerialMergeScheduler()); // for reproducibility
         IndexWriter w = new IndexWriter(dir, config);
         Document doc = new Document();
         StringField id = new StringField("_id", "", Store.NO);
@@ -163,8 +162,18 @@ public class UUIDTests extends ESTestCase {
         }
         dir.close();
         double bytesPerDoc = (double) size / numDocs;
-        logger.info(numDocs + " docs indexed at " + numDocsPerSecond + " docs/s required " + new ByteSizeValue(size)
-                + " bytes of disk space, or " + bytesPerDoc + " bytes per document. Took: " + new TimeValue(time) + ".");
+        logger.info(
+            numDocs
+                + " docs indexed at "
+                + numDocsPerSecond
+                + " docs/s required "
+                + new ByteSizeValue(size)
+                + " bytes of disk space, or "
+                + bytesPerDoc
+                + " bytes per document. Took: "
+                + new TimeValue(time)
+                + "."
+        );
         return bytesPerDoc;
     }
 }

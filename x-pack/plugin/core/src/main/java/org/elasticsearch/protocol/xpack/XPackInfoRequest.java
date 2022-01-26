@@ -24,7 +24,9 @@ import java.util.Locale;
 public class XPackInfoRequest extends ActionRequest {
 
     public enum Category {
-        BUILD, LICENSE, FEATURES;
+        BUILD,
+        LICENSE,
+        FEATURES;
 
         public static EnumSet<Category> toSet(String... categories) {
             EnumSet<Category> set = EnumSet.noneOf(Category.class);
@@ -46,8 +48,7 @@ public class XPackInfoRequest extends ActionRequest {
     private EnumSet<Category> categories = EnumSet.noneOf(Category.class);
     private int licenseVersion = License.VERSION_CURRENT;
 
-    public XPackInfoRequest() {
-    }
+    public XPackInfoRequest() {}
 
     public XPackInfoRequest(StreamInput in) throws IOException {
         // NOTE: this does *not* call super, THIS IS A BUG that will be fixed in 8.x

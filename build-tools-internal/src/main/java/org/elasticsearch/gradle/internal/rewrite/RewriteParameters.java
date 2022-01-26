@@ -17,10 +17,14 @@ import java.io.File;
 public interface RewriteParameters extends WorkParameters {
 
     ListProperty<String> getActiveRecipes();
+
     ListProperty<String> getActiveStyles();
 
     ListProperty<File> getAllJavaPaths();
+
     ListProperty<File> getAllDependencyPaths();
+
     RegularFileProperty getProjectDirectory();
+
     RegularFileProperty getConfigFile();
 }

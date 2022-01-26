@@ -18,23 +18,19 @@ import java.util.Collections;
 public class WildcardFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new WildcardFieldMapper.Builder("field", Version.CURRENT)
-            .build(MapperBuilderContext.ROOT)
-            .fieldType();
+        MappedFieldType mapper = new WildcardFieldMapper.Builder("field", Version.CURRENT).build(MapperBuilderContext.ROOT).fieldType();
         assertEquals(Collections.singletonList("value"), fetchSourceValue(mapper, "value"));
         assertEquals(Collections.singletonList("42"), fetchSourceValue(mapper, 42L));
         assertEquals(Collections.singletonList("true"), fetchSourceValue(mapper, true));
 
-        MappedFieldType ignoreAboveMapper = new WildcardFieldMapper.Builder("field", Version.CURRENT)
-            .ignoreAbove(4)
+        MappedFieldType ignoreAboveMapper = new WildcardFieldMapper.Builder("field", Version.CURRENT).ignoreAbove(4)
             .build(MapperBuilderContext.ROOT)
             .fieldType();
         assertEquals(Collections.emptyList(), fetchSourceValue(ignoreAboveMapper, "value"));
         assertEquals(Collections.singletonList("42"), fetchSourceValue(ignoreAboveMapper, 42L));
         assertEquals(Collections.singletonList("true"), fetchSourceValue(ignoreAboveMapper, true));
 
-        MappedFieldType nullValueMapper = new WildcardFieldMapper.Builder("field", Version.CURRENT)
-            .nullValue("NULL")
+        MappedFieldType nullValueMapper = new WildcardFieldMapper.Builder("field", Version.CURRENT).nullValue("NULL")
             .build(MapperBuilderContext.ROOT)
             .fieldType();
         assertEquals(Collections.singletonList("NULL"), fetchSourceValue(nullValueMapper, null));

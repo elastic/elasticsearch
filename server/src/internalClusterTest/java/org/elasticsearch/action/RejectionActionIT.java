@@ -33,16 +33,15 @@ public class RejectionActionIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put("thread_pool.search.size", 1)
-                .put("thread_pool.search.queue_size", 1)
-                .put("thread_pool.write.size", 1)
-                .put("thread_pool.write.queue_size", 1)
-                .put("thread_pool.get.size", 1)
-                .put("thread_pool.get.queue_size", 1)
-                .build();
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("thread_pool.search.size", 1)
+            .put("thread_pool.search.queue_size", 1)
+            .put("thread_pool.write.size", 1)
+            .put("thread_pool.write.queue_size", 1)
+            .put("thread_pool.get.size", 1)
+            .put("thread_pool.get.queue_size", 1)
+            .build();
     }
-
 
     public void testSimulatedSearchRejectionLoad() throws Throwable {
         for (int i = 0; i < 10; i++) {
@@ -54,30 +53,31 @@ public class RejectionActionIT extends ESIntegTestCase {
         final CopyOnWriteArrayList<Object> responses = new CopyOnWriteArrayList<>();
         for (int i = 0; i < numberOfAsyncOps; i++) {
             client().prepareSearch("test")
-                    .setSearchType(SearchType.QUERY_THEN_FETCH)
-                    .setQuery(QueryBuilders.matchQuery("field", "1"))
-                    .execute(new LatchedActionListener<>(new ActionListener<SearchResponse>() {
-                        @Override
-                        public void onResponse(SearchResponse searchResponse) {
-                            responses.add(searchResponse);
-                        }
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(QueryBuilders.matchQuery("field", "1"))
+                .execute(new LatchedActionListener<>(new ActionListener<SearchResponse>() {
+                    @Override
+                    public void onResponse(SearchResponse searchResponse) {
+                        responses.add(searchResponse);
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            responses.add(e);
-                        }
-                    }, latch));
+                    @Override
+                    public void onFailure(Exception e) {
+                        responses.add(e);
+                    }
+                }, latch));
         }
         latch.await();
-
 
         // validate all responses
         for (Object response : responses) {
             if (response instanceof SearchResponse) {
                 SearchResponse searchResponse = (SearchResponse) response;
                 for (ShardSearchFailure failure : searchResponse.getShardFailures()) {
-                    assertThat(failure.reason().toLowerCase(Locale.ENGLISH),
-                        anyOf(containsString("cancelled"), containsString("rejected")));
+                    assertThat(
+                        failure.reason().toLowerCase(Locale.ENGLISH),
+                        anyOf(containsString("cancelled"), containsString("rejected"))
+                    );
                 }
             } else {
                 Exception t = (Exception) response;
@@ -85,8 +85,10 @@ public class RejectionActionIT extends ESIntegTestCase {
                 if (unwrap instanceof SearchPhaseExecutionException) {
                     SearchPhaseExecutionException e = (SearchPhaseExecutionException) unwrap;
                     for (ShardSearchFailure failure : e.shardFailures()) {
-                        assertThat(failure.reason().toLowerCase(Locale.ENGLISH),
-                            anyOf(containsString("cancelled"), containsString("rejected")));
+                        assertThat(
+                            failure.reason().toLowerCase(Locale.ENGLISH),
+                            anyOf(containsString("cancelled"), containsString("rejected"))
+                        );
                     }
                 } else if ((unwrap instanceof EsRejectedExecutionException) == false) {
                     throw new AssertionError("unexpected failure", (Throwable) response);

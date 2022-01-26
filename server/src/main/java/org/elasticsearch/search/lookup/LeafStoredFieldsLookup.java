@@ -26,7 +26,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.singletonMap;
 
-@SuppressWarnings({"unchecked", "rawtypes"})
+@SuppressWarnings({ "unchecked", "rawtypes" })
 public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
 
     private final Function<String, MappedFieldType> fieldTypeLookup;
@@ -36,8 +36,10 @@ public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
 
     private final Map<String, FieldLookup> cachedFieldData = new HashMap<>();
 
-    LeafStoredFieldsLookup(Function<String, MappedFieldType> fieldTypeLookup,
-                           CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader) {
+    LeafStoredFieldsLookup(
+        Function<String, MappedFieldType> fieldTypeLookup,
+        CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader
+    ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.reader = reader;
     }
@@ -130,7 +132,7 @@ public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
             List<Object> values;
             if (TypeFieldMapper.NAME.equals(fieldType.name())) {
                 TypeFieldMapper.emitTypesDeprecationWarning();
-                values = Collections.singletonList(((TypeFieldMapper.TypeFieldType)fieldType).getType());
+                values = Collections.singletonList(((TypeFieldMapper.TypeFieldType) fieldType).getType());
             } else {
                 values = new ArrayList<>(2);
                 SingleFieldsVisitor visitor = new SingleFieldsVisitor(fieldType, values);

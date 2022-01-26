@@ -7,14 +7,12 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-
 /**
  * Unbounded geohash aggregation. It accepts any hash.
  */
 public class UnboundedGeoHashGridTiler extends AbstractGeoHashGridTiler {
 
     private final long maxHashes;
-
 
     public UnboundedGeoHashGridTiler(int precision) {
         super(precision);
@@ -23,7 +21,7 @@ public class UnboundedGeoHashGridTiler extends AbstractGeoHashGridTiler {
 
     @Override
     protected boolean validHash(String hash) {
-       return true;
+        return true;
     }
 
     @Override

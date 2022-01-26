@@ -8,13 +8,13 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.core.List;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.List;
 
 import java.util.Arrays;
 
@@ -28,11 +28,15 @@ public final class DestructiveOperations {
     /**
      * Setting which controls whether wildcard usage (*, prefix*, _all) is allowed.
      */
-    public static final Setting<Boolean> REQUIRES_NAME_SETTING =
-        Setting.boolSetting("action.destructive_requires_name", false, Property.Dynamic, Property.NodeScope);
+    public static final Setting<Boolean> REQUIRES_NAME_SETTING = Setting.boolSetting(
+        "action.destructive_requires_name",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
-    static final String DESTRUCTIVE_REQUIRES_NAME_DEPRECATION_WARNING = "setting [action.destructive_requires_name] will " +
-        "default to true in 8.0, set explicitly to false to preserve current behavior";
+    static final String DESTRUCTIVE_REQUIRES_NAME_DEPRECATION_WARNING = "setting [action.destructive_requires_name] will "
+        + "default to true in 8.0, set explicitly to false to preserve current behavior";
 
     /**
      * The "match none" pattern, "*,-*", will never actually be destructive
@@ -41,7 +45,7 @@ public final class DestructiveOperations {
      * core code in order to indicate that an operation won't run on any
      * indices, relying on the core code to handle this situation.
      */
-    private static final String[] MATCH_NONE_PATTERN = {"*", "-*"};
+    private static final String[] MATCH_NONE_PATTERN = { "*", "-*" };
     private volatile boolean destructiveRequiresName;
 
     private volatile boolean isDestructiveRequiresNameSet;
@@ -49,10 +53,7 @@ public final class DestructiveOperations {
     public DestructiveOperations(Settings settings, ClusterSettings clusterSettings) {
         destructiveRequiresName = REQUIRES_NAME_SETTING.get(settings);
         isDestructiveRequiresNameSet = REQUIRES_NAME_SETTING.exists(settings);
-        clusterSettings.addSettingsUpdateConsumer(
-            this::setDestructiveRequiresName,
-            List.of(REQUIRES_NAME_SETTING)
-        );
+        clusterSettings.addSettingsUpdateConsumer(this::setDestructiveRequiresName, List.of(REQUIRES_NAME_SETTING));
     }
 
     private void setDestructiveRequiresName(Settings settings) {

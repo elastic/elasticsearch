@@ -74,8 +74,11 @@ public class UnusedStatsRemover implements MlDataRemover {
     private Set<String> getDataFrameAnalyticsJobIds() {
         Set<String> jobIds = new HashSet<>();
 
-        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(client, MlConfigIndex.indexName(),
-            QueryBuilders.termQuery(DataFrameAnalyticsConfig.CONFIG_TYPE.getPreferredName(), DataFrameAnalyticsConfig.TYPE));
+        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(
+            client,
+            MlConfigIndex.indexName(),
+            QueryBuilders.termQuery(DataFrameAnalyticsConfig.CONFIG_TYPE.getPreferredName(), DataFrameAnalyticsConfig.TYPE)
+        );
         while (iterator.hasNext()) {
             Deque<String> docIds = iterator.next();
             docIds.stream().map(DataFrameAnalyticsConfig::extractJobIdFromDocId).filter(Objects::nonNull).forEach(jobIds::add);
@@ -86,8 +89,11 @@ public class UnusedStatsRemover implements MlDataRemover {
     private Set<String> getTrainedModelIds() {
         Set<String> modelIds = new HashSet<>(TrainedModelProvider.MODELS_STORED_AS_RESOURCE);
 
-        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(client, InferenceIndexConstants.INDEX_PATTERN,
-            QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelConfig.NAME));
+        DocIdBatchedDocumentIterator iterator = new DocIdBatchedDocumentIterator(
+            client,
+            InferenceIndexConstants.INDEX_PATTERN,
+            QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelConfig.NAME)
+        );
         while (iterator.hasNext()) {
             Deque<String> docIds = iterator.next();
             docIds.stream().filter(Objects::nonNull).forEach(modelIds::add);
@@ -96,29 +102,26 @@ public class UnusedStatsRemover implements MlDataRemover {
     }
 
     private void executeDeleteUnusedStatsDocs(QueryBuilder dbq, float requestsPerSec, ActionListener<Boolean> listener) {
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(MlStatsIndex.indexPattern())
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setAbortOnVersionConflict(false)
-            .setRequestsPerSecond(requestsPerSec)
-            .setTimeout(DEFAULT_MAX_DURATION)
-            .setQuery(dbq);
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(MlStatsIndex.indexPattern()).setIndicesOptions(
+            IndicesOptions.lenientExpandOpen()
+        ).setAbortOnVersionConflict(false).setRequestsPerSecond(requestsPerSec).setTimeout(DEFAULT_MAX_DURATION).setQuery(dbq);
         deleteByQueryRequest.setParentTask(parentTaskId);
 
-        client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
-            response -> {
-                if (response.getBulkFailures().size() > 0 || response.getSearchFailures().size() > 0) {
-                    LOGGER.error("Some unused stats documents could not be deleted due to failures: {}",
-                        Strings.collectionToCommaDelimitedString(response.getBulkFailures()) +
-                            "," + Strings.collectionToCommaDelimitedString(response.getSearchFailures()));
-                } else {
-                    LOGGER.info("Successfully deleted [{}] unused stats documents", response.getDeleted());
-                }
-                listener.onResponse(true);
-            },
-            e -> {
-                LOGGER.error("Error deleting unused model stats documents: ", e);
-                listener.onFailure(e);
+        client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(response -> {
+            if (response.getBulkFailures().size() > 0 || response.getSearchFailures().size() > 0) {
+                LOGGER.error(
+                    "Some unused stats documents could not be deleted due to failures: {}",
+                    Strings.collectionToCommaDelimitedString(response.getBulkFailures())
+                        + ","
+                        + Strings.collectionToCommaDelimitedString(response.getSearchFailures())
+                );
+            } else {
+                LOGGER.info("Successfully deleted [{}] unused stats documents", response.getDeleted());
             }
-        ));
+            listener.onResponse(true);
+        }, e -> {
+            LOGGER.error("Error deleting unused model stats documents: ", e);
+            listener.onFailure(e);
+        }));
     }
 }

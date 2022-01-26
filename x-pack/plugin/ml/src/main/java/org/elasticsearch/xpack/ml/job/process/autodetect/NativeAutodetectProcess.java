@@ -43,9 +43,14 @@ class NativeAutodetectProcess extends AbstractNativeProcess implements Autodetec
 
     private final ProcessResultsParser<AutodetectResult> resultsParser;
 
-    NativeAutodetectProcess(String jobId, ProcessPipes processPipes,
-                            int numberOfFields, List<Path> filesToDelete,
-                            ProcessResultsParser<AutodetectResult> resultsParser, Consumer<String> onProcessCrash) {
+    NativeAutodetectProcess(
+        String jobId,
+        ProcessPipes processPipes,
+        int numberOfFields,
+        List<Path> filesToDelete,
+        ProcessResultsParser<AutodetectResult> resultsParser,
+        Consumer<String> onProcessCrash
+    ) {
         super(jobId, processPipes, numberOfFields, filesToDelete, onProcessCrash);
         this.resultsParser = resultsParser;
     }

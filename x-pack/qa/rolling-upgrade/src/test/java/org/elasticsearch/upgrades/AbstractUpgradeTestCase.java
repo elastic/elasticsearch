@@ -24,11 +24,12 @@ import java.util.stream.Collectors;
 
 public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
 
-    private static final String BASIC_AUTH_VALUE =
-            basicAuthHeaderValue("test_user", new SecureString(SecuritySettingsSourceField.TEST_PASSWORD));
+    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
+        "test_user",
+        new SecureString(SecuritySettingsSourceField.TEST_PASSWORD)
+    );
 
-    protected static final Version UPGRADE_FROM_VERSION =
-        Version.fromString(System.getProperty("tests.upgrade_from_version"));
+    protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     @Override
     protected boolean preserveIndicesUponCompletion() {
@@ -94,14 +95,14 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
+            .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
 
-                // increase the timeout here to 90 seconds to handle long waits for a green
-                // cluster health. the waits for green need to be longer than a minute to
-                // account for delayed shards
-                .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
+            // increase the timeout here to 90 seconds to handle long waits for a green
+            // cluster health. the waits for green need to be longer than a minute to
+            // account for delayed shards
+            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
 
-                .build();
+            .build();
     }
 
     protected Collection<String> templatesToWaitFor() {

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common.cache;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.Tuple;
 
 import java.lang.reflect.Array;
 import java.util.HashMap;
@@ -89,12 +89,10 @@ public class Cache<K, V> {
     private ToLongBiFunction<K, V> weigher = (k, v) -> 1;
 
     // the removal callback
-    private RemovalListener<K, V> removalListener = notification -> {
-    };
+    private RemovalListener<K, V> removalListener = notification -> {};
 
     // use CacheBuilder to construct
-    Cache() {
-    }
+    Cache() {}
 
     void setExpireAfterAccessNanos(long expireAfterAccessNanos) {
         if (expireAfterAccessNanos <= 0) {
@@ -152,7 +150,9 @@ public class Cache<K, V> {
 
     // the state of an entry in the LRU list
     enum State {
-        NEW, EXISTING, DELETED
+        NEW,
+        EXISTING,
+        DELETED
     }
 
     private static final class Entry<K, V> {
@@ -471,8 +471,9 @@ public class Cache<K, V> {
             promote(tuple.v1(), now);
         }
         if (replaced) {
-            removalListener.onRemoval(new RemovalNotification<>(tuple.v2().key, tuple.v2().value,
-                RemovalNotification.RemovalReason.REPLACED));
+            removalListener.onRemoval(
+                new RemovalNotification<>(tuple.v2().key, tuple.v2().value, RemovalNotification.RemovalReason.REPLACED)
+            );
         }
     }
 
@@ -789,8 +790,8 @@ public class Cache<K, V> {
     }
 
     private boolean isExpired(Entry<K, V> entry, long now) {
-        return (entriesExpireAfterAccess && now - entry.accessTime > expireAfterAccessNanos) ||
-                (entriesExpireAfterWrite && now - entry.writeTime > expireAfterWriteNanos);
+        return (entriesExpireAfterAccess && now - entry.accessTime > expireAfterAccessNanos)
+            || (entriesExpireAfterWrite && now - entry.writeTime > expireAfterWriteNanos);
     }
 
     private boolean unlink(Entry<K, V> entry) {

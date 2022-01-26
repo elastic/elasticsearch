@@ -40,14 +40,6 @@ Elasticsearch website or from our RPM repository.
 +
 <<rpm>>
 
-`msi`::
-
-beta[] The `msi` package is suitable for installation on Windows 64-bit systems with at least
-.NET 4.5 framework installed, and is the easiest choice for getting started with
-Elasticsearch on Windows. MSIs may be downloaded from the Elasticsearch website.
-+
-<<windows>>
-
 `docker`::
 
 Images are available for running Elasticsearch as Docker containers. They may be
@@ -62,19 +54,6 @@ Formulae are available from the Elastic Homebrew tap for installing
 +
 {ref}/brew.html[Install {es} on macOS with Homebrew]
 
-[discrete]
-[[config-mgmt-tools]]
-=== Configuration Management Tools
-
-We also provide the following configuration management tools to help with
-large deployments:
-
-[horizontal]
-Puppet:: https://github.com/elastic/puppet-elasticsearch[puppet-elasticsearch]
-Chef::   https://github.com/elastic/cookbook-elasticsearch[cookbook-elasticsearch]
-Ansible:: https://github.com/elastic/ansible-elasticsearch[ansible-elasticsearch]
-
-
 include::install/targz.asciidoc[]
 
 include::install/zip-windows.asciidoc[]
@@ -82,8 +61,6 @@ include::install/zip-windows.asciidoc[]
 include::install/deb.asciidoc[]
 
 include::install/rpm.asciidoc[]
-
-include::install/windows.asciidoc[]
 
 include::install/docker.asciidoc[]
 

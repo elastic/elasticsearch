@@ -23,12 +23,12 @@ public class StringTests extends ScriptTestCase {
         // boolean
         assertEquals("cat" + true, exec("String s = \"cat\"; return s + true;"));
         // byte
-        assertEquals("cat" + (byte)3, exec("String s = \"cat\"; return s + (byte)3;"));
+        assertEquals("cat" + (byte) 3, exec("String s = \"cat\"; return s + (byte)3;"));
         // short
-        assertEquals("cat" + (short)3, exec("String s = \"cat\"; return s + (short)3;"));
+        assertEquals("cat" + (short) 3, exec("String s = \"cat\"; return s + (short)3;"));
         // char
         assertEquals("cat" + 't', exec("String s = \"cat\"; return s + 't';"));
-        assertEquals("cat" + (char)40, exec("String s = \"cat\"; return s + (char)40;"));
+        assertEquals("cat" + (char) 40, exec("String s = \"cat\"; return s + (char)40;"));
         // int
         assertEquals("cat" + 2, exec("String s = \"cat\"; return s + 2;"));
         // long
@@ -43,12 +43,12 @@ public class StringTests extends ScriptTestCase {
         // boolean
         assertEquals("cat" + true, exec("String s = 'cat'; return s + true;"));
         // byte
-        assertEquals("cat" + (byte)3, exec("String s = 'cat'; return s + (byte)3;"));
+        assertEquals("cat" + (byte) 3, exec("String s = 'cat'; return s + (byte)3;"));
         // short
-        assertEquals("cat" + (short)3, exec("String s = 'cat'; return s + (short)3;"));
+        assertEquals("cat" + (short) 3, exec("String s = 'cat'; return s + (short)3;"));
         // char
         assertEquals("cat" + 't', exec("String s = 'cat'; return s + 't';"));
-        assertEquals("cat" + (char)40, exec("String s = 'cat'; return s + (char)40;"));
+        assertEquals("cat" + (char) 40, exec("String s = 'cat'; return s + (char)40;"));
         // int
         assertEquals("cat" + 2, exec("String s = 'cat'; return s + 2;"));
         // long
@@ -80,8 +80,10 @@ public class StringTests extends ScriptTestCase {
             result.append(s);
         }
         final String s = script.toString();
-        assertTrue("every string part should be separately pushed to stack.",
-                Debugger.toString(s).contains(String.format(Locale.ROOT, "LDC \"%03d\"", count/2)));
+        assertTrue(
+            "every string part should be separately pushed to stack.",
+            Debugger.toString(s).contains(String.format(Locale.ROOT, "LDC \"%03d\"", count / 2))
+        );
         assertEquals(result.toString(), exec(s));
     }
 
@@ -102,7 +104,7 @@ public class StringTests extends ScriptTestCase {
         assertEquals("cdcde", exec("String t = \"abcde\"; return t.replace(\"ab\", \"cd\");"));
         assertEquals(false, exec("String s = \"xy\"; return s.startsWith(\"y\");"));
         assertEquals("e", exec("String t = \"abcde\"; return t.substring(4, 5);"));
-        assertEquals(97, ((char[])exec("String s = \"a\"; return s.toCharArray();"))[0]);
+        assertEquals(97, ((char[]) exec("String s = \"a\"; return s.toCharArray();"))[0]);
         assertEquals("a", exec("String s = \" a \"; return s.trim();"));
         assertEquals('x', exec("return \"x\".charAt(0);"));
         assertEquals(120, exec("return \"x\".codePointAt(0);"));
@@ -115,7 +117,7 @@ public class StringTests extends ScriptTestCase {
         assertEquals("cdcde", exec("return \"abcde\".replace(\"ab\", \"cd\");"));
         assertEquals(false, exec("return \"xy\".startsWith(\"y\");"));
         assertEquals("e", exec("return \"abcde\".substring(4, 5);"));
-        assertEquals(97, ((char[])exec("return \"a\".toCharArray();"))[0]);
+        assertEquals(97, ((char[]) exec("return \"a\".toCharArray();"))[0]);
         assertEquals("a", exec("return \" a \".trim();"));
 
         assertEquals("", exec("return new String();"));
@@ -130,7 +132,7 @@ public class StringTests extends ScriptTestCase {
         assertEquals("cdcde", exec("String t = 'abcde'; return t.replace('ab', 'cd');"));
         assertEquals(false, exec("String s = 'xy'; return s.startsWith('y');"));
         assertEquals("e", exec("String t = 'abcde'; return t.substring(4, 5);"));
-        assertEquals(97, ((char[])exec("String s = 'a'; return s.toCharArray();"))[0]);
+        assertEquals(97, ((char[]) exec("String s = 'a'; return s.toCharArray();"))[0]);
         assertEquals("a", exec("String s = ' a '; return s.trim();"));
         assertEquals('x', exec("return 'x'.charAt(0);"));
         assertEquals(120, exec("return 'x'.codePointAt(0);"));
@@ -143,7 +145,7 @@ public class StringTests extends ScriptTestCase {
         assertEquals("cdcde", exec("return 'abcde'.replace('ab', 'cd');"));
         assertEquals(false, exec("return 'xy'.startsWith('y');"));
         assertEquals("e", exec("return 'abcde'.substring(4, 5);"));
-        assertEquals(97, ((char[])exec("return 'a'.toCharArray();"))[0]);
+        assertEquals(97, ((char[]) exec("return 'a'.toCharArray();"))[0]);
         assertEquals("a", exec("return ' a '.trim();"));
     }
 
@@ -156,54 +158,48 @@ public class StringTests extends ScriptTestCase {
         assertEquals('c', exec("String s = \"c\"; (char)s"));
         assertEquals('c', exec("String s = 'c'; (char)s"));
 
-        ClassCastException expected = expectScriptThrows(ClassCastException.class, false, () -> {
-            assertEquals("cc", exec("return (String)(char)\"cc\""));
-        });
+        ClassCastException expected = expectScriptThrows(
+            ClassCastException.class,
+            false,
+            () -> { assertEquals("cc", exec("return (String)(char)\"cc\"")); }
+        );
         assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));
 
-        expected = expectScriptThrows(ClassCastException.class, false, () -> {
-            assertEquals("cc", exec("return (String)(char)'cc'"));
-        });
+        expected = expectScriptThrows(ClassCastException.class, false, () -> { assertEquals("cc", exec("return (String)(char)'cc'")); });
         assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));
 
-        expected = expectScriptThrows(ClassCastException.class, () -> {
-            assertEquals('c', exec("String s = \"cc\"; (char)s"));
-        });
+        expected = expectScriptThrows(ClassCastException.class, () -> { assertEquals('c', exec("String s = \"cc\"; (char)s")); });
         assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));
 
-        expected = expectScriptThrows(ClassCastException.class, () -> {
-            assertEquals('c', exec("String s = 'cc'; (char)s"));
-        });
+        expected = expectScriptThrows(ClassCastException.class, () -> { assertEquals('c', exec("String s = 'cc'; (char)s")); });
         assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));
     }
 
     public void testDefConcat() {
-        assertEquals("a" + (byte)2, exec("def x = 'a'; def y = (byte)2; return x + y"));
-        assertEquals("a" + (short)2, exec("def x = 'a'; def y = (short)2; return x + y"));
-        assertEquals("a" + (char)2, exec("def x = 'a'; def y = (char)2; return x + y"));
+        assertEquals("a" + (byte) 2, exec("def x = 'a'; def y = (byte)2; return x + y"));
+        assertEquals("a" + (short) 2, exec("def x = 'a'; def y = (short)2; return x + y"));
+        assertEquals("a" + (char) 2, exec("def x = 'a'; def y = (char)2; return x + y"));
         assertEquals("a" + 2, exec("def x = 'a'; def y = (int)2; return x + y"));
         assertEquals("a" + 2L, exec("def x = 'a'; def y = (long)2; return x + y"));
         assertEquals("a" + 2F, exec("def x = 'a'; def y = (float)2; return x + y"));
         assertEquals("a" + 2D, exec("def x = 'a'; def y = (double)2; return x + y"));
         assertEquals("ab", exec("def x = 'a'; def y = 'b'; return x + y"));
-        assertEquals((byte)2 + "a", exec("def x = 'a'; def y = (byte)2; return y + x"));
-        assertEquals((short)2 + "a", exec("def x = 'a'; def y = (short)2; return y + x"));
-        assertEquals((char)2 + "a", exec("def x = 'a'; def y = (char)2; return y + x"));
+        assertEquals((byte) 2 + "a", exec("def x = 'a'; def y = (byte)2; return y + x"));
+        assertEquals((short) 2 + "a", exec("def x = 'a'; def y = (short)2; return y + x"));
+        assertEquals((char) 2 + "a", exec("def x = 'a'; def y = (char)2; return y + x"));
         assertEquals(2 + "a", exec("def x = 'a'; def y = (int)2; return y + x"));
         assertEquals(2L + "a", exec("def x = 'a'; def y = (long)2; return y + x"));
         assertEquals(2F + "a", exec("def x = 'a'; def y = (float)2; return y + x"));
         assertEquals(2D + "a", exec("def x = 'a'; def y = (double)2; return y + x"));
         assertEquals("anull", exec("def x = 'a'; def y = null; return x + y"));
         assertEquals("nullb", exec("def x = null; def y = 'b'; return x + y"));
-        expectScriptThrows(NullPointerException.class, () -> {
-            exec("def x = null; def y = null; return x + y");
-        });
+        expectScriptThrows(NullPointerException.class, () -> { exec("def x = null; def y = null; return x + y"); });
     }
 
     public void testDefCompoundAssignment() {
-        assertEquals("a" + (byte)2, exec("def x = 'a'; x += (byte)2; return x"));
-        assertEquals("a" + (short)2, exec("def x = 'a'; x  += (short)2; return x"));
-        assertEquals("a" + (char)2, exec("def x = 'a'; x += (char)2; return x"));
+        assertEquals("a" + (byte) 2, exec("def x = 'a'; x += (byte)2; return x"));
+        assertEquals("a" + (short) 2, exec("def x = 'a'; x  += (short)2; return x"));
+        assertEquals("a" + (char) 2, exec("def x = 'a'; x += (char)2; return x"));
         assertEquals("a" + 2, exec("def x = 'a'; x += (int)2; return x"));
         assertEquals("a" + 2L, exec("def x = 'a'; x += (long)2; return x"));
         assertEquals("a" + 2F, exec("def x = 'a'; x += (float)2; return x"));
@@ -211,9 +207,7 @@ public class StringTests extends ScriptTestCase {
         assertEquals("ab", exec("def x = 'a'; def y = 'b'; x += y; return x"));
         assertEquals("anull", exec("def x = 'a'; x += null; return x"));
         assertEquals("nullb", exec("def x = null; x += 'b'; return x"));
-        expectScriptThrows(NullPointerException.class, () -> {
-            exec("def x = null; def y = null; x += y");
-        });
+        expectScriptThrows(NullPointerException.class, () -> { exec("def x = null; def y = null; x += y"); });
     }
 
     public void testComplexCompoundAssignment() {
@@ -244,15 +238,19 @@ public class StringTests extends ScriptTestCase {
     public void testJava9ConstantStringConcatBytecode() {
         assumeTrue("Needs Java 9 to test indified String concat", Constants.JRE_IS_MINIMUM_JAVA9);
         assertNotNull(WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
-        assertBytecodeExists("String s = \"cat\"; return s + true + 'abc' + null;",
-                "INVOKEDYNAMIC concat(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+        assertBytecodeExists(
+            "String s = \"cat\"; return s + true + 'abc' + null;",
+            "INVOKEDYNAMIC concat(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;"
+        );
     }
 
     public void testJava9StringConcatBytecode() {
         assumeTrue("Needs Java 9 to test indified String concat", Constants.JRE_IS_MINIMUM_JAVA9);
         assertNotNull(WriterConstants.INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
-        assertBytecodeExists("String s = \"cat\"; boolean t = true; Object u = null; return s + t + 'abc' + u;",
-                "INVOKEDYNAMIC concat(Ljava/lang/String;ZLjava/lang/String;Ljava/lang/Object;)Ljava/lang/String;");
+        assertBytecodeExists(
+            "String s = \"cat\"; boolean t = true; Object u = null; return s + t + 'abc' + u;",
+            "INVOKEDYNAMIC concat(Ljava/lang/String;ZLjava/lang/String;Ljava/lang/Object;)Ljava/lang/String;"
+        );
     }
 
     public void testNullStringConcat() {

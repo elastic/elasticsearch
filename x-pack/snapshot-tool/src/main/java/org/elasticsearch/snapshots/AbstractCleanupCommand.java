@@ -9,6 +9,7 @@ package org.elasticsearch.snapshots;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandLoggingConfigurator;
@@ -29,10 +30,12 @@ public abstract class AbstractCleanupCommand extends Command {
         basePathOption = parser.accepts("base_path", "Base path").withRequiredArg();
 
         safetyGapMillisOption = parser.accepts("safety_gap_millis", "Safety gap to account for clock drift")
-                .withRequiredArg().ofType(Long.class);
+            .withRequiredArg()
+            .ofType(Long.class);
 
         parallelismOption = parser.accepts("parallelism", "How many threads to use to talk to cloud provider")
-                .withRequiredArg().ofType(Integer.class);
+            .withRequiredArg()
+            .ofType(Integer.class);
     }
 
     // package-private for testing

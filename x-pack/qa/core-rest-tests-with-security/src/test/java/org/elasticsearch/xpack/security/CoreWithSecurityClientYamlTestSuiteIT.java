@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -37,10 +38,6 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
-        return Settings.builder()
-                .put(super.restClientSettings())
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build();
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }
-

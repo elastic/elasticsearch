@@ -37,11 +37,14 @@ public class RestIndicesStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_stats"),
-            new Route(GET, "/_stats/{metric}"),
-            new Route(GET, "/{index}/_stats"),
-            new Route(GET, "/{index}/_stats/{metric}")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_stats"),
+                new Route(GET, "/_stats/{metric}"),
+                new Route(GET, "/{index}/_stats"),
+                new Route(GET, "/{index}/_stats/{metric}")
+            )
+        );
     }
 
     @Override
@@ -68,10 +71,11 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         boolean forbidClosedIndices = request.paramAsBoolean("forbid_closed_indices", true);
-        IndicesOptions defaultIndicesOption = forbidClosedIndices ? indicesStatsRequest.indicesOptions()
+        IndicesOptions defaultIndicesOption = forbidClosedIndices
+            ? indicesStatsRequest.indicesOptions()
             : IndicesOptions.strictExpandOpen();
-        assert indicesStatsRequest.indicesOptions() == IndicesOptions.strictExpandOpenAndForbidClosed() : "IndicesStats default indices " +
-            "options changed";
+        assert indicesStatsRequest.indicesOptions() == IndicesOptions.strictExpandOpenAndForbidClosed()
+            : "IndicesStats default indices " + "options changed";
         indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, defaultIndicesOption));
         indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         indicesStatsRequest.types(Strings.splitStringByCommaToArray(request.param("types")));
@@ -82,10 +86,13 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.all();
         } else if (metrics.contains("_all")) {
             throw new IllegalArgumentException(
-                String.format(Locale.ROOT,
+                String.format(
+                    Locale.ROOT,
                     "request [%s] contains _all and individual metrics [%s]",
                     request.path(),
-                    request.param("metric")));
+                    request.param("metric")
+                )
+            );
         } else {
             indicesStatsRequest.clear();
             // use a sorted set so the unrecognized parameters appear in a reliable sorted order
@@ -114,12 +121,14 @@ public class RestIndicesStatsAction extends BaseRestHandler {
 
         if (indicesStatsRequest.completion() && (request.hasParam("fields") || request.hasParam("completion_fields"))) {
             indicesStatsRequest.completionFields(
-                    request.paramAsStringArray("completion_fields", request.paramAsStringArray("fields", Strings.EMPTY_ARRAY)));
+                request.paramAsStringArray("completion_fields", request.paramAsStringArray("fields", Strings.EMPTY_ARRAY))
+            );
         }
 
         if (indicesStatsRequest.fieldData() && (request.hasParam("fields") || request.hasParam("fielddata_fields"))) {
             indicesStatsRequest.fieldDataFields(
-                    request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", Strings.EMPTY_ARRAY)));
+                request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", Strings.EMPTY_ARRAY))
+            );
         }
 
         if (indicesStatsRequest.segments()) {
@@ -127,8 +136,9 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.includeUnloadedSegments(request.paramAsBoolean("include_unloaded_segments", false));
         }
 
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel())
-                .admin().indices().stats(indicesStatsRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .indices()
+            .stats(indicesStatsRequest, new RestToXContentListener<>(channel));
     }
 
     @Override

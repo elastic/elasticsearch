@@ -28,27 +28,31 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
     protected Response createTestInstance() {
         int listSize = randomInt(10);
         List<Response.TrainedModelStats> trainedModelStats = Stream.generate(() -> randomAlphaOfLength(10))
-            .limit(listSize).map(id ->
-                new Response.TrainedModelStats(id,
+            .limit(listSize)
+            .map(
+                id -> new Response.TrainedModelStats(
+                    id,
                     randomBoolean() ? randomIngestStats() : null,
                     randomIntBetween(0, 10),
-                    randomBoolean() ? InferenceStatsTests.createTestInstance(id, null) : null)
+                    randomBoolean() ? InferenceStatsTests.createTestInstance(id, null) : null
+                )
             )
             .collect(Collectors.toList());
         return new Response(new QueryPage<>(trainedModelStats, randomLongBetween(listSize, 1000), RESULTS_FIELD));
     }
 
     private IngestStats randomIngestStats() {
-        List<String> pipelineIds = Stream.generate(()-> randomAlphaOfLength(10))
+        List<String> pipelineIds = Stream.generate(() -> randomAlphaOfLength(10))
             .limit(randomIntBetween(0, 10))
             .collect(Collectors.toList());
         return new IngestStats(
             new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
             pipelineIds.stream().map(id -> new IngestStats.PipelineStat(id, randomStats())).collect(Collectors.toList()),
-            pipelineIds.stream().collect(Collectors.toMap(Function.identity(), (v) -> randomProcessorStats())));
+            pipelineIds.stream().collect(Collectors.toMap(Function.identity(), (v) -> randomProcessorStats()))
+        );
     }
 
-    private IngestStats.Stats randomStats(){
+    private IngestStats.Stats randomStats() {
         return new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
@@ -73,36 +77,50 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
             List<Response.TrainedModelStats> stats = instance.getResources()
                 .results()
                 .stream()
-                .map(s -> new Response.TrainedModelStats(s.getModelId(),
-                    adjustForVersion(s.getIngestStats(), version),
-                    s.getPipelineCount(),
-                    null))
+                .map(
+                    s -> new Response.TrainedModelStats(
+                        s.getModelId(),
+                        adjustForVersion(s.getIngestStats(), version),
+                        s.getPipelineCount(),
+                        null
+                    )
+                )
                 .collect(Collectors.toList());
             return new Response(new QueryPage<>(stats, instance.getResources().count(), RESULTS_FIELD));
         }
         List<Response.TrainedModelStats> stats = instance.getResources()
             .results()
             .stream()
-            .map(s -> new Response.TrainedModelStats(s.getModelId(),
-                adjustForVersion(s.getIngestStats(), version),
-                s.getPipelineCount(),
-                InferenceStatsTests.mutateForVersion(s.getInferenceStats(), version)))
+            .map(
+                s -> new Response.TrainedModelStats(
+                    s.getModelId(),
+                    adjustForVersion(s.getIngestStats(), version),
+                    s.getPipelineCount(),
+                    InferenceStatsTests.mutateForVersion(s.getInferenceStats(), version)
+                )
+            )
             .collect(Collectors.toList());
         return new Response(new QueryPage<>(stats, instance.getResources().count(), RESULTS_FIELD));
     }
 
     IngestStats adjustForVersion(IngestStats stats, Version version) {
         if (version.before(Version.V_7_6_0)) {
-            return new IngestStats(stats.getTotalStats(),
+            return new IngestStats(
+                stats.getTotalStats(),
                 stats.getPipelineStats(),
                 stats.getProcessorStats()
                     .entrySet()
                     .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey,
-                        (kv) -> kv.getValue()
-                            .stream()
-                            .map(pstats -> new IngestStats.ProcessorStat(pstats.getName(), "_NOT_AVAILABLE", pstats.getStats()))
-                            .collect(Collectors.toList()))));
+                    .collect(
+                        Collectors.toMap(
+                            Map.Entry::getKey,
+                            (kv) -> kv.getValue()
+                                .stream()
+                                .map(pstats -> new IngestStats.ProcessorStat(pstats.getName(), "_NOT_AVAILABLE", pstats.getStats()))
+                                .collect(Collectors.toList())
+                        )
+                    )
+            );
         }
         return stats;
     }

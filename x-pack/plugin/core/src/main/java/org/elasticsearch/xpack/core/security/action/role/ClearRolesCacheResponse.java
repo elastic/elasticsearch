@@ -14,9 +14,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,7 +47,7 @@ public class ClearRolesCacheResponse extends BaseNodesResponse<ClearRolesCacheRe
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("nodes");
-        for (ClearRolesCacheResponse.Node node: getNodes()) {
+        for (ClearRolesCacheResponse.Node node : getNodes()) {
             builder.startObject(node.getNode().getId());
             builder.field("name", node.getNode().getName());
             builder.endObject();

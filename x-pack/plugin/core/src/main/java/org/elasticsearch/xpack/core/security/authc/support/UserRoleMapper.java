@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authc.support;
 import com.unboundid.ldap.sdk.DN;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.util.LDAPSDKUsageException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -59,14 +60,11 @@ public interface UserRoleMapper {
         private final Map<String, Object> metadata;
         private final RealmConfig realm;
 
-        public UserData(String username, @Nullable String dn, Collection<String> groups,
-                        Map<String, Object> metadata, RealmConfig realm) {
+        public UserData(String username, @Nullable String dn, Collection<String> groups, Map<String, Object> metadata, RealmConfig realm) {
             this.username = username;
             this.dn = dn;
-            this.groups = groups == null || groups.isEmpty()
-                    ? Collections.emptySet() : Collections.unmodifiableSet(new HashSet<>(groups));
-            this.metadata = metadata == null || metadata.isEmpty()
-                    ? Collections.emptyMap() : Collections.unmodifiableMap(metadata);
+            this.groups = groups == null || groups.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(new HashSet<>(groups));
+            this.metadata = metadata == null || metadata.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(metadata);
             this.realm = realm;
         }
 
@@ -84,9 +82,11 @@ public interface UserRoleMapper {
                 // null dn fields get the default NULL_PREDICATE
                 model.defineField("dn", dn, new DistinguishedNamePredicate(dn));
             }
-            model.defineField("groups", groups, groups.stream()
-                    .filter(group -> group != null)
-                    .<Predicate<FieldExpression.FieldValue>>map(DistinguishedNamePredicate::new)
+            model.defineField(
+                "groups",
+                groups,
+                groups.stream()
+                    .filter(group -> group != null).<Predicate<FieldExpression.FieldValue>>map(DistinguishedNamePredicate::new)
                     .reduce(Predicate::or)
                     .orElse(fieldValue -> false)
             );
@@ -97,13 +97,18 @@ public interface UserRoleMapper {
 
         @Override
         public String toString() {
-            return "UserData{" +
-                    "username:" + username +
-                    "; dn:" + dn +
-                    "; groups:" + groups +
-                    "; metadata:" + metadata +
-                    "; realm=" + realm.name() +
-                    '}';
+            return "UserData{"
+                + "username:"
+                + username
+                + "; dn:"
+                + dn
+                + "; groups:"
+                + groups
+                + "; metadata:"
+                + metadata
+                + "; realm="
+                + realm.name()
+                + '}';
         }
 
         /**
@@ -208,7 +213,10 @@ public interface UserRoleMapper {
                     return false;
                 }
 
-                assert fieldValue.getValue() instanceof String : "FieldValue " + fieldValue + " has automaton but value is "
+                assert fieldValue.getValue() instanceof String
+                    : "FieldValue "
+                        + fieldValue
+                        + " has automaton but value is "
                         + (fieldValue.getValue() == null ? "<null>" : fieldValue.getValue().getClass());
                 String pattern = (String) fieldValue.getValue();
 

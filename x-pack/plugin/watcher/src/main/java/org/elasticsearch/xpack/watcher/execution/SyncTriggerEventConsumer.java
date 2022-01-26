@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -31,11 +31,12 @@ public class SyncTriggerEventConsumer implements Consumer<Iterable<TriggerEvent>
             executionService.processEventsSync(events);
         } catch (Exception e) {
             logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to process triggered events [{}]",
-                            (Object) stream(events.spliterator(), false).toArray(size ->
-                                    new TriggerEvent[size])),
-                    e);
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "failed to process triggered events [{}]",
+                    (Object) stream(events.spliterator(), false).toArray(size -> new TriggerEvent[size])
+                ),
+                e
+            );
         }
     }
 }

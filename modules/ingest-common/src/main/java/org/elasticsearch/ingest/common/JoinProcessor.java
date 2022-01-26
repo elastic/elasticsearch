@@ -54,9 +54,7 @@ public final class JoinProcessor extends AbstractProcessor {
         if (list == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot join.");
         }
-        String joined = list.stream()
-                .map(Object::toString)
-                .collect(Collectors.joining(separator));
+        String joined = list.stream().map(Object::toString).collect(Collectors.joining(separator));
         document.setFieldValue(targetField, joined);
         return document;
     }
@@ -68,8 +66,12 @@ public final class JoinProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
         @Override
-        public JoinProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    String description, Map<String, Object> config) throws Exception {
+        public JoinProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String separator = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "separator");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);
@@ -77,4 +79,3 @@ public final class JoinProcessor extends AbstractProcessor {
         }
     }
 }
-

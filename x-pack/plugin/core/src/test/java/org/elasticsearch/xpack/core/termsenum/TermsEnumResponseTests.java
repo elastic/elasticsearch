@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.termsenum;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumResponse;
 
 import java.io.IOException;
@@ -37,13 +37,11 @@ public class TermsEnumResponseTests extends AbstractBroadcastResponseTestCase<Te
         int successfulShards = randomIntBetween(0, totalShards);
         int failedShards = totalShards - successfulShards;
         List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>(failedShards);
-        for (int i=0; i<failedShards; i++) {
+        for (int i = 0; i < failedShards; i++) {
             ElasticsearchException exc = new ElasticsearchException("some_error_" + randomInt());
             String index = "index_" + randomInt(1000);
             int shard = randomInt(100);
-            shardFailures.add(
-                new DefaultShardOperationFailedException(index, shard, exc)
-            );
+            shardFailures.add(new DefaultShardOperationFailedException(index, shard, exc));
         }
         return new TermsEnumResponse(getRandomTerms(), totalShards, successfulShards, failedShards, shardFailures, randomBoolean());
     }
@@ -66,8 +64,12 @@ public class TermsEnumResponseTests extends AbstractBroadcastResponseTestCase<Te
     }
 
     @Override
-    protected TermsEnumResponse createTestInstance(int totalShards, int successfulShards, int failedShards,
-                                                       List<DefaultShardOperationFailedException> failures) {
+    protected TermsEnumResponse createTestInstance(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> failures
+    ) {
         return new TermsEnumResponse(getRandomTerms(), totalShards, successfulShards, failedShards, failures, randomBoolean());
 
     }
@@ -80,8 +82,9 @@ public class TermsEnumResponseTests extends AbstractBroadcastResponseTestCase<Te
         TermsEnumResponse response = new TermsEnumResponse(terms, 10, 10, 0, new ArrayList<>(), true);
 
         String output = Strings.toString(response);
-        assertEquals("{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0},\"terms\":[" +
-            "\""+ s +"\""+
-            "],\"complete\":true}", output);
+        assertEquals(
+            "{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0},\"terms\":[" + "\"" + s + "\"" + "],\"complete\":true}",
+            output
+        );
     }
 }

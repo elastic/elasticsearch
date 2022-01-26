@@ -64,7 +64,6 @@ public enum RegexpFlag {
      */
     ALL(RegExp.ALL);
 
-
     final int value;
 
     RegexpFlag(int value) {

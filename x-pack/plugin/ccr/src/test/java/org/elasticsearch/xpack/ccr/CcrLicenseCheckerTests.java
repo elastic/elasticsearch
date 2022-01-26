@@ -31,14 +31,11 @@ public class CcrLicenseCheckerTests extends ESTestCase {
 
         };
         final AtomicBoolean invoked = new AtomicBoolean();
-        checker.hasPrivilegesToFollowIndices(
-            mock(Client.class),
-            new String[]{randomAlphaOfLength(8)},
-            e -> {
-                invoked.set(true);
-                assertThat(e, instanceOf(IllegalStateException.class));
-                assertThat(e, hasToString(containsString("missing or unable to read authentication info on request")));
-            });
+        checker.hasPrivilegesToFollowIndices(mock(Client.class), new String[] { randomAlphaOfLength(8) }, e -> {
+            invoked.set(true);
+            assertThat(e, instanceOf(IllegalStateException.class));
+            assertThat(e, hasToString(containsString("missing or unable to read authentication info on request")));
+        });
         assertTrue(invoked.get());
     }
 

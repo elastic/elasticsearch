@@ -52,7 +52,7 @@ public class DeleteWatchRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (id == null){
+        if (id == null) {
             validationException = ValidateActions.addValidationError("watch id is missing", validationException);
         } else if (PutWatchRequest.isValidId(id) == false) {
             validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);

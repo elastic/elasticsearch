@@ -24,23 +24,24 @@ public class NoHandlerIT extends HttpSmokeTestCase {
 
     public void testNoHandlerRespectsAcceptHeader() throws IOException {
         runTestNoHandlerRespectsAcceptHeader(
-                "application/json",
-                "application/json; charset=UTF-8",
-                "\"error\":\"no handler found for uri [/foo/bar/baz/qux/quux] and method [GET]\"");
+            "application/json",
+            "application/json; charset=UTF-8",
+            "\"error\":\"no handler found for uri [/foo/bar/baz/qux/quux] and method [GET]\""
+        );
         runTestNoHandlerRespectsAcceptHeader(
-                "application/yaml",
-                "application/yaml",
-                "error: \"no handler found for uri [/foo/bar/baz/qux/quux] and method [GET]\"");
+            "application/yaml",
+            "application/yaml",
+            "error: \"no handler found for uri [/foo/bar/baz/qux/quux] and method [GET]\""
+        );
     }
 
-    private void runTestNoHandlerRespectsAcceptHeader(
-            final String accept, final String contentType, final String expect) throws IOException {
+    private void runTestNoHandlerRespectsAcceptHeader(final String accept, final String contentType, final String expect)
+        throws IOException {
         Request request = new Request("GET", "/foo/bar/baz/qux/quux");
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.addHeader("Accept", accept);
         request.setOptions(options);
-        final ResponseException e = expectThrows(ResponseException.class,
-                        () -> getRestClient().performRequest(request));
+        final ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
 
         final Response response = e.getResponse();
         assertThat(response.getHeader("Content-Type"), equalTo(contentType));

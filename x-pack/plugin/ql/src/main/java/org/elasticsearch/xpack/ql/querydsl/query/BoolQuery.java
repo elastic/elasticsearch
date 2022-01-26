@@ -96,9 +96,7 @@ public class BoolQuery extends Query {
             return false;
         }
         BoolQuery other = (BoolQuery) obj;
-        return isAnd == other.isAnd
-            && left.equals(other.left)
-            && right.equals(other.right);
+        return isAnd == other.isAnd && left.equals(other.left) && right.equals(other.right);
     }
 
     @Override

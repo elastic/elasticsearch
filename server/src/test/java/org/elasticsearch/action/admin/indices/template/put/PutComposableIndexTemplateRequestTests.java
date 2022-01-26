@@ -9,9 +9,9 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -48,9 +48,9 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
 
     public void testPutGlobalTemplatesCannotHaveHiddenIndexSetting() {
         Template template = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
-        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate.Builder()
-            .indexPatterns(org.elasticsearch.core.List.of("*"))
-            .template(template).build();
+        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate.Builder().indexPatterns(org.elasticsearch.core.List.of("*"))
+            .template(template)
+            .build();
 
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("test");
         request.indexTemplate(globalTemplate);
@@ -76,9 +76,7 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
 
     public void testValidationOfPriority() {
         PutComposableIndexTemplateAction.Request req = new PutComposableIndexTemplateAction.Request("test");
-        req.indexTemplate(new ComposableIndexTemplate.Builder()
-            .indexPatterns(Arrays.asList("foo", "bar"))
-            .priority(-5L).build());
+        req.indexTemplate(new ComposableIndexTemplate.Builder().indexPatterns(Arrays.asList("foo", "bar")).priority(-5L).build());
         ActionRequestValidationException validationException = req.validate();
         assertThat(validationException, is(notNullValue()));
         List<String> validationErrors = validationException.validationErrors();
@@ -92,8 +90,9 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
         req.indexTemplate(new ComposableIndexTemplate(Collections.singletonList("*"), null, null, null, null, null));
         assertNull(req.validate());
 
-        req.indexTemplate(new ComposableIndexTemplate(Collections.singletonList("*"),
-                        new Template(null, null, null), null, null, null, null));
+        req.indexTemplate(
+            new ComposableIndexTemplate(Collections.singletonList("*"), new Template(null, null, null), null, null, null, null)
+        );
         assertNull(req.validate());
     }
 }

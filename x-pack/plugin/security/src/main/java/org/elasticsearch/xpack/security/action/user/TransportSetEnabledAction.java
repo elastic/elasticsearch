@@ -31,8 +31,13 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
     private final NativeUsersStore usersStore;
 
     @Inject
-    public TransportSetEnabledAction(Settings settings, TransportService transportService,
-                                     ActionFilters actionFilters, SecurityContext securityContext, NativeUsersStore usersStore) {
+    public TransportSetEnabledAction(
+        Settings settings,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        SecurityContext securityContext,
+        NativeUsersStore usersStore
+    ) {
         super(SetEnabledAction.NAME, transportService, actionFilters, SetEnabledRequest::new);
         this.settings = settings;
         this.securityContext = securityContext;
@@ -54,7 +59,11 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
             return;
         }
 
-        usersStore.setEnabled(username, request.enabled(), request.getRefreshPolicy(),
-                listener.delegateFailure((l, v) -> l.onResponse(ActionResponse.Empty.INSTANCE)));
+        usersStore.setEnabled(
+            username,
+            request.enabled(),
+            request.getRefreshPolicy(),
+            listener.delegateFailure((l, v) -> l.onResponse(ActionResponse.Empty.INSTANCE))
+        );
     }
 }

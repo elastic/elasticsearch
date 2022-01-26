@@ -25,4 +25,3 @@ public class SmokeTestPluginsClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         return ESClientYamlSuiteTestCase.createParameters();
     }
 }
-

@@ -8,10 +8,10 @@
 
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -36,8 +36,11 @@ public class JsonLogsStream {
 
     private JsonLogsStream(BufferedReader reader) throws IOException {
         this.reader = reader;
-        this.parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            reader);
+        this.parser = JsonXContent.jsonXContent.createParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            reader
+        );
     }
 
     public static Stream<JsonLogLine> from(BufferedReader reader) throws IOException {
@@ -54,14 +57,12 @@ public class JsonLogsStream {
 
     private Stream<JsonLogLine> stream() {
         Spliterator<JsonLogLine> spliterator = Spliterators.spliteratorUnknownSize(new JsonIterator(), Spliterator.ORDERED);
-        return StreamSupport.stream(spliterator, false)
-            .onClose(this::close);
+        return StreamSupport.stream(spliterator, false).onClose(this::close);
     }
 
     private Stream<Map<String, String>> streamMap() {
         Spliterator<Map<String, String>> spliterator = Spliterators.spliteratorUnknownSize(new MapIterator(), Spliterator.ORDERED);
-        return StreamSupport.stream(spliterator, false)
-            .onClose(this::close);
+        return StreamSupport.stream(spliterator, false).onClose(this::close);
     }
 
     private void close() {

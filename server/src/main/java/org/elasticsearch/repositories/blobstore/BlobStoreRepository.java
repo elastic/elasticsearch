@@ -70,11 +70,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -119,6 +114,11 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -221,7 +221,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final Setting<Boolean> CACHE_REPOSITORY_DATA = Setting.boolSetting(
         "cache_repository_data",
         true,
-        Setting.Property.Deprecated
+        Setting.Property.DeprecatedWarning
     );
 
     /**
@@ -652,7 +652,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
         if (bestEffortConsistency) {
             final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
-            long bestGenerationFromCS = bestGeneration(snapshotsInProgress.entries());
+            long bestGenerationFromCS = bestGeneration(snapshotsInProgress.forRepo(this.metadata.name()));
             // Don't use generation from the delete task if we already found a generation for an in progress snapshot.
             // In this case, the generation points at the generation the repo will be in after the snapshot finishes so it may not yet
             // exist
@@ -1411,11 +1411,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
 
             final ActionListener<Void> allMetaListener = new GroupedActionListener<>(ActionListener.wrap(v -> {
+                final String slmPolicy = slmPolicy(snapshotInfo);
                 final SnapshotDetails snapshotDetails = new SnapshotDetails(
                     snapshotInfo.state(),
                     Version.CURRENT,
                     snapshotInfo.startTime(),
-                    snapshotInfo.endTime()
+                    snapshotInfo.endTime(),
+                    slmPolicy
                 );
                 writeIndexGen(
                     existingRepositoryData.addSnapshot(snapshotId, snapshotDetails, shardGenerations, indexMetas, indexMetaIdentifiers),
@@ -2264,40 +2266,36 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 .collect(Collectors.toList());
             if (snapshotIdsWithMissingDetails.isEmpty() == false) {
                 final Map<SnapshotId, SnapshotDetails> extraDetailsMap = new ConcurrentHashMap<>();
-                getSnapshotInfo(
-                    new GetSnapshotInfoContext(
-                        snapshotIdsWithMissingDetails,
-                        false,
-                        () -> false,
-                        (context, snapshotInfo) -> extraDetailsMap.put(
-                            snapshotInfo.snapshotId(),
-                            new SnapshotDetails(
-                                snapshotInfo.state(),
-                                snapshotInfo.version(),
-                                snapshotInfo.startTime(),
-                                snapshotInfo.endTime()
+                getSnapshotInfo(new GetSnapshotInfoContext(snapshotIdsWithMissingDetails, false, () -> false, (context, snapshotInfo) -> {
+                    final String slmPolicy = slmPolicy(snapshotInfo);
+                    extraDetailsMap.put(
+                        snapshotInfo.snapshotId(),
+                        new SnapshotDetails(
+                            snapshotInfo.state(),
+                            snapshotInfo.version(),
+                            snapshotInfo.startTime(),
+                            snapshotInfo.endTime(),
+                            slmPolicy
+                        )
+                    );
+                }, ActionListener.runAfter(new ActionListener<Void>() {
+                    @Override
+                    public void onResponse(Void aVoid) {
+                        logger.info(
+                            "Successfully loaded all snapshots' detailed information for {} from snapshot metadata",
+                            AllocationService.firstListElementsToCommaDelimitedString(
+                                snapshotIdsWithMissingDetails,
+                                SnapshotId::toString,
+                                logger.isDebugEnabled()
                             )
-                        ),
-                        ActionListener.runAfter(new ActionListener<Void>() {
-                            @Override
-                            public void onResponse(Void aVoid) {
-                                logger.info(
-                                    "Successfully loaded all snapshots' detailed information for {} from snapshot metadata",
-                                    AllocationService.firstListElementsToCommaDelimitedString(
-                                        snapshotIdsWithMissingDetails,
-                                        SnapshotId::toString,
-                                        logger.isDebugEnabled()
-                                    )
-                                );
-                            }
+                        );
+                    }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.warn("Failure when trying to load missing details from snapshot metadata", e);
-                            }
-                        }, () -> filterRepositoryDataStep.onResponse(repositoryData.withExtraDetails(extraDetailsMap)))
-                    )
-                );
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("Failure when trying to load missing details from snapshot metadata", e);
+                    }
+                }, () -> filterRepositoryDataStep.onResponse(repositoryData.withExtraDetails(extraDetailsMap)))));
             } else {
                 filterRepositoryDataStep.onResponse(repositoryData);
             }
@@ -2396,6 +2394,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
             );
         }, listener::onFailure);
+    }
+
+    /**
+     * Extract slm policy from snapshot info. If none can be found, empty string is returned.
+     */
+    private static String slmPolicy(SnapshotInfo snapshotInfo) {
+        final String slmPolicy;
+        if (snapshotInfo.userMetadata() == null) {
+            slmPolicy = "";
+        } else {
+            final Object policyFound = snapshotInfo.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD);
+            if (policyFound instanceof String) {
+                slmPolicy = (String) policyFound;
+            } else {
+                slmPolicy = "";
+            }
+        }
+        return slmPolicy;
     }
 
     private RepositoryData updateRepositoryData(RepositoryData repositoryData, Version repositoryMetaversion, long newGen) {
@@ -2505,15 +2521,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final SnapshotsInProgress updatedSnapshotsInProgress;
         boolean changedSnapshots = false;
         final List<SnapshotsInProgress.Entry> snapshotEntries = new ArrayList<>();
-        for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
-            if (entry.repository().equals(repoName) && entry.repositoryStateId() == oldGen) {
+        final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+        for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).forRepo(repoName)) {
+            if (entry.repositoryStateId() == oldGen) {
                 snapshotEntries.add(entry.withRepoGen(newGen));
                 changedSnapshots = true;
             } else {
                 snapshotEntries.add(entry);
             }
         }
-        updatedSnapshotsInProgress = changedSnapshots ? SnapshotsInProgress.of(snapshotEntries) : null;
+        updatedSnapshotsInProgress = changedSnapshots ? snapshotsInProgress.withUpdatedEntriesForRepo(repoName, snapshotEntries) : null;
         final SnapshotDeletionsInProgress updatedDeletionsInProgress;
         boolean changedDeletions = false;
         final List<SnapshotDeletionsInProgress.Entry> deletionEntries = new ArrayList<>();

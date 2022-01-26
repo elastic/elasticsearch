@@ -140,13 +140,21 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     return new AsyncSender() {
                         @SuppressWarnings("unchecked")
                         @Override
-                        public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
-                                                                              TransportRequest request,
-                                                                              TransportRequestOptions options,
-                                                                              TransportResponseHandler<T> handler) {
+                        public <T extends TransportResponse> void sendRequest(
+                            Transport.Connection connection,
+                            String action,
+                            TransportRequest request,
+                            TransportRequestOptions options,
+                            TransportResponseHandler<T> handler
+                        ) {
                             if (TransportLivenessAction.NAME.equals(action)) {
-                                sender.sendRequest(connection, action, request, options, wrapLivenessResponseHandler(handler,
-                                    connection.getNode(), clusterName));
+                                sender.sendRequest(
+                                    connection,
+                                    action,
+                                    request,
+                                    options,
+                                    wrapLivenessResponseHandler(handler, connection.getNode(), clusterName)
+                                );
                             } else {
                                 sender.sendRequest(connection, action, request, options, handler);
                             }
@@ -166,14 +174,15 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             });
             transportService.start();
             transportService.acceptIncomingRequests();
-            transportClientNodesService =
-                new TransportClientNodesService(settings, transportService, threadPool, (a, b) -> {});
+            transportClientNodesService = new TransportClientNodesService(settings, transportService, threadPool, (a, b) -> {});
             transportClientNodesService.addTransportAddresses(listNodeAddresses.toArray(new TransportAddress[0]));
         }
 
-        private <T extends TransportResponse> TransportResponseHandler<T> wrapLivenessResponseHandler(TransportResponseHandler<T> handler,
-                                                                                                   DiscoveryNode node,
-                                                                                                   ClusterName clusterName) {
+        private <T extends TransportResponse> TransportResponseHandler<T> wrapLivenessResponseHandler(
+            TransportResponseHandler<T> handler,
+            DiscoveryNode node,
+            ClusterName clusterName
+        ) {
             return new TransportResponseHandler<T>() {
                 @Override
                 public T read(StreamInput in) throws IOException {
@@ -183,12 +192,21 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 @Override
                 @SuppressWarnings("unchecked")
                 public void handleResponse(T response) {
-                    LivenessResponse livenessResponse = new LivenessResponse(clusterName,
-                            new DiscoveryNode(node.getName(), node.getId(), node.getEphemeralId(), "liveness-hostname" + node.getId(),
-                                    "liveness-hostaddress" + node.getId(),
-                                    livenessAddress, node.getAttributes(), node.getRoles(),
-                                    node.getVersion()));
-                    handler.handleResponse((T)livenessResponse);
+                    LivenessResponse livenessResponse = new LivenessResponse(
+                        clusterName,
+                        new DiscoveryNode(
+                            node.getName(),
+                            node.getId(),
+                            node.getEphemeralId(),
+                            "liveness-hostname" + node.getId(),
+                            "liveness-hostaddress" + node.getId(),
+                            livenessAddress,
+                            node.getAttributes(),
+                            node.getRoles(),
+                            node.getVersion()
+                        )
+                    );
+                    handler.handleResponse((T) livenessResponse);
                 }
 
                 @Override
@@ -215,8 +233,8 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37567")
     public void testListenerFailures() throws InterruptedException {
         int iters = iterations(10, 100);
-        for (int i = 0; i <iters; i++) {
-            try(TestIteration iteration = new TestIteration()) {
+        for (int i = 0; i < iters; i++) {
+            try (TestIteration iteration = new TestIteration()) {
                 iteration.transport.endConnectMode(); // stop transport from responding early
                 final CountDownLatch latch = new CountDownLatch(1);
                 final AtomicInteger finalFailures = new AtomicInteger();
@@ -242,37 +260,42 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 iteration.transportClientNodesService.execute((node, retryListener) -> {
                     if (rarely()) {
                         preSendFailures.incrementAndGet();
-                        //throw whatever exception that is not a subclass of ConnectTransportException
+                        // throw whatever exception that is not a subclass of ConnectTransportException
                         throw new IllegalArgumentException();
                     }
 
-                    iteration.transportService.sendRequest(node, "action", new TestRequest(),
-                            TransportRequestOptions.EMPTY, new TransportResponseHandler<TestResponse>() {
-                        @Override
-                        public TestResponse read(StreamInput in) {
-                            return new TestResponse(in);
-                        }
+                    iteration.transportService.sendRequest(
+                        node,
+                        "action",
+                        new TestRequest(),
+                        TransportRequestOptions.EMPTY,
+                        new TransportResponseHandler<TestResponse>() {
+                            @Override
+                            public TestResponse read(StreamInput in) {
+                                return new TestResponse(in);
+                            }
 
-                        @Override
-                        public void handleResponse(TestResponse response1) {
-                            retryListener.onResponse(response1);
-                        }
+                            @Override
+                            public void handleResponse(TestResponse response1) {
+                                retryListener.onResponse(response1);
+                            }
 
-                        @Override
-                        public void handleException(TransportException exp) {
-                            retryListener.onFailure(exp);
-                        }
+                            @Override
+                            public void handleException(TransportException exp) {
+                                retryListener.onFailure(exp);
+                            }
 
-                        @Override
-                        public String executor() {
-                            return randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+                            @Override
+                            public String executor() {
+                                return randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+                            }
                         }
-                    });
+                    );
                 }, actionListener);
 
                 latch.await();
 
-                //there can be only either one failure that causes the request to fail straightaway or success
+                // there can be only either one failure that causes the request to fail straightaway or success
                 assertThat(preSendFailures.get() + iteration.transport.failures() + iteration.transport.successes(), lessThanOrEqualTo(1));
 
                 if (iteration.transport.successes() == 1) {
@@ -289,16 +312,20 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 }
 
                 assertThat(iteration.transport.triedNodes().size(), lessThanOrEqualTo(iteration.listNodesCount));
-                assertThat(iteration.transport.triedNodes().size(), equalTo(iteration.transport.connectTransportExceptions() +
-                        iteration.transport.failures() + iteration.transport.successes()));
+                assertThat(
+                    iteration.transport.triedNodes().size(),
+                    equalTo(
+                        iteration.transport.connectTransportExceptions() + iteration.transport.failures() + iteration.transport.successes()
+                    )
+                );
             }
         }
     }
 
     public void testConnectedNodes() {
         int iters = iterations(10, 100);
-        for (int i = 0; i <iters; i++) {
-            try(TestIteration iteration = new TestIteration()) {
+        for (int i = 0; i < iters; i++) {
+            try (TestIteration iteration = new TestIteration()) {
                 assertThat(iteration.transportClientNodesService.connectedNodes().size(), lessThanOrEqualTo(iteration.listNodesCount));
                 for (DiscoveryNode discoveryNode : iteration.transportClientNodesService.connectedNodes()) {
                     assertThat(discoveryNode.getHostName(), startsWith("liveness-"));
@@ -320,7 +347,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
     private void checkRemoveAddress(boolean sniff) {
         Settings extraSettings = Settings.builder().put(TransportClient.CLIENT_TRANSPORT_SNIFF.getKey(), sniff).build();
-        try(TestIteration iteration = new TestIteration(extraSettings)) {
+        try (TestIteration iteration = new TestIteration(extraSettings)) {
             final TransportClientNodesService service = iteration.transportClientNodesService;
             assertEquals(iteration.listNodesCount + iteration.sniffNodesCount, service.connectedNodes().size());
             final TransportAddress addressToRemove = randomFrom(iteration.listNodeAddresses);
@@ -328,7 +355,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             assertThat(service.connectedNodes(), everyItem(not(new CustomMatcher<DiscoveryNode>("removed address") {
                 @Override
                 public boolean matches(Object item) {
-                    return item instanceof DiscoveryNode && ((DiscoveryNode)item).getAddress().equals(addressToRemove);
+                    return item instanceof DiscoveryNode && ((DiscoveryNode) item).getAddress().equals(addressToRemove);
                 }
             })));
             assertEquals(iteration.listNodesCount + iteration.sniffNodesCount - 1, service.connectedNodes().size());
@@ -341,31 +368,43 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         Settings remoteSettings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "remote").build();
         try (MockTransportService remoteService = createNewService(remoteSettings, Version.CURRENT, threadPool, null)) {
             final MockHandler handler = new MockHandler(remoteService);
-            remoteService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new,  handler);
+            remoteService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new, handler);
             remoteService.getTaskManager().setTaskCancellationService(new TaskCancellationService(remoteService));
             remoteService.start();
             remoteService.acceptIncomingRequests();
 
             Settings clientSettings = Settings.builder()
-                    .put(TransportClient.CLIENT_TRANSPORT_SNIFF.getKey(), true)
-                    .put(TransportClient.CLIENT_TRANSPORT_PING_TIMEOUT.getKey(), TimeValue.timeValueSeconds(1))
-                    .put(TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.getKey(), TimeValue.timeValueSeconds(30))
-                    .build();
+                .put(TransportClient.CLIENT_TRANSPORT_SNIFF.getKey(), true)
+                .put(TransportClient.CLIENT_TRANSPORT_PING_TIMEOUT.getKey(), TimeValue.timeValueSeconds(1))
+                .put(TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.getKey(), TimeValue.timeValueSeconds(30))
+                .build();
 
             try (MockTransportService clientService = createNewService(clientSettings, Version.CURRENT, threadPool, null)) {
                 final List<Transport.Connection> establishedConnections = new CopyOnWriteArrayList<>();
 
-                clientService.addConnectBehavior(remoteService, (transport, discoveryNode, profile, listener) ->
-                    transport.openConnection(discoveryNode, profile, listener.delegateFailure((delegatedListener, connection) -> {
-                        establishedConnections.add(connection);
-                        delegatedListener.onResponse(connection);
-                    })));
+                clientService.addConnectBehavior(
+                    remoteService,
+                    (transport, discoveryNode, profile, listener) -> transport.openConnection(
+                        discoveryNode,
+                        profile,
+                        listener.delegateFailure((delegatedListener, connection) -> {
+                            establishedConnections.add(connection);
+                            delegatedListener.onResponse(connection);
+                        })
+                    )
+                );
 
                 clientService.start();
                 clientService.acceptIncomingRequests();
 
-                try (TransportClientNodesService transportClientNodesService =
-                        new TransportClientNodesService(clientSettings, clientService, threadPool, (a, b) -> {})) {
+                try (
+                    TransportClientNodesService transportClientNodesService = new TransportClientNodesService(
+                        clientSettings,
+                        clientService,
+                        threadPool,
+                        (a, b) -> {}
+                    )
+                ) {
                     assertEquals(0, transportClientNodesService.connectedNodes().size());
                     assertEquals(0, establishedConnections.size());
 
@@ -381,7 +420,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     Thread thread = new Thread(transportClientNodesService::doSample);
                     thread.start();
 
-                    assertBusy(() ->  assertTrue(establishedConnections.size() >= 1));
+                    assertBusy(() -> assertTrue(establishedConnections.size() >= 1));
                     assertFalse("Temporary ping connection must be opened", establishedConnections.get(0).isClosed());
 
                     thread.join();
@@ -428,6 +467,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
     private static class TestResponse extends TransportResponse {
 
         private TestResponse() {}
+
         private TestResponse(StreamInput in) {}
 
         @Override

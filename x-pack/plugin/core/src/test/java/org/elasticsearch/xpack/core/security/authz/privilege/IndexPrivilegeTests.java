@@ -15,10 +15,10 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.core.List;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 
-import org.elasticsearch.core.List;
 import java.util.Collection;
 import java.util.Set;
 
@@ -64,8 +64,10 @@ public class IndexPrivilegeTests extends ESTestCase {
 
     public void testPrivilegesForRollupFieldCapsAction() {
         final Collection<String> privileges = findPrivilegesThatGrant(GetRollupIndexCapsAction.NAME);
-        assertThat(org.elasticsearch.core.Set.copyOf(privileges),
-            equalTo(org.elasticsearch.core.Set.of("read", "view_index_metadata", "manage", "all")));
+        assertThat(
+            org.elasticsearch.core.Set.copyOf(privileges),
+            equalTo(org.elasticsearch.core.Set.of("read", "view_index_metadata", "manage", "all"))
+        );
     }
 
 }

@@ -10,8 +10,8 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,7 +29,7 @@ public class DeleteExpiredDataRequest extends ActionRequest implements ToXConten
     private final Float requestsPerSecond;
     private final TimeValue timeout;
 
-   /**
+    /**
      * Create a new request to delete expired data
      */
     public DeleteExpiredDataRequest() {
@@ -77,9 +77,9 @@ public class DeleteExpiredDataRequest extends ActionRequest implements ToXConten
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DeleteExpiredDataRequest that = (DeleteExpiredDataRequest) o;
-        return Objects.equals(requestsPerSecond, that.requestsPerSecond) &&
-            Objects.equals(timeout, that.timeout) &&
-            Objects.equals(jobId, that.jobId);
+        return Objects.equals(requestsPerSecond, that.requestsPerSecond)
+            && Objects.equals(timeout, that.timeout)
+            && Objects.equals(jobId, that.jobId);
     }
 
     @Override

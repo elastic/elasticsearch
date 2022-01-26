@@ -134,8 +134,7 @@ public class XPackClient {
     /**
      * Freeze or unfreeze one or more indices
      */
-    public FreezeResponse freeze(FreezeRequest request)
-        throws ExecutionException, InterruptedException {
+    public FreezeResponse freeze(FreezeRequest request) throws ExecutionException, InterruptedException {
         PlainActionFuture<FreezeResponse> future = new PlainActionFuture<>();
         freeze(request, future);
         return future.get();

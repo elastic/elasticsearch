@@ -45,8 +45,11 @@ public enum SpatialStrategy implements Writeable {
                 return strategy;
             }
         }
-        logger.critical(DeprecationCategory.OTHER, "geo_strategy",
-            "Unrecognised strategy [" + strategyName + "], falling back to [recursive]");
+        logger.critical(
+            DeprecationCategory.OTHER,
+            "geo_strategy",
+            "Unrecognised strategy [" + strategyName + "], falling back to [recursive]"
+        );
         return null;
     }
 }

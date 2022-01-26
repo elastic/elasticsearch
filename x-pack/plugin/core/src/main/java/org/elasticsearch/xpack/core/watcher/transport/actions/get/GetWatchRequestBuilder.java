@@ -18,7 +18,6 @@ public class GetWatchRequestBuilder extends ActionRequestBuilder<GetWatchRequest
         super(client, GetWatchAction.INSTANCE, new GetWatchRequest(id));
     }
 
-
     public GetWatchRequestBuilder(ElasticsearchClient client) {
         super(client, GetWatchAction.INSTANCE, new GetWatchRequest());
     }

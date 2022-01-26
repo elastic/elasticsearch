@@ -39,13 +39,18 @@ class EpochTime {
         public boolean isSupportedBy(TemporalAccessor temporal) {
             return temporal.isSupported(ChronoField.INSTANT_SECONDS);
         }
+
         @Override
         public long getFrom(TemporalAccessor temporal) {
             return temporal.getLong(ChronoField.INSTANT_SECONDS);
         }
+
         @Override
-        public TemporalAccessor resolve(Map<TemporalField,Long> fieldValues,
-                                        TemporalAccessor partialTemporal, ResolverStyle resolverStyle) {
+        public TemporalAccessor resolve(
+            Map<TemporalField, Long> fieldValues,
+            TemporalAccessor partialTemporal,
+            ResolverStyle resolverStyle
+        ) {
             long seconds = fieldValues.remove(this);
             fieldValues.put(ChronoField.INSTANT_SECONDS, seconds);
             Long nanos = fieldValues.remove(NANOS_OF_SECOND);
@@ -61,6 +66,7 @@ class EpochTime {
         public boolean isSupportedBy(TemporalAccessor temporal) {
             return temporal.isSupported(ChronoField.NANO_OF_SECOND);
         }
+
         @Override
         public long getFrom(TemporalAccessor temporal) {
             return temporal.getLong(ChronoField.NANO_OF_SECOND);
@@ -72,13 +78,18 @@ class EpochTime {
         public boolean isSupportedBy(TemporalAccessor temporal) {
             return temporal.isSupported(ChronoField.INSTANT_SECONDS) && temporal.isSupported(ChronoField.MILLI_OF_SECOND);
         }
+
         @Override
         public long getFrom(TemporalAccessor temporal) {
             return temporal.getLong(ChronoField.INSTANT_SECONDS) * 1_000 + temporal.getLong(ChronoField.MILLI_OF_SECOND);
         }
+
         @Override
-        public TemporalAccessor resolve(Map<TemporalField,Long> fieldValues,
-                                        TemporalAccessor partialTemporal, ResolverStyle resolverStyle) {
+        public TemporalAccessor resolve(
+            Map<TemporalField, Long> fieldValues,
+            TemporalAccessor partialTemporal,
+            ResolverStyle resolverStyle
+        ) {
             long secondsAndMillis = fieldValues.remove(this);
             long seconds = secondsAndMillis / 1_000;
             long nanos = secondsAndMillis % 1000 * 1_000_000;
@@ -99,9 +110,11 @@ class EpochTime {
     private static final EpochField NANOS_OF_MILLI = new EpochField(ChronoUnit.NANOS, ChronoUnit.MILLIS, ValueRange.of(0, 999_999)) {
         @Override
         public boolean isSupportedBy(TemporalAccessor temporal) {
-            return temporal.isSupported(ChronoField.INSTANT_SECONDS) && temporal.isSupported(ChronoField.NANO_OF_SECOND)
+            return temporal.isSupported(ChronoField.INSTANT_SECONDS)
+                && temporal.isSupported(ChronoField.NANO_OF_SECOND)
                 && temporal.getLong(ChronoField.NANO_OF_SECOND) % 1_000_000 != 0;
         }
+
         @Override
         public long getFrom(TemporalAccessor temporal) {
             return temporal.getLong(ChronoField.NANO_OF_SECOND) % 1_000_000;
@@ -109,40 +122,45 @@ class EpochTime {
     };
 
     // this supports seconds without any fraction
-    private static final DateTimeFormatter SECONDS_FORMATTER1 = new DateTimeFormatterBuilder()
-        .appendValue(SECONDS, 1, 19, SignStyle.NORMAL)
+    private static final DateTimeFormatter SECONDS_FORMATTER1 = new DateTimeFormatterBuilder().appendValue(SECONDS, 1, 19, SignStyle.NORMAL)
         .optionalStart() // optional is used so isSupported will be called when printing
         .appendFraction(NANOS_OF_SECOND, 0, 9, true)
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
     // this supports seconds ending in dot
-    private static final DateTimeFormatter SECONDS_FORMATTER2 = new DateTimeFormatterBuilder()
-        .appendValue(SECONDS, 1, 19, SignStyle.NORMAL)
+    private static final DateTimeFormatter SECONDS_FORMATTER2 = new DateTimeFormatterBuilder().appendValue(SECONDS, 1, 19, SignStyle.NORMAL)
         .appendLiteral('.')
         .toFormatter(Locale.ROOT);
 
     // this supports milliseconds without any fraction
-    private static final DateTimeFormatter MILLISECONDS_FORMATTER1 = new DateTimeFormatterBuilder()
-        .appendValue(MILLIS, 1, 19, SignStyle.NORMAL)
-        .optionalStart()
-        .appendFraction(NANOS_OF_MILLI, 0, 6, true)
-        .optionalEnd()
-        .toFormatter(Locale.ROOT);
+    private static final DateTimeFormatter MILLISECONDS_FORMATTER1 = new DateTimeFormatterBuilder().appendValue(
+        MILLIS,
+        1,
+        19,
+        SignStyle.NORMAL
+    ).optionalStart().appendFraction(NANOS_OF_MILLI, 0, 6, true).optionalEnd().toFormatter(Locale.ROOT);
 
     // this supports milliseconds ending in dot
-    private static final DateTimeFormatter MILLISECONDS_FORMATTER2 = new DateTimeFormatterBuilder()
-        .append(MILLISECONDS_FORMATTER1)
+    private static final DateTimeFormatter MILLISECONDS_FORMATTER2 = new DateTimeFormatterBuilder().append(MILLISECONDS_FORMATTER1)
         .appendLiteral('.')
         .toFormatter(Locale.ROOT);
 
-    static final DateFormatter SECONDS_FORMATTER = new JavaDateFormatter("epoch_second", SECONDS_FORMATTER1,
+    static final DateFormatter SECONDS_FORMATTER = new JavaDateFormatter(
+        "epoch_second",
+        SECONDS_FORMATTER1,
         builder -> builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L),
-        SECONDS_FORMATTER1, SECONDS_FORMATTER2);
+        SECONDS_FORMATTER1,
+        SECONDS_FORMATTER2
+    );
 
-    static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter("epoch_millis", MILLISECONDS_FORMATTER1,
+    static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter(
+        "epoch_millis",
+        MILLISECONDS_FORMATTER1,
         builder -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L),
-        MILLISECONDS_FORMATTER1, MILLISECONDS_FORMATTER2);
+        MILLISECONDS_FORMATTER1,
+        MILLISECONDS_FORMATTER2
+    );
 
     private abstract static class EpochField implements TemporalField {
 

@@ -23,7 +23,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 public class AutoscalingStorageIntegTestCase extends DiskUsageIntegTestCase {
-    protected static final long WATERMARK_BYTES = 10240;
+    protected static final long HIGH_WATERMARK_BYTES = 10240;
+    protected static final long LOW_WATERMARK_BYTES = 2 * HIGH_WATERMARK_BYTES;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -36,8 +37,8 @@ public class AutoscalingStorageIntegTestCase extends DiskUsageIntegTestCase {
     @Override
     protected Settings nodeSettings(final int nodeOrdinal, final Settings otherSettings) {
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), (WATERMARK_BYTES * 2) + "b")
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), WATERMARK_BYTES + "b")
+        builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), LOW_WATERMARK_BYTES + "b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), HIGH_WATERMARK_BYTES + "b")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "0b")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")
             .put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), "true");

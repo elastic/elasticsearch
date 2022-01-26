@@ -42,7 +42,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomNonNegativeLong());
+            randomNonNegativeLong()
+        );
     }
 
     private static long not(long l) {
@@ -51,7 +52,7 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
 
     @Override
     protected ClusterStateUpdateStats mutateInstance(ClusterStateUpdateStats instance) throws IOException {
-        switch (between(1,19)) {
+        switch (between(1, 19)) {
             case 1:
                 return new ClusterStateUpdateStats(
                     not(instance.getUnchangedTaskCount()),
@@ -72,7 +73,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 2:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -93,7 +95,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 3:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -114,7 +117,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 4:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -135,7 +139,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 5:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -156,7 +161,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 6:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -177,7 +183,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 7:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -198,7 +205,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 8:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -219,7 +227,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 9:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -240,7 +249,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 10:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -261,7 +271,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 11:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -282,7 +293,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 12:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -303,7 +315,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 13:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -324,7 +337,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 14:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -345,7 +359,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 15:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -366,7 +381,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 16:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -387,7 +403,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     not(instance.getFailedCommitElapsedMillis()),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 17:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -408,7 +425,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     not(instance.getFailedCompletionElapsedMillis()),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 18:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -429,7 +447,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     not(instance.getFailedMasterApplyElapsedMillis()),
-                    instance.getFailedNotificationElapsedMillis());
+                    instance.getFailedNotificationElapsedMillis()
+                );
             case 19:
                 return new ClusterStateUpdateStats(
                     instance.getUnchangedTaskCount(),
@@ -450,7 +469,8 @@ public class ClusterStateUpdateStatsWireSerializationTests extends AbstractWireS
                     instance.getFailedCommitElapsedMillis(),
                     instance.getFailedCompletionElapsedMillis(),
                     instance.getFailedMasterApplyElapsedMillis(),
-                    not(instance.getFailedNotificationElapsedMillis()));
+                    not(instance.getFailedNotificationElapsedMillis())
+                );
         }
         throw new AssertionError("impossible");
     }

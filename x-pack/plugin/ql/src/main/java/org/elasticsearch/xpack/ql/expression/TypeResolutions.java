@@ -121,37 +121,54 @@ public final class TypeResolutions {
 
     public static TypeResolution isFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
         if (e.foldable() == false) {
-            return new TypeResolution(format(null, "{}argument of [{}] must be a constant, received [{}]",
-                paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
-                operationName,
-                Expressions.name(e)));
+            return new TypeResolution(
+                format(
+                    null,
+                    "{}argument of [{}] must be a constant, received [{}]",
+                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                    operationName,
+                    Expressions.name(e)
+                )
+            );
         }
         return TypeResolution.TYPE_RESOLVED;
     }
 
     public static TypeResolution isNotFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
         if (e.foldable()) {
-            return new TypeResolution(format(null, "{}argument of [{}] must be a table column, found constant [{}]",
-                paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
-                operationName,
-                Expressions.name(e)));
+            return new TypeResolution(
+                format(
+                    null,
+                    "{}argument of [{}] must be a table column, found constant [{}]",
+                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                    operationName,
+                    Expressions.name(e)
+                )
+            );
         }
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    public static TypeResolution isType(Expression e,
-                                        Predicate<DataType> predicate,
-                                        String operationName,
-                                        ParamOrdinal paramOrd,
-                                        String... acceptedTypes) {
-        return predicate.test(e.dataType()) || e.dataType() == NULL ?
-            TypeResolution.TYPE_RESOLVED :
-            new TypeResolution(format(null, "{}argument of [{}] must be [{}], found value [{}] type [{}]",
-                paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
-                operationName,
-                acceptedTypesForErrorMsg(acceptedTypes),
-                name(e),
-                e.dataType().typeName()));
+    public static TypeResolution isType(
+        Expression e,
+        Predicate<DataType> predicate,
+        String operationName,
+        ParamOrdinal paramOrd,
+        String... acceptedTypes
+    ) {
+        return predicate.test(e.dataType()) || e.dataType() == NULL
+            ? TypeResolution.TYPE_RESOLVED
+            : new TypeResolution(
+                format(
+                    null,
+                    "{}argument of [{}] must be [{}], found value [{}] type [{}]",
+                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                    operationName,
+                    acceptedTypesForErrorMsg(acceptedTypes),
+                    name(e),
+                    e.dataType().typeName()
+                )
+            );
     }
 
     private static String acceptedTypesForErrorMsg(String... acceptedTypes) {

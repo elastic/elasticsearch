@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 /**

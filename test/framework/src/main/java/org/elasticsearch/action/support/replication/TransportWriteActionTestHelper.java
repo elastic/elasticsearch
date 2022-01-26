@@ -17,11 +17,12 @@ import java.util.concurrent.CountDownLatch;
 
 public abstract class TransportWriteActionTestHelper {
 
-
-    public static void performPostWriteActions(final IndexShard indexShard,
-                                              final WriteRequest<?> request,
-                                              @Nullable final Translog.Location location,
-                                              final Logger logger) {
+    public static void performPostWriteActions(
+        final IndexShard indexShard,
+        final WriteRequest<?> request,
+        @Nullable final Translog.Location location,
+        final Logger logger
+    ) {
         final CountDownLatch latch = new CountDownLatch(1);
         TransportWriteAction.RespondingWriteResult writerResult = new TransportWriteAction.RespondingWriteResult() {
             @Override

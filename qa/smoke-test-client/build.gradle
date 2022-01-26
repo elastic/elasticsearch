@@ -17,22 +17,23 @@ dependencies {
   testImplementation project(':client:transport') // randomly swapped in as a transport
 }
 
-task singleNodeIntegTest(type: RestIntegTestTask) {
-  mustRunAfter(precommit)
+def singleNodeIntegTest = tasks.register("singleNodeIntegTest", RestIntegTestTask) {
+  mustRunAfter("precommit")
 }
 
-testClusters.singleNodeIntegTest {
+testClusters.matching { it.name == "singleNodeIntegTest" }.configureEach {
   setting 'discovery.type', 'single-node'
 }
 
-integTest {
+tasks.named("integTest").configure {
   dependsOn singleNodeIntegTest
 }
 
-check.dependsOn(integTest)
+tasks.named("check").configure {
+  dependsOn("integTest")
+}
 
-
-testingConventions {
+tasks.named("testingConventions").configure {
   naming.clear()
   naming {
     IT {

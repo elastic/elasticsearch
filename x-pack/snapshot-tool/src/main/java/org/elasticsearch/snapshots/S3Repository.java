@@ -18,6 +18,7 @@ import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
@@ -36,8 +37,17 @@ public class S3Repository extends AbstractRepository {
     private final AmazonS3 client;
     private final String bucket;
 
-    S3Repository(Terminal terminal, Long safetyGapMillis, Integer parallelism, String bucket, String basePath,
-                 String accessKey, String secretKey, String endpoint, String region) {
+    S3Repository(
+        Terminal terminal,
+        Long safetyGapMillis,
+        Integer parallelism,
+        String bucket,
+        String basePath,
+        String accessKey,
+        String secretKey,
+        String endpoint,
+        String region
+    ) {
         super(terminal, safetyGapMillis, parallelism, basePath);
         this.client = buildS3Client(endpoint, region, accessKey, secretKey);
         this.bucket = bucket;
@@ -72,12 +82,14 @@ public class S3Repository extends AbstractRepository {
                         timestamp = objectSummary.getLastModified();
                     }
                 } catch (NumberFormatException e) {
-                    terminal.println(Terminal.Verbosity.VERBOSE,
-                            "Ignoring index file with unexpected name format " + objectSummary.getKey());
+                    terminal.println(
+                        Terminal.Verbosity.VERBOSE,
+                        "Ignoring index file with unexpected name format " + objectSummary.getKey()
+                    );
                 }
             }
 
-            if (listing.isTruncated()) { //very unlikely that we have 1K+ index-N files, but let's make it bullet-proof
+            if (listing.isTruncated()) { // very unlikely that we have 1K+ index-N files, but let's make it bullet-proof
                 listing = client.listNextBatchOfObjects(listing);
             } else {
                 return Tuple.tuple(maxGeneration, timestamp);
@@ -93,7 +105,7 @@ public class S3Repository extends AbstractRepository {
     @Override
     protected boolean isBlobNotFoundException(Exception e) {
         if (e instanceof AmazonS3Exception) {
-            if (((AmazonS3Exception)e).getStatusCode() == HTTP_NOT_FOUND) {
+            if (((AmazonS3Exception) e).getStatusCode() == HTTP_NOT_FOUND) {
                 return true;
             }
         }

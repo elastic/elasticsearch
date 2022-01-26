@@ -31,8 +31,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchTemplateAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMultiSearchTemplateAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-        " Specifying types in multi search template requests is deprecated.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]"
+        + " Specifying types in multi search template requests is deprecated.";
 
     private static final Set<String> RESPONSE_PARAMS;
 
@@ -43,7 +43,6 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 
-
     private final boolean allowExplicitIndex;
 
     public RestMultiSearchTemplateAction(Settings settings) {
@@ -52,14 +51,17 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_msearch/template"),
-            new Route(POST, "/_msearch/template"),
-            new Route(GET, "/{index}/_msearch/template"),
-            new Route(POST, "/{index}/_msearch/template"),
-            // Deprecated typed endpoints.
-            new Route(GET, "/{index}/{type}/_msearch/template"),
-            new Route(POST, "/{index}/{type}/_msearch/template")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_msearch/template"),
+                new Route(POST, "/_msearch/template"),
+                new Route(GET, "/{index}/_msearch/template"),
+                new Route(POST, "/{index}/_msearch/template"),
+                // Deprecated typed endpoints.
+                new Route(GET, "/{index}/{type}/_msearch/template"),
+                new Route(POST, "/{index}/{type}/_msearch/template")
+            )
+        );
     }
 
     @Override
@@ -90,17 +92,21 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
 
-        RestMultiSearchAction.parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex,
-                (searchRequest, bytes) -> {
-                    SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
-                    if (searchTemplateRequest.getScript() != null) {
-                        searchTemplateRequest.setRequest(searchRequest);
-                        multiRequest.add(searchTemplateRequest);
-                    } else {
-                        throw new IllegalArgumentException("Malformed search template");
-                    }
-                    RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
-                });
+        RestMultiSearchAction.parseMultiLineRequest(
+            restRequest,
+            multiRequest.indicesOptions(),
+            allowExplicitIndex,
+            (searchRequest, bytes) -> {
+                SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
+                if (searchTemplateRequest.getScript() != null) {
+                    searchTemplateRequest.setRequest(searchRequest);
+                    multiRequest.add(searchTemplateRequest);
+                } else {
+                    throw new IllegalArgumentException("Malformed search template");
+                }
+                RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
+            }
+        );
         return multiRequest;
     }
 

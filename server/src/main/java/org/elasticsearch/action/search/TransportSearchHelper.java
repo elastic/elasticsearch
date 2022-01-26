@@ -46,7 +46,8 @@ final class TransportSearchHelper {
                 SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
                 if (searchShardTarget.getClusterAlias() != null) {
                     out.writeString(
-                        RemoteClusterAware.buildRemoteIndexName(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId()));
+                        RemoteClusterAware.buildRemoteIndexName(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId())
+                    );
                 } else {
                     out.writeString(searchShardTarget.getNodeId());
                 }
@@ -84,7 +85,7 @@ final class TransportSearchHelper {
                     clusterAlias = null;
                 } else {
                     clusterAlias = target.substring(0, index);
-                    target = target.substring(index+1);
+                    target = target.substring(index + 1);
                 }
                 context[i] = new SearchContextIdForNode(clusterAlias, target, new ShardSearchContextId(contextUUID, id));
             }

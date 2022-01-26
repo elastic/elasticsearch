@@ -11,12 +11,11 @@ import joptsimple.internal.Strings;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.Objects;
 
@@ -42,11 +41,11 @@ public class FrozenUtilsTests extends AutoscalingTestCase {
     public static Settings indexSettings(String tierPreference) {
         Settings.Builder settings = Settings.builder()
             .put(randomAlphaOfLength(10), randomLong())
-            .put(DataTierAllocationDecider.TIER_PREFERENCE, tierPreference)
+            .put(DataTier.TIER_PREFERENCE, tierPreference)
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
         // pass setting validator.
         if (Objects.equals(tierPreference, DataTier.DATA_FROZEN)) {
-            settings.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
+            settings.put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
                 .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE);
         }
         return settings.build();

@@ -65,7 +65,7 @@ Grants full access to all features in {kib} (including Solutions) and read-only 
 
 [[built-in-roles-enrich-user]] `enrich_user` ::
 Grants access to manage *all* enrich indices (`.enrich-*`) and *all* operations on
-ingest node pipelines.
+ingest pipelines.
 
 [[built-in-roles-ingest-user]] `ingest_admin` ::
 Grants access to manage *all* index templates and *all* ingest pipeline configurations.

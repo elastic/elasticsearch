@@ -113,8 +113,8 @@ class KeyToSequences implements Accountable {
      * Remove all matches except the latest occurring _before_ the given ordinal.
      */
     void trimToTail(Ordinal ordinal) {
-        for (Iterator<SequenceEntry> it = keyToSequences.values().iterator(); it.hasNext(); ) {
-            SequenceEntry seqs =  it.next();
+        for (Iterator<SequenceEntry> it = keyToSequences.values().iterator(); it.hasNext();) {
+            SequenceEntry seqs = it.next();
             // remember the last item found (will be ascending)
             // to trim unneeded until that occur before it
             Sequence firstTail = null;

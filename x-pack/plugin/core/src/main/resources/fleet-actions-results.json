@@ -23,6 +23,10 @@
           "enabled": false,
           "type": "object"
         },
+        "action_response": {
+          "dynamic": true,
+          "type": "object"
+        },
         "data": {
           "enabled": false,
           "type": "object"

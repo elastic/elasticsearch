@@ -70,8 +70,7 @@ public class CancellableTask extends Task {
     /**
      * Called after the task is cancelled so that it can take any actions that it has to take.
      */
-    protected void onCancelled() {
-    }
+    protected void onCancelled() {}
 
     /**
      * Throws a {@link TaskCancelledException} if this task has been cancelled, otherwise does nothing.

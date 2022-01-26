@@ -131,8 +131,12 @@ public class CancellableTasksTrackerTests extends ESTestCase {
 
     public void testCancellableTasksTracker() throws InterruptedException {
 
-        final TaskId[] parentTaskIds
-            = randomArray(10, 10, TaskId[]::new, () -> new TaskId(randomAlphaOfLength(5), randomNonNegativeLong()));
+        final TaskId[] parentTaskIds = randomArray(
+            10,
+            10,
+            TaskId[]::new,
+            () -> new TaskId(randomAlphaOfLength(5), randomNonNegativeLong())
+        );
 
         final CancellableTasksTracker<String> tracker = new CancellableTasksTracker<>(new String[0]);
         final TestTask[] tasks = new TestTask[between(1, 100)];
@@ -158,7 +162,8 @@ public class CancellableTasksTrackerTests extends ESTestCase {
                     randomAlphaOfLength(5),
                     randomAlphaOfLength(5),
                     rarely() ? TaskId.EMPTY_TASK_ID : randomFrom(parentTaskIds),
-                    Collections.emptyMap()),
+                    Collections.emptyMap()
+                ),
                 "item-" + i,
                 tracker,
                 awaitStart

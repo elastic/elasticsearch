@@ -9,13 +9,14 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,7 +53,12 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         long subsetSize;
         long supersetDf;
         long supersetSize;
-        long bucketOrd;
+        /**
+         * Ordinal of the bucket while it is being built. Not used after it is
+         * returned from {@link Aggregator#buildAggregations(long[])} and not
+         * serialized.
+         */
+        transient long bucketOrd;
         double score;
         protected InternalAggregations aggregations;
         final transient DocValueFormat format;
@@ -134,15 +140,14 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             }
 
             Bucket<?> that = (Bucket<?>) o;
-            return bucketOrd == that.bucketOrd
-                && Double.compare(that.score, score) == 0
+            return Double.compare(that.score, score) == 0
                 && Objects.equals(aggregations, that.aggregations)
                 && Objects.equals(format, that.format);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(getClass(), bucketOrd, aggregations, score, format);
+            return Objects.hash(getClass(), aggregations, score, format);
         }
 
         @Override

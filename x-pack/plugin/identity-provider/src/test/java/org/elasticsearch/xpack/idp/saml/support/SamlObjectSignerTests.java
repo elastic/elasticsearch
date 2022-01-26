@@ -39,6 +39,7 @@ import static org.mockito.Mockito.when;
 public class SamlObjectSignerTests extends IdpSamlTestCase {
 
     private SamlFactory samlFactory;
+
     @Before
     public void setupState() {
         SamlInit.initialize();
@@ -61,9 +62,7 @@ public class SamlObjectSignerTests extends IdpSamlTestCase {
             // verify with correct credential
             SignatureValidator.validate(signedRequest.getSignature(), credential);
             // fail with incorrect credential
-            expectThrows(SignatureException.class,
-                () -> SignatureValidator.validate(signedRequest.getSignature(), alternateCredential)
-            );
+            expectThrows(SignatureException.class, () -> SignatureValidator.validate(signedRequest.getSignature(), alternateCredential));
         }
     }
 
@@ -83,9 +82,7 @@ public class SamlObjectSignerTests extends IdpSamlTestCase {
             // verify with correct credential
             SignatureValidator.validate(signedResponse.getSignature(), credential);
             // fail with incorrect credential
-            expectThrows(SignatureException.class,
-                () -> SignatureValidator.validate(signedResponse.getSignature(), alternateCredential)
-            );
+            expectThrows(SignatureException.class, () -> SignatureValidator.validate(signedResponse.getSignature(), alternateCredential));
         }
     }
 

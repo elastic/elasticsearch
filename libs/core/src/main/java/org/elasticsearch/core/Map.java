@@ -59,40 +59,92 @@ public class Map {
     /**
      * Returns an unmodifiable map containing six mappings.
      */
-    public static <K, V> java.util.Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5,
-                                                K k6, V v6) {
+    public static <K, V> java.util.Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5, K k6, V v6) {
         return mapN(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6);
     }
 
     /**
      * Returns an unmodifiable map containing seven mappings.
      */
-    public static <K, V> java.util.Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5,
-                                                K k6, V v6, K k7, V v7) {
+    public static <K, V> java.util.Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5, K k6, V v6, K k7, V v7) {
         return mapN(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6, k7, v7);
     }
 
     /**
      * Returns an unmodifiable map containing eight mappings.
      */
-    public static <K, V> java.util.Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5,
-                                                K k6, V v6, K k7, V v7, K k8, V v8) {
+    public static <K, V> java.util.Map<K, V> of(
+        K k1,
+        V v1,
+        K k2,
+        V v2,
+        K k3,
+        V v3,
+        K k4,
+        V v4,
+        K k5,
+        V v5,
+        K k6,
+        V v6,
+        K k7,
+        V v7,
+        K k8,
+        V v8
+    ) {
         return mapN(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6, k7, v7, k8, v8);
     }
 
     /**
      * Returns an unmodifiable map containing nine mappings.
      */
-    public static <K, V> java.util.Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5,
-                                                K k6, V v6, K k7, V v7, K k8, V v8, K k9, V v9) {
+    public static <K, V> java.util.Map<K, V> of(
+        K k1,
+        V v1,
+        K k2,
+        V v2,
+        K k3,
+        V v3,
+        K k4,
+        V v4,
+        K k5,
+        V v5,
+        K k6,
+        V v6,
+        K k7,
+        V v7,
+        K k8,
+        V v8,
+        K k9,
+        V v9
+    ) {
         return mapN(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6, k7, v7, k8, v8, k9, v9);
     }
 
     /**
      * Returns an unmodifiable map containing ten mappings.
      */
-    public static <K, V> java.util.Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5,
-                                                K k6, V v6, K k7, V v7, K k8, V v8, K k9, V v9, K k10, V v10) {
+    public static <K, V> java.util.Map<K, V> of(
+        K k1,
+        V v1,
+        K k2,
+        V v2,
+        K k3,
+        V v3,
+        K k4,
+        V v4,
+        K k5,
+        V v5,
+        K k6,
+        V v6,
+        K k7,
+        V v7,
+        K k8,
+        V v8,
+        K k9,
+        V v9,
+        K k10,
+        V v10
+    ) {
         return mapN(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6, k7, v7, k8, v8, k9, v9, k10, v10);
     }
 

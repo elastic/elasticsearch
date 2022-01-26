@@ -36,8 +36,6 @@ public class RestSnapshottableFeaturesAction extends BaseRestHandler {
         final GetSnapshottableFeaturesRequest req = new GetSnapshottableFeaturesRequest();
         req.masterNodeTimeout(request.paramAsTime("master_timeout", req.masterNodeTimeout()));
 
-        return restChannel -> {
-            client.execute(SnapshottableFeaturesAction.INSTANCE, req, new RestToXContentListener<>(restChannel));
-        };
+        return restChannel -> { client.execute(SnapshottableFeaturesAction.INSTANCE, req, new RestToXContentListener<>(restChannel)); };
     }
 }

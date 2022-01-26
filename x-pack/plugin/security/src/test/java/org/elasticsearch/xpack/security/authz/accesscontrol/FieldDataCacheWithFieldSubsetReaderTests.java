@@ -58,12 +58,22 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         String name = "_field";
         indexFieldDataCache = new DummyAccountingFieldDataCache();
-        sortedSetOrdinalsIndexFieldData = new SortedSetOrdinalsIndexFieldData(indexFieldDataCache,  name,
-            CoreValuesSourceType.KEYWORD, circuitBreakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
-        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(name, CoreValuesSourceType.KEYWORD, indexFieldDataCache,
-                circuitBreakerService, TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
-                TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
-                TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
+        sortedSetOrdinalsIndexFieldData = new SortedSetOrdinalsIndexFieldData(
+            indexFieldDataCache,
+            name,
+            CoreValuesSourceType.KEYWORD,
+            circuitBreakerService,
+            AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
+        );
+        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(
+            name,
+            CoreValuesSourceType.KEYWORD,
+            indexFieldDataCache,
+            circuitBreakerService,
+            TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
+            TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
+            TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE
+        );
 
         dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
@@ -156,26 +166,24 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
 
         @Override
         public <FD extends LeafFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData)
-                throws Exception {
+            throws Exception {
             leafLevelBuilds++;
             return indexFieldData.loadDirect(context);
         }
 
         @Override
         @SuppressWarnings("unchecked")
-        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
-                                                                                          IFD indexFieldData) throws Exception {
+        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader, IFD indexFieldData)
+            throws Exception {
             topLevelBuilds++;
             return (IFD) indexFieldData.loadGlobalDirect(indexReader);
         }
 
         @Override
-        public void clear() {
-        }
+        public void clear() {}
 
         @Override
-        public void clear(String fieldName) {
-        }
+        public void clear(String fieldName) {}
 
     }
 

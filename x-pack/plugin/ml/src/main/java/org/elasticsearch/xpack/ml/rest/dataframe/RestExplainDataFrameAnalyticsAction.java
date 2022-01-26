@@ -48,18 +48,23 @@ public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
         final String jobId = restRequest.param(DataFrameAnalyticsConfig.ID.getPreferredName());
 
         if (Strings.isNullOrEmpty(jobId) && restRequest.hasContentOrSourceParam() == false) {
-            throw ExceptionsHelper.badRequestException("Please provide a job [{}] or the config object",
-                DataFrameAnalyticsConfig.ID.getPreferredName());
+            throw ExceptionsHelper.badRequestException(
+                "Please provide a job [{}] or the config object",
+                DataFrameAnalyticsConfig.ID.getPreferredName()
+            );
         }
 
         if (Strings.isNullOrEmpty(jobId) == false && restRequest.hasContentOrSourceParam()) {
-            throw ExceptionsHelper.badRequestException("Please provide either a job [{}] or the config object but not both",
-                DataFrameAnalyticsConfig.ID.getPreferredName());
+            throw ExceptionsHelper.badRequestException(
+                "Please provide either a job [{}] or the config object but not both",
+                DataFrameAnalyticsConfig.ID.getPreferredName()
+            );
         }
 
         // We need to consume the body before returning
-        PutDataFrameAnalyticsAction.Request explainRequestFromBody = Strings.isNullOrEmpty(jobId) ?
-            PutDataFrameAnalyticsAction.Request.parseRequestForExplain(restRequest.contentOrSourceParamParser()) : null;
+        PutDataFrameAnalyticsAction.Request explainRequestFromBody = Strings.isNullOrEmpty(jobId)
+            ? PutDataFrameAnalyticsAction.Request.parseRequestForExplain(restRequest.contentOrSourceParamParser())
+            : null;
 
         return channel -> {
             RestToXContentListener<ExplainDataFrameAnalyticsAction.Response> listener = new RestToXContentListener<>(channel);
@@ -69,19 +74,20 @@ public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
             } else {
                 GetDataFrameAnalyticsAction.Request getRequest = new GetDataFrameAnalyticsAction.Request(jobId);
                 getRequest.setAllowNoResources(false);
-                client.execute(GetDataFrameAnalyticsAction.INSTANCE, getRequest, ActionListener.wrap(
-                    getResponse -> {
-                        List<DataFrameAnalyticsConfig> jobs = getResponse.getResources().results();
-                        if (jobs.size() > 1) {
-                            listener.onFailure(ExceptionsHelper.badRequestException("expected only one config but matched {}",
-                                jobs.stream().map(DataFrameAnalyticsConfig::getId).collect(Collectors.toList())));
-                        } else {
-                            PutDataFrameAnalyticsAction.Request explainRequest = new PutDataFrameAnalyticsAction.Request(jobs.get(0));
-                            client.execute(ExplainDataFrameAnalyticsAction.INSTANCE, explainRequest, listener);
-                        }
-                    },
-                    listener::onFailure
-                ));
+                client.execute(GetDataFrameAnalyticsAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
+                    List<DataFrameAnalyticsConfig> jobs = getResponse.getResources().results();
+                    if (jobs.size() > 1) {
+                        listener.onFailure(
+                            ExceptionsHelper.badRequestException(
+                                "expected only one config but matched {}",
+                                jobs.stream().map(DataFrameAnalyticsConfig::getId).collect(Collectors.toList())
+                            )
+                        );
+                    } else {
+                        PutDataFrameAnalyticsAction.Request explainRequest = new PutDataFrameAnalyticsAction.Request(jobs.get(0));
+                        client.execute(ExplainDataFrameAnalyticsAction.INSTANCE, explainRequest, listener);
+                    }
+                }, listener::onFailure));
             }
         };
     }

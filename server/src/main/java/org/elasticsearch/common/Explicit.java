@@ -24,6 +24,7 @@ public class Explicit<T> {
 
     private final T value;
     private final boolean explicit;
+
     /**
      * Create a value with an indication if this was an explicit choice
      * @param value a setting value
@@ -51,8 +52,7 @@ public class Explicit<T> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Explicit<?> explicit1 = (Explicit<?>) o;
-        return explicit == explicit1.explicit &&
-            Objects.equals(value, explicit1.value);
+        return explicit == explicit1.explicit && Objects.equals(value, explicit1.value);
     }
 
     @Override

@@ -36,9 +36,13 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
     private final JobResultsProvider jobResultsProvider;
 
     @Inject
-    public TransportDeleteCalendarAction(TransportService transportService,
-                                         ActionFilters actionFilters, Client client, JobManager jobManager,
-                                         JobResultsProvider jobResultsProvider) {
+    public TransportDeleteCalendarAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Client client,
+        JobManager jobManager,
+        JobResultsProvider jobResultsProvider
+    ) {
         super(DeleteCalendarAction.NAME, transportService, actionFilters, DeleteCalendarAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;
@@ -50,26 +54,21 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
 
         final String calendarId = request.getCalendarId();
 
-        ActionListener<Calendar> calendarListener = ActionListener.wrap(
-                calendar -> {
-                    // Delete calendar and events
-                    DeleteByQueryRequest dbqRequest = buildDeleteByQuery(calendarId);
-                    executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, dbqRequest, ActionListener.wrap(
-                            response -> {
-                                if (response.getDeleted() == 0) {
-                                    listener.onFailure(new ResourceNotFoundException("No calendar with id [" + calendarId + "]"));
-                                    return;
-                                }
+        ActionListener<Calendar> calendarListener = ActionListener.wrap(calendar -> {
+            // Delete calendar and events
+            DeleteByQueryRequest dbqRequest = buildDeleteByQuery(calendarId);
+            executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, dbqRequest, ActionListener.wrap(response -> {
+                if (response.getDeleted() == 0) {
+                    listener.onFailure(new ResourceNotFoundException("No calendar with id [" + calendarId + "]"));
+                    return;
+                }
 
-                                jobManager.updateProcessOnCalendarChanged(calendar.getJobIds(), ActionListener.wrap(
-                                        r -> listener.onResponse(AcknowledgedResponse.TRUE),
-                                        listener::onFailure
-                                ));
-                            },
-                            listener::onFailure));
-                },
-                listener::onFailure
-        );
+                jobManager.updateProcessOnCalendarChanged(
+                    calendar.getJobIds(),
+                    ActionListener.wrap(r -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
+                );
+            }, listener::onFailure));
+        }, listener::onFailure);
 
         jobResultsProvider.calendar(calendarId, calendarListener);
     }

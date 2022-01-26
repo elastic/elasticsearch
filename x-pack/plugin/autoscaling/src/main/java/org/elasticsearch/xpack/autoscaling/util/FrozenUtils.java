@@ -7,16 +7,17 @@
 
 package org.elasticsearch.xpack.autoscaling.util;
 
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
+
+import java.util.List;
 
 public class FrozenUtils {
     public static boolean isFrozenIndex(Settings indexSettings) {
-        String tierPreference = DataTierAllocationDecider.TIER_PREFERENCE_SETTING.get(indexSettings);
-        String[] preferredTiers = DataTierAllocationDecider.parseTierList(tierPreference);
-        if (preferredTiers.length >= 1 && preferredTiers[0].equals(DataTier.DATA_FROZEN)) {
-            assert preferredTiers.length == 1 : "frozen tier preference must be frozen only";
+        String tierPreference = DataTier.TIER_PREFERENCE_SETTING.get(indexSettings);
+        List<String> preferredTiers = DataTier.parseTierList(tierPreference);
+        if (preferredTiers.isEmpty() == false && preferredTiers.get(0).equals(DataTier.DATA_FROZEN)) {
+            assert preferredTiers.size() == 1 : "frozen tier preference must be frozen only";
             return true;
         } else {
             return false;

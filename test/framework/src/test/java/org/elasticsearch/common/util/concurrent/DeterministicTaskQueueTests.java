@@ -61,8 +61,10 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     private List<String> getResultsOfRunningRandomly(Random random) {
-        final DeterministicTaskQueue taskQueue =
-            new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random);
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue(
+            Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build(),
+            random
+        );
         final List<String> strings = new ArrayList<>(4);
 
         taskQueue.scheduleNow(() -> strings.add("foo"));
@@ -86,8 +88,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
     }
 
     private void advanceToRandomTime(DeterministicTaskQueue taskQueue) {
-        taskQueue.scheduleAt(randomLongBetween(1, 100), () -> {
-        });
+        taskQueue.scheduleAt(randomLongBetween(1, 100), () -> {});
         taskQueue.advanceTime();
         taskQueue.runRandomTask();
         assertFalse(taskQueue.hasRunnableTasks());
@@ -304,8 +305,11 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(taskQueue.getCurrentTimeMillis(), is(startTime + delayMillis + delayMillis1));
 
         final TimeValue cancelledDelay = TimeValue.timeValueMillis(randomLongBetween(1, 100));
-        final Scheduler.Cancellable cancelledBeforeExecution =
-            threadPool.schedule(() -> strings.add("cancelled before execution"), cancelledDelay, "");
+        final Scheduler.Cancellable cancelledBeforeExecution = threadPool.schedule(
+            () -> strings.add("cancelled before execution"),
+            cancelledDelay,
+            ""
+        );
 
         cancelledBeforeExecution.cancel();
         taskQueue.runAllTasks();
@@ -357,7 +361,10 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
         final AtomicInteger counter = new AtomicInteger(0);
         Scheduler.Cancellable cancellable = threadPool.scheduleWithFixedDelay(
-            () -> strings.add("periodic-" + counter.getAndIncrement()), TimeValue.timeValueMillis(intervalMillis), GENERIC);
+            () -> strings.add("periodic-" + counter.getAndIncrement()),
+            TimeValue.timeValueMillis(intervalMillis),
+            GENERIC
+        );
         assertFalse(taskQueue.hasRunnableTasks());
         assertTrue(taskQueue.hasDeferredTasks());
 

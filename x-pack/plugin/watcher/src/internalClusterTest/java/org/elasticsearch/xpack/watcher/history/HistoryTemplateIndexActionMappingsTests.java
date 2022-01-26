@@ -33,10 +33,9 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
     public void testIndexActionFields() throws Exception {
         String index = "the-index";
 
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
-                .trigger(schedule(interval("5m")))
-                .addAction("index", indexAction(index)))
-                .get();
+        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id")
+            .setSource(watchBuilder().trigger(schedule(interval("5m"))).addAction("index", indexAction(index)))
+            .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
         timeWarp().trigger("_id");
@@ -48,10 +47,12 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
         flush();
         refresh();
 
-        SearchResponse response = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*").setSource(searchSource()
-                .aggregation(terms("index_action_indices").field("result.actions.index.response.index"))
-                .aggregation(terms("index_action_types").field("result.actions.index.response.type")))
-                .get();
+        SearchResponse response = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
+            .setSource(
+                searchSource().aggregation(terms("index_action_indices").field("result.actions.index.response.index"))
+                    .aggregation(terms("index_action_types").field("result.actions.index.response.type"))
+            )
+            .get();
 
         assertThat(response, notNullValue());
         assertThat(response.getHits().getTotalHits().value, is(1L));

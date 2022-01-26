@@ -8,9 +8,10 @@
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Path;
 import java.util.Collection;
+
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * An interface for building a trust manager at runtime.
@@ -32,4 +33,3 @@ public interface SslTrustConfig {
     X509ExtendedTrustManager createTrustManager();
 
 }
-

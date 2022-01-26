@@ -8,21 +8,21 @@
 
 package org.elasticsearch.client.ml.inference.results;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class FeatureImportance implements ToXContentObject {
 
@@ -31,17 +31,20 @@ public class FeatureImportance implements ToXContentObject {
     public static final String CLASSES = "classes";
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<FeatureImportance, Void> PARSER =
-        new ConstructingObjectParser<>("feature_importance", true,
-            a -> new FeatureImportance((String) a[0], (Double) a[1], (List<ClassImportance>) a[2])
-        );
+    private static final ConstructingObjectParser<FeatureImportance, Void> PARSER = new ConstructingObjectParser<>(
+        "feature_importance",
+        true,
+        a -> new FeatureImportance((String) a[0], (Double) a[1], (List<ClassImportance>) a[2])
+    );
 
     static {
         PARSER.declareString(constructorArg(), new ParseField(FeatureImportance.FEATURE_NAME));
         PARSER.declareDouble(optionalConstructorArg(), new ParseField(FeatureImportance.IMPORTANCE));
-        PARSER.declareObjectArray(optionalConstructorArg(),
+        PARSER.declareObjectArray(
+            optionalConstructorArg(),
             (p, c) -> ClassImportance.fromXContent(p),
-            new ParseField(FeatureImportance.CLASSES));
+            new ParseField(FeatureImportance.CLASSES)
+        );
     }
 
     public static FeatureImportance fromXContent(XContentParser parser) {
@@ -86,8 +89,12 @@ public class FeatureImportance implements ToXContentObject {
 
     @Override
     public boolean equals(Object object) {
-        if (object == this) { return true; }
-        if (object == null || getClass() != object.getClass()) { return false; }
+        if (object == this) {
+            return true;
+        }
+        if (object == null || getClass() != object.getClass()) {
+            return false;
+        }
         FeatureImportance that = (FeatureImportance) object;
         return Objects.equals(featureName, that.featureName)
             && Objects.equals(importance, that.importance)
@@ -103,11 +110,11 @@ public class FeatureImportance implements ToXContentObject {
 
         static final String CLASS_NAME = "class_name";
 
-        private static final ConstructingObjectParser<ClassImportance, Void> PARSER =
-            new ConstructingObjectParser<>("feature_importance_class_importance",
-                true,
-                a -> new ClassImportance(a[0], (Double) a[1])
-            );
+        private static final ConstructingObjectParser<ClassImportance, Void> PARSER = new ConstructingObjectParser<>(
+            "feature_importance_class_importance",
+            true,
+            a -> new ClassImportance(a[0], (Double) a[1])
+        );
 
         static {
             PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> {
@@ -157,8 +164,7 @@ public class FeatureImportance implements ToXContentObject {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ClassImportance that = (ClassImportance) o;
-            return Double.compare(that.importance, importance) == 0 &&
-                Objects.equals(className, that.className);
+            return Double.compare(that.importance, importance) == 0 && Objects.equals(className, that.className);
         }
 
         @Override

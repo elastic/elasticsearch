@@ -32,8 +32,9 @@ public class RestEstimateModelMemoryAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        EstimateModelMemoryAction.Request request =
-            EstimateModelMemoryAction.Request.parseRequest(restRequest.contentOrSourceParamParser());
+        EstimateModelMemoryAction.Request request = EstimateModelMemoryAction.Request.parseRequest(
+            restRequest.contentOrSourceParamParser()
+        );
         return channel -> client.execute(EstimateModelMemoryAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

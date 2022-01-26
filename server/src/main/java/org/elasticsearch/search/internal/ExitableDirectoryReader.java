@@ -67,6 +67,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
     public CacheHelper getReaderCacheHelper() {
         return in.getReaderCacheHelper();
     }
+
     /**
      * Wraps a {@link FilterLeafReader} with a {@link QueryCancellation}.
      */
@@ -97,8 +98,9 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             // If we have a suggest CompletionQuery then the CompletionWeight#bulkScorer() will check that
             // the terms are instanceof CompletionTerms (not generic FilterTerms) and will throw an exception
             // if that's not the case.
-            return (queryCancellation.isEnabled() && terms instanceof CompletionTerms == false) ?
-                    new ExitableTerms(terms, queryCancellation) : terms;
+            return (queryCancellation.isEnabled() && terms instanceof CompletionTerms == false)
+                ? new ExitableTerms(terms, queryCancellation)
+                : terms;
         }
 
         @Override

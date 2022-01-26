@@ -41,6 +41,7 @@ public class MockTerminal extends Terminal {
     private int secretIndex = 0;
 
     private boolean hasOutputStream = true;
+
     public MockTerminal() {
         super("\n"); // always *nix newlines for tests
     }

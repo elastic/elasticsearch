@@ -12,8 +12,8 @@ import com.amazonaws.util.EC2MetadataUtils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.BufferedReader;
@@ -105,7 +105,7 @@ class Ec2NameResolver implements CustomNameResolver {
     @Override
     public InetAddress[] resolveDefault() {
         return null; // using this, one has to explicitly specify _ec2_ in network setting
-//        return resolve(Ec2HostnameType.DEFAULT, false);
+        // return resolve(Ec2HostnameType.DEFAULT, false);
     }
 
     @Override

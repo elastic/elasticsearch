@@ -17,8 +17,8 @@ import java.io.IOException;
 class StupidBackoffScorer extends WordScorer {
     private final double discount;
 
-    StupidBackoffScorer(IndexReader reader, Terms terms,String field,
-                            double realWordLikelihood, BytesRef separator, double discount) throws IOException {
+    StupidBackoffScorer(IndexReader reader, Terms terms, String field, double realWordLikelihood, BytesRef separator, double discount)
+        throws IOException {
         super(reader, terms, field, realWordLikelihood, separator);
         this.discount = discount;
     }
@@ -39,7 +39,7 @@ class StupidBackoffScorer extends WordScorer {
 
     @Override
     protected double scoreTrigram(Candidate w, Candidate w_1, Candidate w_2) throws IOException {
-        // First see if there are bigrams.  If there aren't then skip looking up the trigram.  This saves lookups
+        // First see if there are bigrams. If there aren't then skip looking up the trigram. This saves lookups
         // when the bigrams and trigrams are rare and we need both anyway.
         join(separator, spare, w_1.term, w.term);
         long bigramCount = frequency(spare.get());

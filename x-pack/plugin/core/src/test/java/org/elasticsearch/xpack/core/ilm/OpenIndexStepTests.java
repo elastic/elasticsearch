@@ -61,7 +61,8 @@ public class OpenIndexStepTests extends AbstractStepTestCase<OpenIndexStep> {
     }
 
     public void testPerformAction() throws Exception {
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .state(IndexMetadata.State.CLOSE)
@@ -79,7 +80,7 @@ public class OpenIndexStepTests extends AbstractStepTestCase<OpenIndexStep> {
             OpenIndexRequest request = (OpenIndexRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<OpenIndexResponse> listener = (ActionListener<OpenIndexResponse>) invocation.getArguments()[1];
-            assertThat(request.indices(), equalTo(new String[]{indexMetadata.getIndex().getName()}));
+            assertThat(request.indices(), equalTo(new String[] { indexMetadata.getIndex().getName() }));
             listener.onResponse(new OpenIndexResponse(true, true));
             return null;
         }).when(indicesClient).open(Mockito.any(), Mockito.any());
@@ -91,9 +92,9 @@ public class OpenIndexStepTests extends AbstractStepTestCase<OpenIndexStep> {
         Mockito.verify(indicesClient, Mockito.only()).open(Mockito.any(), Mockito.any());
     }
 
-
     public void testPerformActionFailure() {
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .state(IndexMetadata.State.CLOSE)
@@ -111,13 +112,18 @@ public class OpenIndexStepTests extends AbstractStepTestCase<OpenIndexStep> {
             OpenIndexRequest request = (OpenIndexRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<OpenIndexResponse> listener = (ActionListener<OpenIndexResponse>) invocation.getArguments()[1];
-            assertThat(request.indices(), equalTo(new String[]{indexMetadata.getIndex().getName()}));
+            assertThat(request.indices(), equalTo(new String[] { indexMetadata.getIndex().getName() }));
             listener.onFailure(exception);
             return null;
         }).when(indicesClient).open(Mockito.any(), Mockito.any());
 
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
-            f -> step.performAction(indexMetadata, null, null, f))));
+        assertSame(
+            exception,
+            expectThrows(
+                Exception.class,
+                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f))
+            )
+        );
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();

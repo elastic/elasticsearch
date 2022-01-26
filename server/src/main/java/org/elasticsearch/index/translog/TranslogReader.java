@@ -58,8 +58,8 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
      * @return a new TranslogReader
      * @throws IOException if any of the file operations resulted in an I/O exception
      */
-    public static TranslogReader open(
-            final FileChannel channel, final Path path, final Checkpoint checkpoint, final String translogUUID) throws IOException {
+    public static TranslogReader open(final FileChannel channel, final Path path, final Checkpoint checkpoint, final String translogUUID)
+        throws IOException {
         final TranslogHeader header = TranslogHeader.read(translogUUID, path, channel);
         return new TranslogReader(checkpoint, channel, path, header);
     }
@@ -75,9 +75,16 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
                 if (aboveSeqNo < checkpoint.trimmedAboveSeqNo
                     || aboveSeqNo < checkpoint.maxSeqNo && checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     final Path checkpointFile = path.getParent().resolve(getCommitCheckpointFileName(checkpoint.generation));
-                    final Checkpoint newCheckpoint = new Checkpoint(checkpoint.offset, checkpoint.numOps,
-                        checkpoint.generation, checkpoint.minSeqNo, checkpoint.maxSeqNo,
-                        checkpoint.globalCheckpoint, checkpoint.minTranslogGeneration, aboveSeqNo);
+                    final Checkpoint newCheckpoint = new Checkpoint(
+                        checkpoint.offset,
+                        checkpoint.numOps,
+                        checkpoint.generation,
+                        checkpoint.minSeqNo,
+                        checkpoint.maxSeqNo,
+                        checkpoint.globalCheckpoint,
+                        checkpoint.minTranslogGeneration,
+                        aboveSeqNo
+                    );
                     Checkpoint.write(channelFactory, checkpointFile, newCheckpoint, StandardOpenOption.WRITE);
                     IOUtils.fsync(checkpointFile.getParent(), true);
 
@@ -116,8 +123,9 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
             throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + length + "]");
         }
         if (position < getFirstOperationOffset()) {
-            throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" +
-                getFirstOperationOffset() + "]");
+            throw new IOException(
+                "read requested before position of first ops. pos [" + position + "] first op on: [" + getFirstOperationOffset() + "]"
+            );
         }
         Channels.readFromFileChannelWithEofException(channel, position, buffer);
     }

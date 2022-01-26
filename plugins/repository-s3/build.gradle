@@ -76,13 +76,16 @@ tasks.named("bundlePlugin").configure {
   }
 }
 
-task testRepositoryCreds(type: Test) {
+def testRepositoryCreds = tasks.register("testRepositoryCreds", Test) {
   include '**/RepositoryCredentialsTests.class'
   systemProperty 'es.allow_insecure_settings', 'true'
 }
-check.dependsOn(testRepositoryCreds)
 
-test {
+tasks.named('check').configure {
+  dependsOn(testRepositoryCreds)
+}
+
+tasks.named('test').configure {
   // this is tested explicitly in separate test tasks
   exclude '**/RepositoryCredentialsTests.class'
   exclude '**/S3RepositoryThirdPartyTests.class'
@@ -297,6 +300,7 @@ tasks.named("check").configure { dependsOn(s3ThirdPartyTest) }
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // classes are missing
+    'javax.jms.Message',
     'javax.servlet.ServletContextEvent',
     'javax.servlet.ServletContextListener',
     'org.apache.avalon.framework.logger.Logger',

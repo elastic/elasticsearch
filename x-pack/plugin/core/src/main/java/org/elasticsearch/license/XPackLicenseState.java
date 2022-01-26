@@ -15,12 +15,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,104 +34,53 @@ import java.util.stream.Collectors;
  */
 public class XPackLicenseState {
 
-    /**
-     * A licensed feature.
-     *
-     * Each value defines the licensed state necessary for the feature to be allowed.
-     */
-    public enum Feature {
-        SECURITY_AUDITING(OperationMode.GOLD, false),
-        SECURITY_DLS_FLS(OperationMode.PLATINUM, false),
-        SECURITY_CUSTOM_ROLE_PROVIDERS(OperationMode.PLATINUM, true),
-        SECURITY_TOKEN_SERVICE(OperationMode.STANDARD, false),
-        SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
-        SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
-
-        WATCHER(OperationMode.STANDARD, true),
-        // TODO: should just check WATCHER directly?
-        MONITORING_CLUSTER_ALERTS(OperationMode.STANDARD, true),
-        MONITORING_UPDATE_RETENTION(OperationMode.STANDARD, false),
-
-        ENCRYPTED_SNAPSHOT(OperationMode.PLATINUM, true),
-
-        CCR(OperationMode.PLATINUM, true),
-
-        MACHINE_LEARNING(OperationMode.PLATINUM, true),
-
-        OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true);
-
-        // NOTE: this is temporary. The Feature enum will go away in favor of LicensedFeature.
-        // Embedding the feature instance here is a stopgap to allow smaller initial PR,
-        // followed by PRs to convert the current consumers of the license state.
-        final LicensedFeature.Momentary feature;
-
-        Feature(OperationMode minimumOperationMode, boolean needsActive) {
-            assert minimumOperationMode.compareTo(OperationMode.BASIC) > 0: minimumOperationMode.toString();
-            String name = name().toLowerCase(Locale.ROOT);
-            if (needsActive) {
-                this.feature = LicensedFeature.momentary(name, name, minimumOperationMode);
-            } else {
-                this.feature = LicensedFeature.momentaryLenient(name, name, minimumOperationMode);
-            }
-        }
-    }
-
     /** Messages for each feature which are printed when the license expires. */
     static final Map<String, String[]> EXPIRATION_MESSAGES;
     static {
         Map<String, String[]> messages = new LinkedHashMap<>();
-        messages.put(XPackField.SECURITY, new String[] {
-            "Cluster health, cluster stats and indices stats operations are blocked",
-            "All data operations (read and write) continue to work"
-        });
-        messages.put(XPackField.WATCHER, new String[] {
-            "PUT / GET watch APIs are disabled, DELETE watch API continues to work",
-            "Watches execute and write to the history",
-            "The actions of the watches don't execute"
-        });
-        messages.put(XPackField.MONITORING, new String[] {
-            "The agent will stop collecting cluster and indices metrics",
-            "The agent will stop automatically cleaning indices older than [xpack.monitoring.history.duration]"
-        });
-        messages.put(XPackField.GRAPH, new String[] {
-            "Graph explore APIs are disabled"
-        });
-        messages.put(XPackField.MACHINE_LEARNING, new String[] {
-            "Machine learning APIs are disabled"
-        });
-        messages.put(XPackField.LOGSTASH, new String[] {
-            "Logstash will continue to poll centrally-managed pipelines"
-        });
-        messages.put(XPackField.BEATS, new String[] {
-            "Beats will continue to poll centrally-managed configuration"
-        });
-        messages.put(XPackField.DEPRECATION, new String[] {
-            "Deprecation APIs are disabled"
-        });
-        messages.put(XPackField.UPGRADE, new String[] {
-            "Upgrade API is disabled"
-        });
-        messages.put(XPackField.SQL, new String[] {
-            "SQL support is disabled"
-        });
-        messages.put(XPackField.ROLLUP, new String[] {
-            "Creating and Starting rollup jobs will no longer be allowed.",
-            "Stopping/Deleting existing jobs, RollupCaps API and RollupSearch continue to function."
-        });
-        messages.put(XPackField.TRANSFORM, new String[] {
-            "Creating, starting, updating transforms will no longer be allowed.",
-            "Stopping/Deleting existing transforms continue to function."
-        });
-        messages.put(XPackField.ANALYTICS, new String[] {
-            "Aggregations provided by Analytics plugin are no longer usable."
-        });
-        messages.put(XPackField.CCR, new String[]{
-            "Creating new follower indices will be blocked",
-            "Configuring auto-follow patterns will be blocked",
-            "Auto-follow patterns will no longer discover new leader indices",
-            "The CCR monitoring endpoint will be blocked",
-            "Existing follower indices will continue to replicate data"
-        });
+        messages.put(
+            XPackField.SECURITY,
+            new String[] {
+                "Cluster health, cluster stats and indices stats operations are blocked",
+                "All data operations (read and write) continue to work" }
+        );
+        messages.put(
+            XPackField.WATCHER,
+            new String[] {
+                "PUT / GET watch APIs are disabled, DELETE watch API continues to work",
+                "Watches execute and write to the history",
+                "The actions of the watches don't execute" }
+        );
+        messages.put(XPackField.MONITORING, new String[] { "The agent will stop collecting cluster and indices metrics" });
+        messages.put(XPackField.GRAPH, new String[] { "Graph explore APIs are disabled" });
+        messages.put(XPackField.MACHINE_LEARNING, new String[] { "Machine learning APIs are disabled" });
+        messages.put(XPackField.LOGSTASH, new String[] { "Logstash will continue to poll centrally-managed pipelines" });
+        messages.put(XPackField.BEATS, new String[] { "Beats will continue to poll centrally-managed configuration" });
+        messages.put(XPackField.DEPRECATION, new String[] { "Deprecation APIs are disabled" });
+        messages.put(XPackField.UPGRADE, new String[] { "Upgrade API is disabled" });
+        messages.put(XPackField.SQL, new String[] { "SQL support is disabled" });
+        messages.put(
+            XPackField.ROLLUP,
+            new String[] {
+                "Creating and Starting rollup jobs will no longer be allowed.",
+                "Stopping/Deleting existing jobs, RollupCaps API and RollupSearch continue to function." }
+        );
+        messages.put(
+            XPackField.TRANSFORM,
+            new String[] {
+                "Creating, starting, updating transforms will no longer be allowed.",
+                "Stopping/Deleting existing transforms continue to function." }
+        );
+        messages.put(XPackField.ANALYTICS, new String[] { "Aggregations provided by Analytics plugin are no longer usable." });
+        messages.put(
+            XPackField.CCR,
+            new String[] {
+                "Creating new follower indices will be blocked",
+                "Configuring auto-follow patterns will be blocked",
+                "Auto-follow patterns will no longer discover new leader indices",
+                "The CCR monitoring endpoint will be blocked",
+                "Existing follower indices will continue to replicate data" }
+        );
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -162,8 +109,9 @@ public class XPackLicenseState {
                 switch (currentMode) {
                     case STANDARD:
                         return new String[] {
-                            "Security will default to disabled (set " + XPackSettings.SECURITY_ENABLED.getKey() + " to enable security).",
-                        };
+                            "Security will default to disabled (set "
+                                + XPackSettings.SECURITY_ENABLED.getKey()
+                                + " to enable security).", };
                     case TRIAL:
                     case GOLD:
                     case PLATINUM:
@@ -175,8 +123,7 @@ public class XPackLicenseState {
                             "IP filtering and auditing will be disabled.",
                             "Field and document level access control will be disabled.",
                             "Custom realms will be ignored.",
-                            "A custom authorization engine will be ignored."
-                        };
+                            "A custom authorization engine will be ignored." };
                 }
                 break;
             case GOLD:
@@ -190,8 +137,7 @@ public class XPackLicenseState {
                         return new String[] {
                             "Field and document level access control will be disabled.",
                             "Custom realms will be ignored.",
-                            "A custom authorization engine will be ignored."
-                        };
+                            "A custom authorization engine will be ignored." };
                 }
                 break;
             case STANDARD:
@@ -207,8 +153,7 @@ public class XPackLicenseState {
                             "IP filtering and auditing will be disabled.",
                             "Field and document level access control will be disabled.",
                             "Custom realms will be ignored.",
-                            "A custom authorization engine will be ignored."
-                        };
+                            "A custom authorization engine will be ignored." };
                 }
         }
         return Strings.EMPTY_ARRAY;
@@ -241,15 +186,14 @@ public class XPackLicenseState {
                     case ENTERPRISE:
                         return new String[] {
                             LoggerMessageFormat.format(
-                                "Multi-cluster support is disabled for clusters with [{}] license. If you are\n" +
-                                    "running multiple clusters, users won't be able to access the clusters with\n" +
-                                    "[{}] licenses from within a single X-Pack Kibana instance. You will have to deploy a\n" +
-                                    "separate and dedicated X-pack Kibana instance for each [{}] cluster you wish to monitor.",
-                                newMode, newMode, newMode),
-                            LoggerMessageFormat.format(
-                                "Automatic index cleanup is locked to {} days for clusters with [{}] license.",
-                                MonitoringField.HISTORY_DURATION.getDefault(Settings.EMPTY).days(), newMode)
-                        };
+                                "Multi-cluster support is disabled for clusters with [{}] license. If you are\n"
+                                    + "running multiple clusters, users won't be able to access the clusters with\n"
+                                    + "[{}] licenses from within a single X-Pack Kibana instance. You will have to deploy a\n"
+                                    + "separate and dedicated X-pack Kibana instance for each [{}] cluster you wish to monitor.",
+                                newMode,
+                                newMode,
+                                newMode
+                            ) };
                 }
                 break;
         }
@@ -320,7 +264,7 @@ public class XPackLicenseState {
                     case PLATINUM:
                     case ENTERPRISE:
                         return new String[] {
-                                "JDBC and ODBC support will be disabled, but you can continue to use SQL CLI and REST endpoint" };
+                            "JDBC and ODBC support will be disabled, but you can continue to use SQL CLI and REST endpoint" };
                 }
                 break;
         }
@@ -340,9 +284,7 @@ public class XPackLicenseState {
                     case STANDARD:
                     case GOLD:
                         // so CCR will be disabled
-                        return new String[]{
-                            "Cross-Cluster Replication will be disabled"
-                        };
+                        return new String[] { "Cross-Cluster Replication will be disabled" };
                 }
         }
         return Strings.EMPTY_ARRAY;
@@ -452,18 +394,19 @@ public class XPackLicenseState {
 
     /** Return the current license type. */
     public OperationMode getOperationMode() {
-        return executeAgainstStatus(status -> status.mode);
+        return executeAgainstStatus(statusToCheck -> statusToCheck.mode);
     }
 
     // Package private for tests
     /** Return true if the license is currently within its time boundaries, false otherwise. */
     public boolean isActive() {
-        return checkAgainstStatus(status -> status.active);
+        return checkAgainstStatus(statusToCheck -> statusToCheck.active);
     }
 
-    @Deprecated
-    public boolean checkFeature(Feature feature) {
-        return feature.feature.check(this);
+    public String statusDescription() {
+        return executeAgainstStatus(
+            statusToCheck -> (statusToCheck.active ? "active" : "expired") + ' ' + statusToCheck.mode.description() + " license"
+        );
     }
 
     void featureUsed(LicensedFeature feature) {
@@ -493,16 +436,6 @@ public class XPackLicenseState {
         });
     }
 
-    /**
-     * Checks whether the given feature is allowed by the current license.
-     * <p>
-     * This method should only be used when serializing whether a feature is allowed for telemetry.
-     */
-    @Deprecated
-    public boolean isAllowed(Feature feature) {
-        return isAllowed(feature.feature);
-    }
-
     // Package protected: Only allowed to be called by LicensedFeature
     boolean isAllowed(LicensedFeature feature) {
         return isAllowedByLicense(feature.getMinimumOperationMode(), feature.isNeedsActive());
@@ -524,10 +457,6 @@ public class XPackLicenseState {
         long currentTimeMillis = epochMillisProvider.getAsLong();
         Function<Long, Long> timeConverter = v -> v == -1 ? currentTimeMillis : v;
         return usage.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> timeConverter.apply(e.getValue())));
-    }
-
-    public static boolean isMachineLearningAllowedForOperationMode(final OperationMode operationMode) {
-        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
     }
 
     public static boolean isFipsAllowedForOperationMode(final OperationMode operationMode) {
@@ -562,8 +491,11 @@ public class XPackLicenseState {
         }
     }
 
-    private static boolean isSecurityEnabled(final OperationMode mode, final boolean isSecurityExplicitlyEnabled,
-                                             final boolean isSecurityEnabled) {
+    private static boolean isSecurityEnabled(
+        final OperationMode mode,
+        final boolean isSecurityExplicitlyEnabled,
+        final boolean isSecurityEnabled
+    ) {
         switch (mode) {
             case TRIAL:
             case BASIC:
@@ -573,12 +505,7 @@ public class XPackLicenseState {
         }
     }
 
-    public static boolean isCcrAllowedForOperationMode(final OperationMode operationMode) {
-        return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
-    }
-
-    public static boolean isAllowedByOperationMode(
-        final OperationMode operationMode, final OperationMode minimumMode) {
+    static boolean isAllowedByOperationMode(final OperationMode operationMode, final OperationMode minimumMode) {
         if (OperationMode.TRIAL == operationMode) {
             return true;
         }
@@ -593,8 +520,16 @@ public class XPackLicenseState {
      * is needed for multiple interactions with the license state.
      */
     public XPackLicenseState copyCurrentLicenseState() {
-        return executeAgainstStatus(status ->
-            new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status, usage, epochMillisProvider));
+        return executeAgainstStatus(
+            statusToCheck -> new XPackLicenseState(
+                listeners,
+                isSecurityEnabled,
+                isSecurityExplicitlyEnabled,
+                statusToCheck,
+                usage,
+                epochMillisProvider
+            )
+        );
     }
 
     /**
@@ -607,11 +542,11 @@ public class XPackLicenseState {
      */
     @Deprecated
     public boolean isAllowedByLicense(OperationMode minimumMode, boolean needActive) {
-        return checkAgainstStatus(status -> {
-            if (needActive && false == status.active) {
+        return checkAgainstStatus(statusToCheck -> {
+            if (needActive && false == statusToCheck.active) {
                 return false;
             }
-            return isAllowedByOperationMode(status.mode, minimumMode);
+            return isAllowedByOperationMode(statusToCheck.mode, minimumMode);
         });
     }
 

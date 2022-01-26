@@ -19,7 +19,7 @@ public class FlushFailedEngineException extends EngineException {
         super(shardId, "Flush failed", t);
     }
 
-    public FlushFailedEngineException(StreamInput in) throws IOException{
+    public FlushFailedEngineException(StreamInput in) throws IOException {
         super(in);
     }
 }

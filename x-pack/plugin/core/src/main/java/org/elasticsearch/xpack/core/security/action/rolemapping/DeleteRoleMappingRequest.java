@@ -30,8 +30,7 @@ public class DeleteRoleMappingRequest extends ActionRequest implements WriteRequ
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
-    public DeleteRoleMappingRequest() {
-    }
+    public DeleteRoleMappingRequest() {}
 
     @Override
     public DeleteRoleMappingRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {

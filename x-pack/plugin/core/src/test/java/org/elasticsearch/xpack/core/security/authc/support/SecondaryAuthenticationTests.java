@@ -18,7 +18,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.junit.After;
 import org.junit.Before;
 
@@ -140,8 +139,10 @@ public class SecondaryAuthenticationTests extends ESTestCase {
         final ThreadContext threadContext = threadPool.getThreadContext();
         secondaryAuth.execute(originalContext -> {
             assertThat(securityContext.getUser().principal(), equalTo("u2"));
-            ActionListener<Void> listener = new ContextPreservingActionListener<>(threadContext.newRestorableContext(false),
-                ActionListener.wrap(() -> listenerUser.set(securityContext.getUser())));
+            ActionListener<Void> listener = new ContextPreservingActionListener<>(
+                threadContext.newRestorableContext(false),
+                ActionListener.wrap(() -> listenerUser.set(securityContext.getUser()))
+            );
             originalContext.restore();
             threadPool.generic().execute(() -> {
                 threadUser.set(securityContext.getUser());

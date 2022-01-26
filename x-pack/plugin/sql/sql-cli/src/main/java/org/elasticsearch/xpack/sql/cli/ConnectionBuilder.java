@@ -41,8 +41,8 @@ public class ConnectionBuilder {
      * @param binaryCommunication should the communication between the CLI and server be binary (CBOR)
      * @throws UserException if there is a problem with the information provided by the user
      */
-    public ConnectionConfiguration buildConnection(String connectionStringArg, String keystoreLocation,
-                                                   boolean binaryCommunication) throws UserException {
+    public ConnectionConfiguration buildConnection(String connectionStringArg, String keystoreLocation, boolean binaryCommunication)
+        throws UserException {
         final URI uri;
         final String connectionString;
         Properties properties = new Properties();
@@ -112,10 +112,10 @@ public class ConnectionBuilder {
     protected void checkIfExists(String name, Path p) throws UserException {
         if (false == Files.exists(p)) {
             throw new UserException(ExitCodes.USAGE, name + " [" + p + "] doesn't exist");
-         }
-         if (false == Files.isRegularFile(p)) {
-             throw new UserException(ExitCodes.USAGE, name + " [" + p + "] isn't a regular file");
-         }
+        }
+        if (false == Files.isRegularFile(p)) {
+            throw new UserException(ExitCodes.USAGE, name + " [" + p + "] isn't a regular file");
+        }
     }
 
 }

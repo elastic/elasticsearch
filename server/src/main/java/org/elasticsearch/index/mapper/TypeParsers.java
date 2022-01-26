@@ -47,33 +47,42 @@ public class TypeParsers {
      */
     public static Map<String, String> parseMeta(String name, Object metaObject) {
         if (metaObject instanceof Map == false) {
-            throw new MapperParsingException("[meta] must be an object, got " + metaObject.getClass().getSimpleName() +
-                "[" + metaObject + "] for field [" + name + "]");
+            throw new MapperParsingException(
+                "[meta] must be an object, got " + metaObject.getClass().getSimpleName() + "[" + metaObject + "] for field [" + name + "]"
+            );
         }
         @SuppressWarnings("unchecked")
         Map<String, ?> meta = (Map<String, ?>) metaObject;
         if (meta.size() > 5) {
-            throw new MapperParsingException("[meta] can't have more than 5 entries, but got " + meta.size() + " on field [" +
-                name + "]");
+            throw new MapperParsingException("[meta] can't have more than 5 entries, but got " + meta.size() + " on field [" + name + "]");
         }
         for (String key : meta.keySet()) {
             if (key.codePointCount(0, key.length()) > 20) {
-                throw new MapperParsingException("[meta] keys can't be longer than 20 chars, but got [" + key +
-                    "] for field [" + name + "]");
+                throw new MapperParsingException(
+                    "[meta] keys can't be longer than 20 chars, but got [" + key + "] for field [" + name + "]"
+                );
             }
         }
         for (Object value : meta.values()) {
             if (value instanceof String) {
                 String sValue = (String) value;
                 if (sValue.codePointCount(0, sValue.length()) > 50) {
-                    throw new MapperParsingException("[meta] values can't be longer than 50 chars, but got [" + value +
-                        "] for field [" + name + "]");
+                    throw new MapperParsingException(
+                        "[meta] values can't be longer than 50 chars, but got [" + value + "] for field [" + name + "]"
+                    );
                 }
             } else if (value == null) {
                 throw new MapperParsingException("[meta] values can't be null (field [" + name + "])");
             } else {
-                throw new MapperParsingException("[meta] values can only be strings, but got " +
-                    value.getClass().getSimpleName() + "[" + value + "] for field [" + name + "]");
+                throw new MapperParsingException(
+                    "[meta] values can only be strings, but got "
+                        + value.getClass().getSimpleName()
+                        + "["
+                        + value
+                        + "] for field ["
+                        + name
+                        + "]"
+                );
             }
         }
         Map<String, String> sortedMeta = new TreeMap<>();
@@ -83,17 +92,26 @@ public class TypeParsers {
         return Collections.unmodifiableMap(sortedMeta);
     }
 
-    @SuppressWarnings({"unchecked"})
-    public static boolean parseMultiField(Consumer<FieldMapper.Builder> multiFieldsBuilder, String name,
-                                          MappingParserContext parserContext, String propName, Object propNode) {
+    @SuppressWarnings({ "unchecked" })
+    public static boolean parseMultiField(
+        Consumer<FieldMapper.Builder> multiFieldsBuilder,
+        String name,
+        MappingParserContext parserContext,
+        String propName,
+        Object propNode
+    ) {
         if (propName.equals("fields")) {
             if (parserContext.isWithinMultiField()) {
-                deprecationLogger.critical(DeprecationCategory.MAPPINGS, "multifield_within_multifield",
-                    "At least one multi-field, [" + name + "], was " +
-                    "encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated and will " +
-                    "no longer be supported in 8.0. To resolve the issue, all instances of [fields] that occur within a [fields] block " +
-                    "should be removed from the mappings, either by flattening the chained [fields] blocks into a single level, or " +
-                    "switching to [copy_to] if appropriate.");
+                deprecationLogger.critical(
+                    DeprecationCategory.MAPPINGS,
+                    "multifield_within_multifield",
+                    "At least one multi-field, ["
+                        + name
+                        + "], was encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated"
+                        + " and will no longer be supported in 8.0. To resolve the issue, all instances of [fields] that occur within a"
+                        + " [fields] block should be removed from the mappings, either by flattening the chained [fields] blocks into a"
+                        + " single level, or switching to [copy_to] if appropriate."
+                );
             }
 
             parserContext = parserContext.createMultiFieldContext(parserContext);
@@ -104,15 +122,23 @@ public class TypeParsers {
             } else if (propNode instanceof Map) {
                 multiFieldsPropNodes = (Map<String, Object>) propNode;
             } else {
-                throw new MapperParsingException("expected map for property [fields] on field [" + propNode + "] or " +
-                    "[" + propName + "] but got a " + propNode.getClass());
+                throw new MapperParsingException(
+                    "expected map for property [fields] on field ["
+                        + propNode
+                        + "] or "
+                        + "["
+                        + propName
+                        + "] but got a "
+                        + propNode.getClass()
+                );
             }
 
             for (Map.Entry<String, Object> multiFieldEntry : multiFieldsPropNodes.entrySet()) {
                 String multiFieldName = multiFieldEntry.getKey();
                 if (multiFieldName.contains(".")) {
-                    throw new MapperParsingException("Field name [" + multiFieldName + "] which is a multi field of [" + name + "] cannot" +
-                        " contain '.'");
+                    throw new MapperParsingException(
+                        "Field name [" + multiFieldName + "] which is a multi field of [" + name + "] cannot" + " contain '.'"
+                    );
                 }
                 if ((multiFieldEntry.getValue() instanceof Map) == false) {
                     throw new MapperParsingException("illegal field [" + multiFieldName + "], only fields can be specified inside fields");

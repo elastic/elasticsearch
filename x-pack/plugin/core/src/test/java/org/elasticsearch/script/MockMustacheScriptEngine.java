@@ -47,12 +47,11 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
         if (context.instanceClazz.equals(TemplateScript.class) == false) {
             throw new IllegalArgumentException("mock mustache only understands template scripts, not [" + context.name + "]");
         }
-        return context.factoryClazz.cast((TemplateScript.Factory) vars ->
-            new TemplateScript(vars) {
-                @Override
-                public String execute() {
-                    return script;
-                }
-            });
+        return context.factoryClazz.cast((TemplateScript.Factory) vars -> new TemplateScript(vars) {
+            @Override
+            public String execute() {
+                return script;
+            }
+        });
     }
 }

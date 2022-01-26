@@ -8,8 +8,8 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.painless.action.PainlessContextClassBindingInfo;
 import org.elasticsearch.painless.action.PainlessContextClassInfo;
@@ -102,9 +102,11 @@ public final class ContextDocGenerator {
             }
         }
 
-        return staticInfoCounts.entrySet().stream().filter(
-                e -> e.getValue() == contextInfos.size()
-        ).map(Map.Entry::getKey).collect(Collectors.toSet());
+        return staticInfoCounts.entrySet()
+            .stream()
+            .filter(e -> e.getValue() == contextInfos.size())
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
     }
 
     private static List<Object> createContextStatics(PainlessContextInfo contextInfo) {
@@ -126,9 +128,11 @@ public final class ContextDocGenerator {
             }
         }
 
-        return classInfoCounts.entrySet().stream().filter(
-                e -> e.getValue() == contextInfos.size()
-        ).map(Map.Entry::getKey).collect(Collectors.toSet());
+        return classInfoCounts.entrySet()
+            .stream()
+            .filter(e -> e.getValue() == contextInfos.size())
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
     }
 
     @SuppressForbidden(reason = "resolve api docs directory with environment")
@@ -159,14 +163,22 @@ public final class ContextDocGenerator {
         stream.println();
     }
 
-    private static void printSharedIndexPage(Path sharedDir, Map<String, String> javaNamesToDisplayNames,
-            List<Object> staticInfos, List<PainlessContextClassInfo> classInfos) throws IOException {
+    private static void printSharedIndexPage(
+        Path sharedDir,
+        Map<String, String> javaNamesToDisplayNames,
+        List<Object> staticInfos,
+        List<PainlessContextClassInfo> classInfos
+    ) throws IOException {
 
         Path sharedIndexPath = sharedDir.resolve("index.asciidoc");
 
-        try (PrintStream sharedIndexStream = new PrintStream(
+        try (
+            PrintStream sharedIndexStream = new PrintStream(
                 Files.newOutputStream(sharedIndexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
-                false, StandardCharsets.UTF_8.name())) {
+                false,
+                StandardCharsets.UTF_8.name()
+            )
+        ) {
 
             printAutomatedMessage(sharedIndexStream);
 
@@ -179,14 +191,23 @@ public final class ContextDocGenerator {
         }
     }
 
-    private static void printContextIndexPage(Path contextDir, Map<String, String> javaNamesToDisplayNames,
-            PainlessContextInfo contextInfo, List<Object> staticInfos, List<PainlessContextClassInfo> classInfos) throws IOException {
+    private static void printContextIndexPage(
+        Path contextDir,
+        Map<String, String> javaNamesToDisplayNames,
+        PainlessContextInfo contextInfo,
+        List<Object> staticInfos,
+        List<PainlessContextClassInfo> classInfos
+    ) throws IOException {
 
         Path contextIndexPath = contextDir.resolve("index.asciidoc");
 
-        try (PrintStream contextIndexStream = new PrintStream(
+        try (
+            PrintStream contextIndexStream = new PrintStream(
                 Files.newOutputStream(contextIndexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
-                false, StandardCharsets.UTF_8.name())) {
+                false,
+                StandardCharsets.UTF_8.name()
+            )
+        ) {
 
             printAutomatedMessage(contextIndexStream);
 
@@ -196,31 +217,39 @@ public final class ContextDocGenerator {
             contextIndexStream.println("The following specialized API is available in the " + getContextName(contextInfo) + " context.");
             contextIndexStream.println();
             contextIndexStream.println(
-                    "* See the <<" + SHARED_HEADER + ", " + SHARED_NAME + " API>> for further API available in all contexts.");
+                "* See the <<" + SHARED_HEADER + ", " + SHARED_NAME + " API>> for further API available in all contexts."
+            );
 
             printIndex(contextIndexStream, getContextHeader(contextInfo), javaNamesToDisplayNames, staticInfos, classInfos);
         }
     }
 
-    private static void printIndex(PrintStream indexStream, String contextHeader, Map<String, String> javaNamesToDisplayNames,
-            List<Object> staticInfos, List<PainlessContextClassInfo> classInfos) {
+    private static void printIndex(
+        PrintStream indexStream,
+        String contextHeader,
+        Map<String, String> javaNamesToDisplayNames,
+        List<Object> staticInfos,
+        List<PainlessContextClassInfo> classInfos
+    ) {
 
         String currentPackageName = null;
 
         if (staticInfos.isEmpty() == false) {
             indexStream.println();
             indexStream.println("==== Static Methods");
-            indexStream.println("The following methods are directly callable without a class/instance qualifier. " +
-                    "Note parameters denoted by a (*) are treated as read-only values.");
+            indexStream.println(
+                "The following methods are directly callable without a class/instance qualifier. "
+                    + "Note parameters denoted by a (*) are treated as read-only values."
+            );
             indexStream.println();
 
             for (Object staticInfo : staticInfos) {
                 if (staticInfo instanceof PainlessContextMethodInfo) {
-                    printMethod(indexStream, javaNamesToDisplayNames, false, (PainlessContextMethodInfo)staticInfo);
+                    printMethod(indexStream, javaNamesToDisplayNames, false, (PainlessContextMethodInfo) staticInfo);
                 } else if (staticInfo instanceof PainlessContextClassBindingInfo) {
-                    printClassBinding(indexStream, javaNamesToDisplayNames, (PainlessContextClassBindingInfo)staticInfo);
+                    printClassBinding(indexStream, javaNamesToDisplayNames, (PainlessContextClassBindingInfo) staticInfo);
                 } else if (staticInfo instanceof PainlessContextInstanceBindingInfo) {
-                    printInstanceBinding(indexStream, javaNamesToDisplayNames, (PainlessContextInstanceBindingInfo)staticInfo);
+                    printInstanceBinding(indexStream, javaNamesToDisplayNames, (PainlessContextInstanceBindingInfo) staticInfo);
                 } else {
                     throw new IllegalArgumentException("unexpected static info type");
                 }
@@ -230,8 +259,10 @@ public final class ContextDocGenerator {
         if (classInfos.isEmpty() == false) {
             indexStream.println();
             indexStream.println("==== Classes By Package");
-            indexStream.println("The following classes are available grouped by their respective packages. Click on a class " +
-                    "to view details about the available methods and fields.");
+            indexStream.println(
+                "The following classes are available grouped by their respective packages. Click on a class "
+                    + "to view details about the available methods and fields."
+            );
             indexStream.println();
 
             for (PainlessContextClassInfo classInfo : classInfos) {
@@ -242,8 +273,14 @@ public final class ContextDocGenerator {
 
                     indexStream.println();
                     indexStream.println("==== " + currentPackageName);
-                    indexStream.println("<<" + getPackageHeader(contextHeader, currentPackageName) + ", " +
-                            "Expand details for " + currentPackageName + ">>");
+                    indexStream.println(
+                        "<<"
+                            + getPackageHeader(contextHeader, currentPackageName)
+                            + ", "
+                            + "Expand details for "
+                            + currentPackageName
+                            + ">>"
+                    );
                     indexStream.println();
                 }
 
@@ -258,38 +295,64 @@ public final class ContextDocGenerator {
     }
 
     private static void printSharedPackagesPages(
-            Path sharedDir, Map<String, String> javaNamesToDisplayNames, List<PainlessContextClassInfo> classInfos) throws IOException {
+        Path sharedDir,
+        Map<String, String> javaNamesToDisplayNames,
+        List<PainlessContextClassInfo> classInfos
+    ) throws IOException {
 
         Path sharedClassesPath = sharedDir.resolve("packages.asciidoc");
 
-        try (PrintStream sharedPackagesStream = new PrintStream(
+        try (
+            PrintStream sharedPackagesStream = new PrintStream(
                 Files.newOutputStream(sharedClassesPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
-                false, StandardCharsets.UTF_8.name())) {
+                false,
+                StandardCharsets.UTF_8.name()
+            )
+        ) {
 
             printAutomatedMessage(sharedPackagesStream);
             printPackages(sharedPackagesStream, SHARED_NAME, SHARED_HEADER, javaNamesToDisplayNames, Collections.emptySet(), classInfos);
         }
     }
 
-    private static void printContextPackagesPages(Path contextDir, Map<String, String> javaNamesToDisplayNames,
-            Set<PainlessContextClassInfo> excludes, PainlessContextInfo contextInfo, List<PainlessContextClassInfo> classInfos)
-            throws IOException {
+    private static void printContextPackagesPages(
+        Path contextDir,
+        Map<String, String> javaNamesToDisplayNames,
+        Set<PainlessContextClassInfo> excludes,
+        PainlessContextInfo contextInfo,
+        List<PainlessContextClassInfo> classInfos
+    ) throws IOException {
 
         Path contextPackagesPath = contextDir.resolve("packages.asciidoc");
 
-        try (PrintStream contextPackagesStream = new PrintStream(
+        try (
+            PrintStream contextPackagesStream = new PrintStream(
                 Files.newOutputStream(contextPackagesPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
-                false, StandardCharsets.UTF_8.name())) {
+                false,
+                StandardCharsets.UTF_8.name()
+            )
+        ) {
 
             printAutomatedMessage(contextPackagesStream);
-            printPackages(contextPackagesStream,
-                    getContextName(contextInfo), getContextHeader(contextInfo), javaNamesToDisplayNames, excludes, classInfos);
+            printPackages(
+                contextPackagesStream,
+                getContextName(contextInfo),
+                getContextHeader(contextInfo),
+                javaNamesToDisplayNames,
+                excludes,
+                classInfos
+            );
         }
     }
 
-    private static void printPackages(PrintStream packagesStream, String contextName, String contextHeader,
-            Map<String, String> javaNamesToDisplayNames, Set<PainlessContextClassInfo> excludes, List<PainlessContextClassInfo> classInfos)
-    {
+    private static void printPackages(
+        PrintStream packagesStream,
+        String contextName,
+        String contextHeader,
+        Map<String, String> javaNamesToDisplayNames,
+        Set<PainlessContextClassInfo> excludes,
+        List<PainlessContextClassInfo> classInfos
+    ) {
 
         String currentPackageName = null;
 
@@ -306,8 +369,9 @@ public final class ContextDocGenerator {
                 packagesStream.println();
                 packagesStream.println("[role=\"exclude\",id=\"" + getPackageHeader(contextHeader, currentPackageName) + "\"]");
                 packagesStream.println("=== " + contextName + " API for package " + currentPackageName);
-                packagesStream.println("See the <<" + contextHeader + ", " + contextName + " API>> " +
-                        "for a high-level overview of all packages and classes.");
+                packagesStream.println(
+                    "See the <<" + contextHeader + ", " + contextName + " API>> " + "for a high-level overview of all packages and classes."
+                );
             }
 
             String className = ContextGeneratorCommon.getType(javaNamesToDisplayNames, classInfo.getName());
@@ -341,13 +405,17 @@ public final class ContextDocGenerator {
         packagesStream.println();
     }
 
-    private static void printRootIndexPage(Path rootDir,
-            List<PainlessContextInfo> contextInfos, Set<PainlessContextInfo> isSpecialized) throws IOException {
+    private static void printRootIndexPage(Path rootDir, List<PainlessContextInfo> contextInfos, Set<PainlessContextInfo> isSpecialized)
+        throws IOException {
         Path rootIndexPath = rootDir.resolve("index.asciidoc");
 
-        try (PrintStream rootIndexStream = new PrintStream(
+        try (
+            PrintStream rootIndexStream = new PrintStream(
                 Files.newOutputStream(rootIndexPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
-                false, StandardCharsets.UTF_8.name())) {
+                false,
+                StandardCharsets.UTF_8.name()
+            )
+        ) {
 
             printAutomatedMessage(rootIndexStream);
 
@@ -382,8 +450,11 @@ public final class ContextDocGenerator {
     }
 
     private static void printConstructor(
-            PrintStream stream, Map<String, String> javaNamesToDisplayNames,
-            String className, PainlessContextConstructorInfo constructorInfo) {
+        PrintStream stream,
+        Map<String, String> javaNamesToDisplayNames,
+        String className,
+        PainlessContextConstructorInfo constructorInfo
+    ) {
 
         stream.print("* ");
 
@@ -395,9 +466,7 @@ public final class ContextDocGenerator {
 
         stream.print("(");
 
-        for (int parameterIndex = 0;
-             parameterIndex < constructorInfo.getParameters().size();
-             ++parameterIndex) {
+        for (int parameterIndex = 0; parameterIndex < constructorInfo.getParameters().size(); ++parameterIndex) {
 
             stream.print(ContextGeneratorCommon.getType(javaNamesToDisplayNames, constructorInfo.getParameters().get(parameterIndex)));
 
@@ -410,8 +479,11 @@ public final class ContextDocGenerator {
     }
 
     private static void printMethod(
-            PrintStream stream, Map<String, String> javaNamesToDisplayNames,
-            boolean isStatic, PainlessContextMethodInfo methodInfo) {
+        PrintStream stream,
+        Map<String, String> javaNamesToDisplayNames,
+        boolean isStatic,
+        PainlessContextMethodInfo methodInfo
+    ) {
 
         stream.print("* " + (isStatic ? "static " : ""));
         stream.print(ContextGeneratorCommon.getType(javaNamesToDisplayNames, methodInfo.getRtn()) + " ");
@@ -424,9 +496,7 @@ public final class ContextDocGenerator {
 
         stream.print("(");
 
-        for (int parameterIndex = 0;
-             parameterIndex < methodInfo.getParameters().size();
-             ++parameterIndex) {
+        for (int parameterIndex = 0; parameterIndex < methodInfo.getParameters().size(); ++parameterIndex) {
 
             stream.print(ContextGeneratorCommon.getType(javaNamesToDisplayNames, methodInfo.getParameters().get(parameterIndex)));
 
@@ -439,19 +509,25 @@ public final class ContextDocGenerator {
     }
 
     private static void printClassBinding(
-            PrintStream stream, Map<String, String> javaNamesToDisplayNames, PainlessContextClassBindingInfo classBindingInfo) {
+        PrintStream stream,
+        Map<String, String> javaNamesToDisplayNames,
+        PainlessContextClassBindingInfo classBindingInfo
+    ) {
 
-        stream.print("* " +
-            ContextGeneratorCommon.getType(javaNamesToDisplayNames, classBindingInfo.getRtn()) +
-            " " +
-            classBindingInfo.getName() +
-            "(");
+        stream.print(
+            "* "
+                + ContextGeneratorCommon.getType(javaNamesToDisplayNames, classBindingInfo.getRtn())
+                + " "
+                + classBindingInfo.getName()
+                + "("
+        );
 
         for (int parameterIndex = 0; parameterIndex < classBindingInfo.getParameters().size(); ++parameterIndex) {
             // temporary fix to not print org.elasticsearch.script.ScoreScript parameter until
             // class instance bindings are created and the information is appropriately added to the context info classes
             if ("org.elasticsearch.script.ScoreScript".equals(
-                    ContextGeneratorCommon.getType(javaNamesToDisplayNames, classBindingInfo.getParameters().get(parameterIndex)))) {
+                ContextGeneratorCommon.getType(javaNamesToDisplayNames, classBindingInfo.getParameters().get(parameterIndex))
+            )) {
                 continue;
             }
 
@@ -470,13 +546,18 @@ public final class ContextDocGenerator {
     }
 
     private static void printInstanceBinding(
-            PrintStream stream, Map<String, String> javaNamesToDisplayNames, PainlessContextInstanceBindingInfo instanceBindingInfo) {
+        PrintStream stream,
+        Map<String, String> javaNamesToDisplayNames,
+        PainlessContextInstanceBindingInfo instanceBindingInfo
+    ) {
 
-        stream.print("* " +
-            ContextGeneratorCommon.getType(javaNamesToDisplayNames, instanceBindingInfo.getRtn()) +
-            " " +
-            instanceBindingInfo.getName() +
-            "(");
+        stream.print(
+            "* "
+                + ContextGeneratorCommon.getType(javaNamesToDisplayNames, instanceBindingInfo.getRtn())
+                + " "
+                + instanceBindingInfo.getName()
+                + "("
+        );
 
         for (int parameterIndex = 0; parameterIndex < instanceBindingInfo.getParameters().size(); ++parameterIndex) {
             stream.print(ContextGeneratorCommon.getType(javaNamesToDisplayNames, instanceBindingInfo.getParameters().get(parameterIndex)));
@@ -490,8 +571,11 @@ public final class ContextDocGenerator {
     }
 
     private static void printField(
-            PrintStream stream, Map<String, String> javaNamesToDisplayNames,
-            boolean isStatic, PainlessContextFieldInfo fieldInfo) {
+        PrintStream stream,
+        Map<String, String> javaNamesToDisplayNames,
+        boolean isStatic,
+        PainlessContextFieldInfo fieldInfo
+    ) {
 
         stream.print("* " + (isStatic ? "static " : ""));
         stream.print(ContextGeneratorCommon.getType(javaNamesToDisplayNames, fieldInfo.getType()) + " ");
@@ -514,9 +598,7 @@ public final class ContextDocGenerator {
         javaDocLink.append(constructorInfo.getDeclaring().replace('.', '/'));
         javaDocLink.append(".html#<init>(");
 
-        for (int parameterIndex = 0;
-             parameterIndex < constructorInfo.getParameters().size();
-             ++parameterIndex) {
+        for (int parameterIndex = 0; parameterIndex < constructorInfo.getParameters().size(); ++parameterIndex) {
 
             javaDocLink.append(getLinkType(constructorInfo.getParameters().get(parameterIndex)));
 
@@ -539,9 +621,7 @@ public final class ContextDocGenerator {
         javaDocLink.append(methodInfo.getName());
         javaDocLink.append("(");
 
-        for (int parameterIndex = 0;
-             parameterIndex < methodInfo.getParameters().size();
-             ++parameterIndex) {
+        for (int parameterIndex = 0; parameterIndex < methodInfo.getParameters().size(); ++parameterIndex) {
 
             javaDocLink.append(getLinkType(methodInfo.getParameters().get(parameterIndex)));
 
@@ -633,21 +713,21 @@ public final class ContextDocGenerator {
             String sv2;
 
             if (si1 instanceof PainlessContextMethodInfo) {
-                sv1 = ((PainlessContextMethodInfo)si1).getSortValue();
+                sv1 = ((PainlessContextMethodInfo) si1).getSortValue();
             } else if (si1 instanceof PainlessContextClassBindingInfo) {
-                sv1 = ((PainlessContextClassBindingInfo)si1).getSortValue();
+                sv1 = ((PainlessContextClassBindingInfo) si1).getSortValue();
             } else if (si1 instanceof PainlessContextInstanceBindingInfo) {
-                sv1 = ((PainlessContextInstanceBindingInfo)si1).getSortValue();
+                sv1 = ((PainlessContextInstanceBindingInfo) si1).getSortValue();
             } else {
                 throw new IllegalArgumentException("unexpected static info type");
             }
 
             if (si2 instanceof PainlessContextMethodInfo) {
-                sv2 = ((PainlessContextMethodInfo)si2).getSortValue();
+                sv2 = ((PainlessContextMethodInfo) si2).getSortValue();
             } else if (si2 instanceof PainlessContextClassBindingInfo) {
-                sv2 = ((PainlessContextClassBindingInfo)si2).getSortValue();
+                sv2 = ((PainlessContextClassBindingInfo) si2).getSortValue();
             } else if (si2 instanceof PainlessContextInstanceBindingInfo) {
-                sv2 = ((PainlessContextInstanceBindingInfo)si2).getSortValue();
+                sv2 = ((PainlessContextInstanceBindingInfo) si2).getSortValue();
             } else {
                 throw new IllegalArgumentException("unexpected static info type");
             }
@@ -659,15 +739,24 @@ public final class ContextDocGenerator {
     }
 
     private static List<PainlessContextClassInfo> sortClassInfos(
-            Set<PainlessContextClassInfo> classExcludes, List<PainlessContextClassInfo> classInfos) {
+        Set<PainlessContextClassInfo> classExcludes,
+        List<PainlessContextClassInfo> classInfos
+    ) {
 
         classInfos = new ArrayList<>(classInfos);
-        classInfos.removeIf(v ->
-                "void".equals(v.getName())  || "boolean".equals(v.getName()) || "byte".equals(v.getName())   ||
-                "short".equals(v.getName()) || "char".equals(v.getName())    || "int".equals(v.getName())    ||
-                "long".equals(v.getName())  || "float".equals(v.getName())   || "double".equals(v.getName()) ||
-                "org.elasticsearch.painless.lookup.def".equals(v.getName())  ||
-                isInternalClass(v.getName()) || classExcludes.contains(v)
+        classInfos.removeIf(
+            v -> "void".equals(v.getName())
+                || "boolean".equals(v.getName())
+                || "byte".equals(v.getName())
+                || "short".equals(v.getName())
+                || "char".equals(v.getName())
+                || "int".equals(v.getName())
+                || "long".equals(v.getName())
+                || "float".equals(v.getName())
+                || "double".equals(v.getName())
+                || "org.elasticsearch.painless.lookup.def".equals(v.getName())
+                || isInternalClass(v.getName())
+                || classExcludes.contains(v)
         );
 
         classInfos.sort((c1, c2) -> {
@@ -704,8 +793,7 @@ public final class ContextDocGenerator {
             String className = classInfo.getName();
 
             if (classInfo.isImported()) {
-                javaNamesToDisplayNames.put(className,
-                        className.substring(className.lastIndexOf('.') + 1).replace('$', '.'));
+                javaNamesToDisplayNames.put(className, className.substring(className.lastIndexOf('.') + 1).replace('$', '.'));
             } else {
                 javaNamesToDisplayNames.put(className, className.replace('$', '.'));
             }
@@ -715,15 +803,15 @@ public final class ContextDocGenerator {
     }
 
     private static boolean isInternalClass(String javaName) {
-        return  javaName.equals("org.elasticsearch.script.ScoreScript") ||
-                javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape") ||
-                javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils") ||
-                javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime") ||
-                javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth") ||
-                javaName.equals("org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalEqlScriptUtils") ||
-                javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.InternalQlScriptUtils") ||
-                javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils") ||
-                javaName.equals("org.elasticsearch.script.ScoreScript$ExplanationHolder");
+        return javaName.equals("org.elasticsearch.script.ScoreScript")
+            || javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape")
+            || javaName.equals("org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils")
+            || javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime")
+            || javaName.equals("org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth")
+            || javaName.equals("org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalEqlScriptUtils")
+            || javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.InternalQlScriptUtils")
+            || javaName.equals("org.elasticsearch.xpack.ql.expression.function.scalar.whitelist.InternalQlScriptUtils")
+            || javaName.equals("org.elasticsearch.script.ScoreScript$ExplanationHolder");
     }
 
     private ContextDocGenerator() {

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
 
 import java.time.Duration;

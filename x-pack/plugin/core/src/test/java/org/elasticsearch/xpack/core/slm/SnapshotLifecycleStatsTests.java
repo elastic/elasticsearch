@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -22,11 +22,13 @@ public class SnapshotLifecycleStatsTests extends AbstractSerializingTestCase<Sna
     }
 
     public static SnapshotLifecycleStats.SnapshotPolicyStats randomPolicyStats(String policyId) {
-        return new SnapshotLifecycleStats.SnapshotPolicyStats(policyId,
+        return new SnapshotLifecycleStats.SnapshotPolicyStats(
+            policyId,
             randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
             randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
             randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
-            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE));
+            randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE)
+        );
     }
 
     public static SnapshotLifecycleStats randomLifecycleStats() {
@@ -41,7 +43,8 @@ public class SnapshotLifecycleStatsTests extends AbstractSerializingTestCase<Sna
             randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
             randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
             randomBoolean() ? 0 : randomIntBetween(0, Integer.MAX_VALUE),
-            policyStats);
+            policyStats
+        );
     }
 
     @Override

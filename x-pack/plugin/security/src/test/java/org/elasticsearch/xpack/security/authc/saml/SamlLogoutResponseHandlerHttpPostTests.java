@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.core.List;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.junit.Before;
 import org.opensaml.saml.saml2.core.LogoutResponse;
@@ -34,10 +34,12 @@ public class SamlLogoutResponseHandlerHttpPostTests extends SamlResponseHandlerT
         clock = new ClockMock();
         maxSkew = TimeValue.timeValueMinutes(1);
         requestId = randomId();
-        samlLogoutResponseHandler = new SamlLogoutResponseHandler(clock,
+        samlLogoutResponseHandler = new SamlLogoutResponseHandler(
+            clock,
             getIdpConfiguration(() -> buildOpenSamlCredential(idpSigningCertificatePair)),
             getSpConfiguration(emptyList()),
-            maxSkew);
+            maxSkew
+        );
     }
 
     public void testHandlerWorksWithHttpPostBinding() throws Exception {
@@ -47,8 +49,9 @@ public class SamlLogoutResponseHandlerHttpPostTests extends SamlResponseHandlerT
 
     public void testHandlerFailsWithHttpPostBindingAndNoSignature() throws Exception {
         final String payload = buildLogoutResponsePayload(emptyMap(), false);
-        final ElasticsearchSecurityException e =
-            expectSamlException(() -> samlLogoutResponseHandler.handle(false, payload, List.of(requestId)));
+        final ElasticsearchSecurityException e = expectSamlException(
+            () -> samlLogoutResponseHandler.handle(false, payload, List.of(requestId))
+        );
         assertThat(e.getMessage(), containsString("is not signed"));
     }
 
@@ -56,8 +59,9 @@ public class SamlLogoutResponseHandlerHttpPostTests extends SamlResponseHandlerT
         final Map<String, Object> replacements = new HashMap<>();
         replacements.put("status", "urn:oasis:names:tc:SAML:2.0:status:Requester");
         final String payload = buildLogoutResponsePayload(replacements, true);
-        final ElasticsearchSecurityException e =
-            expectSamlException(() -> samlLogoutResponseHandler.handle(false, payload, List.of(requestId)));
+        final ElasticsearchSecurityException e = expectSamlException(
+            () -> samlLogoutResponseHandler.handle(false, payload, List.of(requestId))
+        );
         assertThat(e.getMessage(), containsString("not a 'success' response"));
     }
 
@@ -87,8 +91,10 @@ public class SamlLogoutResponseHandlerHttpPostTests extends SamlResponseHandlerT
     }
 
     private String signLogoutResponseString(String xml) throws Exception {
-        final LogoutResponse logoutResponse =
-            samlLogoutResponseHandler.buildXmlObject(parseDocument(xml).getDocumentElement(), LogoutResponse.class);
+        final LogoutResponse logoutResponse = samlLogoutResponseHandler.buildXmlObject(
+            parseDocument(xml).getDocumentElement(),
+            LogoutResponse.class
+        );
         signSignableObject(logoutResponse, EXCLUSIVE, idpSigningCertificatePair);
         return SamlUtils.getXmlContent(logoutResponse, false);
     }

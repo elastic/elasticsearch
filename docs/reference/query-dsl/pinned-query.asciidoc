@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[query-dsl-pinned-query]]
 === Pinned Query
 Promotes selected documents to rank higher than those matching a given query.

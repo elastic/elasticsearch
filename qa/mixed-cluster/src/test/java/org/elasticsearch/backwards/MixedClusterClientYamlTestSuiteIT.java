@@ -10,6 +10,7 @@ package org.elasticsearch.backwards;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -31,4 +32,3 @@ public class MixedClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         return false;
     }
 }
-

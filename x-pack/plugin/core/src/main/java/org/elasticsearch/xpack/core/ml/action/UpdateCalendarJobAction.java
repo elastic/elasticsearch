@@ -33,8 +33,7 @@ public class UpdateCalendarJobAction extends ActionType<PutCalendarAction.Respon
         private String jobIdsToAddExpression;
         private String jobIdsToRemoveExpression;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -92,8 +91,9 @@ public class UpdateCalendarJobAction extends ActionType<PutCalendarAction.Respon
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(calendarId, other.calendarId) && Objects.equals(jobIdsToAddExpression, other.jobIdsToAddExpression)
-                    && Objects.equals(jobIdsToRemoveExpression, other.jobIdsToRemoveExpression);
+            return Objects.equals(calendarId, other.calendarId)
+                && Objects.equals(jobIdsToAddExpression, other.jobIdsToAddExpression)
+                && Objects.equals(jobIdsToRemoveExpression, other.jobIdsToRemoveExpression);
         }
     }
 
@@ -104,4 +104,3 @@ public class UpdateCalendarJobAction extends ActionType<PutCalendarAction.Respon
         }
     }
 }
-

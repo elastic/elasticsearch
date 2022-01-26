@@ -85,8 +85,7 @@ public abstract class ESSmokeClientTestCase extends LuceneTestCase {
         Exception clientException = null;
         try {
             ClusterHealthResponse health = client.admin().cluster().prepareHealth().get();
-            logger.info("--> connected to [{}] cluster which is running [{}] node(s).",
-                    health.getClusterName(), health.getNumberOfNodes());
+            logger.info("--> connected to [{}] cluster which is running [{}] node(s).", health.getClusterName(), health.getNumberOfNodes());
         } catch (Exception e) {
             clientException = e;
         }

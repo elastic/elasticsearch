@@ -9,15 +9,15 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.support.ApiKey;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public final class QueryApiKeyResponse {
 
@@ -53,8 +53,7 @@ public final class QueryApiKeyResponse {
             @SuppressWarnings("unchecked")
             final List<ApiKey> items = (List<ApiKey>) args[2];
             if (count != items.size()) {
-                throw new IllegalArgumentException("count [" + count + "] is not equal to number of items ["
-                    + items.size() + "]");
+                throw new IllegalArgumentException("count [" + count + "] is not equal to number of items [" + items.size() + "]");
             }
             return new QueryApiKeyResponse(total, items);
         }

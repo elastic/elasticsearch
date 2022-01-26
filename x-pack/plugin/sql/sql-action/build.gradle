@@ -3,8 +3,7 @@
  */
 apply plugin: 'elasticsearch.build'
 
-description = 'Request and response objects shared by the cli, jdbc ' +
-  'and the Elasticsearch plugin'
+description = 'Request and response objects shared by the Elasticsearch plugin and qa tests'
 
 dependencies {
   /* We'd like to just depend on xcontent but there are some bits of
@@ -115,13 +114,11 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.commons.compress.utils.IOUtils',
           'org.apache.commons.csv.CSVFormat',
           'org.apache.commons.csv.QuoteMode',
-          'org.apache.kafka.clients.producer.Callback',
           'org.apache.kafka.clients.producer.KafkaProducer',
           'org.apache.kafka.clients.producer.Producer',
           'org.apache.kafka.clients.producer.ProducerRecord',
           'org.apache.kafka.clients.producer.RecordMetadata',
           'org.codehaus.stax2.XMLStreamWriter2',
-          'org.jctools.queues.MessagePassingQueue$Consumer',
           'org.jctools.queues.MpscArrayQueue',
           'org.osgi.framework.AdaptPermission',
           'org.osgi.framework.AdminPermission',

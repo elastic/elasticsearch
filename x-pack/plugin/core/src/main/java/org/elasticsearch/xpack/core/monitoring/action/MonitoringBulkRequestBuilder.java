@@ -9,13 +9,12 @@ package org.elasticsearch.xpack.core.monitoring.action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 
 import java.io.IOException;
 
-public class MonitoringBulkRequestBuilder
-        extends ActionRequestBuilder<MonitoringBulkRequest, MonitoringBulkResponse> {
+public class MonitoringBulkRequestBuilder extends ActionRequestBuilder<MonitoringBulkRequest, MonitoringBulkResponse> {
 
     public MonitoringBulkRequestBuilder(ElasticsearchClient client) {
         super(client, MonitoringBulkAction.INSTANCE, new MonitoringBulkRequest());
@@ -26,11 +25,13 @@ public class MonitoringBulkRequestBuilder
         return this;
     }
 
-    public MonitoringBulkRequestBuilder add(final MonitoredSystem system,
-                                            final BytesReference content,
-                                            final XContentType xContentType,
-                                            final long timestamp,
-                                            final long intervalMillis) throws IOException {
+    public MonitoringBulkRequestBuilder add(
+        final MonitoredSystem system,
+        final BytesReference content,
+        final XContentType xContentType,
+        final long timestamp,
+        final long intervalMillis
+    ) throws IOException {
         request.add(system, content, xContentType, timestamp, intervalMillis);
         return this;
     }

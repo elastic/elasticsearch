@@ -40,8 +40,10 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
             while (keepUpdating.get()) {
                 try {
                     BulkByScrollResponse response = updateByQuery().source("test").refresh(true).abortOnVersionConflict(false).get();
-                    assertThat(response, matcher().updated(either(equalTo(0L)).or(equalTo(1L)))
-                            .versionConflicts(either(equalTo(0L)).or(equalTo(1L))));
+                    assertThat(
+                        response,
+                        matcher().updated(either(equalTo(0L)).or(equalTo(1L))).versionConflicts(either(equalTo(0L)).or(equalTo(1L)))
+                    );
                 } catch (Exception e) {
                     failure.set(e);
                 }
@@ -54,8 +56,9 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
                 GetResponse get = client().prepareGet("test", "test", "test").get();
                 assertEquals(value.get(), get.getSource().get("test"));
                 value.set(randomSimpleString(random()));
-                IndexRequestBuilder index = client().prepareIndex("test", "test", "test").setSource("test", value.get())
-                        .setRefreshPolicy(IMMEDIATE);
+                IndexRequestBuilder index = client().prepareIndex("test", "test", "test")
+                    .setSource("test", value.get())
+                    .setRefreshPolicy(IMMEDIATE);
                 /*
                  * Update by query changes the document so concurrent
                  * indexes might get version conflict exceptions so we just
@@ -70,10 +73,16 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
                     } catch (VersionConflictEngineException e) {
                         if (attempts >= MAX_ATTEMPTS) {
                             throw new RuntimeException(
-                                    "Failed to index after [" + MAX_ATTEMPTS + "] attempts. Too many version conflicts!");
+                                "Failed to index after [" + MAX_ATTEMPTS + "] attempts. Too many version conflicts!"
+                            );
                         }
-                        logger.info("Caught expected version conflict trying to perform mutation number [{}] with version [{}] "
-                                + "on attempt [{}]. Retrying.", i, get.getVersion(), attempts);
+                        logger.info(
+                            "Caught expected version conflict trying to perform mutation number [{}] with version [{}] "
+                                + "on attempt [{}]. Retrying.",
+                            i,
+                            get.getVersion(),
+                            attempts
+                        );
                         get = client().prepareGet("test", "test", "test").get();
                     }
                 }

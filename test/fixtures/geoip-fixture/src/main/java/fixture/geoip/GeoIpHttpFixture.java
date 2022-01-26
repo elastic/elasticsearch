@@ -9,6 +9,7 @@
 package fixture.geoip;
 
 import com.sun.net.httpserver.HttpServer;
+
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.geoip.GeoIpCli;
 
@@ -55,8 +56,10 @@ public class GeoIpHttpFixture {
         this.server.createContext("/db", exchange -> {
             exchange.sendResponseHeaders(200, 0);
             String dbName = exchange.getRequestURI().getPath().replaceAll(".*/db", "");
-            try (InputStream inputStream = GeoIpHttpFixture.class.getResourceAsStream(dbName);
-                 OutputStream outputStream = exchange.getResponseBody()) {
+            try (
+                InputStream inputStream = GeoIpHttpFixture.class.getResourceAsStream(dbName);
+                OutputStream outputStream = exchange.getResponseBody()
+            ) {
                 int read2;
                 while ((read2 = inputStream.read(bytes)) != -1) {
                     outputStream.write(bytes, 0, read2);
@@ -67,11 +70,10 @@ public class GeoIpHttpFixture {
             String fileName = exchange.getRequestURI().getPath().replaceAll(".*/cli/", "");
             Path target = new File("target").toPath().resolve(fileName);
             if (Files.isRegularFile(target)) {
-                try (OutputStream outputStream = exchange.getResponseBody();
-                     InputStream db = Files.newInputStream(target)) {
+                try (OutputStream outputStream = exchange.getResponseBody(); InputStream db = Files.newInputStream(target)) {
                     exchange.sendResponseHeaders(200, 0);
                     int read3;
-                    while((read3 = db.read(bytes)) != -1) {
+                    while ((read3 = db.read(bytes)) != -1) {
                         outputStream.write(bytes, 0, read3);
                     }
                 } catch (Exception e) {
@@ -96,8 +98,10 @@ public class GeoIpHttpFixture {
         Files.copy(GeoIpHttpFixture.class.getResourceAsStream("/GeoLite2-City.mmdb"), source.resolve("GeoLite2-City.mmdb"));
         Files.copy(GeoIpHttpFixture.class.getResourceAsStream("/GeoLite2-Country.mmdb"), source.resolve("GeoLite2-Country.mmdb"));
 
-        new GeoIpCli().main(new String[]{"-s", source.toAbsolutePath().toString(), "-t", target.toAbsolutePath().toString()},
-            Terminal.DEFAULT);
+        new GeoIpCli().main(
+            new String[] { "-s", source.toAbsolutePath().toString(), "-t", target.toAbsolutePath().toString() },
+            Terminal.DEFAULT
+        );
     }
 
     final void start() throws Exception {

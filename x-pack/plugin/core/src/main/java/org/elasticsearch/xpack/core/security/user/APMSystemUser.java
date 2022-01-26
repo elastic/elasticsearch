@@ -19,6 +19,6 @@ public class APMSystemUser extends User {
     public static final Version DEFINED_SINCE = Version.V_6_5_0;
 
     public APMSystemUser(boolean enabled) {
-        super(NAME, new String[]{ ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
+        super(NAME, new String[] { ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
     }
 }

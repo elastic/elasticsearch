@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[ml-find-file-structure]]
 = Find file structure API
 ++++

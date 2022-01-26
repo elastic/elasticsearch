@@ -21,12 +21,7 @@ public class S3RepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRes
 
     @Override
     protected Map<String, String> repositoryLocation() {
-        return org.elasticsearch.core.Map.of(
-            "bucket",
-            getProperty("test.s3.bucket"),
-            "base_path",
-            getProperty("test.s3.base_path")
-        );
+        return org.elasticsearch.core.Map.of("bucket", getProperty("test.s3.bucket"), "base_path", getProperty("test.s3.base_path"));
     }
 
     @Override

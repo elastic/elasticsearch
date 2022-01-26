@@ -21,6 +21,7 @@ public class GetTransformRequest implements Validatable {
 
     public static final String EXCLUDE_GENERATED = "exclude_generated";
     public static final String ALLOW_NO_MATCH = "allow_no_match";
+
     /**
      * Helper method to create a request that will get ALL Transforms
      * @return new {@link GetTransformRequest} object for the id "_all"

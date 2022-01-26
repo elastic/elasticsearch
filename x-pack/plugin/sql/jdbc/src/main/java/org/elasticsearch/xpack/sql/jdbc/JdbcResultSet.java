@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
@@ -31,8 +33,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-
-import org.elasticsearch.core.SuppressForbidden;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.DATE;
@@ -289,7 +289,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return (Long) val;
         } catch (ClassCastException cce) {
             throw new SQLException(
-                    format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long", val, type.getName()), cce);
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long", val, type.getName()),
+                cce
+            );
         }
     }
 
@@ -308,8 +310,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         try {
             return JdbcDateUtils.asDate(val.toString());
         } catch (Exception e) {
-            throw new SQLException(
-                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Date", val, type.getName()), e);
+            throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Date", val, type.getName()), e);
         }
     }
 
@@ -331,8 +332,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             }
             return JdbcDateUtils.asTime(val.toString());
         } catch (Exception e) {
-            throw new SQLException(
-                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Time", val, type.getName()), e);
+            throw new SQLException(format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Time", val, type.getName()), e);
         }
     }
 
@@ -354,7 +354,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
             return asTimestamp(val.toString());
         } catch (Exception e) {
             throw new SQLException(
-                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Timestamp", val, type.getName()), e);
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Timestamp", val, type.getName()),
+                e
+            );
         }
     }
 
@@ -559,7 +561,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     @Deprecated
-    @SuppressForbidden(reason="implementing deprecated method")
+    @SuppressForbidden(reason = "implementing deprecated method")
     public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
         return getBigDecimal(column(columnLabel), scale);
     }
@@ -1245,7 +1247,13 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     @Override
     public String toString() {
-        return format(Locale.ROOT, "%s:row %d:cursor size %d:%s", getClass().getSimpleName(), rowNumber, cursor.batchSize(),
-                cursor.columns());
+        return format(
+            Locale.ROOT,
+            "%s:row %d:cursor size %d:%s",
+            getClass().getSimpleName(),
+            rowNumber,
+            cursor.batchSize(),
+            cursor.columns()
+        );
     }
 }

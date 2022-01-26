@@ -17,15 +17,26 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class BooleansTests extends ESTestCase {
-    private static final String[] NON_BOOLEANS = new String[]{"11", "00", "sdfsdfsf", "F", "T", "on", "off", "yes", "no", "0", "1",
-        "True", "False"};
-    private static final String[] BOOLEANS = new String[]{"true", "false"};
+    private static final String[] NON_BOOLEANS = new String[] {
+        "11",
+        "00",
+        "sdfsdfsf",
+        "F",
+        "T",
+        "on",
+        "off",
+        "yes",
+        "no",
+        "0",
+        "1",
+        "True",
+        "False" };
+    private static final String[] BOOLEANS = new String[] { "true", "false" };
 
     public void testIsBoolean() {
         for (String b : BOOLEANS) {
             String t = "prefix" + b + "suffix";
-            assertTrue("failed to recognize [" + b + "] as boolean",
-                Booleans.isBoolean(t.toCharArray(), "prefix".length(), b.length()));
+            assertTrue("failed to recognize [" + b + "] as boolean", Booleans.isBoolean(t.toCharArray(), "prefix".length(), b.length()));
             assertTrue("failed to recognize [" + b + "] as boolean", Booleans.isBoolean(b));
         }
     }
@@ -55,10 +66,11 @@ public class BooleansTests extends ESTestCase {
         for (String nonBoolean : NON_BOOLEANS) {
             boolean defaultValue = randomFrom(Boolean.TRUE, Boolean.FALSE);
 
-            expectThrows(IllegalArgumentException.class,
-                () -> Booleans.parseBoolean(nonBoolean, defaultValue));
-            expectThrows(IllegalArgumentException.class,
-                () -> Booleans.parseBoolean(nonBoolean.toCharArray(), 0, nonBoolean.length(), defaultValue));
+            expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean(nonBoolean, defaultValue));
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> Booleans.parseBoolean(nonBoolean.toCharArray(), 0, nonBoolean.length(), defaultValue)
+            );
         }
     }
 
@@ -75,20 +87,21 @@ public class BooleansTests extends ESTestCase {
     }
 
     public void testIsBooleanLenient() {
-        String[] booleans = new String[]{"true", "false", "on", "off", "yes", "no", "0", "1"};
-        String[] notBooleans = new String[]{"11", "00", "sdfsdfsf", "F", "T"};
+        String[] booleans = new String[] { "true", "false", "on", "off", "yes", "no", "0", "1" };
+        String[] notBooleans = new String[] { "11", "00", "sdfsdfsf", "F", "T" };
         assertThat(Booleans.isBooleanLenient(null, 0, 1), is(false));
 
         for (String b : booleans) {
             String t = "prefix" + b + "suffix";
-            assertTrue("failed to recognize [" + b + "] as boolean",
-                Booleans.isBooleanLenient(t.toCharArray(), "prefix".length(), b.length()));
+            assertTrue(
+                "failed to recognize [" + b + "] as boolean",
+                Booleans.isBooleanLenient(t.toCharArray(), "prefix".length(), b.length())
+            );
         }
 
         for (String nb : notBooleans) {
             String t = "prefix" + nb + "suffix";
-            assertFalse("recognized [" + nb + "] as boolean",
-                Booleans.isBooleanLenient(t.toCharArray(), "prefix".length(), nb.length()));
+            assertFalse("recognized [" + nb + "] as boolean", Booleans.isBooleanLenient(t.toCharArray(), "prefix".length(), nb.length()));
         }
     }
 
@@ -99,12 +112,21 @@ public class BooleansTests extends ESTestCase {
         assertThat(Booleans.parseBooleanLenient(null, false), is(false));
         assertThat(Booleans.parseBooleanLenient(null, true), is(true));
 
-        assertThat(Booleans.parseBooleanLenient(
-            randomFrom("true", "on", "yes", "1"), randomFrom(Boolean.TRUE, Boolean.FALSE, null)), is(true));
-        assertThat(Booleans.parseBooleanLenient(
-            randomFrom("false", "off", "no", "0"), randomFrom(Boolean.TRUE, Boolean.FALSE, null)), is(false));
-        assertThat(Booleans.parseBooleanLenient(
-            randomFrom("true", "on", "yes").toUpperCase(Locale.ROOT),randomFrom(Boolean.TRUE, Boolean.FALSE, null)), is(true));
+        assertThat(
+            Booleans.parseBooleanLenient(randomFrom("true", "on", "yes", "1"), randomFrom(Boolean.TRUE, Boolean.FALSE, null)),
+            is(true)
+        );
+        assertThat(
+            Booleans.parseBooleanLenient(randomFrom("false", "off", "no", "0"), randomFrom(Boolean.TRUE, Boolean.FALSE, null)),
+            is(false)
+        );
+        assertThat(
+            Booleans.parseBooleanLenient(
+                randomFrom("true", "on", "yes").toUpperCase(Locale.ROOT),
+                randomFrom(Boolean.TRUE, Boolean.FALSE, null)
+            ),
+            is(true)
+        );
         assertThat(Booleans.parseBooleanLenient(null, Boolean.FALSE), is(false));
         assertThat(Booleans.parseBooleanLenient(null, Boolean.TRUE), is(true));
         assertThat(Booleans.parseBooleanLenient(null, null), nullValue());
@@ -112,8 +134,8 @@ public class BooleansTests extends ESTestCase {
         char[] chars = randomFrom("true", "on", "yes", "1").toCharArray();
         assertThat(Booleans.parseBooleanLenient(chars, 0, chars.length, randomBoolean()), is(true));
         chars = randomFrom("false", "off", "no", "0").toCharArray();
-        assertThat(Booleans.parseBooleanLenient(chars,0, chars.length, randomBoolean()), is(false));
+        assertThat(Booleans.parseBooleanLenient(chars, 0, chars.length, randomBoolean()), is(false));
         chars = randomFrom("true", "on", "yes").toUpperCase(Locale.ROOT).toCharArray();
-        assertThat(Booleans.parseBooleanLenient(chars,0, chars.length, randomBoolean()), is(true));
+        assertThat(Booleans.parseBooleanLenient(chars, 0, chars.length, randomBoolean()), is(true));
     }
 }

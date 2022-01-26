@@ -197,9 +197,9 @@ public final class GeometryIO {
             alt[i] = readAlt(in);
         }
         if (Double.isNaN(alt[0])) {
-            return new double[][]{lat, lon};
+            return new double[][] { lat, lon };
         } else {
-            return new double[][]{lat, lon, alt};
+            return new double[][] { lat, lon, alt };
         }
     }
 
@@ -265,7 +265,6 @@ public final class GeometryIO {
         }
         return new MultiPoint(points);
     }
-
 
     private static MultiPolygon readMultiPolygon(StreamInput in) throws IOException {
         in.readBoolean(); // orientation for BWC

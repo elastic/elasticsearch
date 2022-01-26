@@ -47,9 +47,7 @@ public class Graph extends Plugin implements ActionPlugin {
     }
 
     public Collection<Module> createGuiceModules() {
-        return Collections.singletonList(b -> {
-            XPackPlugin.bindFeatureSet(b, GraphFeatureSet.class);
-        });
+        return Collections.singletonList(b -> { XPackPlugin.bindFeatureSet(b, GraphFeatureSet.class); });
     }
 
     @Override
@@ -61,10 +59,15 @@ public class Graph extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         if (false == enabled) {
             return emptyList();
         }

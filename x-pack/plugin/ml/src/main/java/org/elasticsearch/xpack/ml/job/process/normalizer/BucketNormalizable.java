@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 
 import java.io.IOException;
@@ -112,9 +112,12 @@ public class BucketNormalizable extends Normalizable {
         List<Normalizable> children = new ArrayList<>();
         switch (type) {
             case BUCKET_INFLUENCER:
-                children.addAll(bucket.getBucketInfluencers().stream()
+                children.addAll(
+                    bucket.getBucketInfluencers()
+                        .stream()
                         .map(bi -> new BucketInfluencerNormalizable(bi, getOriginatingIndex()))
-                        .collect(Collectors.toList()));
+                        .collect(Collectors.toList())
+                );
                 break;
             default:
                 throw new IllegalArgumentException("Invalid type: " + type);

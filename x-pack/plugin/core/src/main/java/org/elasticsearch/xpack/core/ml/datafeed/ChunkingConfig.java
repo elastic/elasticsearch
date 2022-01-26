@@ -6,15 +6,15 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -35,13 +35,17 @@ public class ChunkingConfig implements ToXContentObject, Writeable {
 
     private static ConstructingObjectParser<ChunkingConfig, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<ChunkingConfig, Void> parser = new ConstructingObjectParser<>(
-            "chunking_config", ignoreUnknownFields, a -> new ChunkingConfig((Mode) a[0], (TimeValue) a[1]));
+            "chunking_config",
+            ignoreUnknownFields,
+            a -> new ChunkingConfig((Mode) a[0], (TimeValue) a[1])
+        );
 
         parser.declareString(ConstructingObjectParser.constructorArg(), Mode::fromString, MODE_FIELD);
         parser.declareString(
             ConstructingObjectParser.optionalConstructorArg(),
             text -> TimeValue.parseTimeValue(text, TIME_SPAN_FIELD.getPreferredName()),
-            TIME_SPAN_FIELD);
+            TIME_SPAN_FIELD
+        );
 
         return parser;
     }
@@ -124,8 +128,7 @@ public class ChunkingConfig implements ToXContentObject, Writeable {
         }
 
         ChunkingConfig other = (ChunkingConfig) obj;
-        return Objects.equals(this.mode, other.mode) &&
-                Objects.equals(this.timeSpan, other.timeSpan);
+        return Objects.equals(this.mode, other.mode) && Objects.equals(this.timeSpan, other.timeSpan);
     }
 
     public static ChunkingConfig newAuto() {
@@ -140,8 +143,10 @@ public class ChunkingConfig implements ToXContentObject, Writeable {
         return new ChunkingConfig(Mode.MANUAL, timeSpan);
     }
 
-    public enum Mode implements Writeable  {
-        AUTO, MANUAL, OFF;
+    public enum Mode implements Writeable {
+        AUTO,
+        MANUAL,
+        OFF;
 
         public static Mode fromString(String value) {
             return Mode.valueOf(value.toUpperCase(Locale.ROOT));

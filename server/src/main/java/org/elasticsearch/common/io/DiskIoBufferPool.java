@@ -16,8 +16,10 @@ import java.util.Arrays;
 
 public class DiskIoBufferPool {
 
-    public static final int BUFFER_SIZE = StrictMath.toIntExact(ByteSizeValue.parseBytesSizeValue(
-        System.getProperty("es.disk_io.direct.buffer.size", "64KB"), "es.disk_io.direct.buffer.size").getBytes());
+    public static final int BUFFER_SIZE = StrictMath.toIntExact(
+        ByteSizeValue.parseBytesSizeValue(System.getProperty("es.disk_io.direct.buffer.size", "64KB"), "es.disk_io.direct.buffer.size")
+            .getBytes()
+    );
     public static final int HEAP_BUFFER_SIZE = 8 * 1024;
 
     private static final ThreadLocal<ByteBuffer> ioBufferPool = ThreadLocal.withInitial(() -> {
@@ -40,7 +42,8 @@ public class DiskIoBufferPool {
             "[" + ThreadPool.Names.WRITE + "]",
             "[" + ThreadPool.Names.FLUSH + "]",
             "[" + ThreadPool.Names.SYSTEM_WRITE + "]",
-            "[" + ThreadPool.Names.SYSTEM_CRITICAL_WRITE + "]")) {
+            "[" + ThreadPool.Names.SYSTEM_CRITICAL_WRITE + "]"
+        )) {
             if (threadName.contains(s)) {
                 return true;
             }

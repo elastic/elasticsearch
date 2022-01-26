@@ -41,8 +41,8 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
         DAYOFYEAR((dt, i) -> dt.plus(i, ChronoUnit.DAYS), "dy", "y"),
         DAY((dt, i) -> dt.plus(i, ChronoUnit.DAYS), "days", "dd", "d"),
         WEEK((dt, i) -> dt.plus(i, ChronoUnit.WEEKS), "weeks", "wk", "ww"),
-        WEEKDAY((dt, i) -> dt.plus(i, ChronoUnit.DAYS),  "weekdays", "dw"),
-        HOUR((dt, i) -> dt.plus(i, ChronoUnit.HOURS),  "hours", "hh"),
+        WEEKDAY((dt, i) -> dt.plus(i, ChronoUnit.DAYS), "weekdays", "dw"),
+        HOUR((dt, i) -> dt.plus(i, ChronoUnit.HOURS), "hours", "hh"),
         MINUTE((dt, i) -> dt.plus(i, ChronoUnit.MINUTES), "minutes", "mi", "n"),
         SECOND((dt, i) -> dt.plus(i, ChronoUnit.SECONDS), "seconds", "ss", "s"),
         MILLISECOND((dt, i) -> dt.plus(i, ChronoUnit.MILLIS), "milliseconds", "ms"),
@@ -99,15 +99,25 @@ public class DateAdd extends ThreeArgsDateTimeFunction {
             if (datePartValue != null && resolveDateTimeField(datePartValue) == false) {
                 List<String> similar = findSimilarDateTimeFields(datePartValue);
                 if (similar.isEmpty()) {
-                    return new TypeResolution(format(null, "first argument of [{}] must be one of {} or their aliases; found value [{}]",
-                        sourceText(),
-                        validDateTimeFieldValues(),
-                        Expressions.name(first())));
+                    return new TypeResolution(
+                        format(
+                            null,
+                            "first argument of [{}] must be one of {} or their aliases; found value [{}]",
+                            sourceText(),
+                            validDateTimeFieldValues(),
+                            Expressions.name(first())
+                        )
+                    );
                 } else {
-                    return new TypeResolution(format(null, "Unknown value [{}] for first argument of [{}]; did you mean {}?",
-                        Expressions.name(first()),
-                        sourceText(),
-                        similar));
+                    return new TypeResolution(
+                        format(
+                            null,
+                            "Unknown value [{}] for first argument of [{}]; did you mean {}?",
+                            Expressions.name(first()),
+                            sourceText(),
+                            similar
+                        )
+                    );
                 }
             }
         }

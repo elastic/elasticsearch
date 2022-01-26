@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 /**

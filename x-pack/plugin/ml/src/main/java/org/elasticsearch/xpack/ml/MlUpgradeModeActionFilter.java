@@ -73,8 +73,8 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 class MlUpgradeModeActionFilter extends ActionFilter.Simple {
 
-    private static final Set<String> ACTIONS_DISALLOWED_IN_UPGRADE_MODE =
-        Collections.unmodifiableSet(Sets.newHashSet(
+    private static final Set<String> ACTIONS_DISALLOWED_IN_UPGRADE_MODE = Collections.unmodifiableSet(
+        Sets.newHashSet(
             PutJobAction.NAME,
             UpdateJobAction.NAME,
             DeleteJobAction.NAME,
@@ -125,10 +125,11 @@ class MlUpgradeModeActionFilter extends ActionFilter.Simple {
             PutTrainedModelAction.NAME,
             DeleteTrainedModelAction.NAME,
             DeleteTrainedModelAliasAction.NAME
-        ));
+        )
+    );
 
-    private static final Set<String> RESET_MODE_EXEMPTIONS =
-        Collections.unmodifiableSet(Sets.newHashSet(
+    private static final Set<String> RESET_MODE_EXEMPTIONS = Collections.unmodifiableSet(
+        Sets.newHashSet(
             DeleteJobAction.NAME,
             CloseJobAction.NAME,
 
@@ -141,7 +142,8 @@ class MlUpgradeModeActionFilter extends ActionFilter.Simple {
             StopDataFrameAnalyticsAction.NAME,
 
             DeleteTrainedModelAction.NAME
-        ));
+        )
+    );
 
     // At the time the action filter is installed no cluster state is available, so
     // initialise to false/false and let the first change event set the real values
@@ -163,7 +165,10 @@ class MlUpgradeModeActionFilter extends ActionFilter.Simple {
         }
         if (localUpgradeResetFlags.isUpgradeMode && ACTIONS_DISALLOWED_IN_UPGRADE_MODE.contains(action)) {
             throw new ElasticsearchStatusException(
-                "Cannot perform {} action while upgrade mode is enabled", RestStatus.TOO_MANY_REQUESTS, action);
+                "Cannot perform {} action while upgrade mode is enabled",
+                RestStatus.TOO_MANY_REQUESTS,
+                action
+            );
         }
         return true;
     }

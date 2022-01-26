@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[index-lifecycle-error-handling]]
 == Troubleshooting {ilm} errors
 

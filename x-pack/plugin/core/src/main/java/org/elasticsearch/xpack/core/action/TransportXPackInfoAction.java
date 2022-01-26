@@ -30,8 +30,12 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
     private final Set<XPackFeatureSet> featureSets;
 
     @Inject
-    public TransportXPackInfoAction(TransportService transportService, ActionFilters actionFilters, LicenseService licenseService,
-                                    Set<XPackFeatureSet> featureSets) {
+    public TransportXPackInfoAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        LicenseService licenseService,
+        Set<XPackFeatureSet> featureSets
+    ) {
         super(XPackInfoAction.NAME, transportService, actionFilters, XPackInfoRequest::new);
         this.licenseService = licenseService;
         this.featureSets = featureSets;
@@ -39,7 +43,6 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
 
     @Override
     protected void doExecute(Task task, XPackInfoRequest request, ActionListener<XPackInfoResponse> listener) {
-
 
         XPackInfoResponse.BuildInfo buildInfo = null;
         if (request.getCategories().contains(XPackInfoRequest.Category.BUILD)) {
@@ -60,17 +63,15 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
                         mode = License.OperationMode.PLATINUM;
                     }
                 }
-                licenseInfo = new LicenseInfo(license.uid(), type, mode.description(), license.status(),
-                    license.expiryDate());
+                licenseInfo = new LicenseInfo(license.uid(), type, mode.description(), license.status(), license.expiryDate());
             }
         }
 
         XPackInfoResponse.FeatureSetsInfo featureSetsInfo = null;
         if (request.getCategories().contains(XPackInfoRequest.Category.FEATURES)) {
-            Set<FeatureSet> featureSets = this.featureSets.stream().map(fs ->
-                    new FeatureSet(fs.name(), fs.available(), fs.enabled(),
-                            request.isVerbose() ? fs.nativeCodeInfo() : null))
-                    .collect(Collectors.toSet());
+            Set<FeatureSet> featureSets = this.featureSets.stream()
+                .map(fs -> new FeatureSet(fs.name(), fs.available(), fs.enabled(), request.isVerbose() ? fs.nativeCodeInfo() : null))
+                .collect(Collectors.toSet());
             featureSetsInfo = new XPackInfoResponse.FeatureSetsInfo(featureSets);
         }
 

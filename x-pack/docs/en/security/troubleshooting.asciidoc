@@ -684,13 +684,13 @@ the `basic` `authProvider` in {kib}. The process is documented in the
 
 If the previous resolutions do not solve your issue, enable additional
 logging for the SAML realm to troubleshoot further. You can enable debug
-logging by configuring the following transient setting:
+logging by configuring the following persistent setting:
 
 [source, console]
 ----
 PUT /_cluster/settings
 {
-  "transient": {
+  "persistent": {
     "logger.org.elasticsearch.xpack.security.authc.saml": "debug"
   }
 }

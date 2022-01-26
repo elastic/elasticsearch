@@ -89,7 +89,7 @@ import java.util.function.Supplier;
 import static org.apache.lucene.store.BufferedIndexInput.bufferSize;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
-import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
@@ -204,18 +204,19 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     /**
-     * Loads the snapshot if and only if it the snapshot is not loaded yet.
+     * Loads the snapshot if and only if the snapshot is not loaded yet.
      *
      * @return true if the snapshot was loaded by executing this method, false otherwise
      */
-    public boolean loadSnapshot(RecoveryState recoveryState, ActionListener<Void> preWarmListener) {
-        assert recoveryState != null;
-        assert recoveryState instanceof SearchableSnapshotRecoveryState;
-        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
-            || recoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER : recoveryState.getRecoverySource().getType();
+    public boolean loadSnapshot(RecoveryState snapshotRecoveryState, ActionListener<Void> preWarmListener) {
+        assert snapshotRecoveryState != null;
+        assert snapshotRecoveryState instanceof SearchableSnapshotRecoveryState;
+        assert snapshotRecoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
+            || snapshotRecoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER
+            : snapshotRecoveryState.getRecoverySource().getType();
         assert assertCurrentThreadMayLoadSnapshot();
         // noinspection ConstantConditions in case assertions are disabled
-        if (recoveryState instanceof SearchableSnapshotRecoveryState == false) {
+        if (snapshotRecoveryState instanceof SearchableSnapshotRecoveryState == false) {
             throw new IllegalArgumentException("A SearchableSnapshotRecoveryState instance was expected");
         }
         boolean alreadyLoaded = this.loaded;
@@ -228,7 +229,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     this.loaded = true;
                     cleanExistingRegularShardFiles();
                     waitForPendingEvictions();
-                    this.recoveryState = (SearchableSnapshotRecoveryState) recoveryState;
+                    this.recoveryState = (SearchableSnapshotRecoveryState) snapshotRecoveryState;
                     prewarmCache(preWarmListener);
                 }
             }
@@ -705,7 +706,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public ByteRange getBlobCacheByteRange(String fileName, long fileLength) {
-        return blobStoreCacheService.computeBlobCacheByteRange(fileName, fileLength, blobStoreCacheMaxLength);
+        return blobStoreCacheService.computeBlobCacheByteRange(shardId, fileName, fileLength, blobStoreCacheMaxLength);
     }
 
     public CachedBlob getCachedBlob(String name, ByteRange range) {

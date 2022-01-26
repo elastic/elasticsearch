@@ -62,16 +62,14 @@ abstract class FullTextUtils {
                 String[] split = splitInTwo(fieldName, "^");
                 if (split == null) {
                     fields.put(fieldName, defaultBoost);
-                }
-                else {
+                } else {
                     try {
                         fields.put(split[0], Float.parseFloat(split[1]));
                     } catch (NumberFormatException nfe) {
                         throw new ParsingException(source, "Cannot parse boosting for {}", fieldName);
                     }
                 }
-            }
-            else {
+            } else {
                 fields.put(fieldName, defaultBoost);
             }
         }

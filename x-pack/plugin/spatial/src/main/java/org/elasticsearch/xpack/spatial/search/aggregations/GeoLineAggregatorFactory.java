@@ -26,11 +26,18 @@ final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory 
     private SortOrder sortOrder;
     private int size;
 
-    GeoLineAggregatorFactory(String name,
-                             Map<String, ValuesSourceConfig> configs,
-                             DocValueFormat format, AggregationContext aggregationContext, AggregatorFactory parent,
-                             AggregatorFactories.Builder subFactoriesBuilder,
-                             Map<String, Object> metaData, boolean includeSort, SortOrder sortOrder, int size) throws IOException {
+    GeoLineAggregatorFactory(
+        String name,
+        Map<String, ValuesSourceConfig> configs,
+        DocValueFormat format,
+        AggregationContext aggregationContext,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metaData,
+        boolean includeSort,
+        SortOrder sortOrder,
+        int size
+    ) throws IOException {
         super(name, configs, format, aggregationContext, parent, subFactoriesBuilder, metaData);
         this.includeSort = includeSort;
         this.sortOrder = sortOrder;
@@ -38,17 +45,18 @@ final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory 
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent,
-                                        Map<String, Object> metaData) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metaData) throws IOException {
         return new GeoLineAggregator(name, null, context, parent, metaData, includeSort, sortOrder, size);
     }
 
     @Override
-    protected Aggregator doCreateInternal(Map<String, ValuesSourceConfig> configs,
-                                          DocValueFormat format,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metaData) throws IOException {
+    protected Aggregator doCreateInternal(
+        Map<String, ValuesSourceConfig> configs,
+        DocValueFormat format,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metaData
+    ) throws IOException {
         GeoLineMultiValuesSource valuesSources = new GeoLineMultiValuesSource(configs);
         return new GeoLineAggregator(name, valuesSources, context, parent, metaData, includeSort, sortOrder, size);
     }

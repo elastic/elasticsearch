@@ -77,9 +77,12 @@ public class CliSession {
         }
         SqlVersion version = SqlVersion.fromString(response.getVersion());
         if (ClientVersion.isServerCompatible(version) == false) {
-            throw new ClientException("This version of the CLI is only compatible with Elasticsearch version " +
-                ClientVersion.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server version " +
-                version.toString());
+            throw new ClientException(
+                "This version of the CLI is only compatible with Elasticsearch version "
+                    + ClientVersion.CURRENT.majorMinorToString()
+                    + " or newer; attempting to connect to a server version "
+                    + version.toString()
+            );
         }
     }
 }

@@ -232,4 +232,18 @@ To avoid deprecation warnings, discontinue use of the
 `POST _cluster/voting_config_exclusions/<node_name>` request path.
 ====
 
+[[breaking_78_transform_changes]]
+=== Transforms changes
+
+.The `max_page_search_size` property is deprecated in the `pivot` {transform} configuration object
+[%collapsible]
+====
+*Details* +
+The `max_page_search_size` property within `pivot` is deprecated in the
+<<put-transform,create {transform}>> and <<preview-transform,preview {transform}>>
+APIs.
+
+*Impact* +
+Use the `max_page_search_size` property within `settings` instead.
+====
 //end::notable-breaking-changes[]

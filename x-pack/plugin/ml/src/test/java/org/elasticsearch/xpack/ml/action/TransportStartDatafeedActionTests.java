@@ -11,11 +11,11 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -54,8 +54,10 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         Job job1 = DatafeedRunnerTests.createDatafeedJob().build(new Date());
         PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.builder().build();
         DatafeedConfig datafeedConfig1 = DatafeedRunnerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
-        Exception e = expectThrows(ElasticsearchStatusException.class,
-                () -> TransportStartDatafeedAction.validate(job1, datafeedConfig1, tasks, xContentRegistry()));
+        Exception e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> TransportStartDatafeedAction.validate(job1, datafeedConfig1, tasks, xContentRegistry())
+        );
         assertThat(e.getMessage(), equalTo("cannot start datafeed [foo-datafeed] because job [job_id] is closed"));
     }
 
@@ -90,8 +92,10 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
 
         TransportStartDatafeedAction.auditDeprecations(config, job1, auditor, xContentRegistry());
 
-        verify(auditor).warning(job1.getId(),
-            "datafeed [start-data-feed-test] configuration has deprecations. [Deprecated Agg, Deprecated Query]");
+        verify(auditor).warning(
+            job1.getId(),
+            "datafeed [start-data-feed-test] configuration has deprecations. [Deprecated Agg, Deprecated Query]"
+        );
     }
 
     public void testNoDeprecationsLogged() {
@@ -117,15 +121,14 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
 
         Map<String, Object> field = Collections.singletonMap(
             "runtime_field_foo",
-            MapBuilder.<String, Object>newMapBuilder()
-                .put("type", "keyword")
-                .put("script", "")
-                .map());
+            MapBuilder.<String, Object>newMapBuilder().put("type", "keyword").put("script", "").map()
+        );
 
-        DatafeedConfig config = new DatafeedConfig.Builder(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"))
-            .setRuntimeMappings(field)
-            .build();
-        ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class,
+        DatafeedConfig config = new DatafeedConfig.Builder(DatafeedConfigTests.createRandomizedDatafeedConfig("foo")).setRuntimeMappings(
+            field
+        ).build();
+        ElasticsearchStatusException ex = expectThrows(
+            ElasticsearchStatusException.class,
             () -> TransportStartDatafeedAction.checkRemoteClusterVersions(
                 config,
                 Arrays.asList("old_cluster_1", "modern_cluster_2"),
@@ -147,10 +150,10 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
             clusterVersions::get
         );
 
-        DatafeedConfig configWithoutRuntimeMappings = new DatafeedConfig.Builder()
-            .setId("foo-datafeed")
+        DatafeedConfig configWithoutRuntimeMappings = new DatafeedConfig.Builder().setId("foo-datafeed")
             .setIndices(Collections.singletonList("bar"))
-            .setJobId("foo").build();
+            .setJobId("foo")
+            .build();
         TransportStartDatafeedAction.checkRemoteClusterVersions(
             configWithoutRuntimeMappings,
             Arrays.asList("old_cluster_1", "modern_cluster_2"),
@@ -158,14 +161,26 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         );
     }
 
-    public static TransportStartDatafeedAction.DatafeedTask createDatafeedTask(long id, String type, String action,
-                                                                               TaskId parentTaskId,
-                                                                               StartDatafeedAction.DatafeedParams params,
-                                                                               DatafeedRunner datafeedRunner) {
-        TransportStartDatafeedAction.DatafeedTask task = new TransportStartDatafeedAction.DatafeedTask(id, type, action, parentTaskId,
-                params, Collections.emptyMap());
-        assertThat(task.setDatafeedRunner(datafeedRunner),
-            is(TransportStartDatafeedAction.DatafeedTask.StoppedOrIsolatedBeforeRunning.NEITHER));
+    public static TransportStartDatafeedAction.DatafeedTask createDatafeedTask(
+        long id,
+        String type,
+        String action,
+        TaskId parentTaskId,
+        StartDatafeedAction.DatafeedParams params,
+        DatafeedRunner datafeedRunner
+    ) {
+        TransportStartDatafeedAction.DatafeedTask task = new TransportStartDatafeedAction.DatafeedTask(
+            id,
+            type,
+            action,
+            parentTaskId,
+            params,
+            Collections.emptyMap()
+        );
+        assertThat(
+            task.setDatafeedRunner(datafeedRunner),
+            is(TransportStartDatafeedAction.DatafeedTask.StoppedOrIsolatedBeforeRunning.NEITHER)
+        );
         return task;
     }
 }

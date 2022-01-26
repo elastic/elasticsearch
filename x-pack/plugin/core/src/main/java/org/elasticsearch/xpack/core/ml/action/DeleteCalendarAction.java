@@ -31,7 +31,6 @@ public class DeleteCalendarAction extends ActionType<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-
         private String calendarId;
 
         public Request(StreamInput in) throws IOException {
@@ -39,8 +38,7 @@ public class DeleteCalendarAction extends ActionType<AcknowledgedResponse> {
             calendarId = in.readString();
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(String calendarId) {
             this.calendarId = ExceptionsHelper.requireNonNull(calendarId, Calendar.ID.getPreferredName());

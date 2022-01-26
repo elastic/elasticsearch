@@ -87,11 +87,15 @@ public class Privilege {
     static <T extends Privilege> SortedMap<String, T> sortByAccessLevel(Map<String, T> privileges) {
         // How many other privileges is this privilege a subset of. Those with a higher count are considered to be a lower privilege
         final Map<String, Long> subsetCount = new HashMap<>(privileges.size());
-        privileges.forEach((name, priv) -> subsetCount.put(name,
-            privileges.values().stream().filter(p2 -> p2 != priv && Operations.subsetOf(priv.automaton, p2.automaton)).count())
+        privileges.forEach(
+            (name, priv) -> subsetCount.put(
+                name,
+                privileges.values().stream().filter(p2 -> p2 != priv && Operations.subsetOf(priv.automaton, p2.automaton)).count()
+            )
         );
 
-        final Comparator<String> compare = Comparator.<String>comparingLong(key -> subsetCount.getOrDefault(key, 0L)).reversed()
+        final Comparator<String> compare = Comparator.<String>comparingLong(key -> subsetCount.getOrDefault(key, 0L))
+            .reversed()
             .thenComparing(Comparator.naturalOrder());
         final TreeMap<String, T> tree = new TreeMap<>(compare);
         tree.putAll(privileges);

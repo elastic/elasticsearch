@@ -22,6 +22,7 @@ public class Schema implements Iterable<Schema.Entry> {
 
     public interface Entry {
         String name();
+
         DataType type();
     }
 

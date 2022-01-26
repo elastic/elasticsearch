@@ -37,7 +37,6 @@ public class StWkttosqlProcessorTests extends ESTestCase {
         siae = expectThrows(QlIllegalArgumentException.class, () -> procPoint.process("point (foo bar)"));
         assertEquals("Cannot parse [point (foo bar)] as a geo_shape or shape value", siae.getMessage());
 
-
         siae = expectThrows(QlIllegalArgumentException.class, () -> procPoint.process("point (10 10"));
         assertEquals("Cannot parse [point (10 10] as a geo_shape or shape value", siae.getMessage());
     }

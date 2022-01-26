@@ -9,20 +9,19 @@
 package org.elasticsearch.repositories.hdfs;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.CoreMatchers;
-
-import javax.security.auth.Subject;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,18 +36,19 @@ import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.Collections;
 
+import javax.security.auth.Subject;
+
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.readBlobFully;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.writeBlob;
 
-@ThreadLeakFilters(filters = {HdfsClientThreadLeakFilter.class})
+@ThreadLeakFilters(filters = { HdfsClientThreadLeakFilter.class })
 public class HdfsBlobStoreContainerTests extends ESTestCase {
 
     private FileContext createTestContext() {
         FileContext fileContext;
         try {
-            fileContext = AccessController.doPrivileged((PrivilegedExceptionAction<FileContext>)
-                () -> createContext(new URI("hdfs:///")));
+            fileContext = AccessController.doPrivileged((PrivilegedExceptionAction<FileContext>) () -> createContext(new URI("hdfs:///")));
         } catch (PrivilegedActionException e) {
             throw new RuntimeException(e.getCause());
         }
@@ -75,8 +75,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
 
         try {
             Principal principal = (Principal) ctor.newInstance(System.getProperty("user.name"));
-            subject = new Subject(false, Collections.singleton(principal),
-                    Collections.emptySet(), Collections.emptySet());
+            subject = new Subject(false, Collections.singleton(principal), Collections.emptySet(), Collections.emptySet());
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }
@@ -155,7 +154,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         writeBlob(container, "foo", new BytesArray(data), randomBoolean());
         int pos = randomIntBetween(0, data.length / 2);
         int len = randomIntBetween(pos, data.length) - pos;
-        assertArrayEquals(readBlobPartially(container, "foo", pos, len), Arrays.copyOfRange(data, pos, pos+len));
+        assertArrayEquals(readBlobPartially(container, "foo", pos, len), Arrays.copyOfRange(data, pos, pos + len));
         assertTrue(container.blobExists("foo"));
     }
 

@@ -38,7 +38,8 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("search.aggs.rewrite_to_filter_by_filter", false)
             .build();
     }
@@ -51,23 +52,29 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
     public void testFieldUsageStats() throws ExecutionException, InterruptedException {
         internalCluster().ensureAtLeastNumDataNodes(2);
         int numShards = randomIntBetween(1, 2);
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards).put(SETTING_NUMBER_OF_REPLICAS, 1))
+        );
 
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd", Locale.ROOT);
         LocalDate date = LocalDate.of(2015, 9, 1);
 
         for (int i = 0; i < 30; i++) {
-            client().prepareIndex("test", "_doc").setId(Integer.toString(i)).setSource(
-                "field", "value", "field2", "value2", "date_field", formatter.format(date.plusDays(i))).get();
+            client().prepareIndex("test", "_doc")
+                .setId(Integer.toString(i))
+                .setSource("field", "value", "field2", "value2", "date_field", formatter.format(date.plusDays(i)))
+                .get();
         }
         client().admin().indices().prepareRefresh("test").get();
 
         ensureGreen("test");
 
-        FieldUsageStats stats =
-            aggregated(client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test"));
+        FieldUsageStats stats = aggregated(
+            client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test")
+        );
 
         assertFalse(stats.hasField("field"));
         assertFalse(stats.hasField("field.keyword"));
@@ -96,14 +103,18 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
 
         assertTrue(stats.hasField("field"));
         // we sort by _score
-        assertEquals(Sets.newHashSet(UsageContext.TERMS, UsageContext.POSTINGS, UsageContext.FREQS, UsageContext.NORMS),
-            stats.get("field").keySet());
+        assertEquals(
+            Sets.newHashSet(UsageContext.TERMS, UsageContext.POSTINGS, UsageContext.FREQS, UsageContext.NORMS),
+            stats.get("field").keySet()
+        );
         assertEquals(1L * numShards, stats.get("field").getTerms());
 
         assertTrue(stats.hasField("field2"));
         // positions because of span query
-        assertEquals(Sets.newHashSet(UsageContext.TERMS, UsageContext.POSTINGS, UsageContext.FREQS, UsageContext.POSITIONS),
-            stats.get("field2").keySet());
+        assertEquals(
+            Sets.newHashSet(UsageContext.TERMS, UsageContext.POSTINGS, UsageContext.FREQS, UsageContext.POSITIONS),
+            stats.get("field2").keySet()
+        );
         assertEquals(1L * numShards, stats.get("field2").getTerms());
 
         assertTrue(stats.hasField("field.keyword"));
@@ -129,8 +140,20 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         assertFalse(stats.hasField("date_field"));
 
         // show that we also track stats in can_match
-        assertEquals(2L * numShards, client().admin().indices().prepareStats("test").clear().setSearch(true).get()
-            .getIndex("test").getTotal().getSearch().getTotal().getQueryCount());
+        assertEquals(
+            2L * numShards,
+            client().admin()
+                .indices()
+                .prepareStats("test")
+                .clear()
+                .setSearch(true)
+                .get()
+                .getIndex("test")
+                .getTotal()
+                .getSearch()
+                .getTotal()
+                .getQueryCount()
+        );
         client().prepareSearch()
             .setSearchType(SearchType.DEFAULT)
             .setPreFilterShardSize(1)
@@ -147,7 +170,19 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         // can_match does not enter search stats
         // there is a special case though where we have no hit but we need to get at least one search response in order
         // to produce a valid search result with all the aggs etc., so we hit one of the two shards
-        assertEquals((2 * numShards) + 1, client().admin().indices().prepareStats("test").clear().setSearch(true).get()
-            .getIndex("test").getTotal().getSearch().getTotal().getQueryCount());
+        assertEquals(
+            (2 * numShards) + 1,
+            client().admin()
+                .indices()
+                .prepareStats("test")
+                .clear()
+                .setSearch(true)
+                .get()
+                .getIndex("test")
+                .getTotal()
+                .getSearch()
+                .getTotal()
+                .getQueryCount()
+        );
     }
 }

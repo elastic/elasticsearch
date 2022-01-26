@@ -38,13 +38,11 @@ public class SqlFunctionRegistryTests extends ESTestCase {
         FunctionDefinition def = r.resolveFunction(ur.name());
 
         // Distinct isn't supported
-        ParsingException e = expectThrows(ParsingException.class, () ->
-            uf(DISTINCT).buildResolved(randomConfiguration(), def));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf(DISTINCT).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("Cannot use DISTINCT on non-SQL function DUMMY_FUNCTION()"));
 
         // Any children aren't supported
-        e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT, mock(Expression.class)).buildResolved(randomConfiguration(), def));
+        e = expectThrows(ParsingException.class, () -> uf(DEFAULT, mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects no arguments"));
     }
 
@@ -54,18 +52,21 @@ public class SqlFunctionRegistryTests extends ESTestCase {
         FunctionDefinition def = r.resolveFunction(ur.name());
 
         // Distinct isn't supported
-        ParsingException e = expectThrows(ParsingException.class, () ->
-            uf(DISTINCT, mock(Expression.class)).buildResolved(randomConfiguration(), def));
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> uf(DISTINCT, mock(Expression.class)).buildResolved(randomConfiguration(), def)
+        );
         assertThat(e.getMessage(), endsWith("Cannot use DISTINCT on non-SQL function DUMMY_FUNCTION()"));
 
         // No children aren't supported
-        e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
 
         // Multiple children aren't supported
-        e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def));
+        e = expectThrows(
+            ParsingException.class,
+            () -> uf(DEFAULT, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def)
+        );
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
     }
 
@@ -85,13 +86,14 @@ public class SqlFunctionRegistryTests extends ESTestCase {
         assertFalse(((SqlFunctionDefinition) def).extractViable());
 
         // No children aren't supported
-        ParsingException e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
 
         // Multiple children aren't supported
-        e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def));
+        e = expectThrows(
+            ParsingException.class,
+            () -> uf(DEFAULT, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def)
+        );
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
     }
 
@@ -112,19 +114,15 @@ public class SqlFunctionRegistryTests extends ESTestCase {
         assertTrue(((SqlFunctionDefinition) def).extractViable());
 
         // Distinct isn't supported
-        ParsingException e = expectThrows(ParsingException.class, () ->
-            uf(DISTINCT, exprMock).buildResolved(providedConfiguration, def));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf(DISTINCT, exprMock).buildResolved(providedConfiguration, def));
         assertThat(e.getMessage(), endsWith("does not support DISTINCT yet it was specified"));
 
         // No children aren't supported
-        e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
 
         // Multiple children aren't supported
-        e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT, exprMock, exprMock).buildResolved(randomConfiguration(), def));
+        e = expectThrows(ParsingException.class, () -> uf(DEFAULT, exprMock, exprMock).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
     }
 }
-

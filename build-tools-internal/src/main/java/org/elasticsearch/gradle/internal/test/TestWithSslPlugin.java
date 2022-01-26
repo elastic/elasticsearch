@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal.test;
 
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin;
 import org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin;
@@ -16,7 +17,6 @@ import org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsTask;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersAware;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
-import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;

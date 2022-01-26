@@ -8,6 +8,7 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -48,14 +49,16 @@ public class CompoundAnalysisTests extends ESTestCase {
     }
 
     public void testDictionaryDecompounder() throws Exception {
-        Settings[] settingsArr = new Settings[]{getJsonSettings(), getYamlSettings()};
+        Settings[] settingsArr = new Settings[] { getJsonSettings(), getYamlSettings() };
         for (Settings settings : settingsArr) {
             List<String> terms = analyze(settings, "decompoundingAnalyzer", "donaudampfschiff spargelcremesuppe");
             MatcherAssert.assertThat(terms.size(), equalTo(8));
-            MatcherAssert.assertThat(terms,
-                    hasItems("donau", "dampf", "schiff", "donaudampfschiff", "spargel", "creme", "suppe", "spargelcremesuppe"));
+            MatcherAssert.assertThat(
+                terms,
+                hasItems("donau", "dampf", "schiff", "donaudampfschiff", "spargel", "creme", "suppe", "spargelcremesuppe")
+            );
         }
-        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
+        assertWarnings(Level.WARN, "Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 
     private List<String> analyze(Settings settings, String analyzerName, String text) throws IOException {
@@ -64,7 +67,7 @@ public class CompoundAnalysisTests extends ESTestCase {
         IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
         Analyzer analyzer = indexAnalyzers.get(analyzerName).analyzer();
 
-        TokenStream stream = analyzer.tokenStream("" , text);
+        TokenStream stream = analyzer.tokenStream("", text);
         stream.reset();
         CharTermAttribute termAtt = stream.addAttribute(CharTermAttribute.class);
 
@@ -89,18 +92,18 @@ public class CompoundAnalysisTests extends ESTestCase {
     private Settings getJsonSettings() throws IOException {
         String json = "/org/elasticsearch/analysis/common/test1.json";
         return Settings.builder()
-                .loadFromStream(json, getClass().getResourceAsStream(json), false)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
+            .loadFromStream(json, getClass().getResourceAsStream(json), false)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
     }
 
     private Settings getYamlSettings() throws IOException {
         String yaml = "/org/elasticsearch/analysis/common/test1.yml";
         return Settings.builder()
-                .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
+            .loadFromStream(yaml, getClass().getResourceAsStream(yaml), false)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
     }
 }

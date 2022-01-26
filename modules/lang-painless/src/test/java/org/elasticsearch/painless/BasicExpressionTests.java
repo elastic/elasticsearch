@@ -28,8 +28,8 @@ public class BasicExpressionTests extends ScriptTestCase {
         assertEquals(33.0F, exec("return 33f"));
         assertEquals(34.0F, exec("return 34.0F"));
         assertEquals(35.0F, exec("return 35F"));
-        assertEquals((byte)255, exec("return (byte)255"));
-        assertEquals((short)5, exec("return (short)5"));
+        assertEquals((byte) 255, exec("return (byte)255"));
+        assertEquals((short) 5, exec("return (short)5"));
         assertEquals("string", exec("return \"string\""));
         assertEquals("string", exec("return 'string'"));
         assertEquals(true, exec("return true"));
@@ -53,12 +53,16 @@ public class BasicExpressionTests extends ScriptTestCase {
         // `\"` is a `"` if surrounded by `"`s
         assertEquals("\"string", exec("\"\\\"string\""));
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'\\\"string'", false));
-        assertEquals("unexpected character ['\\\"]. The only valid escape sequences in strings starting with ['] are [\\\\] and [\\'].",
-                e.getMessage());
+        assertEquals(
+            "unexpected character ['\\\"]. The only valid escape sequences in strings starting with ['] are [\\\\] and [\\'].",
+            e.getMessage()
+        );
         // `\'` is a `'` if surrounded by `'`s
         e = expectScriptThrows(IllegalArgumentException.class, () -> exec("\"\\'string\"", false));
-        assertEquals("unexpected character [\"\\']. The only valid escape sequences in strings starting with [\"] are [\\\\] and [\\\"].",
-                e.getMessage());
+        assertEquals(
+            "unexpected character [\"\\']. The only valid escape sequences in strings starting with [\"] are [\\\\] and [\\\"].",
+            e.getMessage()
+        );
         assertEquals("'string", exec("'\\'string'"));
         // We don't break native escapes like new line
         assertEquals("\nstring", exec("\"\nstring\""));
@@ -82,8 +86,8 @@ public class BasicExpressionTests extends ScriptTestCase {
         assertEquals(7L, exec("long l = 7; return l;"));
         assertEquals(7.0, exec("double d = 7; return d;"));
         assertEquals(32.0F, exec("float f = 32F; return f;"));
-        assertEquals((byte)255, exec("byte b = (byte)255; return b;"));
-        assertEquals((short)5, exec("short s = (short)5; return s;"));
+        assertEquals((byte) 255, exec("byte b = (byte)255; return b;"));
+        assertEquals((short) 5, exec("short s = (short)5; return s;"));
         assertEquals("string", exec("String s = \"string\"; return s;"));
         assertEquals(true, exec("boolean v = true; return v;"));
         assertEquals(false, exec("boolean v = false; return v;"));
@@ -91,24 +95,16 @@ public class BasicExpressionTests extends ScriptTestCase {
 
     public void testCast() {
         assertEquals(1, exec("return (int)1.0;"));
-        assertEquals((byte)100, exec("double x = 100; return (byte)x;"));
+        assertEquals((byte) 100, exec("double x = 100; return (byte)x;"));
 
-        assertEquals(3, exec(
-                "Map x = new HashMap();\n" +
-                "Object y = x;\n" +
-                "((Map)y).put(2, 3);\n" +
-                "return x.get(2);\n"));
+        assertEquals(3, exec("Map x = new HashMap();\n" + "Object y = x;\n" + "((Map)y).put(2, 3);\n" + "return x.get(2);\n"));
     }
 
     public void testIllegalDefCast() {
-        Exception exception = expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = 1.0; int y = x; return y;");
-        });
+        Exception exception = expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1.0; int y = x; return y;"); });
         assertTrue(exception.getMessage().contains("cannot implicitly cast"));
 
-        exception = expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = (short)1; byte y = x; return y;");
-        });
+        exception = expectScriptThrows(ClassCastException.class, () -> { exec("def x = (short)1; byte y = x; return y;"); });
         assertTrue(exception.getMessage().contains("cannot implicitly cast"));
     }
 
@@ -116,11 +112,10 @@ public class BasicExpressionTests extends ScriptTestCase {
         assertEquals("aaabbb", exec("return \"aaa\" + \"bbb\";"));
         assertEquals("aaabbb", exec("String aaa = \"aaa\", bbb = \"bbb\"; return aaa + bbb;"));
 
-        assertEquals("aaabbbbbbbbb", exec(
-                "String aaa = \"aaa\", bbb = \"bbb\"; int x;\n" +
-                "for (; x < 3; ++x) \n" +
-                "    aaa += bbb;\n" +
-                "return aaa;"));
+        assertEquals(
+            "aaabbbbbbbbb",
+            exec("String aaa = \"aaa\", bbb = \"bbb\"; int x;\n" + "for (; x < 3; ++x) \n" + "    aaa += bbb;\n" + "return aaa;")
+        );
     }
 
     public void testComp() {
@@ -169,88 +164,85 @@ public class BasicExpressionTests extends ScriptTestCase {
 
     public void testNullSafeDeref() {
         // Objects in general
-        //   Call
-        assertNull(         exec("String a = null;  return a?.toString()"));
+        // Call
+        assertNull(exec("String a = null;  return a?.toString()"));
         assertEquals("foo", exec("String a = 'foo'; return a?.toString()"));
-        assertNull(         exec("def    a = null;  return a?.toString()"));
+        assertNull(exec("def    a = null;  return a?.toString()"));
         assertEquals("foo", exec("def    a = 'foo'; return a?.toString()"));
-        //   Call with primitive result
-        assertMustBeNullable(    "String a = null;  return a?.length()");
-        assertMustBeNullable(    "String a = 'foo'; return a?.length()");
-        assertNull(         exec("def    a = null;  return a?.length()"));
-        assertEquals(3,     exec("def    a = 'foo'; return a?.length()"));
-        //   Read shortcut
-        assertMustBeNullable(    "org.elasticsearch.painless.FeatureTestObject a = null; return a?.x");
+        // Call with primitive result
+        assertMustBeNullable("String a = null;  return a?.length()");
+        assertMustBeNullable("String a = 'foo'; return a?.length()");
+        assertNull(exec("def    a = null;  return a?.length()"));
+        assertEquals(3, exec("def    a = 'foo'; return a?.length()"));
+        // Read shortcut
+        assertMustBeNullable("org.elasticsearch.painless.FeatureTestObject a = null; return a?.x");
         assertMustBeNullable(
-                "org.elasticsearch.painless.FeatureTestObject a = new org.elasticsearch.painless.FeatureTestObject(); return a?.x");
-        assertNull(         exec("def    a = null;  return a?.x"));
-        assertEquals(0,     exec("def    a = new org.elasticsearch.painless.FeatureTestObject(); return a?.x"));
+            "org.elasticsearch.painless.FeatureTestObject a = new org.elasticsearch.painless.FeatureTestObject(); return a?.x"
+        );
+        assertNull(exec("def    a = null;  return a?.x"));
+        assertEquals(0, exec("def    a = new org.elasticsearch.painless.FeatureTestObject(); return a?.x"));
 
         // Maps
-        //   Call
-        assertNull(        exec("Map a = null;        return a?.toString()"));
+        // Call
+        assertNull(exec("Map a = null;        return a?.toString()"));
         assertEquals("{}", exec("Map a = [:];         return a?.toString()"));
-        assertNull(        exec("def a = null;        return a?.toString()"));
+        assertNull(exec("def a = null;        return a?.toString()"));
         assertEquals("{}", exec("def a = [:];         return a?.toString()"));
-        //   Call with primitive result
-        assertMustBeNullable(   "Map a = [:];  return a?.size()");
-        assertMustBeNullable(   "Map a = null; return a?.size()");
-        assertNull(        exec("def a = null;        return a?.size()"));
-        assertEquals(0,    exec("def a = [:];         return a?.size()"));
-        //   Read shortcut
-        assertNull(        exec("Map a = null;        return a?.other"));       // Read shortcut
-        assertEquals(1,    exec("Map a = ['other':1]; return a?.other"));       // Read shortcut
-        assertNull(        exec("def a = null;        return a?.other"));       // Read shortcut
-        assertEquals(1,    exec("def a = ['other':1]; return a?.other"));       // Read shortcut
+        // Call with primitive result
+        assertMustBeNullable("Map a = [:];  return a?.size()");
+        assertMustBeNullable("Map a = null; return a?.size()");
+        assertNull(exec("def a = null;        return a?.size()"));
+        assertEquals(0, exec("def a = [:];         return a?.size()"));
+        // Read shortcut
+        assertNull(exec("Map a = null;        return a?.other"));       // Read shortcut
+        assertEquals(1, exec("Map a = ['other':1]; return a?.other"));       // Read shortcut
+        assertNull(exec("def a = null;        return a?.other"));       // Read shortcut
+        assertEquals(1, exec("def a = ['other':1]; return a?.other"));       // Read shortcut
 
         // Array
         // Since you can't invoke methods on arrays we skip the toString and hashCode tests
         assertMustBeNullable("int[] a = null;             return a?.length");
         assertMustBeNullable("int[] a = new int[] {2, 3}; return a?.length");
-        assertNull(     exec("def a = null;               return a?.length"));
+        assertNull(exec("def a = null;               return a?.length"));
         assertEquals(2, exec("def a = new int[] {2, 3};   return a?.length"));
 
         // Results from maps (should just work but let's test anyway)
         FeatureTestObject t = new FeatureTestObject();
-        assertNull(     exec("Map a = ['thing': params.t]; return a.other?.getX()", singletonMap("t", t), true));
-        assertNull(     exec("Map a = ['thing': params.t]; return a.other?.x",      singletonMap("t", t), true));
-        assertNull(     exec("def a = ['thing': params.t]; return a.other?.getX()", singletonMap("t", t), true));
-        assertNull(     exec("def a = ['thing': params.t]; return a.other?.x",      singletonMap("t", t), true));
+        assertNull(exec("Map a = ['thing': params.t]; return a.other?.getX()", singletonMap("t", t), true));
+        assertNull(exec("Map a = ['thing': params.t]; return a.other?.x", singletonMap("t", t), true));
+        assertNull(exec("def a = ['thing': params.t]; return a.other?.getX()", singletonMap("t", t), true));
+        assertNull(exec("def a = ['thing': params.t]; return a.other?.x", singletonMap("t", t), true));
         assertEquals(0, exec("Map a = ['other': params.t]; return a.other?.getX()", singletonMap("t", t), true));
-        assertEquals(0, exec("Map a = ['other': params.t]; return a.other?.x",      singletonMap("t", t), true));
+        assertEquals(0, exec("Map a = ['other': params.t]; return a.other?.x", singletonMap("t", t), true));
         assertEquals(0, exec("def a = ['other': params.t]; return a.other?.getX()", singletonMap("t", t), true));
-        assertEquals(0, exec("def a = ['other': params.t]; return a.other?.x",      singletonMap("t", t), true));
+        assertEquals(0, exec("def a = ['other': params.t]; return a.other?.x", singletonMap("t", t), true));
 
         // Chains
-        assertNull(     exec("Map a = ['thing': ['cat': params.t]]; return a.other?.cat?.getX()", singletonMap("t", t), true));
-        assertNull(     exec("Map a = ['thing': ['cat': params.t]]; return a.other?.cat?.x",      singletonMap("t", t), true));
-        assertNull(     exec("def a = ['thing': ['cat': params.t]]; return a.other?.cat?.getX()", singletonMap("t", t), true));
-        assertNull(     exec("def a = ['thing': ['cat': params.t]]; return a.other?.cat?.x",      singletonMap("t", t), true));
+        assertNull(exec("Map a = ['thing': ['cat': params.t]]; return a.other?.cat?.getX()", singletonMap("t", t), true));
+        assertNull(exec("Map a = ['thing': ['cat': params.t]]; return a.other?.cat?.x", singletonMap("t", t), true));
+        assertNull(exec("def a = ['thing': ['cat': params.t]]; return a.other?.cat?.getX()", singletonMap("t", t), true));
+        assertNull(exec("def a = ['thing': ['cat': params.t]]; return a.other?.cat?.x", singletonMap("t", t), true));
         assertEquals(0, exec("Map a = ['other': ['cat': params.t]]; return a.other?.cat?.getX()", singletonMap("t", t), true));
-        assertEquals(0, exec("Map a = ['other': ['cat': params.t]]; return a.other?.cat?.x",      singletonMap("t", t), true));
+        assertEquals(0, exec("Map a = ['other': ['cat': params.t]]; return a.other?.cat?.x", singletonMap("t", t), true));
         assertEquals(0, exec("def a = ['other': ['cat': params.t]]; return a.other?.cat?.getX()", singletonMap("t", t), true));
-        assertEquals(0, exec("def a = ['other': ['cat': params.t]]; return a.other?.cat?.x",      singletonMap("t", t), true));
+        assertEquals(0, exec("def a = ['other': ['cat': params.t]]; return a.other?.cat?.x", singletonMap("t", t), true));
 
         // Assignments
-        assertNull(exec(
-                    "def a = [:];\n"
-                  + "a.missing_length = a.missing?.length();\n"
-                  + "return a.missing_length", true));
-        assertEquals(3, exec(
-                    "def a = [:];\n"
-                  + "a.missing = 'foo';\n"
-                  + "a.missing_length = a.missing?.length();\n"
-                  + "return a.missing_length", true));
+        assertNull(exec("def a = [:];\n" + "a.missing_length = a.missing?.length();\n" + "return a.missing_length", true));
+        assertEquals(
+            3,
+            exec("def a = [:];\n" + "a.missing = 'foo';\n" + "a.missing_length = a.missing?.length();\n" + "return a.missing_length", true)
+        );
 
         // Writes, all unsupported at this point
-//        assertEquals(null, exec("org.elasticsearch.painless.FeatureTestObject a = null; return a?.x"));            // Read field
-//        assertEquals(null, exec("org.elasticsearch.painless.FeatureTestObject a = null; a?.x = 7; return a?.x"));  // Write field
-//        assertEquals(null, exec("Map a = null; a?.other = 'wow'; return a?.other")); // Write shortcut
-//        assertEquals(null, exec("def a = null; a?.other = 'cat'; return a?.other")); // Write shortcut
-//        assertEquals(null, exec("Map a = ['thing': 'bar']; a.other?.cat = 'no'; return a.other?.cat"));
-//        assertEquals(null, exec("def a = ['thing': 'bar']; a.other?.cat = 'no'; return a.other?.cat"));
-//        assertEquals(null, exec("Map a = ['thing': 'bar']; a.other?.cat?.dog = 'wombat'; return a.other?.cat?.dog"));
-//        assertEquals(null, exec("def a = ['thing': 'bar']; a.other?.cat?.dog = 'wombat'; return a.other?.cat?.dog"));
+        // assertEquals(null, exec("org.elasticsearch.painless.FeatureTestObject a = null; return a?.x")); // Read field
+        // assertEquals(null, exec("org.elasticsearch.painless.FeatureTestObject a = null; a?.x = 7; return a?.x")); // Write field
+        // assertEquals(null, exec("Map a = null; a?.other = 'wow'; return a?.other")); // Write shortcut
+        // assertEquals(null, exec("def a = null; a?.other = 'cat'; return a?.other")); // Write shortcut
+        // assertEquals(null, exec("Map a = ['thing': 'bar']; a.other?.cat = 'no'; return a.other?.cat"));
+        // assertEquals(null, exec("def a = ['thing': 'bar']; a.other?.cat = 'no'; return a.other?.cat"));
+        // assertEquals(null, exec("Map a = ['thing': 'bar']; a.other?.cat?.dog = 'wombat'; return a.other?.cat?.dog"));
+        // assertEquals(null, exec("def a = ['thing': 'bar']; a.other?.cat?.dog = 'wombat'; return a.other?.cat?.dog"));
     }
 
     // test to ensure static interface methods are called correctly

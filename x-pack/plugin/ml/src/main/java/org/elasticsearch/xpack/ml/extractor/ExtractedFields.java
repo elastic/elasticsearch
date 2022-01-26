@@ -32,12 +32,15 @@ public class ExtractedFields {
     private final String[] sourceFields;
     private final Map<String, Long> cardinalitiesForFieldsWithConstraints;
 
-    public ExtractedFields(List<ExtractedField> allFields,
-                           List<ProcessedField> processedFields,
-                           Map<String, Long> cardinalitiesForFieldsWithConstraints) {
+    public ExtractedFields(
+        List<ExtractedField> allFields,
+        List<ProcessedField> processedFields,
+        Map<String, Long> cardinalitiesForFieldsWithConstraints
+    ) {
         this.allFields = new ArrayList<>(allFields);
         this.docValueFields = filterFields(ExtractedField.Method.DOC_VALUE, allFields);
-        this.sourceFields = filterFields(ExtractedField.Method.SOURCE, allFields).stream().map(ExtractedField::getSearchField)
+        this.sourceFields = filterFields(ExtractedField.Method.SOURCE, allFields).stream()
+            .map(ExtractedField::getSearchField)
             .toArray(String[]::new);
         this.cardinalitiesForFieldsWithConstraints = Collections.unmodifiableMap(cardinalitiesForFieldsWithConstraints);
         this.processedFields = processedFields == null ? Collections.emptyList() : processedFields;
@@ -69,46 +72,55 @@ public class ExtractedFields {
 
     public String[] extractOrganicFeatureNames() {
         Set<String> processedFieldInputs = getProcessedFieldInputs();
-        return allFields
-            .stream()
+        return allFields.stream()
             .map(ExtractedField::getName)
             .filter(f -> processedFieldInputs.contains(f) == false)
             .toArray(String[]::new);
     }
 
     public String[] extractProcessedFeatureNames() {
-        return processedFields
-            .stream()
-            .map(ProcessedField::getOutputFieldNames)
-            .flatMap(List::stream)
-            .toArray(String[]::new);
+        return processedFields.stream().map(ProcessedField::getOutputFieldNames).flatMap(List::stream).toArray(String[]::new);
     }
 
     private static List<ExtractedField> filterFields(ExtractedField.Method method, List<ExtractedField> fields) {
         return fields.stream().filter(field -> field.getMethod() == method).collect(Collectors.toList());
     }
 
-    public static ExtractedFields build(Set<String> allFields,
-                                        Set<String> scriptFields,
-                                        Set<String> searchRuntimeFields,
-                                        FieldCapabilitiesResponse fieldsCapabilities,
-                                        Map<String, Long> cardinalitiesForFieldsWithConstraints,
-                                        List<ProcessedField> processedFields) {
-        ExtractionMethodDetector extractionMethodDetector =
-            new ExtractionMethodDetector(scriptFields, fieldsCapabilities, searchRuntimeFields);
+    public static ExtractedFields build(
+        Set<String> allFields,
+        Set<String> scriptFields,
+        Set<String> searchRuntimeFields,
+        FieldCapabilitiesResponse fieldsCapabilities,
+        Map<String, Long> cardinalitiesForFieldsWithConstraints,
+        List<ProcessedField> processedFields
+    ) {
+        ExtractionMethodDetector extractionMethodDetector = new ExtractionMethodDetector(
+            scriptFields,
+            fieldsCapabilities,
+            searchRuntimeFields
+        );
         return new ExtractedFields(
             allFields.stream().map(extractionMethodDetector::detect).collect(Collectors.toList()),
             processedFields,
-            cardinalitiesForFieldsWithConstraints);
+            cardinalitiesForFieldsWithConstraints
+        );
     }
 
-    public static ExtractedFields build(Set<String> allFields,
-                                        Set<String> scriptFields,
-                                        FieldCapabilitiesResponse fieldsCapabilities,
-                                        Map<String, Long> cardinalitiesForFieldsWithConstraints,
-                                        List<ProcessedField> processedFields) {
-        return build(allFields, scriptFields, Collections.emptySet(), fieldsCapabilities,
-            cardinalitiesForFieldsWithConstraints, processedFields);
+    public static ExtractedFields build(
+        Set<String> allFields,
+        Set<String> scriptFields,
+        FieldCapabilitiesResponse fieldsCapabilities,
+        Map<String, Long> cardinalitiesForFieldsWithConstraints,
+        List<ProcessedField> processedFields
+    ) {
+        return build(
+            allFields,
+            scriptFields,
+            Collections.emptySet(),
+            fieldsCapabilities,
+            cardinalitiesForFieldsWithConstraints,
+            processedFields
+        );
     }
 
     public static TimeField newTimeField(String name, ExtractedField.Method method) {
@@ -125,8 +137,11 @@ public class ExtractedFields {
         private final Set<String> searchRuntimeFields;
         private final FieldCapabilitiesResponse fieldsCapabilities;
 
-        public ExtractionMethodDetector(Set<String> scriptFields, FieldCapabilitiesResponse fieldsCapabilities,
-                                        Set<String> searchRuntimeFields) {
+        public ExtractionMethodDetector(
+            Set<String> scriptFields,
+            FieldCapabilitiesResponse fieldsCapabilities,
+            Set<String> searchRuntimeFields
+        ) {
             this.scriptFields = scriptFields;
             this.fieldsCapabilities = fieldsCapabilities;
             this.searchRuntimeFields = searchRuntimeFields;

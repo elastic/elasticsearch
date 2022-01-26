@@ -76,8 +76,10 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             to = nextTo(to);
         }
 
-        assertEquals(getExpectedRangeQuery(relation, from, to, includeLower, includeUpper),
-            ft.rangeQuery(from, to, includeLower, includeUpper, relation, null, null, context));
+        assertEquals(
+            getExpectedRangeQuery(relation, from, to, includeLower, includeUpper),
+            ft.rangeQuery(from, to, includeLower, includeUpper, relation, null, null, context)
+        );
     }
 
     /**
@@ -134,8 +136,8 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
                 to = nextTo(from);
         }
         Query rangeQuery = ft.rangeQuery(from, to, false, false, relation, null, null, context);
-            assertThat(rangeQuery, instanceOf(IndexOrDocValuesQuery.class));
-            assertThat(((IndexOrDocValuesQuery) rangeQuery).getIndexQuery(), instanceOf(MatchNoDocsQuery.class));
+        assertThat(rangeQuery, instanceOf(IndexOrDocValuesQuery.class));
+        assertThat(((IndexOrDocValuesQuery) rangeQuery).getIndexQuery(), instanceOf(MatchNoDocsQuery.class));
     }
 
     /**
@@ -191,33 +193,56 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
                 return;
         }
         ShapeRelation relation = randomFrom(ShapeRelation.values());
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () ->   ft.rangeQuery(from, to, true, true, relation, null, null, context));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> ft.rangeQuery(from, to, true, true, relation, null, null, context)
+        );
         assertTrue(ex.getMessage().contains("Range query `from` value"));
         assertTrue(ex.getMessage().contains("is greater than `to` value"));
     }
 
     private SearchExecutionContext createContext() {
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
-        return new SearchExecutionContext(0, 0, idxSettings, null, null, null, null, null, null,
-            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
+        return new SearchExecutionContext(
+            0,
+            0,
+            idxSettings,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            null,
+            null,
+            () -> nowInMillis,
+            null,
+            null,
+            () -> true,
+            null,
+            emptyMap()
+        );
     }
 
     public void testDateRangeQueryUsingMappingFormat() {
         SearchExecutionContext context = createContext();
         RangeFieldType strict = new RangeFieldType("field", RangeFieldMapper.Defaults.DATE_FORMATTER);
         // don't use DISJOINT here because it doesn't work on date fields which we want to compare bounds with
-        ShapeRelation relation = randomValueOtherThan(ShapeRelation.DISJOINT,() -> randomFrom(ShapeRelation.values()));
+        ShapeRelation relation = randomValueOtherThan(ShapeRelation.DISJOINT, () -> randomFrom(ShapeRelation.values()));
 
         // dates will break the default format, month/day of month is turned around in the format
         final String from = "2016-15-06T15:29:50+08:00";
         final String to = "2016-16-06T15:29:50+08:00";
 
-        ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
-            () -> strict.rangeQuery(from, to, true, true, relation, null, null, context));
-        assertThat(ex.getMessage(),
+        ElasticsearchParseException ex = expectThrows(
+            ElasticsearchParseException.class,
+            () -> strict.rangeQuery(from, to, true, true, relation, null, null, context)
+        );
+        assertThat(
+            ex.getMessage(),
             containsString("failed to parse date field [2016-15-06T15:29:50+08:00] with format [strict_date_optional_time||epoch_millis]")
         );
 
@@ -231,8 +256,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         assertEquals("field:<ranges:[1465975790000 : 1466062190999]>", query.toString());
 
         // compare lower and upper bounds with what we would get on a `date` field
-        DateFieldType dateFieldType
-            = new DateFieldType("field", DateFieldMapper.Resolution.MILLISECONDS, formatter);
+        DateFieldType dateFieldType = new DateFieldType("field", DateFieldMapper.Resolution.MILLISECONDS, formatter);
         final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
         assertEquals("field:[1465975790000 TO 1466062190999]", queryOnDateField.toString());
     }
@@ -261,8 +285,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         }
         boolean includeLower = randomBoolean();
         boolean includeUpper = randomBoolean();
-        final Query query = fieldType.rangeQuery(lowerAsString, upperAsString, includeLower, includeUpper, ShapeRelation.INTERSECTS, null,
-                null, context);
+        final Query query = fieldType.rangeQuery(
+            lowerAsString,
+            upperAsString,
+            includeLower,
+            includeUpper,
+            ShapeRelation.INTERSECTS,
+            null,
+            null,
+            context
+        );
 
         // get exact lower and upper bounds similar to what we would parse for `date` fields for same input strings
         DateFieldType dateFieldType = new DateFieldType("field");
@@ -283,23 +315,23 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     private Query getExpectedRangeQuery(ShapeRelation relation, Object from, Object to, boolean includeLower, boolean includeUpper) {
         switch (type) {
             case DATE:
-                return getDateRangeQuery(relation, (DateTime)from, (DateTime)to, includeLower, includeUpper);
+                return getDateRangeQuery(relation, (DateTime) from, (DateTime) to, includeLower, includeUpper);
             case INTEGER:
-                return getIntRangeQuery(relation, (int)from, (int)to, includeLower, includeUpper);
+                return getIntRangeQuery(relation, (int) from, (int) to, includeLower, includeUpper);
             case LONG:
-                return getLongRangeQuery(relation, (long)from, (long)to, includeLower, includeUpper);
+                return getLongRangeQuery(relation, (long) from, (long) to, includeLower, includeUpper);
             case DOUBLE:
-                return getDoubleRangeQuery(relation, (double)from, (double)to, includeLower, includeUpper);
+                return getDoubleRangeQuery(relation, (double) from, (double) to, includeLower, includeUpper);
             case IP:
-                return getInetAddressRangeQuery(relation, (InetAddress)from, (InetAddress)to, includeLower, includeUpper);
+                return getInetAddressRangeQuery(relation, (InetAddress) from, (InetAddress) to, includeLower, includeUpper);
             default:
-                return getFloatRangeQuery(relation, (float)from, (float)to, includeLower, includeUpper);
+                return getFloatRangeQuery(relation, (float) from, (float) to, includeLower, includeUpper);
         }
     }
 
     private Query getDateRangeQuery(ShapeRelation relation, DateTime from, DateTime to, boolean includeLower, boolean includeUpper) {
-        long[] lower = new long[] {from.getMillis() + (includeLower ? 0 : 1)};
-        long[] upper = new long[] {to.getMillis() - (includeUpper ? 0 : 1)};
+        long[] lower = new long[] { from.getMillis() + (includeLower ? 0 : 1) };
+        long[] upper = new long[] { to.getMillis() - (includeUpper ? 0 : 1) };
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
@@ -312,14 +344,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             indexQuery = LongRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.DATE.dvRangeQuery("field", queryType, from.getMillis(),
-                to.getMillis(), includeLower, includeUpper);
+        Query dvQuery = RangeType.DATE.dvRangeQuery("field", queryType, from.getMillis(), to.getMillis(), includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
 
     private Query getIntRangeQuery(ShapeRelation relation, int from, int to, boolean includeLower, boolean includeUpper) {
-        int[] lower = new int[] {from + (includeLower ? 0 : 1)};
-        int[] upper = new int[] {to - (includeUpper ? 0 : 1)};
+        int[] lower = new int[] { from + (includeLower ? 0 : 1) };
+        int[] upper = new int[] { to - (includeUpper ? 0 : 1) };
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
@@ -332,14 +363,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             indexQuery = IntRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.INTEGER.dvRangeQuery("field", queryType, from, to,
-                includeLower, includeUpper);
+        Query dvQuery = RangeType.INTEGER.dvRangeQuery("field", queryType, from, to, includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
 
     private Query getLongRangeQuery(ShapeRelation relation, long from, long to, boolean includeLower, boolean includeUpper) {
-        long[] lower = new long[] {from + (includeLower ? 0 : 1)};
-        long[] upper = new long[] {to - (includeUpper ? 0 : 1)};
+        long[] lower = new long[] { from + (includeLower ? 0 : 1) };
+        long[] upper = new long[] { to - (includeUpper ? 0 : 1) };
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
@@ -352,14 +382,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             indexQuery = LongRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.LONG.dvRangeQuery("field", queryType, from, to,
-                includeLower, includeUpper);
+        Query dvQuery = RangeType.LONG.dvRangeQuery("field", queryType, from, to, includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
 
     private Query getFloatRangeQuery(ShapeRelation relation, float from, float to, boolean includeLower, boolean includeUpper) {
-        float[] lower = new float[] {includeLower ? from : Math.nextUp(from)};
-        float[] upper = new float[] {includeUpper ? to : Math.nextDown(to)};
+        float[] lower = new float[] { includeLower ? from : Math.nextUp(from) };
+        float[] upper = new float[] { includeUpper ? to : Math.nextDown(to) };
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
@@ -372,34 +401,36 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             indexQuery = FloatRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.FLOAT.dvRangeQuery("field", queryType, from, to,
-                includeLower, includeUpper);
+        Query dvQuery = RangeType.FLOAT.dvRangeQuery("field", queryType, from, to, includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
 
-    private Query getDoubleRangeQuery(ShapeRelation relation, double from, double to, boolean includeLower,
-                                      boolean includeUpper) {
-        double[] lower = new double[] {includeLower ? from : Math.nextUp(from)};
-        double[] upper = new double[] {includeUpper ? to : Math.nextDown(to)};
+    private Query getDoubleRangeQuery(ShapeRelation relation, double from, double to, boolean includeLower, boolean includeUpper) {
+        double[] lower = new double[] { includeLower ? from : Math.nextUp(from) };
+        double[] upper = new double[] { includeUpper ? to : Math.nextDown(to) };
         Query indexQuery;
         BinaryDocValuesRangeQuery.QueryType queryType;
         if (relation == ShapeRelation.WITHIN) {
             indexQuery = DoubleRange.newWithinQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.WITHIN;
         } else if (relation == ShapeRelation.CONTAINS) {
-            indexQuery =  DoubleRange.newContainsQuery("field", lower, upper);
+            indexQuery = DoubleRange.newContainsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.CONTAINS;
         } else {
-            indexQuery =  DoubleRange.newIntersectsQuery("field", lower, upper);
+            indexQuery = DoubleRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.DOUBLE.dvRangeQuery("field", queryType, from, to,
-                includeLower, includeUpper);
+        Query dvQuery = RangeType.DOUBLE.dvRangeQuery("field", queryType, from, to, includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
 
-    private Query getInetAddressRangeQuery(ShapeRelation relation, InetAddress from, InetAddress to, boolean includeLower,
-                                           boolean includeUpper) {
+    private Query getInetAddressRangeQuery(
+        ShapeRelation relation,
+        InetAddress from,
+        InetAddress to,
+        boolean includeLower,
+        boolean includeUpper
+    ) {
         InetAddress lower = includeLower ? from : InetAddressPoint.nextUp(from);
         InetAddress upper = includeUpper ? to : InetAddressPoint.nextDown(to);
         Query indexQuery;
@@ -414,21 +445,20 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             indexQuery = InetAddressRange.newIntersectsQuery("field", lower, upper);
             queryType = BinaryDocValuesRangeQuery.QueryType.INTERSECTS;
         }
-        Query dvQuery = RangeType.IP.dvRangeQuery("field", queryType, from, to,
-                includeLower, includeUpper);
+        Query dvQuery = RangeType.IP.dvRangeQuery("field", queryType, from, to, includeLower, includeUpper);
         return new IndexOrDocValuesQuery(indexQuery, dvQuery);
     }
 
     private Object nextFrom() throws Exception {
         switch (type) {
             case INTEGER:
-                return (int)(random().nextInt() * 0.5 - DISTANCE);
+                return (int) (random().nextInt() * 0.5 - DISTANCE);
             case DATE:
                 return DateTime.now();
             case LONG:
-                return (long)(random().nextLong() * 0.5 - DISTANCE);
+                return (long) (random().nextLong() * 0.5 - DISTANCE);
             case FLOAT:
-                return (float)(random().nextFloat() * 0.5 - DISTANCE);
+                return (float) (random().nextFloat() * 0.5 - DISTANCE);
             case IP:
                 return InetAddress.getByName("::ffff:c0a8:107");
             default:
@@ -439,17 +469,17 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     private Object nextTo(Object from) throws Exception {
         switch (type) {
             case INTEGER:
-                return (Integer)from + DISTANCE;
+                return (Integer) from + DISTANCE;
             case DATE:
                 return DateTime.now().plusDays(DISTANCE);
             case LONG:
-                return (Long)from + DISTANCE;
+                return (Long) from + DISTANCE;
             case DOUBLE:
-                return (Double)from + DISTANCE;
+                return (Double) from + DISTANCE;
             case IP:
                 return InetAddress.getByName("2001:db8::");
             default:
-                return (Float)from + DISTANCE;
+                return (Float) from + DISTANCE;
         }
     }
 
@@ -468,8 +498,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         ShapeRelation relation = ShapeRelation.INTERSECTS;
         boolean includeLower = true;
         boolean includeUpper = true;
-        assertEquals(getExpectedRangeQuery(relation, value, value, includeLower, includeUpper),
-            ft.termQuery(value, context));
+        assertEquals(getExpectedRangeQuery(relation, value, value, includeLower, includeUpper), ft.termQuery(value, context));
     }
 
     public void testCaseInsensitiveQuery() throws Exception {
@@ -477,44 +506,51 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         RangeFieldType ft = createDefaultFieldType();
 
         Object value = nextFrom();
-        QueryShardException ex = expectThrows(QueryShardException.class,
-            () ->   ft.termQueryCaseInsensitive(value, context));
+        QueryShardException ex = expectThrows(QueryShardException.class, () -> ft.termQueryCaseInsensitive(value, context));
         assertTrue(ex.getMessage().contains("does not support case insensitive term queries"));
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true, Version.CURRENT)
-            .build(MapperBuilderContext.ROOT)
-            .fieldType();
+        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true, Version.CURRENT).build(
+            MapperBuilderContext.ROOT
+        ).fieldType();
         Map<String, Object> longRange = org.elasticsearch.core.Map.of("gte", 3.14, "lt", "42.9");
-        assertEquals(Collections.singletonList(org.elasticsearch.core.Map.of("gte", 3L, "lt", 42L)),
-            fetchSourceValue(longMapper, longRange));
+        assertEquals(
+            Collections.singletonList(org.elasticsearch.core.Map.of("gte", 3L, "lt", 42L)),
+            fetchSourceValue(longMapper, longRange)
+        );
 
-        MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true, Version.CURRENT)
-            .format("yyyy/MM/dd||epoch_millis")
-            .build(MapperBuilderContext.ROOT)
-            .fieldType();
+        MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true, Version.CURRENT).format(
+            "yyyy/MM/dd||epoch_millis"
+        ).build(MapperBuilderContext.ROOT).fieldType();
         Map<String, Object> dateRange = org.elasticsearch.core.Map.of("lt", "1990/12/29", "gte", 597429487111L);
-        assertEquals(Collections.singletonList(org.elasticsearch.core.Map.of("lt", "1990/12/29", "gte", "1988/12/06")),
-            fetchSourceValue(dateMapper, dateRange));
+        assertEquals(
+            Collections.singletonList(org.elasticsearch.core.Map.of("lt", "1990/12/29", "gte", "1988/12/06")),
+            fetchSourceValue(dateMapper, dateRange)
+        );
     }
 
     public void testParseSourceValueWithFormat() throws IOException {
-        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true, Version.CURRENT)
-            .build(MapperBuilderContext.ROOT)
-            .fieldType();
+        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true, Version.CURRENT).build(
+            MapperBuilderContext.ROOT
+        ).fieldType();
         Map<String, Object> longRange = org.elasticsearch.core.Map.of("gte", 3.14, "lt", "42.9");
-        assertEquals(Collections.singletonList(org.elasticsearch.core.Map.of("gte", 3L, "lt", 42L)),
-            fetchSourceValue(longMapper, longRange));
+        assertEquals(
+            Collections.singletonList(org.elasticsearch.core.Map.of("gte", 3L, "lt", 42L)),
+            fetchSourceValue(longMapper, longRange)
+        );
 
-        MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true, Version.CURRENT)
-            .format("strict_date_time")
+        MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true, Version.CURRENT).format("strict_date_time")
             .build(MapperBuilderContext.ROOT)
             .fieldType();
         Map<String, Object> dateRange = org.elasticsearch.core.Map.of("lt", "1990-12-29T00:00:00.000Z");
-        assertEquals(Collections.singletonList(org.elasticsearch.core.Map.of("lt", "1990/12/29")),
-            fetchSourceValue(dateMapper, dateRange, "yyy/MM/dd"));
-        assertEquals(Collections.singletonList(org.elasticsearch.core.Map.of("lt", "662428800000")),
-            fetchSourceValue(dateMapper, dateRange,"epoch_millis"));
+        assertEquals(
+            Collections.singletonList(org.elasticsearch.core.Map.of("lt", "1990/12/29")),
+            fetchSourceValue(dateMapper, dateRange, "yyy/MM/dd")
+        );
+        assertEquals(
+            Collections.singletonList(org.elasticsearch.core.Map.of("lt", "662428800000")),
+            fetchSourceValue(dateMapper, dateRange, "epoch_millis")
+        );
     }
 }

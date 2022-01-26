@@ -10,10 +10,10 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -42,28 +42,28 @@ public class SmokeTestPluginsSslClientYamlTestSuiteIT extends ESClientYamlSuiteT
 
     @BeforeClass
     public static void getKeyStore() {
-      try {
-          certificateAuthorities = PathUtils.get(SmokeTestPluginsSslClientYamlTestSuiteIT.class.getResource("/testnode.crt").toURI());
-      } catch (URISyntaxException e) {
-          throw new ElasticsearchException("exception while reading the store", e);
-      }
-      if (Files.exists(certificateAuthorities) == false) {
-          throw new IllegalStateException("Keystore file [" + certificateAuthorities + "] does not exist.");
-      }
+        try {
+            certificateAuthorities = PathUtils.get(SmokeTestPluginsSslClientYamlTestSuiteIT.class.getResource("/testnode.crt").toURI());
+        } catch (URISyntaxException e) {
+            throw new ElasticsearchException("exception while reading the store", e);
+        }
+        if (Files.exists(certificateAuthorities) == false) {
+            throw new IllegalStateException("Keystore file [" + certificateAuthorities + "] does not exist.");
+        }
     }
 
     @AfterClass
     public static void clearKeyStore() {
-      certificateAuthorities = null;
+        certificateAuthorities = null;
     }
 
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
         return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .put(ESRestTestCase.CERTIFICATE_AUTHORITIES, certificateAuthorities)
-                .build();
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .put(ESRestTestCase.CERTIFICATE_AUTHORITIES, certificateAuthorities)
+            .build();
     }
 
     @Override

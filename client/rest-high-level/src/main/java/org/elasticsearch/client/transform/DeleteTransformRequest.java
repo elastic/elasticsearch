@@ -14,7 +14,6 @@ import org.elasticsearch.client.ValidationException;
 import java.util.Objects;
 import java.util.Optional;
 
-
 /**
  * Request to delete a transform
  */

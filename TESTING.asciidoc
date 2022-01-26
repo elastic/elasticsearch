@@ -279,6 +279,36 @@ If you want to just run the precommit checks:
 Some of these checks will require `docker-compose` installed for bringing up
 test fixtures. If it's not present those checks will be skipped automatically.
 
+== Debugging tests
+
+If you would like to debug your tests themselves, simply pass the `--debug-jvm`
+flag to the testing task and connect a debugger on the default port of `5005`.
+
+---------------------------------------------------------------------------
+./gradlew :server:test --debug-jvm
+---------------------------------------------------------------------------
+
+For REST tests, if you'd like to debug the Elasticsearch server itself, and
+not your test code, use the `--debug-server-jvm` flag and use the
+"Debug Elasticsearch" run configuration in IntelliJ to listen on the default
+port of `5007`.
+
+---------------------------------------------------------------------------
+./gradlew :rest-api-spec:yamlRestTest --debug-server-jvm
+---------------------------------------------------------------------------
+
+NOTE: In the case of test clusters using multiple nodes, multiple debuggers
+will need to be attached on incrementing ports. For example, for a 3 node
+cluster ports `5007`, `5008`, and `5009` will attempt to attach to a listening
+debugger.
+
+You can also use a combination of both flags to debug both tests and server.
+This is only applicable to Java REST tests.
+
+---------------------------------------------------------------------------
+./gradlew :modules:kibana:javaRestTest --debug-jvm --debug-server-jvm
+---------------------------------------------------------------------------
+
 == Testing the REST layer
 
 The REST layer is tested through specific tests that are executed against

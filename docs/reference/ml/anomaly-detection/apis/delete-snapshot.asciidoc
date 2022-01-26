@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-delete-snapshot]]
 = Delete model snapshots API
 ++++

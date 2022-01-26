@@ -69,7 +69,7 @@ the older round robin of search requests, you can use the
 --------------------------------------------------
 PUT /_cluster/settings
 {
-  "transient": {
+  "persistent": {
     "cluster.routing.use_adaptive_replica_selection": false
   }
 }

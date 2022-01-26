@@ -26,8 +26,10 @@ public class LengthFunctionProcessorTests extends ESTestCase {
     }
 
     public void testLengthFunctionInputsValidation() {
-        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
-                () -> new Length(EMPTY, l(5)).makePipe().asProcessor().process(null));
+        QlIllegalArgumentException siae = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> new Length(EMPTY, l(5)).makePipe().asProcessor().process(null)
+        );
         assertEquals("A string/char is required; received [5]", siae.getMessage());
         siae = expectThrows(QlIllegalArgumentException.class, () -> new Length(EMPTY, l(true)).makePipe().asProcessor().process(null));
         assertEquals("A string/char is required; received [true]", siae.getMessage());
@@ -35,8 +37,10 @@ public class LengthFunctionProcessorTests extends ESTestCase {
 
     public void testLengthFunctionWithRandomInvalidDataType() {
         Literal literal = randomValueOtherThanMany(v -> v.dataType() == KEYWORD, () -> LiteralTests.randomLiteral());
-        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
-                () -> new Length(EMPTY, literal).makePipe().asProcessor().process(null));
+        QlIllegalArgumentException siae = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> new Length(EMPTY, literal).makePipe().asProcessor().process(null)
+        );
         assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
     }
 }

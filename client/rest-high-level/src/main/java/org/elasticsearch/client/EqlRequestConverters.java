@@ -20,8 +20,7 @@ import static org.elasticsearch.client.RequestConverters.createEntity;
 final class EqlRequestConverters {
 
     static Request search(EqlSearchRequest eqlSearchRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addCommaSeparatedPathParts(eqlSearchRequest.indices())
+        String endpoint = new RequestConverters.EndpointBuilder().addCommaSeparatedPathParts(eqlSearchRequest.indices())
             .addPathPartAsIs("_eql", "search")
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -33,9 +32,7 @@ final class EqlRequestConverters {
     }
 
     static Request stats(EqlStatsRequest eqlStatsRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_eql", "stats")
-            .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_eql", "stats").build();
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 }

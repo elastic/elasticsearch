@@ -29,23 +29,33 @@ public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
             request.addParameter("error_trace", "true");
             getRestClient().performRequest(request);
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             Response response = e.getResponse();
             assertThat(response.getHeader("Content-Type"), containsString("application/json"));
-            assertThat(EntityUtils.toString(response.getEntity()),
-                    containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; " +
-                    "nested: ActionRequestValidationException[Validation Failed: 1:"));
+            assertThat(
+                EntityUtils.toString(response.getEntity()),
+                containsString(
+                    "\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; "
+                        + "nested: ActionRequestValidationException[Validation Failed: 1:"
+                )
+            );
         }
 
         try {
             getRestClient().performRequest(new Request("DELETE", "/"));
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             Response response = e.getResponse();
             assertThat(response.getHeader("Content-Type"), containsString("application/json; charset=UTF-8"));
-            assertThat(EntityUtils.toString(response.getEntity()),
-                    not(containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; "
-                    + "nested: ActionRequestValidationException[Validation Failed: 1:")));
+            assertThat(
+                EntityUtils.toString(response.getEntity()),
+                not(
+                    containsString(
+                        "\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; "
+                            + "nested: ActionRequestValidationException[Validation Failed: 1:"
+                    )
+                )
+            );
         }
     }
 }

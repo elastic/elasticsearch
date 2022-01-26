@@ -74,7 +74,7 @@ public class ByteArrayStreamInput extends StreamInput {
 
     @Override
     protected void ensureCanReadBytes(int length) throws EOFException {
-        if (pos + length  > limit) {
+        if (pos + length > limit) {
             throw new EOFException("tried to read: " + length + " bytes but only " + available() + " remaining");
         }
     }

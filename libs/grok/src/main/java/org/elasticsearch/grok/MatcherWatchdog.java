@@ -59,10 +59,12 @@ public interface MatcherWatchdog {
      * @param relativeTimeSupplier  A supplier that returns relative time
      * @param scheduler             A scheduler that is able to execute a command for each fixed interval
      */
-    static MatcherWatchdog newInstance(long interval,
-                                      long maxExecutionTime,
-                                      LongSupplier relativeTimeSupplier,
-                                      BiConsumer<Long, Runnable> scheduler) {
+    static MatcherWatchdog newInstance(
+        long interval,
+        long maxExecutionTime,
+        LongSupplier relativeTimeSupplier,
+        BiConsumer<Long, Runnable> scheduler
+    ) {
         return new Default(interval, maxExecutionTime, relativeTimeSupplier, scheduler);
     }
 
@@ -77,12 +79,10 @@ public interface MatcherWatchdog {
 
         private static final Noop INSTANCE = new Noop();
 
-        private Noop() {
-        }
+        private Noop() {}
 
         @Override
-        public void register(Matcher matcher) {
-        }
+        public void register(Matcher matcher) {}
 
         @Override
         public long maxExecutionTimeInMillis() {
@@ -90,8 +90,7 @@ public interface MatcherWatchdog {
         }
 
         @Override
-        public void unregister(Matcher matcher) {
-        }
+        public void unregister(Matcher matcher) {}
     }
 
     class Default implements MatcherWatchdog {
@@ -104,10 +103,7 @@ public interface MatcherWatchdog {
         private final AtomicBoolean running = new AtomicBoolean(false);
         final ConcurrentHashMap<Matcher, Long> registry = new ConcurrentHashMap<>();
 
-        private Default(long interval,
-                        long maxExecutionTime,
-                        LongSupplier relativeTimeSupplier,
-                        BiConsumer<Long, Runnable> scheduler) {
+        private Default(long interval, long maxExecutionTime, LongSupplier relativeTimeSupplier, BiConsumer<Long, Runnable> scheduler) {
             this.interval = interval;
             this.maxExecutionTime = maxExecutionTime;
             this.relativeTimeSupplier = relativeTimeSupplier;

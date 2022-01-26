@@ -15,7 +15,6 @@ import static org.hamcrest.Matchers.containsString;
 public class GetTransformStatsRequestTests extends ESTestCase {
     public void testValidate() {
         assertFalse(new GetTransformStatsRequest("valid-id").validate().isPresent());
-        assertThat(new GetTransformStatsRequest(null).validate().get().getMessage(),
-                containsString("transform id must not be null"));
+        assertThat(new GetTransformStatsRequest(null).validate().get().getMessage(), containsString("transform id must not be null"));
     }
 }

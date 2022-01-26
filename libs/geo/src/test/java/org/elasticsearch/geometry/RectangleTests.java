@@ -35,24 +35,22 @@ public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
 
     public void testInitValidation() {
         GeometryValidator validator = GeographyValidator.instance(true);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> validator.validate(new Rectangle(2, 3, 100, 1)));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> validator.validate(new Rectangle(2, 3, 100, 1)));
         assertEquals("invalid latitude 100.0; must be between -90.0 and 90.0", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class,
-            () -> validator.validate(new Rectangle(200, 3, 2, 1)));
+        ex = expectThrows(IllegalArgumentException.class, () -> validator.validate(new Rectangle(200, 3, 2, 1)));
         assertEquals("invalid longitude 200.0; must be between -180.0 and 180.0", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class,
-            () -> validator.validate(new Rectangle(2, 3, 1, 2)));
+        ex = expectThrows(IllegalArgumentException.class, () -> validator.validate(new Rectangle(2, 3, 1, 2)));
         assertEquals("max y cannot be less than min y", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class,
-            () -> validator.validate(new Rectangle(2, 3, 2, 1, 5, Double.NaN)));
+        ex = expectThrows(IllegalArgumentException.class, () -> validator.validate(new Rectangle(2, 3, 2, 1, 5, Double.NaN)));
         assertEquals("only one z value is specified", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.instance(false).validate(
-            new Rectangle(50, 10, 40, 30, 20, 60)));
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> StandardValidator.instance(false).validate(new Rectangle(50, 10, 40, 30, 20, 60))
+        );
         assertEquals("found Z value [20.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
         StandardValidator.instance(true).validate(new Rectangle(50, 10, 40, 30, 20, 60));

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.client;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;

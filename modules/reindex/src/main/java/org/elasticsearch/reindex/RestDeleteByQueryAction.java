@@ -32,9 +32,7 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(POST, "/{index}/_delete_by_query"),
-            new Route(POST, "/{index}/{type}/_delete_by_query")));
+        return unmodifiableList(asList(new Route(POST, "/{index}/_delete_by_query"), new Route(POST, "/{index}/{type}/_delete_by_query")));
     }
 
     @Override

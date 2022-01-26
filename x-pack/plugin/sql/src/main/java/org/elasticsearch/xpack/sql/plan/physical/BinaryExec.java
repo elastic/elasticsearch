@@ -26,6 +26,7 @@ abstract class BinaryExec extends PhysicalPlan {
     public final BinaryExec replaceChildren(List<PhysicalPlan> newChildren) {
         return replaceChildren(newChildren.get(0), newChildren.get(1));
     }
+
     protected abstract BinaryExec replaceChildren(PhysicalPlan newLeft, PhysicalPlan newRight);
 
     public PhysicalPlan left() {
@@ -52,7 +53,6 @@ abstract class BinaryExec extends PhysicalPlan {
         }
 
         BinaryExec other = (BinaryExec) obj;
-        return Objects.equals(left, other.left)
-                && Objects.equals(right, other.right);
+        return Objects.equals(left, other.left) && Objects.equals(right, other.right);
     }
 }

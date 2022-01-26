@@ -14,8 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
@@ -24,6 +22,8 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics.MetricValue;
 
@@ -337,7 +337,7 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
     @Override
     protected InternalTopMetrics mutateInstance(InternalTopMetrics instance) throws IOException {
         String name = instance.getName();
-        SortOrder sortOrder = instance.getSortOrder();
+        SortOrder instanceSortOrder = instance.getSortOrder();
         List<String> metricNames = instance.getMetricNames();
         int size = instance.getSize();
         List<InternalTopMetrics.TopMetric> topMetrics = instance.getTopMetrics();
@@ -346,7 +346,7 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
                 name = randomAlphaOfLength(6);
                 break;
             case 1:
-                sortOrder = sortOrder == SortOrder.ASC ? SortOrder.DESC : SortOrder.ASC;
+                instanceSortOrder = instanceSortOrder == SortOrder.ASC ? SortOrder.DESC : SortOrder.ASC;
                 Collections.reverse(topMetrics);
                 break;
             case 2:
@@ -372,7 +372,7 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             default:
                 throw new IllegalArgumentException("bad mutation");
         }
-        return new InternalTopMetrics(name, sortOrder, metricNames, size, topMetrics, instance.getMetadata());
+        return new InternalTopMetrics(name, instanceSortOrder, metricNames, size, topMetrics, instance.getMetadata());
     }
 
     /**

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -18,12 +18,12 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class TransformProgressTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
+        xContentTester(
+            this::createParser,
             TransformProgressTests::randomInstance,
             TransformProgressTests::toXContent,
-            TransformProgress::fromXContent)
-           .supportsUnknownFields(true)
-           .test();
+            TransformProgress::fromXContent
+        ).supportsUnknownFields(true).test();
     }
 
     public static TransformProgress randomInstance() {
@@ -32,7 +32,8 @@ public class TransformProgressTests extends ESTestCase {
             randomBoolean() ? null : randomNonNegativeLong(),
             randomBoolean() ? null : randomDouble(),
             randomBoolean() ? null : randomNonNegativeLong(),
-            randomBoolean() ? null : randomNonNegativeLong());
+            randomBoolean() ? null : randomNonNegativeLong()
+        );
     }
 
     public static void toXContent(TransformProgress progress, XContentBuilder builder) throws IOException {

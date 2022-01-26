@@ -19,12 +19,16 @@ import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.SetResetModeAction;
 
-
 public class TransportSetTransformResetModeAction extends AbstractTransportSetResetModeAction {
 
     @Inject
-    public TransportSetTransformResetModeAction(TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
-                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportSetTransformResetModeAction(
+        TransportService transportService,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
         super(SetResetModeAction.NAME, transportService, threadPool, clusterService, actionFilters, indexNameExpressionResolver);
     }
 
@@ -43,16 +47,11 @@ public class TransportSetTransformResetModeAction extends AbstractTransportSetRe
         ClusterState.Builder newState = ClusterState.builder(oldState);
         if (request.shouldDeleteMetadata()) {
             assert request.isEnabled() == false; // SetResetModeActionRequest should have enforced this
-            newState.metadata(Metadata.builder(oldState.getMetadata())
-                .removeCustom(TransformMetadata.TYPE)
-                .build());
+            newState.metadata(Metadata.builder(oldState.getMetadata()).removeCustom(TransformMetadata.TYPE).build());
         } else {
-            TransformMetadata.Builder builder = TransformMetadata.Builder
-                .from(oldState.metadata().custom(TransformMetadata.TYPE))
+            TransformMetadata.Builder builder = TransformMetadata.Builder.from(oldState.metadata().custom(TransformMetadata.TYPE))
                 .isResetMode(request.isEnabled());
-            newState.metadata(Metadata.builder(oldState.getMetadata())
-                .putCustom(TransformMetadata.TYPE, builder.build())
-                .build());
+            newState.metadata(Metadata.builder(oldState.getMetadata()).putCustom(TransformMetadata.TYPE, builder.build()).build());
         }
         return newState.build();
     }

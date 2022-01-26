@@ -14,13 +14,14 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Used to keep track of original indices within internal (e.g. shard level) requests
  */
 public final class OriginalIndices implements IndicesRequest {
 
-    //constant to use when original indices are not applicable and will not be serialized across the wire
+    // constant to use when original indices are not applicable and will not be serialized across the wire
     public static final OriginalIndices NONE = new OriginalIndices(null, null);
 
     private final String[] indices;
@@ -62,9 +63,21 @@ public final class OriginalIndices implements IndicesRequest {
 
     @Override
     public String toString() {
-        return "OriginalIndices{" +
-            "indices=" + Arrays.toString(indices) +
-            ", indicesOptions=" + indicesOptions +
-            '}';
+        return "OriginalIndices{" + "indices=" + Arrays.toString(indices) + ", indicesOptions=" + indicesOptions + '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        OriginalIndices that = (OriginalIndices) o;
+        return Arrays.equals(indices, that.indices) && Objects.equals(indicesOptions, that.indicesOptions);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(indicesOptions);
+        result = 31 * result + Arrays.hashCode(indices);
+        return result;
     }
 }

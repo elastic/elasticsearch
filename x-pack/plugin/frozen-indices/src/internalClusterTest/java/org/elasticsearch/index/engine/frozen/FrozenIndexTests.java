@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.index.engine.frozen;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -28,8 +29,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -54,6 +53,8 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
@@ -162,7 +163,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                     assertFalse(((FrozenEngine) engine).isReaderOpen());
                 }
             }
-            assertWarnings(TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", indexName));
+            assertWarnings(Level.WARN, TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", indexName));
         } finally {
             client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).get();
         }
@@ -218,7 +219,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         }
         IndicesStatsResponse index = client().admin().indices().prepareStats(indexName).clear().setRefresh(true).get();
         assertEquals(numRefreshes, index.getTotal().refresh.getTotal());
-        assertWarnings(TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", indexName));
+        assertWarnings(Level.WARN, TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", indexName));
     }
 
     public void testFreezeAndUnfreeze() throws ExecutionException, InterruptedException {
@@ -323,7 +324,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertEquals(1, index.getTotal().refresh.getTotal());
         index = client().admin().indices().prepareStats("test-idx-1").clear().setRefresh(true).get();
         assertEquals(0, index.getTotal().refresh.getTotal());
-        assertWarnings(TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", indexName));
+        assertWarnings(Level.WARN, TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", indexName));
     }
 
     public void testCanMatch() throws IOException, ExecutionException, InterruptedException {

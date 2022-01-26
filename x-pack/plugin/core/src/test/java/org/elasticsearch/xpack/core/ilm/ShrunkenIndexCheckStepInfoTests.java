@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.ShrunkenIndexCheckStep.Info;
 
 import java.io.IOException;

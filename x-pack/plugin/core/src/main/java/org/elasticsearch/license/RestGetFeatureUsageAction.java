@@ -32,7 +32,10 @@ public class RestGetFeatureUsageAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        return channel -> client.execute(TransportGetFeatureUsageAction.TYPE, new GetFeatureUsageRequest(),
-            new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            TransportGetFeatureUsageAction.TYPE,
+            new GetFeatureUsageRequest(),
+            new RestToXContentListener<>(channel)
+        );
     }
 }

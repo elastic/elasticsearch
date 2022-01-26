@@ -10,7 +10,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.action.ActionListener;
 
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 
 /**
  * Test utilities for working with {@link ActionListener}s.

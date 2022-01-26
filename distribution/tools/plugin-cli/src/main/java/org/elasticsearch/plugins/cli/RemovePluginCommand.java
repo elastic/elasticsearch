@@ -34,6 +34,8 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
+        SyncPluginsAction.ensureNoConfigFile(env);
+
         final List<PluginDescriptor> plugins = arguments.values(options).stream().map(PluginDescriptor::new).collect(Collectors.toList());
 
         final RemovePluginAction action = new RemovePluginAction(terminal, env, options.has(purgeOption));

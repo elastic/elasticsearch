@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.time.ZoneId;
 
-import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser.TIME;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeParseProcessor.Parser.TIME;
 
 public class TimeParse extends BaseDateTimeParseFunction {
 

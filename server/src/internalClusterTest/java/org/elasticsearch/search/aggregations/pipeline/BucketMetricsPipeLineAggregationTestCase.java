@@ -12,9 +12,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -26,19 +24,21 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntToDoubleFunction;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -439,7 +439,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
         // you need to add an additional index with no fields in order to trigger this (or potentially a shard)
         // so that there is an UnmappedTerms in the list to reduce.
         createIndex("foo_1");
-        // @formatter:off
+        // tag::noformat
         XContentBuilder builder = jsonBuilder().startObject()
             .startObject("properties")
               .startObject("@timestamp")
@@ -463,9 +463,9 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
               .endObject()
             .endObject()
           .endObject();
-        // @formatter:on
+        // end:noformat
         assertAcked(client().admin().indices().prepareCreate("foo_2").addMapping("doc", builder).get());
-        // @formatter:off
+        // tag:noformat
         XContentBuilder docBuilder = jsonBuilder().startObject()
             .startObject("license")
               .field("partnumber", "foobar")
@@ -473,7 +473,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
             .endObject()
             .field("@timestamp", "2018-07-08T08:07:00.599Z")
           .endObject();
-        // @formatter:on
+        // end:noformat
         client().prepareIndex("foo_2", "doc").setSource(docBuilder).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         client().admin().indices().prepareRefresh();

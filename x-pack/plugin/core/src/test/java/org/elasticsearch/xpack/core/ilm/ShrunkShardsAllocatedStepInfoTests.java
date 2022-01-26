@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.ShrunkShardsAllocatedStep.Info;
 
 import java.io.IOException;
@@ -46,17 +46,17 @@ public class ShrunkShardsAllocatedStepInfoTests extends AbstractXContentTestCase
         int actualShards = instance.getActualShards();
         boolean allShardsActive = instance.allShardsActive();
         switch (between(0, 2)) {
-        case 0:
-            shrunkIndexExists = shrunkIndexExists == false;
-            break;
-        case 1:
-            actualShards += between(1, 20);
-            break;
-        case 2:
-            allShardsActive = allShardsActive == false;
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                shrunkIndexExists = shrunkIndexExists == false;
+                break;
+            case 1:
+                actualShards += between(1, 20);
+                break;
+            case 2:
+                allShardsActive = allShardsActive == false;
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new Info(shrunkIndexExists, actualShards, allShardsActive);
     }

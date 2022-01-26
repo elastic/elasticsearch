@@ -78,12 +78,29 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
+    public OriginalIndices getOriginalIndices(int shardIndex) {
+        return new OriginalIndices(searchRequest.indices(), searchRequest.indicesOptions());
+    }
+
+    @Override
     public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         String scrollId = getRequest().scroll() != null ? TransportSearchHelper.buildScrollId(queryResults, Version.CURRENT) : null;
-        String searchContextId =
-            getRequest().pointInTimeBuilder() != null ? TransportSearchHelper.buildScrollId(queryResults, Version.CURRENT) : null;
-        searchResponse.set(new SearchResponse(internalSearchResponse, scrollId, numShards, numSuccess.get(), 0, 0,
-            failures.toArray(ShardSearchFailure.EMPTY_ARRAY), SearchResponse.Clusters.EMPTY, searchContextId));
+        String searchContextId = getRequest().pointInTimeBuilder() != null
+            ? TransportSearchHelper.buildScrollId(queryResults, Version.CURRENT)
+            : null;
+        searchResponse.set(
+            new SearchResponse(
+                internalSearchResponse,
+                scrollId,
+                numShards,
+                numSuccess.get(),
+                0,
+                0,
+                failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
+                SearchResponse.Clusters.EMPTY,
+                searchContextId
+            )
+        );
     }
 
     @Override
@@ -121,7 +138,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
         try {
             nextPhase.run();
         } catch (Exception e) {
-           onPhaseFailure(nextPhase, "phase failed", e);
+            onPhaseFailure(nextPhase, "phase failed", e);
         }
     }
 

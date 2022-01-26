@@ -22,9 +22,10 @@ When set to `true`, you must specify the index name to <<indices-delete-index,de
 // tag::cluster-indices-close-enable-tag[]
 `cluster.indices.close.enable` {ess-icon}::
 (<<dynamic-cluster-setting,Dynamic>>)
-Enables <<indices-open-close,opening of closed indices>> in {es}. You might enable this setting temporarily to change the analyzer configuration for an existing index. We strongly recommend leaving this set to `false` (the default) otherwise.
+Enables <<indices-close,closing of open indices>> in {es}. If `false`, you
+cannot close open indices. Defaults to `true`.
 +
-IMPORTANT: Closed indices are a data loss risk because they are not included when you make cluster configuration changes, such as scaling to a different capacity, failover, and many other operations. Additionally, closed indices can lead to inaccurate disk space counts.
+NOTE: Closed indices still consume a significant amount of disk space.
 
 [[reindex-remote-whitelist]]
 // tag::reindex-remote-whitelist[]

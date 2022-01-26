@@ -8,18 +8,18 @@
 package org.elasticsearch.xpack.core.slm.history;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 
 import java.io.IOException;
@@ -59,20 +59,30 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
     static final ParseField ERROR_DETAILS = new ParseField("error_details");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<SnapshotHistoryItem, String> PARSER =
-        new ConstructingObjectParser<>("snapshot_lifecycle_history_item", true,
-            (a, id) -> {
-                final long timestamp = (long) a[0];
-                final String policyId = (String) a[1];
-                final String repository = (String) a[2];
-                final String snapshotName = (String) a[3];
-                final String operation = (String) a[4];
-                final boolean success = (boolean) a[5];
-                final Map<String, Object> snapshotConfiguration = (Map<String, Object>) a[6];
-                final String errorDetails = (String) a[7];
-                return new SnapshotHistoryItem(timestamp, policyId, repository, snapshotName, operation, success,
-                    snapshotConfiguration, errorDetails);
-            });
+    private static final ConstructingObjectParser<SnapshotHistoryItem, String> PARSER = new ConstructingObjectParser<>(
+        "snapshot_lifecycle_history_item",
+        true,
+        (a, id) -> {
+            final long timestamp = (long) a[0];
+            final String policyId = (String) a[1];
+            final String repository = (String) a[2];
+            final String snapshotName = (String) a[3];
+            final String operation = (String) a[4];
+            final boolean success = (boolean) a[5];
+            final Map<String, Object> snapshotConfiguration = (Map<String, Object>) a[6];
+            final String errorDetails = (String) a[7];
+            return new SnapshotHistoryItem(
+                timestamp,
+                policyId,
+                repository,
+                snapshotName,
+                operation,
+                success,
+                snapshotConfiguration,
+                errorDetails
+            );
+        }
+    );
 
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIMESTAMP);
@@ -89,8 +99,16 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
         return PARSER.apply(parser, name);
     }
 
-    SnapshotHistoryItem(long timestamp, String policyId, String repository, String snapshotName, String operation,
-                        boolean success, Map<String, Object> snapshotConfiguration, String errorDetails) {
+    SnapshotHistoryItem(
+        long timestamp,
+        String policyId,
+        String repository,
+        String snapshotName,
+        String operation,
+        boolean success,
+        Map<String, Object> snapshotConfiguration,
+        String errorDetails
+    ) {
         this.timestamp = timestamp;
         this.policyId = Objects.requireNonNull(policyId);
         this.repository = Objects.requireNonNull(repository);
@@ -102,26 +120,50 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
     }
 
     public static SnapshotHistoryItem creationSuccessRecord(long timestamp, SnapshotLifecyclePolicy policy, String snapshotName) {
-        return new SnapshotHistoryItem(timestamp, policy.getId(), policy.getRepository(), snapshotName, CREATE_OPERATION, true,
-            policy.getConfig(), null);
+        return new SnapshotHistoryItem(
+            timestamp,
+            policy.getId(),
+            policy.getRepository(),
+            snapshotName,
+            CREATE_OPERATION,
+            true,
+            policy.getConfig(),
+            null
+        );
     }
 
-    public static SnapshotHistoryItem creationFailureRecord(long timeStamp, SnapshotLifecyclePolicy policy, String snapshotName,
-                                                            Exception exception) throws IOException {
+    public static SnapshotHistoryItem creationFailureRecord(
+        long timeStamp,
+        SnapshotLifecyclePolicy policy,
+        String snapshotName,
+        Exception exception
+    ) throws IOException {
         String exceptionString = exceptionToString(exception);
-        return new SnapshotHistoryItem(timeStamp, policy.getId(), policy.getRepository(), snapshotName, CREATE_OPERATION, false,
-            policy.getConfig(), exceptionString);
+        return new SnapshotHistoryItem(
+            timeStamp,
+            policy.getId(),
+            policy.getRepository(),
+            snapshotName,
+            CREATE_OPERATION,
+            false,
+            policy.getConfig(),
+            exceptionString
+        );
     }
 
     public static SnapshotHistoryItem deletionSuccessRecord(long timestamp, String snapshotName, String policyId, String repository) {
         return new SnapshotHistoryItem(timestamp, policyId, repository, snapshotName, DELETE_OPERATION, true, null, null);
     }
 
-    public static SnapshotHistoryItem deletionFailureRecord(long timestamp, String snapshotName, String policyId, String repository,
-                                                            Exception exception) throws IOException {
+    public static SnapshotHistoryItem deletionFailureRecord(
+        long timestamp,
+        String snapshotName,
+        String policyId,
+        String repository,
+        Exception exception
+    ) throws IOException {
         String exceptionString = exceptionToString(exception);
-        return new SnapshotHistoryItem(timestamp, policyId, repository, snapshotName, DELETE_OPERATION, false,
-            null, exceptionString);
+        return new SnapshotHistoryItem(timestamp, policyId, repository, snapshotName, DELETE_OPERATION, false, null, exceptionString);
     }
 
     public SnapshotHistoryItem(StreamInput in) throws IOException {
@@ -205,22 +247,30 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
         if (this == o) result = true;
         if (o == null || getClass() != o.getClass()) result = false;
         SnapshotHistoryItem that1 = (SnapshotHistoryItem) o;
-        result = isSuccess() == that1.isSuccess() &&
-            timestamp == that1.getTimestamp() &&
-            Objects.equals(getPolicyId(), that1.getPolicyId()) &&
-            Objects.equals(getRepository(), that1.getRepository()) &&
-            Objects.equals(getSnapshotName(), that1.getSnapshotName()) &&
-            Objects.equals(getOperation(), that1.getOperation());
+        result = isSuccess() == that1.isSuccess()
+            && timestamp == that1.getTimestamp()
+            && Objects.equals(getPolicyId(), that1.getPolicyId())
+            && Objects.equals(getRepository(), that1.getRepository())
+            && Objects.equals(getSnapshotName(), that1.getSnapshotName())
+            && Objects.equals(getOperation(), that1.getOperation());
         if (result == false) return false;
         SnapshotHistoryItem that = (SnapshotHistoryItem) o;
-        return Objects.equals(getSnapshotConfiguration(), that.getSnapshotConfiguration()) &&
-            Objects.equals(getErrorDetails(), that.getErrorDetails());
+        return Objects.equals(getSnapshotConfiguration(), that.getSnapshotConfiguration())
+            && Objects.equals(getErrorDetails(), that.getErrorDetails());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getTimestamp(), getPolicyId(), getRepository(), getSnapshotName(), getOperation(), isSuccess(),
-            getSnapshotConfiguration(), getErrorDetails());
+        return Objects.hash(
+            getTimestamp(),
+            getPolicyId(),
+            getRepository(),
+            getSnapshotName(),
+            getOperation(),
+            isSuccess(),
+            getSnapshotConfiguration(),
+            getErrorDetails()
+        );
     }
 
     @Override

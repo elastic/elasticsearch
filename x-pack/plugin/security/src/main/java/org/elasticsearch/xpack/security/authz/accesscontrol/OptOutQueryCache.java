@@ -38,10 +38,11 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Li
     private volatile boolean licenseStateListenerRegistered;
 
     public OptOutQueryCache(
-            final IndexSettings indexSettings,
-            final IndicesQueryCache indicesQueryCache,
-            final ThreadContext context,
-            final XPackLicenseState licenseState) {
+        final IndexSettings indexSettings,
+        final IndicesQueryCache indicesQueryCache,
+        final ThreadContext context,
+        final XPackLicenseState licenseState
+    ) {
         super(indexSettings);
         this.indicesQueryCache = indicesQueryCache;
         this.context = Objects.requireNonNull(context, "threadContext must not be null");
@@ -92,8 +93,7 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Li
             return indicesQueryCache.doCache(weight, policy);
         }
 
-        IndicesAccessControl indicesAccessControl = context.getTransient(
-                AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        IndicesAccessControl indicesAccessControl = context.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl == null) {
             logger.debug("opting out of the query cache. current request doesn't hold indices permissions");
             return weight;

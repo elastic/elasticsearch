@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.jdk.JavaVersion;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -16,6 +17,7 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.KeyException;
 import java.security.KeyFactory;
@@ -32,6 +34,9 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.RSAPrivateCrtKeySpec;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Supplier;
 
 import javax.crypto.Cipher;
 import javax.crypto.EncryptedPrivateKeyInfo;
@@ -40,9 +45,6 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Supplier;
 
 public class PemUtils {
 
@@ -50,8 +52,8 @@ public class PemUtils {
     private static final String PKCS1_FOOTER = "-----END RSA PRIVATE KEY-----";
     private static final String OPENSSL_DSA_HEADER = "-----BEGIN DSA PRIVATE KEY-----";
     private static final String OPENSSL_DSA_FOOTER = "-----END DSA PRIVATE KEY-----";
-    private static final String OPENSSL_DSA_PARAMS_HEADER ="-----BEGIN DSA PARAMETERS-----";
-    private static final String OPENSSL_DSA_PARAMS_FOOTER ="-----END DSA PARAMETERS-----";
+    private static final String OPENSSL_DSA_PARAMS_HEADER = "-----BEGIN DSA PARAMETERS-----";
+    private static final String OPENSSL_DSA_PARAMS_FOOTER = "-----END DSA PARAMETERS-----";
     private static final String PKCS8_HEADER = "-----BEGIN PRIVATE KEY-----";
     private static final String PKCS8_FOOTER = "-----END PRIVATE KEY-----";
     private static final String PKCS8_ENCRYPTED_HEADER = "-----BEGIN ENCRYPTED PRIVATE KEY-----";
@@ -61,6 +63,9 @@ public class PemUtils {
     private static final String OPENSSL_EC_PARAMS_HEADER = "-----BEGIN EC PARAMETERS-----";
     private static final String OPENSSL_EC_PARAMS_FOOTER = "-----END EC PARAMETERS-----";
     private static final String HEADER = "-----BEGIN";
+
+    private static final String PBES2_OID = "1.2.840.113549.1.5.13";
+    private static final String AES_OID = "2.16.840.1.101.3.4.1";
 
     private PemUtils() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -77,7 +82,7 @@ public class PemUtils {
     public static PrivateKey readPrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) throws IOException {
         try (BufferedReader bReader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8)) {
             String line = bReader.readLine();
-            while (null != line && line.startsWith(HEADER) == false){
+            while (null != line && line.startsWith(HEADER) == false) {
                 line = bReader.readLine();
             }
             if (null == line) {
@@ -102,8 +107,9 @@ public class PemUtils {
             } else if (OPENSSL_EC_PARAMS_HEADER.equals(line.trim())) {
                 return parseOpenSslEC(removeECHeaders(bReader), passwordSupplier);
             } else {
-                throw new IllegalStateException("Error parsing Private Key from: " + keyPath.toString() + ". File did not contain a " +
-                        "supported key format");
+                throw new IllegalStateException(
+                    "Error parsing Private Key from: " + keyPath.toString() + ". File did not contain a " + "supported key format"
+                );
             }
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException("Error parsing Private Key from: " + keyPath.toString(), e);
@@ -311,8 +317,7 @@ public class PemUtils {
      * @throws IOException              if the file can't be read
      * @throws GeneralSecurityException if the private key can't be generated from the {@link PKCS8EncodedKeySpec}
      */
-    private static PrivateKey parsePKCS8Encrypted(BufferedReader bReader, char[] keyPassword) throws IOException,
-        GeneralSecurityException {
+    private static PrivateKey parsePKCS8Encrypted(BufferedReader bReader, char[] keyPassword) throws IOException, GeneralSecurityException {
         StringBuilder sb = new StringBuilder();
         String line = bReader.readLine();
         while (line != null) {
@@ -327,15 +332,79 @@ public class PemUtils {
         }
         byte[] keyBytes = Base64.getDecoder().decode(sb.toString());
 
-        EncryptedPrivateKeyInfo encryptedPrivateKeyInfo = new EncryptedPrivateKeyInfo(keyBytes);
-        SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance(encryptedPrivateKeyInfo.getAlgName());
+        final EncryptedPrivateKeyInfo encryptedPrivateKeyInfo = getEncryptedPrivateKeyInfo(keyBytes);
+        String algorithm = encryptedPrivateKeyInfo.getAlgName();
+        if (algorithm.equals("PBES2") || algorithm.equals("1.2.840.113549.1.5.13")) {
+            algorithm = getPBES2Algorithm(encryptedPrivateKeyInfo);
+        }
+        SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance(algorithm);
         SecretKey secretKey = secretKeyFactory.generateSecret(new PBEKeySpec(keyPassword));
-        Cipher cipher = Cipher.getInstance(encryptedPrivateKeyInfo.getAlgName());
+        Cipher cipher = Cipher.getInstance(algorithm);
         cipher.init(Cipher.DECRYPT_MODE, secretKey, encryptedPrivateKeyInfo.getAlgParameters());
         PKCS8EncodedKeySpec keySpec = encryptedPrivateKeyInfo.getKeySpec(cipher);
         String keyAlgo = getKeyAlgorithmIdentifier(keySpec.getEncoded());
         KeyFactory keyFactory = KeyFactory.getInstance(keyAlgo);
         return keyFactory.generatePrivate(keySpec);
+    }
+
+    private static EncryptedPrivateKeyInfo getEncryptedPrivateKeyInfo(byte[] keyBytes) throws IOException, GeneralSecurityException {
+        try {
+            return new EncryptedPrivateKeyInfo(keyBytes);
+        } catch (IOException e) {
+            // The Sun JCE provider can't handle non-AES PBES2 data (but it can handle PBES1 DES data - go figure)
+            // It's not worth our effort to try and decrypt it ourselves, but we can detect it and give a good error message
+            DerParser parser = new DerParser(keyBytes);
+            final DerParser.Asn1Object rootSeq = parser.readAsn1Object(DerParser.SEQUENCE);
+            parser = rootSeq.getParser();
+            final DerParser.Asn1Object algSeq = parser.readAsn1Object();
+            parser = algSeq.getParser();
+            final String algId = parser.readAsn1Object().getOid();
+            if (PBES2_OID.equals(algId)) {
+                final DerParser.Asn1Object algData = parser.readAsn1Object(DerParser.SEQUENCE);
+                parser = algData.getParser();
+                final DerParser.Asn1Object ignoreKdf = parser.readAsn1Object(DerParser.SEQUENCE);
+                final DerParser.Asn1Object cryptSeq = parser.readAsn1Object(DerParser.SEQUENCE);
+                parser = cryptSeq.getParser();
+                final String encryptionId = parser.readAsn1Object(DerParser.OBJECT_OID).getOid();
+                if (encryptionId.startsWith(AES_OID) == false) {
+                    final String name = getAlgorithmNameFromOid(encryptionId);
+                    throw new GeneralSecurityException(
+                        "PKCS#8 Private Key is encrypted with unsupported PBES2 algorithm ["
+                            + encryptionId
+                            + "]"
+                            + (name == null ? "" : " (" + name + ")"),
+                        e
+                    );
+                }
+                if (JavaVersion.current().compareTo(JavaVersion.parse("11.0.0")) < 0) {
+                    // PBES2 appears to be supported on Oracle 8, but not OpenJDK8
+                    // We don't bother clarifying the distinction here, because it's complicated and the best advice we can give is to
+                    // use the bundled JDK.
+                    throw new GeneralSecurityException(
+                        "PKCS#8 Private Key is encrypted with PBES2 which is not supported on this JDK ["
+                            + JavaVersion.current()
+                            + "], this problem can be resolved by using the Elasticsearch bundled JDK",
+                        e
+                    );
+                }
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * This is horrible, but it's the only option other than to parse the encoded ASN.1 value ourselves
+     * @see AlgorithmParameters#toString() and com.sun.crypto.provider.PBES2Parameters#toString()
+     */
+    private static String getPBES2Algorithm(EncryptedPrivateKeyInfo encryptedPrivateKeyInfo) {
+        final AlgorithmParameters algParameters = encryptedPrivateKeyInfo.getAlgParameters();
+        if (algParameters != null) {
+            return algParameters.toString();
+        } else {
+            // AlgorithmParameters can be null when running on BCFIPS.
+            // However, since BCFIPS doesn't support any PBE specs, nothing we do here would work, so we just do enough to avoid an NPE
+            return encryptedPrivateKeyInfo.getAlgName();
+        }
     }
 
     /**
@@ -353,10 +422,10 @@ public class PemUtils {
         byte[] keyBytes = Base64.getDecoder().decode(keyContents);
         String procType = pemHeaders.get("Proc-Type");
         if ("4,ENCRYPTED".equals(procType)) {
-            //We only handle PEM encryption
+            // We only handle PEM encryption
             String encryptionParameters = pemHeaders.get("DEK-Info");
             if (null == encryptionParameters) {
-                //malformed pem
+                // malformed pem
                 throw new IOException("Malformed PEM File, DEK-Info header is missing");
             }
             char[] password = passwordSupplier.get();
@@ -382,8 +451,7 @@ public class PemUtils {
      * for the cipher
      * @throws IOException if the DEK-Info PEM header is invalid
      */
-    private static Cipher getCipherFromParameters(String dekHeaderValue, char[] password) throws
-        GeneralSecurityException, IOException {
+    private static Cipher getCipherFromParameters(String dekHeaderValue, char[] password) throws GeneralSecurityException, IOException {
         String padding = "PKCS5Padding";
         SecretKey encryptionKey;
         String[] valueTokens = dekHeaderValue.split(",");
@@ -474,8 +542,7 @@ public class PemUtils {
      * @return {@link ECPrivateKeySpec}
      * @throws IOException if the DER encoded key can't be parsed
      */
-    private static ECPrivateKeySpec parseEcDer(byte[] keyBytes) throws IOException,
-            GeneralSecurityException {
+    private static ECPrivateKeySpec parseEcDer(byte[] keyBytes) throws IOException, GeneralSecurityException {
         DerParser parser = new DerParser(keyBytes);
         DerParser.Asn1Object sequence = parser.readAsn1Object();
         parser = sequence.getParser();
@@ -559,8 +626,59 @@ public class PemUtils {
             case "1.2.840.10045.2.1":
                 return "EC";
         }
-        throw new GeneralSecurityException("Error parsing key algorithm identifier. Algorithm with OID: " + oidString + " is not " +
-            "supported");
+        throw new GeneralSecurityException(
+            "Error parsing key algorithm identifier. Algorithm with OID: " + oidString + " is not " + "supported"
+        );
+    }
+
+    private static String getAlgorithmNameFromOid(String oidString) throws GeneralSecurityException {
+        switch (oidString) {
+            case "1.2.840.10040.4.1":
+                return "DSA";
+            case "1.2.840.113549.1.1.1":
+                return "RSA";
+            case "1.2.840.10045.2.1":
+                return "EC";
+            case "1.3.14.3.2.7":
+                return "DES-CBC";
+            case "2.16.840.1.101.3.4.1.1":
+                return "AES-128_ECB";
+            case "2.16.840.1.101.3.4.1.2":
+                return "AES-128_CBC";
+            case "2.16.840.1.101.3.4.1.3":
+                return "AES-128_OFB";
+            case "2.16.840.1.101.3.4.1.4":
+                return "AES-128_CFB";
+            case "2.16.840.1.101.3.4.1.6":
+                return "AES-128_GCM";
+            case "2.16.840.1.101.3.4.1.21":
+                return "AES-192_ECB";
+            case "2.16.840.1.101.3.4.1.22":
+                return "AES-192_CBC";
+            case "2.16.840.1.101.3.4.1.23":
+                return "AES-192_OFB";
+            case "2.16.840.1.101.3.4.1.24":
+                return "AES-192_CFB";
+            case "2.16.840.1.101.3.4.1.26":
+                return "AES-192_GCM";
+            case "2.16.840.1.101.3.4.1.41":
+                return "AES-256_ECB";
+            case "2.16.840.1.101.3.4.1.42":
+                return "AES-256_CBC";
+            case "2.16.840.1.101.3.4.1.43":
+                return "AES-256_OFB";
+            case "2.16.840.1.101.3.4.1.44":
+                return "AES-256_CFB";
+            case "2.16.840.1.101.3.4.1.46":
+                return "AES-256_GCM";
+            case "2.16.840.1.101.3.4.1.5":
+                return "AESWrap-128";
+            case "2.16.840.1.101.3.4.1.25":
+                return "AESWrap-192";
+            case "2.16.840.1.101.3.4.1.45":
+                return "AESWrap-256";
+        }
+        return null;
     }
 
     private static String getEcCurveNameFromOid(String oidString) throws GeneralSecurityException {
@@ -597,7 +715,8 @@ public class PemUtils {
             case "1.3.132.0.39":
                 return "sect571r1";
         }
-        throw new GeneralSecurityException("Error parsing EC named curve identifier. Named curve with OID: " + oidString + " is not " +
-            "supported");
+        throw new GeneralSecurityException(
+            "Error parsing EC named curve identifier. Named curve with OID: " + oidString + " is not " + "supported"
+        );
     }
 }

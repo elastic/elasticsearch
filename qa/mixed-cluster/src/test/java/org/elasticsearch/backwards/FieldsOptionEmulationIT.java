@@ -57,10 +57,14 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
 
     private void createIndexOnNode(String indexName, String nodeName) throws IOException {
         if (indexExists(indexName) == false) {
-            createIndex(indexName, Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", nodeName).build());
+            createIndex(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", nodeName)
+                    .build()
+            );
             for (int i = 0; i < 5; i++) {
                 Request request = new Request("PUT", indexName + "/_doc/" + i);
                 request.setJsonEntity(
@@ -156,8 +160,7 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testFieldOptionAdapterFilterFields() throws Exception {
-        Request matchAllRequestFiltered = new Request("POST",
-            "test_field_*/_search");
+        Request matchAllRequestFiltered = new Request("POST", "test_field_*/_search");
         matchAllRequestFiltered.addParameter("enable_fields_emulation", "true");
         matchAllRequestFiltered.setJsonEntity("{\"_source\":false,\"fields\":[\"test*\"]}");
         try (
@@ -182,8 +185,7 @@ public class FieldsOptionEmulationIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGettingObjects() throws Exception {
-        Request matchAllRequestFiltered = new Request("POST",
-            "test_field_*/_search");
+        Request matchAllRequestFiltered = new Request("POST", "test_field_*/_search");
         matchAllRequestFiltered.addParameter("enable_fields_emulation", "true");
         matchAllRequestFiltered.setJsonEntity("{\"_source\":false,\"fields\":[\"obj\"]}");
         try (

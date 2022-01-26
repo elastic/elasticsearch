@@ -33,8 +33,10 @@ public class PipelineProcessor extends AbstractProcessor {
         if (pipeline != null) {
             ingestDocument.executePipeline(pipeline, handler);
         } else {
-            handler.accept(null,
-                new IllegalStateException("Pipeline processor configured for non-existent pipeline [" + pipelineName + ']'));
+            handler.accept(
+                null,
+                new IllegalStateException("Pipeline processor configured for non-existent pipeline [" + pipelineName + ']')
+            );
         }
     }
 
@@ -47,7 +49,7 @@ public class PipelineProcessor extends AbstractProcessor {
         return ingestService.getPipeline(getPipelineToCallName(ingestDocument));
     }
 
-    String getPipelineToCallName(IngestDocument ingestDocument){
+    String getPipelineToCallName(IngestDocument ingestDocument) {
         return ingestDocument.renderTemplate(this.pipelineTemplate);
     }
 
@@ -69,10 +71,19 @@ public class PipelineProcessor extends AbstractProcessor {
         }
 
         @Override
-        public PipelineProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                        String description, Map<String, Object> config) throws Exception {
-            TemplateScript.Factory pipelineTemplate =
-                ConfigurationUtils.readTemplateProperty(TYPE, processorTag, config, "name", ingestService.getScriptService());
+        public PipelineProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
+            TemplateScript.Factory pipelineTemplate = ConfigurationUtils.readTemplateProperty(
+                TYPE,
+                processorTag,
+                config,
+                "name",
+                ingestService.getScriptService()
+            );
             return new PipelineProcessor(processorTag, description, pipelineTemplate, ingestService);
         }
     }

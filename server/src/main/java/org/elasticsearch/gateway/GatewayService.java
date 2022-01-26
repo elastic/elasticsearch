@@ -221,8 +221,8 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             }
 
             final ClusterState newState = Function.<ClusterState>identity()
-                .andThen(ClusterStateUpdaters::updateRoutingTable)
                 .andThen(ClusterStateUpdaters::removeStateNotRecoveredBlock)
+                .andThen(ClusterStateUpdaters::updateRoutingTable)
                 .apply(currentState);
 
             return allocationService.reroute(newState, "state recovered");

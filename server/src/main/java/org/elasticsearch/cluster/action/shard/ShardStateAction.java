@@ -300,8 +300,7 @@ public class ShardStateAction {
                 TASK_SOURCE,
                 update,
                 ClusterStateTaskConfig.build(Priority.HIGH),
-                shardFailedClusterStateTaskExecutor,
-                update
+                shardFailedClusterStateTaskExecutor
             );
         }
     }
@@ -607,8 +606,7 @@ public class ShardStateAction {
                 "shard-started " + request,
                 update,
                 ClusterStateTaskConfig.build(Priority.URGENT),
-                shardStartedClusterStateTaskExecutor,
-                update
+                shardStartedClusterStateTaskExecutor
             );
         }
     }

@@ -52,7 +52,6 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         ShardRouting shard = clusterState.getRoutingTable().index("idx").shard(0).primaryShard();
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.emptyList()),
-            clusterState.getRoutingNodes(),
             clusterState,
             null,
             null,
@@ -268,6 +267,6 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
     }
 
     private static RoutingAllocation routingAllocation(ClusterState clusterState) {
-        return new RoutingAllocation(NOOP_DECIDERS, clusterState.getRoutingNodes(), clusterState, null, null, System.nanoTime());
+        return new RoutingAllocation(NOOP_DECIDERS, clusterState, null, null, System.nanoTime());
     }
 }

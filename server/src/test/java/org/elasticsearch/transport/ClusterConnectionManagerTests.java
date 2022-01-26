@@ -42,8 +42,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -335,7 +333,6 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77728")
     public void testConcurrentConnectsAndDisconnects() throws Exception {
         final DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
         doAnswer(invocationOnMock -> {
@@ -345,24 +342,27 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             return null;
         }).when(transport).openConnection(eq(node), any(), anyActionListener());
 
+        final Semaphore validatorPermits = new Semaphore(Integer.MAX_VALUE);
+
         final ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
-            if (randomBoolean()) {
-                l.onResponse(null);
-            } else {
-                threadPool.generic().execute(() -> l.onResponse(null));
-            }
+            assertTrue(validatorPermits.tryAcquire());
+            threadPool.executor(randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME)).execute(() -> {
+                try {
+                    l.onResponse(null);
+                } finally {
+                    validatorPermits.release();
+                }
+            });
         };
 
-        final Semaphore pendingConnections = new Semaphore(1000);
+        final Semaphore pendingConnections = new Semaphore(between(1, 1000));
         final int threadCount = between(1, 10);
         final CountDownLatch countDownLatch = new CountDownLatch(threadCount);
-        final ReadWriteLock connectCompletionLock = new ReentrantReadWriteLock();
 
         final Runnable action = new Runnable() {
             @Override
             public void run() {
                 if (pendingConnections.tryAcquire()) {
-                    assertTrue(connectCompletionLock.readLock().tryLock());
                     connectionManager.connectToNode(node, null, validator, new ActionListener<>() {
                         @Override
                         public void onResponse(Releasable releasable) {
@@ -385,7 +385,6 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                             }
                         }
                     });
-                    connectCompletionLock.readLock().unlock();
                 } else {
                     countDownLatch.countDown();
                 }
@@ -396,9 +395,9 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             threadPool.generic().execute(action);
         }
 
-        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
-        assertTrue(connectCompletionLock.writeLock().tryLock(10, TimeUnit.SECONDS));
-        assertFalse(connectionManager.nodeConnected(node));
+        assertTrue("threads did not all complete", countDownLatch.await(10, TimeUnit.SECONDS));
+        assertTrue("validatorPermits not all released", validatorPermits.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
+        assertFalse("node still connected", connectionManager.nodeConnected(node));
         connectionManager.close();
     }
 

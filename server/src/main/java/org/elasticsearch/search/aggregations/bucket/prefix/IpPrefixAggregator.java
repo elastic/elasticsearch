@@ -114,9 +114,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        return config.getValuesSource() == null
-            ? LeafBucketCollector.NO_OP_COLLECTOR
-            : new IpPrefixLeafCollector(sub, config.getValuesSource().bytesValues(ctx), ipPrefix);
+        return new IpPrefixLeafCollector(sub, config.getValuesSource().bytesValues(ctx), ipPrefix);
     }
 
     private class IpPrefixLeafCollector extends LeafBucketCollectorBase {
@@ -124,7 +122,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
         private final LeafBucketCollector sub;
         private final SortedBinaryDocValues values;
 
-        IpPrefixLeafCollector(LeafBucketCollector sub, SortedBinaryDocValues values, IpPrefix ipPrefix) {
+        IpPrefixLeafCollector(final LeafBucketCollector sub, final SortedBinaryDocValues values, final IpPrefix ipPrefix) {
             super(sub, values);
             this.sub = sub;
             this.values = values;
@@ -134,14 +132,14 @@ public final class IpPrefixAggregator extends BucketsAggregator {
         @Override
         public void collect(int doc, long owningBucketOrd) throws IOException {
             BytesRef previousSubnet = null;
-            BytesRef subnet;
+            BytesRef subnet = new BytesRef(new byte[ipPrefix.netmask.length]);
             BytesRef ipAddress;
             if (values.advanceExact(doc)) {
                 int valuesCount = values.docValueCount();
 
                 for (int i = 0; i < valuesCount; ++i) {
                     ipAddress = values.nextValue();
-                    subnet = maskIpAddress(ipAddress, ipPrefix.netmask);
+                    maskIpAddress(ipAddress, ipPrefix.netmask, subnet);
                     if (previousSubnet != null && subnet.bytesEquals(previousSubnet)) {
                         continue;
                     }
@@ -157,22 +155,15 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             }
         }
 
-        private BytesRef maskIpAddress(final BytesRef ipAddress, final BytesRef netmask) {
+        private void maskIpAddress(final BytesRef ipAddress, final BytesRef subnetMask, final BytesRef subnet) {
             assert ipAddress.length == 16 : "Invalid length for ip address [" + ipAddress.length + "] expected 16 bytes";
-            return mask(ipAddress, netmask);
-        }
-
-        private BytesRef mask(final BytesRef ipAddress, final BytesRef subnetMask) {
             // NOTE: IPv4 addresses are encoded as 16-bytes. As a result, we use an
             // offset (12) to apply the subnet to the last 4 bytes (byes 12, 13, 14, 15)
             // if the subnet mask is just a 4-bytes subnet mask.
             int offset = subnetMask.length == 4 ? 12 : 0;
-            byte[] subnet = new byte[subnetMask.length];
             for (int i = 0; i < subnetMask.length; ++i) {
-                subnet[i] = (byte) (ipAddress.bytes[i + offset] & subnetMask.bytes[i]);
+                subnet.bytes[i] = (byte) (ipAddress.bytes[i + offset] & subnetMask.bytes[i]);
             }
-
-            return new BytesRef(subnet);
         }
     }
 

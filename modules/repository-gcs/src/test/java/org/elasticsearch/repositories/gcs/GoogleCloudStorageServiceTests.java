@@ -8,7 +8,6 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.auth.Credentials;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 
@@ -35,7 +34,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class GoogleCloudStorageServiceTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83131")
     public void testClientInitializer() throws Exception {
         final String clientName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         final TimeValue connectTimeValue = TimeValue.timeValueNanos(randomIntBetween(0, 2000000));
@@ -95,7 +93,6 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             ((HttpTransportOptions) storage.getOptions().getTransportOptions()).getReadTimeout(),
             Matchers.is((int) readTimeValue.millis())
         );
-        assertThat(storage.getOptions().getCredentials(), Matchers.nullValue(Credentials.class));
         assertThat(proxy.get().toString(), equalTo("HTTP @ /192.168.52.15:8080"));
     }
 

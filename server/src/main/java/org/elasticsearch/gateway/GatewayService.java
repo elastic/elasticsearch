@@ -11,6 +11,7 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -20,8 +21,9 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
@@ -70,8 +72,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
     private final ThreadPool threadPool;
 
-    private final AllocationService allocationService;
-
+    private final RerouteService rerouteService;
     private final ClusterService clusterService;
 
     private final TimeValue recoverAfterTime;
@@ -84,11 +85,11 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     @Inject
     public GatewayService(
         final Settings settings,
-        final AllocationService allocationService,
+        final RerouteService rerouteService,
         final ClusterService clusterService,
         final ThreadPool threadPool
     ) {
-        this.allocationService = allocationService;
+        this.rerouteService = rerouteService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.expectedDataNodes = EXPECTED_DATA_NODES_SETTING.get(settings);
@@ -220,12 +221,10 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 return currentState;
             }
 
-            final ClusterState newState = Function.<ClusterState>identity()
+            return Function.<ClusterState>identity()
                 .andThen(ClusterStateUpdaters::updateRoutingTable)
                 .andThen(ClusterStateUpdaters::removeStateNotRecoveredBlock)
                 .apply(currentState);
-
-            return allocationService.reroute(newState, "state recovered");
         }
 
         @Override
@@ -233,7 +232,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             logger.info("recovered [{}] indices into cluster_state", newState.metadata().indices().size());
             // reset flag even though state recovery completed, to ensure that if we subsequently become leader again based on a
             // not-recovered state, that we again do another state recovery.
-            resetRecoveredFlags();
+            rerouteService.reroute("state recovered", Priority.NORMAL, ActionListener.wrap(GatewayService.this::resetRecoveredFlags));
         }
 
         @Override

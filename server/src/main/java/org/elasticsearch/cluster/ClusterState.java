@@ -44,6 +44,7 @@ import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -173,7 +174,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         );
     }
 
-    public ClusterState(
+    private ClusterState(
         ClusterName clusterName,
         long version,
         String stateUUID,
@@ -195,7 +196,16 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         this.customs = customs;
         this.wasReadFromDiff = wasReadFromDiff;
         this.routingNodes = routingNodes;
+        assert assertStateRecoveredBeforeRoutingTableCreated(blocks, routingTable);
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
+    }
+
+    private static boolean assertStateRecoveredBeforeRoutingTableCreated(ClusterBlocks blocks, RoutingTable routingTable) {
+        if (blocks.hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            assert routingTable.version() == 0 : routingTable;
+            assert routingTable.iterator().hasNext() == false : routingTable;
+        }
+        return true;
     }
 
     private static boolean assertConsistentRoutingNodes(

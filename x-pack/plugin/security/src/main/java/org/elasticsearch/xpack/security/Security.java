@@ -40,6 +40,7 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -109,6 +110,7 @@ import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesActio
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
@@ -184,6 +186,7 @@ import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesA
 import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
 import org.elasticsearch.xpack.security.action.profile.TransportActivateProfileAction;
 import org.elasticsearch.xpack.security.action.profile.TransportGetProfileAction;
+import org.elasticsearch.xpack.security.action.profile.TransportUpdateProfileDataAction;
 import org.elasticsearch.xpack.security.action.realm.TransportClearRealmCacheAction;
 import org.elasticsearch.xpack.security.action.role.TransportClearRolesCacheAction;
 import org.elasticsearch.xpack.security.action.role.TransportDeleteRoleAction;
@@ -277,6 +280,7 @@ import org.elasticsearch.xpack.security.rest.action.privilege.RestGetPrivilegesA
 import org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.profile.RestActivateProfileAction;
 import org.elasticsearch.xpack.security.rest.action.profile.RestGetProfileAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestUpdateProfileDataAction;
 import org.elasticsearch.xpack.security.rest.action.realm.RestClearRealmCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestClearRolesCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestDeleteRoleAction;
@@ -443,6 +447,7 @@ public class Security extends Plugin
     private final Settings settings;
     private final boolean enabled;
     private final SecuritySystemIndices systemIndices;
+    private final ListenableFuture<Void> nodeStartedListenable;
 
     /* what a PITA that we need an extra indirection to initialize this. Yet, once we got rid of guice we can thing about how
      * to fix this or make it simpler. Today we need several service that are created in createComponents but we need to register
@@ -475,6 +480,7 @@ public class Security extends Plugin
         // TODO this is wrong, we should only use the environment that is provided to createComponents
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         this.systemIndices = new SecuritySystemIndices();
+        this.nodeStartedListenable = new ListenableFuture<>();
         if (enabled) {
             runStartupChecks(settings);
             Automatons.updateConfiguration(settings);
@@ -765,7 +771,9 @@ public class Security extends Plugin
             systemIndices.getMainIndexManager(),
             getSslService(),
             client,
-            environment
+            environment,
+            (runnable -> nodeStartedListenable.addListener(ActionListener.wrap(runnable))),
+            threadPool
         );
 
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
@@ -1200,6 +1208,7 @@ public class Security extends Plugin
             new ActionHandler<>(NodeEnrollmentAction.INSTANCE, TransportNodeEnrollmentAction.class),
             new ActionHandler<>(GetProfileAction.INSTANCE, TransportGetProfileAction.class),
             new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
+            new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
             usageAction,
             infoAction
         );
@@ -1275,7 +1284,8 @@ public class Security extends Plugin
             new RestKibanaEnrollAction(settings, getLicenseState()),
             new RestNodeEnrollmentAction(settings, getLicenseState()),
             new RestGetProfileAction(settings, getLicenseState()),
-            new RestActivateProfileAction(settings, getLicenseState())
+            new RestActivateProfileAction(settings, getLicenseState()),
+            new RestUpdateProfileDataAction(settings, getLicenseState())
         );
     }
 
@@ -1285,6 +1295,11 @@ public class Security extends Plugin
             SetSecurityUserProcessor.TYPE,
             new SetSecurityUserProcessor.Factory(securityContext::get, settings)
         );
+    }
+
+    @Override
+    public void onNodeStarted() {
+        this.nodeStartedListenable.onResponse(null);
     }
 
     /**

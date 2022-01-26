@@ -27,8 +27,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -44,8 +42,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.hasItems;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -246,24 +242,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
         NullPointerException e = expectThrows(NullPointerException.class, () -> qb.fields(null));
         assertEquals("fields cannot be null", e.getMessage());
-    }
-
-    public void testDefaultFieldParsing() throws IOException {
-        String query = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
-        String contentString = """
-            {
-              "simple_query_string": {
-                "query": "%s"
-              }
-            }""".formatted(query);
-        SimpleQueryStringBuilder queryBuilder = (SimpleQueryStringBuilder) parseQuery(contentString);
-        assertThat(queryBuilder.value(), equalTo(query));
-        assertThat(queryBuilder.fields(), notNullValue());
-        assertThat(queryBuilder.fields().size(), equalTo(0));
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-
-        Query luceneQuery = queryBuilder.toQuery(searchExecutionContext);
-        assertThat(luceneQuery, anyOf(instanceOf(BooleanQuery.class), instanceOf(DisjunctionMaxQuery.class)));
     }
 
     /*
@@ -621,64 +599,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), parser.parse("\"bar\""));
     }
 
-    public void testDefaultField() throws Exception {
-        SearchExecutionContext context = createSearchExecutionContext();
-        // default value `*` sets leniency to true
-        Query query = new SimpleQueryStringBuilder("hello").toQuery(context);
-        assertQueryWithAllFieldsWildcard(query);
-
-        try {
-            // `*` is in the list of the default_field => leniency set to true
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder().putList("index.query.default_field", TEXT_FIELD_NAME, "*", KEYWORD_FIELD_NAME).build()
-                    )
-                );
-            query = new SimpleQueryStringBuilder("hello").toQuery(context);
-            assertQueryWithAllFieldsWildcard(query);
-
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder().putList("index.query.default_field", TEXT_FIELD_NAME, KEYWORD_FIELD_NAME + "^5").build()
-                    )
-                );
-            query = new SimpleQueryStringBuilder("hello").toQuery(context);
-            Query expected = new DisjunctionMaxQuery(
-                Arrays.asList(
-                    new TermQuery(new Term(TEXT_FIELD_NAME, "hello")),
-                    new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")), 5.0f)
-                ),
-                1.0f
-            );
-            assertEquals(expected, query);
-        } finally {
-            // Reset to the default value
-            context.getIndexSettings()
-                .updateIndexMetadata(
-                    newIndexMeta(
-                        "index",
-                        context.getIndexSettings().getSettings(),
-                        Settings.builder().putList("index.query.default_field", "*").build()
-                    )
-                );
-        }
-    }
-
-    public void testAllFieldsWildcard() throws Exception {
-        SearchExecutionContext context = createSearchExecutionContext();
-        Query query = new SimpleQueryStringBuilder("hello").field("*").toQuery(context);
-        assertQueryWithAllFieldsWildcard(query);
-
-        query = new SimpleQueryStringBuilder("hello").field(TEXT_FIELD_NAME).field("*").field(KEYWORD_FIELD_NAME).toQuery(context);
-        assertQueryWithAllFieldsWildcard(query);
-    }
-
     public void testToFuzzyQuery() throws Exception {
         Query query = new SimpleQueryStringBuilder("text~2").field(TEXT_FIELD_NAME)
             .fuzzyPrefixLength(2)
@@ -797,65 +717,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 .toQuery(createSearchExecutionContext())
         );
         assertThat(exc.getMessage(), containsString("negative [boost]"));
-    }
-
-    private static IndexMetadata newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
-        Settings build = Settings.builder().put(oldIndexSettings).put(indexSettings).build();
-        return IndexMetadata.builder(name).settings(build).build();
-    }
-
-    private void assertQueryWithAllFieldsWildcard(Query query) {
-        assertEquals(DisjunctionMaxQuery.class, query.getClass());
-        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
-        int noMatchNoDocsQueries = 0;
-        for (Query q : disjunctionMaxQuery.getDisjuncts()) {
-            if (q.getClass() == MatchNoDocsQuery.class) {
-                noMatchNoDocsQueries++;
-            }
-        }
-        assertEquals(9, noMatchNoDocsQueries);
-        assertThat(
-            disjunctionMaxQuery.getDisjuncts(),
-            hasItems(new TermQuery(new Term(TEXT_FIELD_NAME, "hello")), new TermQuery(new Term(KEYWORD_FIELD_NAME, "hello")))
-        );
-    }
-
-    /**
-     * Query terms that contain "now" can trigger a query to not be cacheable.
-     * This test checks the search context cacheable flag is updated accordingly.
-     */
-    public void testCachingStrategiesWithNow() throws IOException {
-        // if we hit all fields, this should contain a date field and should diable cachability
-        String query = "now " + randomAlphaOfLengthBetween(4, 10);
-        SimpleQueryStringBuilder queryBuilder = new SimpleQueryStringBuilder(query);
-        assertQueryCachability(queryBuilder, false);
-
-        // if we hit a date field with "now", this should diable cachability
-        queryBuilder = new SimpleQueryStringBuilder("now");
-        queryBuilder.field(DATE_FIELD_NAME);
-        assertQueryCachability(queryBuilder, false);
-
-        // everything else is fine on all fields
-        query = randomFrom("NoW", "nOw", "NOW") + " " + randomAlphaOfLengthBetween(4, 10);
-        queryBuilder = new SimpleQueryStringBuilder(query);
-        assertQueryCachability(queryBuilder, true);
-    }
-
-    private void assertQueryCachability(SimpleQueryStringBuilder qb, boolean cachingExpected) throws IOException {
-        SearchExecutionContext context = createSearchExecutionContext();
-        assert context.isCacheable();
-        /*
-         * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it
-         * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
-         * actual lucene query
-         */
-        QueryBuilder rewritten = rewriteQuery(qb, new SearchExecutionContext(context));
-        assertNotNull(rewritten.toQuery(context));
-        assertEquals(
-            "query should " + (cachingExpected ? "" : "not") + " be cacheable: " + qb.toString(),
-            cachingExpected,
-            context.isCacheable()
-        );
     }
 
     public void testLenientFlag() throws Exception {

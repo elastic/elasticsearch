@@ -89,6 +89,7 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1177,6 +1178,36 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertApiKeyNotCreated(client, "key-3");
         assertApiKeyNotCreated(client, "key-4");
         assertApiKeyNotCreated(client, "key-5");
+    }
+
+    public void testApiKeyRunAsAnotherUserCanCreateApiKey() {
+        final RoleDescriptor descriptor = new RoleDescriptor("role", Strings.EMPTY_ARRAY, null, new String[] { ES_TEST_ROOT_USER });
+        Client client = client().filterWithHeader(
+            Map.of("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
+        );
+        final CreateApiKeyResponse response1 = new CreateApiKeyRequestBuilder(client).setName("run-as-key")
+            .setRoleDescriptors(List.of(descriptor))
+            .setMetadata(ApiKeyTests.randomMetadata())
+            .get();
+
+        final String base64ApiKeyKeyValue = Base64.getEncoder()
+            .encodeToString((response1.getId() + ":" + response1.getKey()).getBytes(StandardCharsets.UTF_8));
+
+        final CreateApiKeyResponse response2 = new CreateApiKeyRequestBuilder(
+            client().filterWithHeader(
+                Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue, "es-security-runas-user", ES_TEST_ROOT_USER)
+            )
+        ).setName("create-by run-as user").setRoleDescriptors(List.of(new RoleDescriptor("a", new String[] { "all" }, null, null))).get();
+
+        final GetApiKeyResponse getApiKeyResponse = client.execute(
+            GetApiKeyAction.INSTANCE,
+            GetApiKeyRequest.usingApiKeyId(response2.getId(), true)
+        ).actionGet();
+        assertThat(getApiKeyResponse.getApiKeyInfos(), arrayWithSize(1));
+        final ApiKey apiKeyInfo = getApiKeyResponse.getApiKeyInfos()[0];
+        assertThat(apiKeyInfo.getId(), equalTo(response2.getId()));
+        assertThat(apiKeyInfo.getUsername(), equalTo(ES_TEST_ROOT_USER));
+        assertThat(apiKeyInfo.getRealm(), equalTo("file"));
     }
 
     public void testCreationAndAuthenticationReturns429WhenThreadPoolIsSaturated() throws Exception {

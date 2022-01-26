@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -102,7 +103,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.unassignedShards = new UnassignedShards(this);
         this.attributeValuesByAttribute = new HashMap<>();
 
-        final Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = new HashMap<>(discoveryNodes.getDataNodes().size());
+        final Map<String, LinkedHashMap<ShardId, ShardRouting>> nodesToShards = Maps.newMapWithExpectedSize(
+            discoveryNodes.getDataNodes().size()
+        );
         // fill in the nodeToShards with the "live" nodes
         for (ObjectCursor<String> node : discoveryNodes.getDataNodes().keys()) {
             nodesToShards.put(node.value, new LinkedHashMap<>()); // LinkedHashMap to preserve order
@@ -155,7 +158,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 }
             }
         }
-        this.nodesToShards = new HashMap<>(nodesToShards.size());
+        this.nodesToShards = Maps.newMapWithExpectedSize(nodesToShards.size());
         for (Map.Entry<String, LinkedHashMap<ShardId, ShardRouting>> entry : nodesToShards.entrySet()) {
             String nodeId = entry.getKey();
             this.nodesToShards.put(nodeId, new RoutingNode(nodeId, discoveryNodes.get(nodeId), entry.getValue()));
@@ -167,11 +170,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // instance
         assert routingNodes.readOnly : "tried to create a mutable copy from a mutable instance";
         this.readOnly = false;
-        this.nodesToShards = new HashMap<>(routingNodes.nodesToShards.size());
+        this.nodesToShards = Maps.newMapWithExpectedSize(routingNodes.nodesToShards.size());
         for (Map.Entry<String, RoutingNode> entry : routingNodes.nodesToShards.entrySet()) {
             this.nodesToShards.put(entry.getKey(), entry.getValue().copy());
         }
-        this.assignedShards = new HashMap<>(routingNodes.assignedShards.size());
+        this.assignedShards = Maps.newMapWithExpectedSize(routingNodes.assignedShards.size());
         for (Map.Entry<ShardId, List<ShardRouting>> entry : routingNodes.assignedShards.entrySet()) {
             this.assignedShards.put(entry.getKey(), new ArrayList<>(entry.getValue()));
         }
@@ -182,11 +185,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.relocatingShards = routingNodes.relocatingShards;
         this.activeShardCount = routingNodes.activeShardCount;
         this.totalShardCount = routingNodes.totalShardCount;
-        this.attributeValuesByAttribute = new HashMap<>(routingNodes.attributeValuesByAttribute.size());
+        this.attributeValuesByAttribute = Maps.newMapWithExpectedSize(routingNodes.attributeValuesByAttribute.size());
         for (Map.Entry<String, Set<String>> entry : routingNodes.attributeValuesByAttribute.entrySet()) {
             this.attributeValuesByAttribute.put(entry.getKey(), new HashSet<>(entry.getValue()));
         }
-        this.recoveriesPerNode = new HashMap<>(routingNodes.recoveriesPerNode.size());
+        this.recoveriesPerNode = Maps.newMapWithExpectedSize(routingNodes.recoveriesPerNode.size());
         for (Map.Entry<String, Recoveries> entry : routingNodes.recoveriesPerNode.entrySet()) {
             this.recoveriesPerNode.put(entry.getKey(), entry.getValue().copy());
         }

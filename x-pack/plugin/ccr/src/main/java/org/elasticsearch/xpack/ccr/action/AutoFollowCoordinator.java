@@ -26,10 +26,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.TimeValue;
@@ -257,16 +257,16 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
         this.patterns = Set.copyOf(autoFollowMetadata.getPatterns().keySet());
 
-        final CopyOnWriteHashMap<String, AutoFollower> autoFollowersCopy = CopyOnWriteHashMap.copyOf(this.autoFollowers);
+        final Map<String, AutoFollower> currentAutoFollowers = Map.copyOf(this.autoFollowers);
         Set<String> newRemoteClusters = autoFollowMetadata.getPatterns()
             .values()
             .stream()
             .filter(AutoFollowPattern::isActive)
             .map(AutoFollowPattern::getRemoteCluster)
-            .filter(remoteCluster -> autoFollowersCopy.containsKey(remoteCluster) == false)
+            .filter(remoteCluster -> currentAutoFollowers.containsKey(remoteCluster) == false)
             .collect(Collectors.toSet());
 
-        Map<String, AutoFollower> newAutoFollowers = new HashMap<>(newRemoteClusters.size());
+        Map<String, AutoFollower> newAutoFollowers = Maps.newMapWithExpectedSize(newRemoteClusters.size());
         for (String remoteCluster : newRemoteClusters) {
             AutoFollower autoFollower = new AutoFollower(
                 remoteCluster,
@@ -328,7 +328,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         }
 
                         @Override
-                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                             handler.accept(null);
                         }
                     }, ClusterStateTaskExecutor.unbatched());
@@ -343,7 +343,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         }
 
         List<String> removedRemoteClusters = new ArrayList<>();
-        for (Map.Entry<String, AutoFollower> entry : autoFollowersCopy.entrySet()) {
+        for (Map.Entry<String, AutoFollower> entry : currentAutoFollowers.entrySet()) {
             String remoteCluster = entry.getKey();
             AutoFollower autoFollower = entry.getValue();
             boolean exist = autoFollowMetadata.getPatterns()
@@ -364,7 +364,11 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             }
         }
         assert assertNoOtherActiveAutoFollower(newAutoFollowers);
-        this.autoFollowers = autoFollowersCopy.copyAndPutAll(newAutoFollowers).copyAndRemoveAll(removedRemoteClusters);
+
+        Map<String, AutoFollower> updatedFollowers = new HashMap<>(currentAutoFollowers);
+        updatedFollowers.putAll(newAutoFollowers);
+        removedRemoteClusters.forEach(updatedFollowers.keySet()::remove);
+        this.autoFollowers = Collections.unmodifiableMap(updatedFollowers);
     }
 
     private boolean assertNoOtherActiveAutoFollower(Map<String, AutoFollower> newAutoFollowers) {

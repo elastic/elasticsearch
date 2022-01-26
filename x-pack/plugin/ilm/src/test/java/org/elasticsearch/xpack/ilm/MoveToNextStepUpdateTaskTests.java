@@ -88,10 +88,10 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
         StepKey actualKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(nextStepKey));
-        assertThat(lifecycleState.getPhaseTime(), equalTo(now));
-        assertThat(lifecycleState.getActionTime(), equalTo(now));
-        assertThat(lifecycleState.getStepTime(), equalTo(now));
-        task.clusterStateProcessed("source", clusterState, newState);
+        assertThat(lifecycleState.phaseTime(), equalTo(now));
+        assertThat(lifecycleState.actionTime(), equalTo(now));
+        assertThat(lifecycleState.stepTime(), equalTo(now));
+        task.clusterStateProcessed(clusterState, newState);
         assertTrue(changed.get());
     }
 
@@ -153,10 +153,10 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
         StepKey actualKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(invalidNextStep));
-        assertThat(lifecycleState.getPhaseTime(), equalTo(now));
-        assertThat(lifecycleState.getActionTime(), equalTo(now));
-        assertThat(lifecycleState.getStepTime(), equalTo(now));
-        task.clusterStateProcessed("source", clusterState, newState);
+        assertThat(lifecycleState.phaseTime(), equalTo(now));
+        assertThat(lifecycleState.actionTime(), equalTo(now));
+        assertThat(lifecycleState.stepTime(), equalTo(now));
+        task.clusterStateProcessed(clusterState, newState);
         assertTrue(changed.get());
     }
 

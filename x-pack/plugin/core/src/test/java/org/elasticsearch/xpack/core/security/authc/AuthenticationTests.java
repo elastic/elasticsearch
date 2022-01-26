@@ -96,6 +96,27 @@ public class AuthenticationTests extends ESTestCase {
             randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId1),
             randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId2)
         );
+
+        final User user3 = randomValueOtherThanMany(
+            u -> u.principal().equals(user1.principal()) || u.principal().equals(user2.principal()),
+            AuthenticationTests::randomUser
+        );
+
+        // Same API key but run-as different user are not the same owner
+        assertCannotAccessResources(
+            randomApiKeyAuthentication(new User(user2, user1), apiKeyId1),
+            randomApiKeyAuthentication(new User(user3, user1), apiKeyId1)
+        );
+
+        // Same or different API key run-as the same user are the same owner
+        checkCanAccessResources(
+            randomApiKeyAuthentication(new User(user3, user1), apiKeyId1),
+            randomApiKeyAuthentication(new User(user3, user1), apiKeyId1)
+        );
+        checkCanAccessResources(
+            randomApiKeyAuthentication(new User(user3, user1), apiKeyId1),
+            randomApiKeyAuthentication(new User(user3, user2), apiKeyId2)
+        );
     }
 
     public void testIsServiceAccount() {
@@ -213,7 +234,7 @@ public class AuthenticationTests extends ESTestCase {
         return new Authentication(
             user,
             apiKeyRealm,
-            null,
+            user.isRunAs() ? new RealmRef("lookup_realm", "lookup_realm", randomAlphaOfLength(5)) : null,
             VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT),
             AuthenticationType.API_KEY,
             metadata

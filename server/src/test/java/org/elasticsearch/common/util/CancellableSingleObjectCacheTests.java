@@ -393,10 +393,9 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
             }
         };
 
-        final CancellableSingleObjectCache<String, String, Integer> testCache = new CancellableSingleObjectCache<
-            String,
-            String,
-            Integer>(testThreadContext) {
+        final CancellableSingleObjectCache<String, String, Integer> testCache = new CancellableSingleObjectCache<String, String, Integer>(
+            testThreadContext
+        ) {
             @Override
             protected void refresh(
                 String s,

@@ -35,8 +35,8 @@ import org.elasticsearch.cluster.coordination.LinearizabilityChecker.SequentialS
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -993,10 +993,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         );
                         final ClusterState rawState = ClusterState.readFrom(inStream, newLocalNode);
                         // adapt cluster state to new localNode instance and revert state recovery
-                        delegate = new InMemoryPersistedState(adaptCurrentTerm.apply(persistedCurrentTerm), ClusterState.builder(rawState)
-                            .routingTable(RoutingTable.EMPTY_ROUTING_TABLE)
-                            .blocks(ClusterBlocks.builder().blocks(rawState.blocks()).addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
-                            .build());
+                        delegate = new InMemoryPersistedState(
+                            adaptCurrentTerm.apply(persistedCurrentTerm),
+                            ClusterState.builder(rawState)
+                                .routingTable(RoutingTable.EMPTY_ROUTING_TABLE)
+                                .blocks(ClusterBlocks.builder().blocks(rawState.blocks()).addGlobalBlock(STATE_NOT_RECOVERED_BLOCK))
+                                .build()
+                        );
                     }
                 } catch (IOException e) {
                     throw new UncheckedIOException("Unable to create MockPersistedState", e);

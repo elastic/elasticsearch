@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.timeseries;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -93,8 +94,8 @@ public class TimeSeriesIndexSearcher {
             this.collector.setScorer(scorer);
             iterator = scorer.iterator();
             docBase = context.docBase;
-            tsids = context.reader().getSortedDocValues(TimeSeriesIdFieldMapper.NAME);
-            timestamps = context.reader().getSortedNumericDocValues(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+            tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
+            timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
         }
 
         void collectCurrent() throws IOException {

@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.resolve;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -27,6 +26,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -42,7 +42,7 @@ public class TransportResolveIndexActionTests extends ESTestCase {
 
     public void testCCSCompatibilityCheck() throws Exception {
         Settings settings = Settings.builder()
-            .put("node.name", TransportSearchAction.class.getSimpleName())
+            .put("node.name", TransportResolveIndexActionTests.class.getSimpleName())
             .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
             .build();
         ActionFilters actionFilters = mock(ActionFilters.class);
@@ -84,10 +84,9 @@ public class TransportResolveIndexActionTests extends ESTestCase {
                 })
             );
 
-            assertEquals(
-                "parts of writeable [org.elasticsearch.action.admin.indices.resolve.TransportResolveIndexActionTests$2/unset] "
-                    + "are not compatible with version 8.0.0 and the 'search.check_ccs_compatibility' setting is enabled.",
-                ex.getMessage()
+            assertThat(
+                ex.getMessage(),
+                containsString("not compatible with version 8.0.0 and the 'search.check_ccs_compatibility' setting is enabled.")
             );
             assertEquals("This request isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());
         } finally {

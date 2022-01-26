@@ -26,12 +26,11 @@ public class RolloverAction implements LifecycleAction, ToXContentObject {
     private static final ParseField MAX_PRIMARY_SHARD_SIZE_FIELD = new ParseField("max_primary_shard_size");
     private static final ParseField MAX_AGE_FIELD = new ParseField("max_age");
     private static final ParseField MAX_DOCS_FIELD = new ParseField("max_docs");
-    private static final ParseField MAX_PRIMARY_SHARD_DOCS_FIELD = new ParseField("max_primary_shard_docs");
 
     private static final ConstructingObjectParser<RolloverAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new RolloverAction((ByteSizeValue) a[0], (ByteSizeValue) a[1], (TimeValue) a[2], (Long) a[3], (Long) a[4])
+        a -> new RolloverAction((ByteSizeValue) a[0], (ByteSizeValue) a[1], (TimeValue) a[2], (Long) a[3])
     );
 
     static {
@@ -54,28 +53,25 @@ public class RolloverAction implements LifecycleAction, ToXContentObject {
             ValueType.VALUE
         );
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_DOCS_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_PRIMARY_SHARD_DOCS_FIELD);
     }
 
     private final ByteSizeValue maxSize;
     private final ByteSizeValue maxPrimaryShardSize;
     private final TimeValue maxAge;
     private final Long maxDocs;
-    private final Long maxPrimaryShardDocs;
 
     public static RolloverAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public RolloverAction(ByteSizeValue maxSize, ByteSizeValue maxPrimaryShardSize, TimeValue maxAge, Long maxDocs, Long maxPrimaryShardDocs) {
-        if (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null && maxPrimaryShardDocs == null) {
+    public RolloverAction(ByteSizeValue maxSize, ByteSizeValue maxPrimaryShardSize, TimeValue maxAge, Long maxDocs) {
+        if (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null) {
             throw new IllegalArgumentException("At least one rollover condition must be set.");
         }
         this.maxSize = maxSize;
         this.maxPrimaryShardSize = maxPrimaryShardSize;
         this.maxAge = maxAge;
         this.maxDocs = maxDocs;
-        this.maxPrimaryShardDocs = maxPrimaryShardDocs;
     }
 
     public ByteSizeValue getMaxSize() {
@@ -92,10 +88,6 @@ public class RolloverAction implements LifecycleAction, ToXContentObject {
 
     public Long getMaxDocs() {
         return maxDocs;
-    }
-
-    public Long getMaxPrimaryShardDocs() {
-        return maxPrimaryShardDocs;
     }
 
     @Override
@@ -118,16 +110,13 @@ public class RolloverAction implements LifecycleAction, ToXContentObject {
         if (maxDocs != null) {
             builder.field(MAX_DOCS_FIELD.getPreferredName(), maxDocs);
         }
-        if (maxPrimaryShardDocs != null) {
-            builder.field(MAX_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(), maxPrimaryShardDocs);
-        }
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxPrimaryShardDocs);
+        return Objects.hash(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
     }
 
     @Override
@@ -142,8 +131,7 @@ public class RolloverAction implements LifecycleAction, ToXContentObject {
         return Objects.equals(maxSize, other.maxSize)
             && Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize)
             && Objects.equals(maxAge, other.maxAge)
-            && Objects.equals(maxDocs, other.maxDocs)
-            && Objects.equals(maxPrimaryShardDocs, other.maxPrimaryShardDocs);
+            && Objects.equals(maxDocs, other.maxDocs);
     }
 
     @Override

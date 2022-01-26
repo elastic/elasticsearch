@@ -1,5 +1,5 @@
 pr: 82975
 summary: Desired nodes API
-area: "Distributed, Autoscaling"
-type: "feature, enhancement"
+area: "Distributed"
+type: "feature"
 issues: []

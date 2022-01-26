@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -115,7 +116,9 @@ public class RolloverAction implements LifecycleAction {
         }
         maxAge = in.readOptionalTimeValue();
         maxDocs = in.readOptionalVLong();
-        maxPrimaryShardDocs = in.readOptionalVLong();
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            maxPrimaryShardDocs = in.readOptionalVLong();
+        }
     }
 
     @Override
@@ -132,7 +135,9 @@ public class RolloverAction implements LifecycleAction {
         }
         out.writeOptionalTimeValue(maxAge);
         out.writeOptionalVLong(maxDocs);
-        out.writeOptionalVLong(maxPrimaryShardDocs);
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeOptionalVLong(maxPrimaryShardDocs);
+        }
     }
 
     @Override

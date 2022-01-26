@@ -582,8 +582,10 @@ public class RolloverIT extends ESIntegTestCase {
             final IndexMetadata oldIndex = client().admin().cluster().prepareState().get().getState().metadata().index("test-1");
             List<Condition<?>> metConditions = oldIndex.getRolloverInfos().get("test_alias").getMetConditions();
             assertThat(metConditions.size(), equalTo(1));
-            assertThat(metConditions.get(0).toString(), equalTo(new MaxPrimaryShardDocsCondition(
-                maxPrimaryShardDocsCondition.value).toString()));
+            assertThat(
+                metConditions.get(0).toString(),
+                equalTo(new MaxPrimaryShardDocsCondition(maxPrimaryShardDocsCondition.value).toString())
+            );
             assertThat(
                 oldIndex.getRolloverInfos().get("test_alias").getTime(),
                 is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L)))

@@ -21,12 +21,16 @@ public class ConditionTests extends ESTestCase {
         final MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(1));
 
         long indexCreatedMatch = System.currentTimeMillis() - TimeValue.timeValueMinutes(61).getMillis();
-        Condition.Result evaluate = maxAgeCondition.evaluate(new Condition.Stats(0, indexCreatedMatch, randomByteSize(), randomByteSize(), randomNonNegativeLong()));
+        Condition.Result evaluate = maxAgeCondition.evaluate(
+            new Condition.Stats(0, indexCreatedMatch, randomByteSize(), randomByteSize(), randomNonNegativeLong())
+        );
         assertThat(evaluate.condition(), equalTo(maxAgeCondition));
         assertThat(evaluate.matched(), equalTo(true));
 
         long indexCreatedNotMatch = System.currentTimeMillis() - TimeValue.timeValueMinutes(59).getMillis();
-        evaluate = maxAgeCondition.evaluate(new Condition.Stats(0, indexCreatedNotMatch, randomByteSize(), randomByteSize(), randomNonNegativeLong()));
+        evaluate = maxAgeCondition.evaluate(
+            new Condition.Stats(0, indexCreatedNotMatch, randomByteSize(), randomByteSize(), randomNonNegativeLong())
+        );
         assertThat(evaluate.condition(), equalTo(maxAgeCondition));
         assertThat(evaluate.matched(), equalTo(false));
     }
@@ -35,12 +39,16 @@ public class ConditionTests extends ESTestCase {
         final MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
 
         long maxDocsMatch = randomIntBetween(100, 1000);
-        Condition.Result evaluate = maxDocsCondition.evaluate(new Condition.Stats(maxDocsMatch, 0, randomByteSize(), randomByteSize(), randomNonNegativeLong()));
+        Condition.Result evaluate = maxDocsCondition.evaluate(
+            new Condition.Stats(maxDocsMatch, 0, randomByteSize(), randomByteSize(), randomNonNegativeLong())
+        );
         assertThat(evaluate.condition(), equalTo(maxDocsCondition));
         assertThat(evaluate.matched(), equalTo(true));
 
         long maxDocsNotMatch = randomIntBetween(0, 99);
-        evaluate = maxDocsCondition.evaluate(new Condition.Stats(maxDocsNotMatch, 0, randomByteSize(), randomByteSize(), randomNonNegativeLong()));
+        evaluate = maxDocsCondition.evaluate(
+            new Condition.Stats(maxDocsNotMatch, 0, randomByteSize(), randomByteSize(), randomNonNegativeLong())
+        );
         assertThat(evaluate.condition(), equalTo(maxDocsCondition));
         assertThat(evaluate.matched(), equalTo(false));
     }

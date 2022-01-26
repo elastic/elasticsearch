@@ -262,7 +262,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     /**
-     * Adds a size-based condition to check if the docs of the largest shard has at least <code>numDocs</code>
+     * Adds a size-based condition to check if the docs of the largest primary shard has at least <code>numDocs</code>
      */
     public void addMaxPrimaryShardDocsCondition(long numDocs) {
         MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(numDocs);

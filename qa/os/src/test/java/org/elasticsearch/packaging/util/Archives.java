@@ -11,6 +11,9 @@ package org.elasticsearch.packaging.util;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -402,6 +405,27 @@ public class Archives {
         assertThat("Starting Elasticsearch produced a pid file at " + pidFile, pidFile, fileExists());
         String pid = slurp(pidFile).trim();
         assertThat(pid, is(not(emptyOrNullString())));
+    }
+
+    public static String waitForAutoConfigurationOutput(Shell.Result result) throws Exception {
+        int retries = 60;
+        while (retries > 0) {
+            retries -= 1;
+            // If this is printed, then we have both elastic password and kibana token already
+            if (result.stdout().contains("valid for the next 30 minutes")) {
+                return result.stdout();
+            }
+
+            try {
+                Thread.sleep(2000);
+                logger.info("DEBUG OUTPUT"+retries +" : ");
+                logger.info(result.stdout());
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+        }
+        return null;
     }
 
     public static void stopElasticsearch(Installation installation) throws Exception {

@@ -304,7 +304,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             action.new AsyncAction(null, request, listener).start();
             fail("expected ClusterBlockException");
         } catch (ClusterBlockException expected) {
-            assertEquals("blocked by: [SERVICE_UNAVAILABLE/999/test-block];", expected.getMessage());
+            assertEquals("blocked by: [SERVICE_UNAVAILABLE/99/test-block];", expected.getMessage());
         }
     }
 
@@ -322,7 +322,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             action.new AsyncAction(null, request, listener).start();
             fail("expected ClusterBlockException");
         } catch (ClusterBlockException expected) {
-            assertEquals("index [" + TEST_INDEX + "] blocked by: [SERVICE_UNAVAILABLE/1/test-block];", expected.getMessage());
+            assertEquals("index [" + TEST_INDEX + "] blocked by: [SERVICE_UNAVAILABLE/99/test-block];", expected.getMessage());
         }
     }
 

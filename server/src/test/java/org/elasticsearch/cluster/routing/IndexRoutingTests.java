@@ -580,7 +580,8 @@ public class IndexRoutingTests extends ESTestCase {
         assertIndexShard(routing, source, expectedShard, any(String.class));
     }
 
-    private void assertIndexShard(IndexRouting routing, Map<String, Object> source, int expectedShard, Matcher<String> routingStringMatcher) throws IOException {
+    private void assertIndexShard(IndexRouting routing, Map<String, Object> source, int expectedShard, Matcher<String> routingStringMatcher)
+        throws IOException {
         BytesReference sourceBytes = source(source);
         assertThat(routing.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, sourceBytes), equalTo(expectedShard));
         String routingString = routing.calculateRouting().apply(XContentType.JSON, sourceBytes);

@@ -137,7 +137,7 @@ public class FetchPhase {
                     try {
                         currentReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
                         currentReaderIndex = readerIndex;
-                        if (currentReaderContext.reader() instanceof SequentialStoredFieldsLeafReader lf
+                        if (currentReaderContext.reader()instanceof SequentialStoredFieldsLeafReader lf
                             && hasSequentialDocs
                             && docs.length >= 10) {
                             // All the docs to fetch are adjacent but Lucene stored fields are optimized

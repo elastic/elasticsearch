@@ -108,7 +108,7 @@ Machine Learning::
 * Make delete intervening results more selective {es-pull}82437[#82437]
 * Skip time to next interval with data for datafeeds with aggs {es-pull}82488[#82488] (issue: {es-issue}82406[#82406])
 * Update running process when global calendar changes {es-pull}83044[#83044]
-* Avoid transient poor time series modeling after detecting new seasonal components. This can affect cases where there are fast and slow repeats in the data, for example 30 mins and 1 day, and the job uses a short bucket length. The outcome can be transient poor predictions and model bounds and sometimes false positive anomalies. {ml-pull}2167[#2167]
+* Avoid transient poor time series modeling after detecting new seasonal components. This can affect cases where there are fast and slow repeats in the data, for example 30 mins and 1 day, and the job uses a short bucket length. {ml-pull}2167[#2167] (issue: {ml-issue}2166[#2166])
 
 Monitoring::
 * Always attempt upgrade monitoring templates {es-pull}82713[#82713] (issue: {es-issue}82453[#82453])

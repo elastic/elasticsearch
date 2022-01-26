@@ -1100,14 +1100,12 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                             new LookupField(
                                 "my_index",
                                 new TermQueryBuilder("term_field_foo", "f1"),
-                                List.of(new FieldAndFormat("remote_field_*", null)),
-                                1
+                                List.of(new FieldAndFormat("remote_field_*", null))
                             ),
                             new LookupField(
                                 "my_index",
                                 new TermQueryBuilder("term_field_foo", "f2"),
-                                List.of(new FieldAndFormat("remote_field_*", null)),
-                                1
+                                List.of(new FieldAndFormat("remote_field_*", null))
                             )
                         )
                     )
@@ -1129,14 +1127,12 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                             new LookupField(
                                 "my_index",
                                 new TermQueryBuilder("term_field_foo", "f1"),
-                                List.of(new FieldAndFormat("remote_field_*", null)),
-                                1
+                                List.of(new FieldAndFormat("remote_field_*", null))
                             ),
                             new LookupField(
                                 "my_index",
                                 new TermQueryBuilder("term_field_foo", "f2"),
-                                List.of(new FieldAndFormat("remote_field_*", null)),
-                                1
+                                List.of(new FieldAndFormat("remote_field_*", null))
                             )
                         )
                     )

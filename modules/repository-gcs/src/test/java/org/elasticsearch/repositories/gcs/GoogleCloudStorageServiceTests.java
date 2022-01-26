@@ -35,6 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class GoogleCloudStorageServiceTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83131")
     public void testClientInitializer() throws Exception {
         final String clientName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         final TimeValue connectTimeValue = TimeValue.timeValueNanos(randomIntBetween(0, 2000000));

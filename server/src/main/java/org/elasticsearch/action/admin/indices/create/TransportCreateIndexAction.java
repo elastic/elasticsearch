@@ -90,7 +90,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         }
 
         final long resolvedAt = System.currentTimeMillis();
-        final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index(), resolvedAt);
+        final String indexName = IndexNameExpressionResolver.resolveDateMathExpression(request.index(), resolvedAt);
 
         final SystemIndexDescriptor mainDescriptor = systemIndices.findMatchingDescriptor(indexName);
         final boolean isSystemIndex = mainDescriptor != null;

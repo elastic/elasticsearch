@@ -1423,11 +1423,11 @@ public class TransportSearchActionTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception ex) {
-                    assertEquals(
-                        "[class org.elasticsearch.action.search.SearchRequest] is not compatible with version 8.0.0 and the "
-                            + "'search.check_ccs_compatibility' setting is enabled.",
-                        ex.getMessage()
+                    assertThat(
+                        ex.getMessage(),
+                        containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version")
                     );
+                    assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
                     assertEquals("This query isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());
                     latch.countDown();
                 }

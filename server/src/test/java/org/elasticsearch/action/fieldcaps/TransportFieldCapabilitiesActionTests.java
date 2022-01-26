@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -89,11 +90,11 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
                 })
             );
 
-            assertEquals(
-                "[class org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest] is not compatible with version 8.0.0 and the "
-                    + "'search.check_ccs_compatibility' setting is enabled.",
-                ex.getMessage()
+            assertThat(
+                ex.getMessage(),
+                containsString("[class org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest] is not compatible with version")
             );
+            assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
             assertEquals("This query isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));

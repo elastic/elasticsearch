@@ -8,6 +8,7 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
@@ -370,12 +371,12 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             ExecutionException.class,
             () -> client().execute(SearchTemplateAction.INSTANCE, request).get()
         );
-        assertEquals(
-            "[class org.elasticsearch.action.search.SearchRequest] is not compatible with version 8.0.0 and the "
-                + "'search.check_ccs_compatibility' setting is enabled.",
-            ex.getCause().getMessage()
+        assertThat(
+            ex.getCause().getMessage(),
+            containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version")
         );
-        assertEquals("This query isn't serializable to nodes before 8.1.0", ex.getCause().getCause().getMessage());
+        assertThat(ex.getCause().getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
+        assertEquals("This query isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getCause().getMessage());
     }
 
 }

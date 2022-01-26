@@ -8,6 +8,7 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
@@ -30,6 +31,7 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -196,11 +198,8 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         Item response = multiSearchTemplateResponse.getResponses()[0];
         assertTrue(response.isFailure());
         Exception ex = response.getFailure();
-        assertEquals(
-            "[class org.elasticsearch.action.search.SearchRequest] is not compatible with version 8.0.0 and the "
-                + "'search.check_ccs_compatibility' setting is enabled.",
-            ex.getMessage()
-        );
-        assertEquals("This query isn't serializable to nodes before 8.1.0", ex.getCause().getMessage());
+        assertThat(ex.getMessage(), containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version"));
+        assertThat(ex.getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
+        assertEquals("This query isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());
     }
 }

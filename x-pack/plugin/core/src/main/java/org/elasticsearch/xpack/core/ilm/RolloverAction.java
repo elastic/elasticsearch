@@ -118,6 +118,8 @@ public class RolloverAction implements LifecycleAction {
         maxDocs = in.readOptionalVLong();
         if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
             maxPrimaryShardDocs = in.readOptionalVLong();
+        } else {
+            maxPrimaryShardDocs = null;
         }
     }
 

@@ -47,8 +47,20 @@ public interface XContentFieldFilter {
      *         , otherwise return filter using {@link XContentParser}
      */
     static XContentFieldFilter newFieldFilter(String[] includes, String[] excludes) {
+        final CheckedFunction<XContentType, BytesReference, IOException> emptyValueSupplier = xContentType -> {
+            BytesStreamOutput bStream = new BytesStreamOutput();
+            XContentBuilder builder = XContentFactory.contentBuilder(xContentType, bStream).map(Collections.emptyMap());
+            builder.close();
+            return bStream.bytes();
+        };
         if ((CollectionUtils.isEmpty(excludes) == false) && Arrays.stream(excludes).filter(field -> field.contains("*")).count() > 0) {
             return (originalSource, contentType) -> {
+                if (originalSource == null || originalSource.length() <= 0) {
+                    if (contentType == null) {
+                        throw new IllegalStateException("originalSource and contentType can not be null at the same time");
+                    }
+                    return emptyValueSupplier.apply(contentType);
+                }
                 Function<Map<String, ?>, Map<String, Object>> mapFilter = XContentMapValues.filter(includes, excludes);
                 Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(originalSource, true, contentType);
                 Map<String, Object> filteredSource = mapFilter.apply(mapTuple.v2());
@@ -63,13 +75,13 @@ public interface XContentFieldFilter {
                 Set.of(includes),
                 Set.of(excludes)
             ).withSupportDotInFieldName(true);
-            final CheckedFunction<XContentType, BytesReference, IOException> emptyValueSupplier = xContentType -> {
-                BytesStreamOutput bStream = new BytesStreamOutput();
-                XContentBuilder builder = XContentFactory.contentBuilder(xContentType, bStream).map(Collections.emptyMap());
-                builder.close();
-                return bStream.bytes();
-            };
             return (originalSource, contentType) -> {
+                if (originalSource == null || originalSource.length() <= 0) {
+                    if (contentType == null) {
+                        throw new IllegalStateException("originalSource and contentType can not be null at the same time");
+                    }
+                    return emptyValueSupplier.apply(contentType);
+                }
                 if (contentType == null) {
                     contentType = XContentHelper.xContentTypeMayCompressed(originalSource);
                 }

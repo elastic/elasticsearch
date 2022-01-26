@@ -9,13 +9,19 @@
 package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentFieldFilter;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
@@ -327,6 +333,36 @@ public class XContentFiledFilterTests extends AbstractFilteringTestCase {
         Builder actual = builder -> builder.startObject().array("photos", "foo", "bar").field("photosCount", 2).endObject();
         Builder expected = builder -> builder.startObject().field("photosCount", 2).endObject();
         testFilter(expected, actual, singleton("photosCount"), emptySet());
+    }
+
+    public void testEmptySource() throws IOException {
+        final CheckedFunction<XContentType, BytesReference, IOException> emptyValueSupplier = xContentType -> {
+            BytesStreamOutput bStream = new BytesStreamOutput();
+            XContentBuilder builder = XContentFactory.contentBuilder(xContentType, bStream).map(Collections.emptyMap());
+            builder.close();
+            return bStream.bytes();
+        };
+        final XContentType xContentType = randomFrom(XContentType.values());
+        // null value for parser filter
+        assertEquals(
+            emptyValueSupplier.apply(xContentType),
+            XContentFieldFilter.newFieldFilter(new String[0], new String[0]).apply(null, xContentType)
+        );
+        // empty bytes for parser filter
+        assertEquals(
+            emptyValueSupplier.apply(xContentType),
+            XContentFieldFilter.newFieldFilter(new String[0], new String[0]).apply(BytesArray.EMPTY, xContentType)
+        );
+        // null value for map filter
+        assertEquals(
+            emptyValueSupplier.apply(xContentType),
+            XContentFieldFilter.newFieldFilter(new String[0], new String[] { "test*" }).apply(null, xContentType)
+        );
+        // empty bytes for map filter
+        assertEquals(
+            emptyValueSupplier.apply(xContentType),
+            XContentFieldFilter.newFieldFilter(new String[0], new String[] { "test*" }).apply(BytesArray.EMPTY, xContentType)
+        );
     }
 
     private BytesReference toBytesReference(Builder builder, XContentType xContentType, boolean humanReadable) throws IOException {

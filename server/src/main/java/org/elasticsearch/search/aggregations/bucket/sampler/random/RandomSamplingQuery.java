@@ -44,7 +44,7 @@ public final class RandomSamplingQuery extends Query {
      */
     public RandomSamplingQuery(double p, int seed, int hash) {
         if (p <= 0.0 || p >= 1.0) {
-            throw new IllegalArgumentException("RandomSampling probability must be between 0.0 and 1.0");
+            throw new IllegalArgumentException("RandomSampling probability must be between 0.0 and 1.0, was [" + p + "]");
         }
         this.p = p;
         this.seed = seed;
@@ -140,7 +140,7 @@ public final class RandomSamplingQuery extends Query {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RandomSamplingQuery that = (RandomSamplingQuery) o;
-        return Double.compare(that.p, p) == 0 && seed == that.seed && hash == that.seed;
+        return Double.compare(that.p, p) == 0 && seed == that.seed && hash == that.hash;
     }
 
     @Override

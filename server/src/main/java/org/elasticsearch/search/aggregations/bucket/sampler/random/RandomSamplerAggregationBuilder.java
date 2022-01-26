@@ -16,6 +16,8 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -24,11 +26,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<RandomSamplerAggregationBuilder> {
 
@@ -60,7 +61,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
 
     public RandomSamplerAggregationBuilder setProbability(double probability) {
         if (probability <= 0 || probability >= 1) {
-            throw new IllegalArgumentException("[probability] must be between 0 and 1, exclusive");
+            throw new IllegalArgumentException("[probability] must be between 0 and 1, exclusive, was [" + probability + "]");
         }
         this.p = probability;
         return this;
@@ -97,12 +98,14 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         out.writeBoolean(setSeed);
     }
 
-    void recursivelyFlattenAggs(Collection<AggregationBuilder> builders, List<AggregationBuilder> flattened) {
+    void recursivelyCheckSubAggs(Collection<AggregationBuilder> builders, Consumer<AggregationBuilder> aggregationCheck) {
         if (builders == null || builders.isEmpty()) {
             return;
         }
-        flattened.addAll(builders);
-        builders.forEach(b -> recursivelyFlattenAggs(b.getSubAggregations(), flattened));
+        for (AggregationBuilder b : builders) {
+            aggregationCheck.accept(b);
+            recursivelyCheckSubAggs(b.getSubAggregations(), aggregationCheck);
+        }
     }
 
     @Override
@@ -117,10 +120,12 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         if (subfactoriesBuilder.getAggregatorFactories().isEmpty()) {
             throw new IllegalArgumentException("[random_sampler] aggregation [" + getName() + "] must have sub-aggregations");
         }
-        List<AggregationBuilder> flattenBuilders = new ArrayList<>();
-        recursivelyFlattenAggs(subfactoriesBuilder.getAggregatorFactories(), flattenBuilders);
-        for (AggregationBuilder builder : flattenBuilders) {
-            if (builder instanceof CardinalityAggregationBuilder || builder instanceof NestedAggregationBuilder) {
+        recursivelyCheckSubAggs(subfactoriesBuilder.getAggregatorFactories(), builder -> {
+            // TODO add a method or interface to aggregation builder that defaults to false
+            if (builder instanceof CardinalityAggregationBuilder
+                || builder instanceof NestedAggregationBuilder
+                || builder instanceof SamplerAggregationBuilder
+                || builder instanceof DiversifiedAggregationBuilder) {
                 throw new IllegalArgumentException(
                     "[random_sampler] aggregation ["
                         + getName()
@@ -131,7 +136,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
                         + "]"
                 );
             }
-        }
+        });
         return new RandomSamplerAggregatorFactory(name, seed, p, context, parent, subfactoriesBuilder, metadata);
     }
 
@@ -163,11 +168,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
 
     @Override
     public int hashCode() {
-        if (setSeed) {
-            return Objects.hash(super.hashCode(), p, seed);
-        } else {
-            return Objects.hash(super.hashCode(), p);
-        }
+        return Objects.hash(super.hashCode(), p, seed);
     }
 
     @Override
@@ -176,6 +177,6 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         RandomSamplerAggregationBuilder other = (RandomSamplerAggregationBuilder) obj;
-        return Objects.equals(p, other.p) && (setSeed == false || Objects.equals(seed, other.seed));
+        return Objects.equals(p, other.p) && Objects.equals(seed, other.seed);
     }
 }

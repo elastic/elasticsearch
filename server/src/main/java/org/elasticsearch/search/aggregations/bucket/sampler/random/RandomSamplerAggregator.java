@@ -9,13 +9,11 @@
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -30,14 +28,13 @@ import java.util.Map;
 
 public class RandomSamplerAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
-    private final double probability;
     private final int seed;
-    private final int hash;
+    private final CheckedSupplier<Weight, IOException> weightSupplier;
 
     RandomSamplerAggregator(
         String name,
         int seed,
-        double probability,
+        CheckedSupplier<Weight, IOException> weightSupplier,
         AggregatorFactories factories,
         AggregationContext context,
         Aggregator parent,
@@ -45,12 +42,13 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, context, parent, cardinalityUpperBound, metadata);
-        this.probability = probability;
         this.seed = seed;
-        this.hash = context.shardRandomSeed();
         if (this.subAggregators().length == 0) {
-            throw new IllegalArgumentException("must have sub aggs");
+            throw new IllegalArgumentException(
+                RandomSamplerAggregationBuilder.NAME + " aggregation [" + name + "] must have sub aggregations configured"
+            );
         }
+        this.weightSupplier = weightSupplier;
     }
 
     @Override
@@ -72,24 +70,36 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
         return new InternalRandomSampler(name, 0, seed, buildEmptySubAggregations(), metadata());
     }
 
+    /**
+     * This is an optimized leaf collector that iterates the documents provided the {@link RandomSamplingQuery} directly.
+     *
+     * Instead of sampling in the foreground (i.e. iterating the documents as they are matched
+     * by the {@link RandomSamplerAggregator#topLevelQuery()}), iterating the document set returned by {@link RandomSamplingQuery} directly
+     * allows this aggregation to sample documents in the background. This provides a dramatic speed improvement, especially when a
+     * non-trivial {@link RandomSamplerAggregator#topLevelQuery()} is provided.
+     *
+     * @param ctx reader context
+     * @param sub collector
+     * @return this always returns {@link LeafBucketCollector#NO_OP_COLLECTOR}
+     * @throws IOException when building the query or extracting docs fails
+     */
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        RandomSamplingQuery query = new RandomSamplingQuery(probability, seed, hash);
-        BooleanQuery booleanQuery = new BooleanQuery.Builder().add(query, BooleanClause.Occur.FILTER)
-            .add(topLevelQuery(), BooleanClause.Occur.FILTER)
-            .build();
-        Weight weight = searcher().createWeight(searcher().rewrite(booleanQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
-        Scorer scorer = weight.scorer(ctx);
+        Scorer scorer = weightSupplier.get().scorer(ctx);
+        // This means there are no docs to iterate, possibly due to the fields not existing
         if (scorer == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final DocIdSetIterator docIt = scorer.iterator();
         final Bits liveDocs = ctx.reader().getLiveDocs();
+        // Iterate every document provided by the scorer iterator
         for (int docId = docIt.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docIt.nextDoc()) {
+            // If liveDocs is null, that means that every doc is a live doc, no need to check if it has been deleted or not
             if (liveDocs == null || liveDocs.get(docIt.docID())) {
                 collectBucket(sub, docIt.docID(), 0);
             }
         }
+        // Since we have done our own collection, there is nothing for the leaf collector to do
         return LeafBucketCollector.NO_OP_COLLECTOR;
     }
 

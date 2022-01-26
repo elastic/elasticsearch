@@ -68,7 +68,7 @@ public class FastGeometric {
      */
     public FastGeometric(IntSupplier randomGen, double p) {
         if (p <= 0.0 || p >= 1.0) {
-            throw new IllegalArgumentException("[p] must be between 0.0 and 1.0, exclusive");
+            throw new IllegalArgumentException("[p] must be between 0.0 and 1.0, exclusive, was [" + p + "]");
         }
         this.rng = randomGen;
         int bits = (int) (1.5 * Math.log(Math.log(0.01) / Math.log(1.0 - p) - 1.0) / Math.log(2.0));

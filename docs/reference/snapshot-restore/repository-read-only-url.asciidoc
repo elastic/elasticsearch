@@ -49,7 +49,7 @@ in snapshots. Data files are not compressed. Defaults to `true`.
 Maximum number of snapshots the repository can contain.
 Defaults to `Integer.MAX_VALUE`, which is `2^31-1` or `2147483647`.
 
-include::repository-shared-settings.asciidoc[]
+include::repository-shared-settings.asciidoc[tags=!readonly-repo-setting]
 
 `url`::
 +

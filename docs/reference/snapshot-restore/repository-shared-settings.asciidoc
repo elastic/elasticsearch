@@ -7,6 +7,7 @@ that restores are also throttled through <<recovery,recovery settings>>
 (Optional, <<byte-units,byte value>>)
 Maximum snapshot creation rate per node. Defaults to `40mb` per second.
 
+//tag::readonly-repo-setting[]
 `readonly`::
 (Optional, Boolean)
 If `true`, the repository is read-only. The cluster can retrieve and restore
@@ -28,3 +29,4 @@ other clusters connected to the repository should have the `readonly` parameter
 set to `true`. This means those clusters can retrieve or restore snapshots from
 the repository but not create snapshots in it.
 =====
+//end::readonly-repo-setting[]

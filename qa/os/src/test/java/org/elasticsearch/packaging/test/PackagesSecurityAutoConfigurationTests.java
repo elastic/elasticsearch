@@ -75,13 +75,13 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
     public void test20SecurityNotAutoConfiguredOnReInstallation() throws Exception {
         // we are testing force upgrading in the current version
         // In such a case, security remains configured from the initial installation, we don't run it again.
-        byte[] transportKeystore = Files.readAllBytes(installation.config("certs").resolve("transport.p12"));
+        byte[] transportKeystore = Files.readAllBytes(installation.config(AUTOCONFIG_DIRNAME).resolve("transport.p12"));
         installation = Packages.forceUpgradePackage(sh, distribution);
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
         verifySecurityAutoConfigured(installation);
         // Since we did not auto-configure the second time, the keystore should be the one we generated the first time, above
-        assertThat(transportKeystore, equalTo(Files.readAllBytes(installation.config("certs").resolve("transport.p12"))));
+        assertThat(transportKeystore, equalTo(Files.readAllBytes(installation.config(AUTOCONFIG_DIRNAME).resolve("transport.p12"))));
     }
 
     public void test30SecurityNotAutoConfiguredWhenExistingDataDir() throws Exception {
@@ -309,10 +309,13 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
                 true
             );
             assertThat(result.exitCode(), CoreMatchers.equalTo(0));
-            assertThat(installation.config("certs"), FileMatcher.file(Directory, "root", "elasticsearch", p750));
+            assertThat(installation.config(AUTOCONFIG_DIRNAME), FileMatcher.file(Directory, "root", "elasticsearch", p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
                 .forEach(
-                    file -> assertThat(installation.config("certs").resolve(file), FileMatcher.file(File, "root", "elasticsearch", p660))
+                    file -> assertThat(
+                        installation.config(AUTOCONFIG_DIRNAME).resolve(file),
+                        FileMatcher.file(File, "root", "elasticsearch", p660)
+                    )
                 );
         }
     }

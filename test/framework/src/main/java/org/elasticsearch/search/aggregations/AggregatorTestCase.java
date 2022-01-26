@@ -37,8 +37,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
-import org.apache.lucene.search.SortedSetSelector;
-import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
@@ -664,8 +662,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
             if (timeSeries) {
                 Sort sort = new Sort(
-                    new SortedSetSortField(TimeSeriesIdFieldMapper.NAME, false, SortedSetSelector.Type.MAX),
-                    new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG)
+                    new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
+                    new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
                 );
                 config.setIndexSort(sort);
             }

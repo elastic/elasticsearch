@@ -46,12 +46,12 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final ClusterStateTaskExecutor.ClusterTasksResult<MetadataMappingService.PutMappingClusterStateUpdateTask> result =
             mappingService.putMappingExecutor.execute(clusterService.state(), singleTask(request));
         // the task completed successfully
-        assertThat(result.executionResults.size(), equalTo(1));
-        assertTrue(result.executionResults.values().iterator().next().isSuccess());
+        assertThat(result.executionResults().size(), equalTo(1));
+        assertTrue(result.executionResults().values().iterator().next().isSuccess());
         // the task really was a mapping update
         assertThat(
             indexService.mapperService().documentMapper().mappingSource(),
-            not(equalTo(result.resultingState.metadata().index("test").mapping().source()))
+            not(equalTo(result.resultingState().metadata().index("test").mapping().source()))
         );
         // since we never committed the cluster state update, the in-memory state is unchanged
         assertThat(indexService.mapperService().documentMapper().mappingSource(), equalTo(currentMapping));
@@ -68,15 +68,15 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
             clusterService.state(),
             singleTask(request)
         );
-        assertTrue(result.executionResults.values().stream().noneMatch(res -> res.isSuccess() == false));
+        assertTrue(result.executionResults().values().stream().noneMatch(res -> res.isSuccess() == false));
 
         ClusterStateTaskExecutor.ClusterTasksResult<?> result2 = mappingService.putMappingExecutor.execute(
-            result.resultingState,
+            result.resultingState(),
             singleTask(request)
         );
-        assertTrue(result.executionResults.values().stream().noneMatch(res -> res.isSuccess() == false));
+        assertTrue(result.executionResults().values().stream().noneMatch(res -> res.isSuccess() == false));
 
-        assertSame(result2.resultingState, result.resultingState);
+        assertSame(result2.resultingState(), result.resultingState());
     }
 
     public void testMappingVersion() throws Exception {
@@ -89,9 +89,9 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         request.indices(new Index[] { indexService.index() });
         final ClusterStateTaskExecutor.ClusterTasksResult<MetadataMappingService.PutMappingClusterStateUpdateTask> result =
             mappingService.putMappingExecutor.execute(clusterService.state(), singleTask(request));
-        assertThat(result.executionResults.size(), equalTo(1));
-        assertTrue(result.executionResults.values().iterator().next().isSuccess());
-        assertThat(result.resultingState.metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion));
+        assertThat(result.executionResults().size(), equalTo(1));
+        assertTrue(result.executionResults().values().iterator().next().isSuccess());
+        assertThat(result.resultingState().metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion));
     }
 
     public void testMappingVersionUnchanged() throws Exception {
@@ -103,9 +103,9 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         request.indices(new Index[] { indexService.index() });
         final ClusterStateTaskExecutor.ClusterTasksResult<MetadataMappingService.PutMappingClusterStateUpdateTask> result =
             mappingService.putMappingExecutor.execute(clusterService.state(), singleTask(request));
-        assertThat(result.executionResults.size(), equalTo(1));
-        assertTrue(result.executionResults.values().iterator().next().isSuccess());
-        assertThat(result.resultingState.metadata().index("test").getMappingVersion(), equalTo(previousVersion));
+        assertThat(result.executionResults().size(), equalTo(1));
+        assertTrue(result.executionResults().values().iterator().next().isSuccess());
+        assertThat(result.resultingState().metadata().index("test").getMappingVersion(), equalTo(previousVersion));
     }
 
     private static List<MetadataMappingService.PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {

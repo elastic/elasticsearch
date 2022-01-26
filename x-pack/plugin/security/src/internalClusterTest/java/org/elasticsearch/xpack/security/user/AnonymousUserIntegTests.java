@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.user;
 
+import org.apache.http.Header;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
@@ -23,19 +24,27 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AnonymousUserIntegTests extends SecurityIntegTestCase {
-    private boolean authorizationExceptionsEnabled = randomBoolean();
+    private static boolean authorizationExceptionsEnabled;
+
+    @BeforeClass
+    public static void maybeEnableAnonymousAuthorizationException() {
+        authorizationExceptionsEnabled = randomBoolean();
+    }
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -69,8 +78,11 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
                 assertThat(EntityUtils.toString(response.getEntity()), containsString("security_exception"));
             } else {
                 assertThat(statusCode, is(401));
-                assertThat(response.getHeader("WWW-Authenticate"), notNullValue());
-                assertThat(response.getHeader("WWW-Authenticate"), containsString("Basic"));
+                final List<String> wwwAuthenticateHeaders = Arrays.stream(response.getHeaders())
+                    .filter(header -> "WWW-Authenticate".equalsIgnoreCase(header.getName()))
+                    .map(Header::getValue)
+                    .toList();
+                assertThat(wwwAuthenticateHeaders, hasItems(containsString("Basic"), containsString("ApiKey")));
                 assertThat(EntityUtils.toString(response.getEntity()), containsString("security_exception"));
             }
         }

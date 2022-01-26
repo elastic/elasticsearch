@@ -14,6 +14,7 @@ import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
 import com.nimbusds.jose.proc.JOSEObjectTypeVerifier;
+import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
@@ -71,7 +72,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.LinkedHashMap;
@@ -84,7 +84,10 @@ import java.util.concurrent.atomic.AtomicLong;
 public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     private static final Logger LOGGER = LogManager.getLogger(JwtRealm.class);
-    private static final JOSEObjectTypeVerifier JWT_HEADER_TYPE_VERIFIER = new DefaultJOSEObjectTypeVerifier(JOSEObjectType.JWT, null);
+    private static final JOSEObjectTypeVerifier<SecurityContext> JWT_HEADER_TYPE_VERIFIER = new DefaultJOSEObjectTypeVerifier<>(
+        JOSEObjectType.JWT,
+        null
+    );
 
     // super constructor saves RealmConfig (use super.config). Contains: identifier, enabled, order, env, settings, threadContext
 
@@ -701,41 +704,26 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     @Override
     public void usageStats(final ActionListener<Map<String, Object>> listener) {
         this.ensureInitialized();
-        super.usageStats(ActionListener.wrap(stats -> {
-            stats.put(
-                "token",
-                linkedHashMap(
-                    new AbstractMap.SimpleEntry<>("fail", this.counterTokenFail.get()),
-                    new AbstractMap.SimpleEntry<>("success", this.counterTokenSuccess.get())
-                )
-            );
-            stats.put(
-                "authenticate",
-                linkedHashMap(
-                    new AbstractMap.SimpleEntry<>("fail", this.counterAuthenticateFail.get()),
-                    new AbstractMap.SimpleEntry<>("success", this.counterAuthenticateSuccess.get())
-                )
-            );
-            stats.put(
-                "cache",
-                linkedHashMap(
-                    new AbstractMap.SimpleEntry<>("fail", this.counterCacheGetFail.get()),
-                    new AbstractMap.SimpleEntry<>("warn", this.counterCacheGetOkWarning.get()),
-                    new AbstractMap.SimpleEntry<>("ok", this.counterCacheGetOkNoWarning.get()),
-                    new AbstractMap.SimpleEntry<>("add", this.counterCacheAdd.get()),
-                    new AbstractMap.SimpleEntry<>("size", this.getCacheSize())
-                )
-            );
-            listener.onResponse(stats);
-        }, listener::onFailure));
-    }
+        super.usageStats(ActionListener.wrap(usageStats -> {
+            final LinkedHashMap<String, Object> token = new LinkedHashMap<>();
+            token.put("miss", this.counterTokenFail.get());
+            token.put("ok", this.counterTokenSuccess.get());
+            usageStats.put("token", token);
 
-    private LinkedHashMap<String, Object> linkedHashMap(final Map.Entry<String, Object>... entries) {
-        final LinkedHashMap<String, Object> linkedHashMap = new LinkedHashMap<>(entries.length);
-        for (final Map.Entry<String, Object> entry : entries) {
-            linkedHashMap.put(entry.getKey(), entry.getValue());
-        }
-        return linkedHashMap;
+            final LinkedHashMap<String, Object> authenticate = new LinkedHashMap<>();
+            authenticate.put("miss", this.counterAuthenticateFail.get());
+            authenticate.put("ok", this.counterAuthenticateSuccess.get());
+            usageStats.put("authenticate", authenticate);
+
+            final LinkedHashMap<String, Object> cache = new LinkedHashMap<>();
+            authenticate.put("miss", this.counterCacheGetFail.get());
+            authenticate.put("warn", this.counterCacheGetOkWarning.get());
+            authenticate.put("ok", this.counterCacheGetOkNoWarning.get());
+            authenticate.put("add", this.counterCacheAdd.get());
+            authenticate.put("size", this.getCacheSize());
+            usageStats.put("cache", cache);
+            listener.onResponse(usageStats);
+        }, listener::onFailure));
     }
 
     public void ensureInitialized() {

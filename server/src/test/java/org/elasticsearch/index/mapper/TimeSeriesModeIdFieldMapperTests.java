@@ -9,7 +9,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
@@ -315,19 +314,13 @@ public class TimeSeriesModeIdFieldMapperTests extends MetadataMapperTestCase {
             b.endObject().endObject();
         }));
 
-        // o\.*
-        
-        // {"o": {"f1": f1, "f2": f2}}
-        // {"o": {"f1": f1}, "o.f2": f2}
-        // {"o.f1": f1, "o": {"f2": f2}}
-
         String f1 = randomAlphaOfLength(12);
         String f2 = randomAlphaOfLength(12);
         String canonical = parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.startObject("o").field("f1", f1).field("f2", f2).endObject();
         }).id();
-        assertThat(parse(mapperService, b -> {         // NOCOMMIT I don't think this is ok!?
+        assertThat(parse(mapperService, b -> {
             b.field("@timestamp", "2022-01-01T01:00:00Z");
             b.field("o.f1", f1);
             b.startObject("o").field("f2", f2).endObject();

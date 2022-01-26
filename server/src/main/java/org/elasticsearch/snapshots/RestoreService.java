@@ -1593,17 +1593,17 @@ public class RestoreService implements ClusterStateApplier {
         MappingMetadata mappingMetadata = snapshotIndexMetadata.mapping();
         Map<String, Object> loadedMappingSource = mappingMetadata.rawSourceAsMap();
 
-        // store old mapping under _meta/legacy-mappings
+        // store old mapping under _meta/legacy_mappings
         Map<String, Object> legacyMapping = new LinkedHashMap<>();
         boolean sourceOnlySnapshot = snapshotIndexMetadata.getSettings().getAsBoolean("index.source_only", false);
         if (sourceOnlySnapshot) {
             // actual mapping is under "_meta" (but strip type first)
             Object sourceOnlyMeta = mappingMetadata.sourceAsMap().get("_meta");
             if (sourceOnlyMeta instanceof Map<?, ?> sourceOnlyMetaMap) {
-                legacyMapping.put("legacy-mappings", sourceOnlyMetaMap);
+                legacyMapping.put("legacy_mappings", sourceOnlyMetaMap);
             }
         } else {
-            legacyMapping.put("legacy-mappings", loadedMappingSource);
+            legacyMapping.put("legacy_mappings", loadedMappingSource);
         }
 
         Map<String, Object> newMappingSource = new LinkedHashMap<>();

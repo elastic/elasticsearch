@@ -219,7 +219,7 @@ Discontinue use of the `kibana_user` role.
 [%collapsible]
 ====
 *Details* +
-The voting configuration exclusions API's 
+The voting configuration exclusions API's
 `POST _cluster/voting_config_exclusions/<node_name>` request path is now
 deprecated. To add a voting configuration exclusion, specify node names or node
 IDs using a query parameter instead:
@@ -228,7 +228,7 @@ IDs using a query parameter instead:
 - `POST _cluster/voting_config_exclusions?node_ids=<node_ids>`
 
 *Impact* +
-To avoid deprecation warnings, discontinue use of the 
+To avoid deprecation warnings, discontinue use of the
 `POST _cluster/voting_config_exclusions/<node_name>` request path.
 ====
 

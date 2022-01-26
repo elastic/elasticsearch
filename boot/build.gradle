@@ -19,7 +19,8 @@ tasks.named("test").configure { enabled = false }
 tasks.named("jarHell").configure { enabled = false }
 
 tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'jdk-signatures'
+  //replaceSignatureFiles 'jdk-signatures'
+  enabled false
 }
 
 plugins.withType(JavaPlugin) {

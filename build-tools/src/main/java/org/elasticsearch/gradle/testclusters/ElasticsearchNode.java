@@ -54,10 +54,12 @@ import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.process.ExecOperations;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.LineNumberReader;
 import java.io.UncheckedIOException;
 import java.net.URL;
@@ -67,6 +69,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -588,6 +591,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void logToProcessStdout(String message) {
+        logToProcessStdout(message, esLogFile);
+    }
+
+    private static void logToProcessStdout(String message, Path esLogFile) {
         try {
             if (Files.exists(esLogFile.getParent()) == false) {
                 Files.createDirectories(esLogFile.getParent());
@@ -882,10 +889,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         environment.clear();
         environment.putAll(getESEnvironment());
 
-        // Just toss the output since we rely on the normal log file written by Elasticsearch
-        processBuilder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-        processBuilder.redirectError(ProcessBuilder.Redirect.DISCARD);
-
         if (keystorePassword != null && keystorePassword.length() > 0) {
             try {
                 Files.write(esStdinFile, (keystorePassword + "\n").getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE);
@@ -900,7 +903,45 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new TestClustersException("Failed to start ES process for " + this, e);
         }
+        // Capture the process stdout/stderr, if any, that may be emitted before ES logger is configured
+        threads[0] = new OutputThread(esProcess.getInputStream(), OutputThread.Type.sdtout, esLogFile);
+        threads[1] = new OutputThread(esProcess.getErrorStream(), OutputThread.Type.stderr, esLogFile);
+        threads[0].start();
+        threads[1].start();
         reaperServiceProvider.get().registerPid(toString(), esProcess.pid());
+    }
+
+    private static final Thread[] threads = new OutputThread[2];
+
+    /** A thread that reads until EOF on the give input stream, and makes the stringified data available. */
+    private static class OutputThread extends Thread {
+        enum Type {
+            sdtout,
+            stderr
+        }
+
+        private final InputStream is;
+        private final Type type;
+        private final Path logFile;
+
+        OutputThread(InputStream is, Type type, Path logFile) {
+            this.is = is;
+            this.type = type;
+            this.logFile = logFile;
+        }
+
+        @Override
+        public void run() {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+            try {
+                String s;
+                while ((s = reader.readLine()) != null) {
+                    logToProcessStdout(type + " : [" + s + "]", logFile);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     @Internal
@@ -968,6 +1009,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
         // Test clusters are not reused, don't spend time on a graceful shutdown
         stopHandle(esProcess.toHandle(), true);
+        try {
+            for (Thread oThread : threads) {
+                oThread.join(Duration.ofSeconds(30).toMillis());
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         reaperServiceProvider.get().unregister(toString());
         esProcess = null;
         // Clean up the ports file in case this is started again.

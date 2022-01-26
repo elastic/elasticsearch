@@ -71,9 +71,12 @@ public class GetDesiredNodesAction extends ActionType<GetDesiredNodesAction.Resp
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject();
-            builder.field("desired_nodes", desiredNodes);
-            builder.endObject();
+            if (desiredNodes != null) {
+                return desiredNodes.toXContent(builder, params);
+            } else {
+                builder.startObject();
+                builder.endObject();
+            }
             return builder;
         }
 

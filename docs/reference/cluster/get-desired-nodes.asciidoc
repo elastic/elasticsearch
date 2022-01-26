@@ -14,7 +14,7 @@ Get desired nodes.
 //////////////////////////
 [source,console]
 --------------------------------------------------
-PUT /_cluster/desired_nodes/my_history/1
+PUT /_internal/desired_nodes/my_history/1
 {
     "nodes" : [
         {
@@ -47,29 +47,23 @@ DELETE /_cluster/desired_nodes
 
 [source,console]
 --------------------------------------------------
-GET /_cluster/desired_nodes
+GET /_internal/desired_nodes/_latest
 --------------------------------------------------
 // TEST
-
-[[get-desired-nodes-prereqs]]
-==== {api-prereq-title}
-
-* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
-users can use this API.
 
 [[get-desired-nodes-desc]]
 ==== {api-description-title}
 
-This API gets the current desired nodes.
+This API gets the latest desired nodes.
 
 [[get-desired-nodes-examples]]
 ==== {api-examples-title}
 
-This example gets the current desired nodes.
+This example gets the latest desired nodes.
 
 [source,console]
 --------------------------------------------------
-GET /_cluster/desired_nodes
+GET /_internal/desired_nodes/_latest
 --------------------------------------------------
 // TEST
 
@@ -78,25 +72,23 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-    "desired_nodes": {
-        "history_id": <history_id>,
-        "version": <version>,
-        "nodes": [
-            {
-                "settings": <node_settings>,
-                "processors": <node_processors>,
-                "memory": "<node_memory>",
-                "storage": "<node_storage>",
-                "version": "<node_version>"
-            }
-        ]
-    }
+    "history_id": <history_id>,
+    "version": <version>,
+    "nodes": [
+        {
+            "settings": <node_settings>,
+            "processors": <node_processors>,
+            "memory": "<node_memory>",
+            "storage": "<node_storage>",
+            "version": "<node_version>"
+        }
+    ]
 }
 --------------------------------------------------
-// TEST[s/<history_id>/$body.desired_nodes.history_id/]
-// TEST[s/<version>/$body.desired_nodes.version/]
-// TEST[s/<node_settings>/$body.desired_nodes.nodes.0.settings/]
-// TEST[s/<node_processors>/$body.desired_nodes.nodes.0.processors/]
-// TEST[s/<node_memory>/$body.desired_nodes.nodes.0.memory/]
-// TEST[s/<node_storage>/$body.desired_nodes.nodes.0.storage/]
-// TEST[s/<node_version>/$body.desired_nodes.nodes.0.version/]
+// TEST[s/<history_id>/$body.history_id/]
+// TEST[s/<version>/$body.version/]
+// TEST[s/<node_settings>/$body.nodes.0.settings/]
+// TEST[s/<node_processors>/$body.nodes.0.processors/]
+// TEST[s/<node_memory>/$body.nodes.0.memory/]
+// TEST[s/<node_storage>/$body.nodes.0.storage/]
+// TEST[s/<node_version>/$body.nodes.0.version/]

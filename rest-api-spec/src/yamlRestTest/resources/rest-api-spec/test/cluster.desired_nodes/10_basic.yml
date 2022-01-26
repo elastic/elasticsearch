@@ -19,7 +19,7 @@
   - do:
       desired_nodes.get_desired_nodes: {}
   - match:
-      desired_nodes:
+      $body:
         history_id: "test"
         version: 1
         nodes:
@@ -38,7 +38,7 @@
   - do:
       desired_nodes.get_desired_nodes: {}
   - match:
-      desired_nodes:
+      $body:
         history_id: "test"
         version: 2
         nodes:
@@ -58,7 +58,7 @@
   - do:
       desired_nodes.get_desired_nodes: {}
   - match:
-      desired_nodes:
+      $body:
         history_id: "test"
         version: 1
         nodes:
@@ -77,7 +77,7 @@
   - do:
       desired_nodes.get_desired_nodes: {}
   - match:
-      desired_nodes:
+      $body:
         history_id: "new_history"
         version: 1
         nodes:
@@ -97,7 +97,7 @@
   - do:
       desired_nodes.get_desired_nodes: {}
   - match:
-      desired_nodes:
+      $body:
         history_id: "test"
         version: 1
         nodes:
@@ -109,7 +109,7 @@
   - do:
       desired_nodes.get_desired_nodes: {}
   - match:
-      desired_nodes: null
+      $body: {}
 ---
 "Test update desired nodes is idempotent":
   - do:
@@ -124,7 +124,7 @@
   - do:
       desired_nodes.get_desired_nodes: {}
   - match:
-      desired_nodes:
+      $body:
         history_id: "test"
         version: 1
         nodes:
@@ -142,7 +142,7 @@
   - do:
       desired_nodes.get_desired_nodes: {}
   - match:
-      desired_nodes:
+      $body:
         history_id: "test"
         version: 1
         nodes:
@@ -165,7 +165,7 @@
         version: 1
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
+            - { settings: { "node.external_id": "instance-000187", "http.tcp.keep_idle": 100 }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
   - match: { status: 409 }
   - match: { error.type: version_conflict_exception }
   - match: { error.reason: "version [1] has been superseded by version [2] for history [test]" }
@@ -173,7 +173,7 @@
   - do:
       desired_nodes.get_desired_nodes: {}
   - match:
-      desired_nodes:
+      $body:
         history_id: "test"
         version: 2
         nodes:
@@ -204,7 +204,7 @@
   - do:
       desired_nodes.get_desired_nodes: {}
   - match:
-      desired_nodes:
+      $body:
         history_id: "test"
         version: 1
         nodes:

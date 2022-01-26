@@ -53,7 +53,7 @@ public class TransportGetDesiredNodesAction extends TransportMasterNodeReadActio
         ClusterState state,
         ActionListener<GetDesiredNodesAction.Response> listener
     ) throws Exception {
-        listener.onResponse(new GetDesiredNodesAction.Response(getDesiredNodesMetadata(state).getCurrentDesiredNodes()));
+        listener.onResponse(new GetDesiredNodesAction.Response(getDesiredNodesMetadata(state).getLatestDesiredNodes()));
     }
 
     @Override

@@ -13,7 +13,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_cluster/desired_nodes/{history_id}/{version}",
+          "path":"/_internal/desired_nodes/{history_id}/{version}",
           "methods":[
             "PUT"
           ],

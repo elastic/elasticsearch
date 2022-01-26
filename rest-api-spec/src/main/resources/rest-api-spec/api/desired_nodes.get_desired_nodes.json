@@ -7,13 +7,12 @@
     "stability":"stable",
     "visibility":"private",
     "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+      "accept": [ "application/json"]
     },
     "url":{
       "paths":[
         {
-          "path":"/_cluster/desired_nodes",
+          "path":"/_internal/desired_nodes/_latest",
           "methods":[
             "GET"
           ]

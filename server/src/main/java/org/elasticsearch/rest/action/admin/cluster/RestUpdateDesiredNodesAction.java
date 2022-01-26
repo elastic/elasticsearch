@@ -27,7 +27,7 @@ public class RestUpdateDesiredNodesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.PUT, "_cluster/desired_nodes/{history_id}/{version}"));
+        return List.of(new Route(RestRequest.Method.PUT, "_internal/desired_nodes/{history_id}/{version}"));
     }
 
     @Override

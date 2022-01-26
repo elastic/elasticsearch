@@ -25,7 +25,7 @@ public class RestDeleteDesiredNodesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.DELETE, "_cluster/desired_nodes"));
+        return List.of(new Route(RestRequest.Method.DELETE, "_internal/desired_nodes"));
     }
 
     @Override

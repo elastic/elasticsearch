@@ -46,8 +46,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final DesiredNodesMetadata metadata = state.metadata().custom(DesiredNodesMetadata.TYPE);
         assertThat(metadata, is(notNullValue()));
-        final DesiredNodes currentDesiredNodes = metadata.getCurrentDesiredNodes();
-        assertThat(currentDesiredNodes, is(equalTo(desiredNodes)));
+        final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
+        assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
     }
 
     public void testUpdateDesiredNodesIsIdempotent() {
@@ -57,8 +57,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final DesiredNodesMetadata metadata = state.metadata().custom(DesiredNodesMetadata.TYPE);
         assertThat(metadata, is(notNullValue()));
-        final DesiredNodes currentDesiredNodes = metadata.getCurrentDesiredNodes();
-        assertThat(currentDesiredNodes, is(equalTo(desiredNodes)));
+        final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
+        assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
     }
 
     public void testGoingBackwardsWithinTheSameHistoryIsForbidden() {
@@ -98,8 +98,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             final ClusterState state = client().admin().cluster().prepareState().get().getState();
             final DesiredNodesMetadata metadata = state.metadata().custom(DesiredNodesMetadata.TYPE);
             assertThat(metadata, is(notNullValue()));
-            final DesiredNodes currentDesiredNodes = metadata.getCurrentDesiredNodes();
-            assertThat(currentDesiredNodes, is(equalTo(desiredNodes)));
+            final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
+            assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
         }
 
         final DesiredNodes newDesiredNodes = putRandomDesiredNodes();
@@ -109,8 +109,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             final ClusterState state = client().admin().cluster().prepareState().get().getState();
             final DesiredNodesMetadata metadata = state.metadata().custom(DesiredNodesMetadata.TYPE);
             assertThat(metadata, is(notNullValue()));
-            final DesiredNodes currentDesiredNodes = metadata.getCurrentDesiredNodes();
-            assertThat(currentDesiredNodes, is(equalTo(newDesiredNodes)));
+            final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
+            assertThat(latestDesiredNodes, is(equalTo(newDesiredNodes)));
         }
     }
 
@@ -152,8 +152,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final DesiredNodesMetadata metadata = state.metadata().custom(DesiredNodesMetadata.TYPE);
         assertThat(metadata, is(notNullValue()));
-        final DesiredNodes currentDesiredNodes = metadata.getCurrentDesiredNodes();
-        assertThat(currentDesiredNodes, is(equalTo(desiredNodes)));
+        final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
+        assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
     }
 
     public void testSomeSettingsCanBeOverridden() {
@@ -170,10 +170,10 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final DesiredNodesMetadata metadata = state.metadata().custom(DesiredNodesMetadata.TYPE);
         assertThat(metadata, is(notNullValue()));
-        final DesiredNodes currentDesiredNodes = metadata.getCurrentDesiredNodes();
-        assertThat(currentDesiredNodes, is(equalTo(desiredNodes)));
-        assertThat(currentDesiredNodes.nodes().isEmpty(), is(equalTo(false)));
-        assertThat(currentDesiredNodes.nodes().get(0).settings().get(NODE_PROCESSORS_SETTING.getKey()), is(equalTo("2048")));
+        final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
+        assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
+        assertThat(latestDesiredNodes.nodes().isEmpty(), is(equalTo(false)));
+        assertThat(latestDesiredNodes.nodes().get(0).settings().get(NODE_PROCESSORS_SETTING.getKey()), is(equalTo("2048")));
     }
 
     public void testGetLatestDesiredNodes() {

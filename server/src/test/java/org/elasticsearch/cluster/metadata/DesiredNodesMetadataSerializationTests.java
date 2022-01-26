@@ -66,9 +66,9 @@ public class DesiredNodesMetadataSerializationTests extends AbstractDiffableSeri
         if (randomBoolean()) {
             return randomDesiredNodesMetadata();
         }
-        DesiredNodes currentDesiredNodes = base.getCurrentDesiredNodes();
+        DesiredNodes latestDesiredNodes = base.getLatestDesiredNodes();
         return new DesiredNodesMetadata(
-            new DesiredNodes(currentDesiredNodes.historyID(), currentDesiredNodes.version() + 1, currentDesiredNodes.nodes())
+            new DesiredNodes(latestDesiredNodes.historyID(), latestDesiredNodes.version() + 1, latestDesiredNodes.nodes())
         );
     }
 }

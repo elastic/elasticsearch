@@ -14,7 +14,7 @@ Delete desired nodes.
 //////////////////////////
 [source,console]
 --------------------------------------------------
-PUT /_cluster/desired_nodes/history/1
+PUT /_internal/desired_nodes/history/1
 {
     "nodes" : [
         {
@@ -41,12 +41,6 @@ PUT /_cluster/desired_nodes/history/1
 DELETE /_cluster/desired_nodes
 --------------------------------------------------
 // TEST
-
-[[delete-desired-nodes-prereqs]]
-==== {api-prereq-title}
-
-* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
-users can use this API.
 
 [[delete-desired-nodes-desc]]
 ==== {api-description-title}

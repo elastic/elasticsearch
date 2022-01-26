@@ -45,12 +45,6 @@ DELETE /_cluster/desired_nodes
 
 //////////////////////////
 
-[[update-desired-nodes-prereqs]]
-==== {api-prereq-title}
-
-* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
-users can use this API.
-
 [[update-desired-nodes-query-params]]
 ==== {api-query-parms-title}
 

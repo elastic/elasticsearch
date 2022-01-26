@@ -25,7 +25,7 @@ public class RestGetDesiredNodesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "_cluster/desired_nodes"));
+        return List.of(new Route(RestRequest.Method.GET, "_internal/desired_nodes/_latest"));
     }
 
     @Override

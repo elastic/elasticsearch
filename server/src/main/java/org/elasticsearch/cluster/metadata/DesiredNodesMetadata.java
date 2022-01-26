@@ -29,7 +29,7 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     public static final DesiredNodesMetadata EMPTY = new DesiredNodesMetadata((DesiredNodes) null);
 
-    private static final ParseField CURRENT_FIELD = new ParseField("current");
+    private static final ParseField LATEST_FIELD = new ParseField("latest");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DesiredNodesMetadata, Void> PARSER = new ConstructingObjectParser<>(
@@ -39,22 +39,22 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     );
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DesiredNodes.fromXContent(p), CURRENT_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> DesiredNodes.fromXContent(p), LATEST_FIELD);
     }
 
-    private final DesiredNodes currentDesiredNodes;
+    private final DesiredNodes latestDesiredNodes;
 
-    public DesiredNodesMetadata(DesiredNodes currentDesiredNodes) {
-        this.currentDesiredNodes = currentDesiredNodes;
+    public DesiredNodesMetadata(DesiredNodes latestDesiredNodes) {
+        this.latestDesiredNodes = latestDesiredNodes;
     }
 
     public DesiredNodesMetadata(StreamInput in) throws IOException {
-        this.currentDesiredNodes = new DesiredNodes(in);
+        this.latestDesiredNodes = new DesiredNodes(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        currentDesiredNodes.writeTo(out);
+        latestDesiredNodes.writeTo(out);
     }
 
     public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -67,13 +67,13 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(CURRENT_FIELD.getPreferredName(), currentDesiredNodes);
+        builder.field(LATEST_FIELD.getPreferredName(), latestDesiredNodes);
         return builder;
     }
 
     @Nullable
-    public DesiredNodes getCurrentDesiredNodes() {
-        return currentDesiredNodes;
+    public DesiredNodes getLatestDesiredNodes() {
+        return latestDesiredNodes;
     }
 
     @Override
@@ -96,11 +96,11 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DesiredNodesMetadata that = (DesiredNodesMetadata) o;
-        return Objects.equals(currentDesiredNodes, that.currentDesiredNodes);
+        return Objects.equals(latestDesiredNodes, that.latestDesiredNodes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(currentDesiredNodes);
+        return Objects.hash(latestDesiredNodes);
     }
 }

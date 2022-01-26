@@ -88,31 +88,31 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
 
     static ClusterState updateDesiredNodes(ClusterState currentState, UpdateDesiredNodesRequest request) {
         DesiredNodesMetadata desiredNodesMetadata = getDesiredNodesMetadata(currentState);
-        DesiredNodes currentDesiredNodes = desiredNodesMetadata.getCurrentDesiredNodes();
+        DesiredNodes latestDesiredNodes = desiredNodesMetadata.getLatestDesiredNodes();
         DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
 
-        if (currentDesiredNodes != null) {
-            if (currentDesiredNodes.equals(proposedDesiredNodes)) {
+        if (latestDesiredNodes != null) {
+            if (latestDesiredNodes.equals(proposedDesiredNodes)) {
                 return currentState;
             }
 
-            if (currentDesiredNodes.hasSameVersion(proposedDesiredNodes) && currentDesiredNodes.equals(proposedDesiredNodes) == false) {
+            if (latestDesiredNodes.hasSameVersion(proposedDesiredNodes)) {
                 throw new IllegalArgumentException(
                     format(
                         Locale.ROOT,
                         "Desired nodes with history [%s] and version [%d] already exists with a different definition",
-                        currentDesiredNodes.historyID(),
-                        currentDesiredNodes.version()
+                        latestDesiredNodes.historyID(),
+                        latestDesiredNodes.version()
                     )
                 );
             }
 
-            if (currentDesiredNodes.isSupersededBy(proposedDesiredNodes) == false) {
+            if (latestDesiredNodes.isSupersededBy(proposedDesiredNodes) == false) {
                 throw new VersionConflictException(
                     "version [{}] has been superseded by version [{}] for history [{}]",
                     proposedDesiredNodes.version(),
-                    currentDesiredNodes.version(),
-                    currentDesiredNodes.historyID()
+                    latestDesiredNodes.version(),
+                    latestDesiredNodes.historyID()
                 );
             }
         }

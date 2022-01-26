@@ -502,7 +502,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
 
     @Override
     public void doValidate(MappingLookup mappers) {
-        if (indexed && mappers.getNestedParent(name()) != null) {
+        if (indexed && mappers.nestedLookup().getNestedParent(name()) != null) {
             throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields cannot be indexed if they're" + " within [nested] mappings");
         }
     }

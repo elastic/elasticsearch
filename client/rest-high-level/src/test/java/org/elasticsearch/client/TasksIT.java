@@ -47,14 +47,14 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(2));
         boolean listTasksFound = false;
         for (TaskGroup taskGroup : response.getTaskGroups()) {
-            org.elasticsearch.tasks.TaskInfo parent = taskGroup.getTaskInfo();
-            if ("cluster:monitor/tasks/lists".equals(parent.getAction())) {
-                assertThat(taskGroup.getChildTasks().size(), equalTo(1));
-                TaskGroup childGroup = taskGroup.getChildTasks().iterator().next();
-                assertThat(childGroup.getChildTasks().isEmpty(), equalTo(true));
-                org.elasticsearch.tasks.TaskInfo child = childGroup.getTaskInfo();
-                assertThat(child.getAction(), equalTo("cluster:monitor/tasks/lists[n]"));
-                assertThat(child.getParentTaskId(), equalTo(parent.getTaskId()));
+            org.elasticsearch.tasks.TaskInfo parent = taskGroup.taskInfo();
+            if ("cluster:monitor/tasks/lists".equals(parent.action())) {
+                assertThat(taskGroup.childTasks().size(), equalTo(1));
+                TaskGroup childGroup = taskGroup.childTasks().iterator().next();
+                assertThat(childGroup.childTasks().isEmpty(), equalTo(true));
+                org.elasticsearch.tasks.TaskInfo child = childGroup.taskInfo();
+                assertThat(child.action(), equalTo("cluster:monitor/tasks/lists[n]"));
+                assertThat(child.parentTaskId(), equalTo(parent.taskId()));
                 listTasksFound = true;
             }
         }
@@ -92,9 +92,9 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
             assertTrue(taskResponse.isCompleted());
         }
         org.elasticsearch.tasks.TaskInfo info = taskResponse.getTaskInfo();
-        assertTrue(info.isCancellable());
-        assertEquals("reindex from [source1] to [dest]", info.getDescription());
-        assertEquals("indices:data/write/reindex", info.getAction());
+        assertTrue(info.cancellable());
+        assertEquals("reindex from [source1] to [dest]", info.description());
+        assertEquals("indices:data/write/reindex", info.action());
         if (taskResponse.isCompleted() == false) {
             assertBusy(checkTaskCompletionStatus(client(), taskId));
         }
@@ -115,7 +115,7 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         org.elasticsearch.tasks.TaskInfo firstTask = listResponse.getTasks().get(0);
         String node = listResponse.getPerNodeTasks().keySet().iterator().next();
 
-        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest.Builder().withTaskId(new TaskId(node, firstTask.getId())).build();
+        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest.Builder().withTaskId(new TaskId(node, firstTask.id())).build();
         CancelTasksResponse response = execute(
             cancelTasksRequest,
             highLevelClient().tasks()::cancel,

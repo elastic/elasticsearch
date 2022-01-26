@@ -255,11 +255,11 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             assertThat(response.getTaskFailures(), empty());
             assertThat(response.getNodeFailures(), empty());
             assertThat(response.getTasks(), hasSize(1));
-            assertEquals(taskIdToRethrottle, response.getTasks().get(0).getTaskId());
-            assertThat(response.getTasks().get(0).getStatus(), instanceOf(RawTaskStatus.class));
+            assertEquals(taskIdToRethrottle, response.getTasks().get(0).taskId());
+            assertThat(response.getTasks().get(0).status(), instanceOf(RawTaskStatus.class));
             assertEquals(
                 Float.toString(requestsPerSecond),
-                ((RawTaskStatus) response.getTasks().get(0).getStatus()).toMap().get("requests_per_second").toString()
+                ((RawTaskStatus) response.getTasks().get(0).status()).toMap().get("requests_per_second").toString()
             );
             assertTrue(taskFinished.await(10, TimeUnit.SECONDS));
 

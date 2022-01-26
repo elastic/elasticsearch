@@ -609,19 +609,11 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         }
     }
 
-    private static class IndexCaps {
-        final String name;
-        final boolean isSearchable;
-        final boolean isAggregatable;
-        final boolean isDimension;
-        final TimeSeriesParams.MetricType metricType;
-
-        IndexCaps(String name, boolean isSearchable, boolean isAggregatable, boolean isDimension, TimeSeriesParams.MetricType metricType) {
-            this.name = name;
-            this.isSearchable = isSearchable;
-            this.isAggregatable = isAggregatable;
-            this.isDimension = isDimension;
-            this.metricType = metricType;
-        }
-    }
+    private record IndexCaps(
+        String name,
+        boolean isSearchable,
+        boolean isAggregatable,
+        boolean isDimension,
+        TimeSeriesParams.MetricType metricType
+    ) {}
 }

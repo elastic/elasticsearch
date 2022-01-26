@@ -8,7 +8,7 @@
 //tag::notable-breaking-changes[]
 TIP: {ess-setting-change}
 
-.`action.destructive_requires_name` now defaults to `false`. {ess-icon}
+.`action.destructive_requires_name` now defaults to `true`. {ess-icon}
 [%collapsible]
 ====
 *Details* +

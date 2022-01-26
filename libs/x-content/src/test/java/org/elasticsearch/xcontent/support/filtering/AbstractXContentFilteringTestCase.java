@@ -29,9 +29,207 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractXContentFilteringTestCase extends AbstractFilteringTestCase {
+    public void testSingleFieldObject() throws IOException {
+        Builder sample = builder -> builder.startObject().startObject("foo").field("bar", "test").endObject().endObject();
+        Builder expected = builder -> builder.startObject().startObject("foo").field("bar", "test").endObject().endObject();
+        testFilter(expected, sample, singleton("foo.bar"), emptySet());
+        testFilter(expected, sample, emptySet(), singleton("foo.baz"));
+        testFilter(expected, sample, singleton("foo"), singleton("foo.baz"));
 
+        expected = builder -> builder.startObject().endObject();
+        testFilter(expected, sample, emptySet(), singleton("foo.bar"));
+        testFilter(expected, sample, singleton("foo"), singleton("foo.b*"));
+    }
+
+    public void testDotInIncludedFieldNameUnconfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().endObject(),
+            builder -> builder.startObject().field("foo.bar", "test").endObject(),
+            singleton("foo.bar"),
+            emptySet(),
+            false
+        );
+    }
+
+    public void testDotInIncludedFieldNameConfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().field("foo.bar", "test").endObject(),
+            builder -> builder.startObject().field("foo.bar", "test").endObject(),
+            singleton("foo.bar"),
+            emptySet(),
+            true
+        );
+    }
+
+    public void testDotInExcludedFieldNameUnconfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().field("foo.bar", "test").endObject(),
+            builder -> builder.startObject().field("foo.bar", "test").endObject(),
+            emptySet(),
+            singleton("foo.bar"),
+            false
+        );
+    }
+
+    public void testDotInExcludedFieldNameConfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().endObject(),
+            builder -> builder.startObject().field("foo.bar", "test").endObject(),
+            emptySet(),
+            singleton("foo.bar"),
+            true
+        );
+    }
+
+    public void testDotInIncludedObjectNameUnconfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().endObject(),
+            builder -> builder.startObject().startObject("foo.bar").field("baz", "test").endObject().endObject(),
+            singleton("foo.bar"),
+            emptySet(),
+            false
+        );
+    }
+
+    public void testDotInIncludedObjectNameConfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().startObject("foo.bar").field("baz", "test").endObject().endObject(),
+            builder -> builder.startObject().startObject("foo.bar").field("baz", "test").endObject().endObject(),
+            singleton("foo.bar"),
+            emptySet(),
+            true
+        );
+    }
+
+    public void testDotInExcludedObjectNameUnconfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().startObject("foo.bar").field("baz", "test").endObject().endObject(),
+            builder -> builder.startObject().startObject("foo.bar").field("baz", "test").endObject().endObject(),
+            emptySet(),
+            singleton("foo.bar"),
+            false
+        );
+    }
+
+    public void testDotInExcludedObjectNameConfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().endObject(),
+            builder -> builder.startObject().startObject("foo.bar").field("baz", "test").endObject().endObject(),
+            emptySet(),
+            singleton("foo.bar"),
+            true
+        );
+    }
+
+    public void testDotInIncludedFieldNamePatternUnconfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().endObject(),
+            builder -> builder.startObject().field("foo.bar", "test").endObject(),
+            singleton(randomFrom("foo.*", "*.bar", "f*.bar", "foo.*ar", "*.*")),
+            emptySet(),
+            false
+        );
+    }
+
+    public void testDotInIncludedFieldNamePatternConfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().field("foo.bar", "test").endObject(),
+            builder -> builder.startObject().field("foo.bar", "test").endObject(),
+            singleton(randomFrom("foo.*", "*.bar", "f*.bar", "foo.*ar", "*.*")),
+            emptySet(),
+            true
+        );
+    }
+
+    public void testDotInExcludedFieldNamePatternUnconfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().field("foo.bar", "test").endObject(),
+            builder -> builder.startObject().field("foo.bar", "test").endObject(),
+            emptySet(),
+            singleton(randomFrom("foo.*", "foo.*ar")),
+            false
+        );
+    }
+
+    public void testDotInExcludedFieldNamePatternConfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().endObject(),
+            builder -> builder.startObject().field("foo.bar", "test").endObject(),
+            emptySet(),
+            singleton("*.bar"),
+//            singleton(randomFrom("foo.*", "*.bar", "f*.bar", "foo.*ar", "*.*")),
+            true
+        );
+    }
+
+    public void testDotInIncludedObjectNamePatternUnconfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().endObject(),
+            builder -> builder.startObject().startObject("foo.bar").field("baz", "test").endObject().endObject(),
+            singleton(randomFrom("foo.*", "f*.bar", "foo.*ar")),
+            emptySet(),
+            false
+        );
+    }
+
+    public void testDotInIncludedObjectNamePatternConfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().startObject("foo.bar").field("baz", "test").endObject().endObject(),
+            builder -> builder.startObject().startObject("foo.bar").field("baz", "test").endObject().endObject(),
+            singleton(randomFrom("foo.*", "*.bar", "f*.bar", "foo.*ar")),
+            emptySet(),
+            true
+        );
+    }
+
+    public void testDotInExcludedObjectNamePatternUnconfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().startObject("foo.bar").field("baz", "test").endObject().endObject(),
+            builder -> builder.startObject().startObject("foo.bar").field("baz", "test").endObject().endObject(),
+            emptySet(),
+            singleton(randomFrom("foo.*", "*.bar", "f*.bar", "foo.*ar")),
+            false
+        );
+    }
+
+    public void testDotInExcludedObjectNamePatternConfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().endObject(),
+            builder -> builder.startObject().startObject("foo.bar").field("baz", "test").endObject().endObject(),
+            emptySet(),
+            singleton(randomFrom("foo.*", "*.bar", "f*.bar", "foo.*ar")),
+            true
+        );
+    }
+
+    public void testDotInStarMatchDotsInNamesUnconfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().field("foo.bar", "test").endObject(),
+            builder -> builder.startObject().field("foo.bar", "test").endObject(),
+            singleton("f*r"),
+            emptySet(),
+            false
+        );
+    }
+
+    public void testDotInStarMatchDotsInNamesConfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().endObject(),
+            builder -> builder.startObject().field("foo.bar", "test").endObject(),
+            singleton("f*r"),
+            emptySet(),
+            true
+        );
+    }
+
+    @Override
     protected final void testFilter(Builder expected, Builder sample, Set<String> includes, Set<String> excludes) throws IOException {
-        assertFilterResult(expected.apply(createBuilder()), filter(sample, includes, excludes));
+        testFilter(expected, sample, includes, excludes, false);
+    }
+
+    private void testFilter(Builder expected, Builder sample, Set<String> includes, Set<String> excludes, boolean matchFieldNamesWithDots)
+        throws IOException {
+        assertFilterResult(expected.apply(createBuilder()), filter(sample, includes, excludes, matchFieldNamesWithDots));
     }
 
     protected abstract void assertFilterResult(XContentBuilder expected, XContentBuilder actual);
@@ -47,8 +245,9 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         return XContentBuilder.builder(getXContentType().xContent());
     }
 
-    private XContentBuilder filter(Builder sample, Set<String> includes, Set<String> excludes) throws IOException {
-        if (randomBoolean()) {
+    private XContentBuilder filter(Builder sample, Set<String> includes, Set<String> excludes, boolean matchFieldNamesWithDots)
+        throws IOException {
+        if (matchFieldNamesWithDots == false && randomBoolean()) {
             return filterOnBuilder(sample, includes, excludes);
         }
         FilterPath[] excludesFilter = FilterPath.compile(excludes);
@@ -58,21 +257,26 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
              * filtering produced weird invalid json. Just field names
              * and no objects?! Weird. Anyway, we can't use it.
              */
+            assertFalse("can't filter on builder with dotted wildcards in exclude", matchFieldNamesWithDots);
             return filterOnBuilder(sample, includes, excludes);
         }
-        return filterOnParser(sample, includes, excludes);
+        return filterOnParser(sample, includes, excludes, matchFieldNamesWithDots);
     }
 
     private XContentBuilder filterOnBuilder(Builder sample, Set<String> includes, Set<String> excludes) throws IOException {
         return sample.apply(XContentBuilder.builder(getXContentType(), includes, excludes));
     }
 
-    private XContentBuilder filterOnParser(Builder sample, Set<String> includes, Set<String> excludes) throws IOException {
+    private XContentBuilder filterOnParser(Builder sample, Set<String> includes, Set<String> excludes, boolean matchFieldNamesWithDots)
+        throws IOException {
         try (XContentBuilder builtSample = sample.apply(createBuilder())) {
             BytesReference sampleBytes = BytesReference.bytes(builtSample);
             try (
                 XContentParser parser = getXContentType().xContent()
-                    .createParser(XContentParserConfiguration.EMPTY.withFiltering(includes, excludes), sampleBytes.streamInput())
+                    .createParser(
+                        XContentParserConfiguration.EMPTY.withFiltering(includes, excludes, matchFieldNamesWithDots),
+                        sampleBytes.streamInput()
+                    )
             ) {
                 XContentBuilder result = createBuilder();
                 if (sampleBytes.get(sampleBytes.length() - 1) == '\n') {
@@ -85,19 +289,6 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
                 return result.copyCurrentStructure(parser);
             }
         }
-    }
-
-    public void testSingleFieldObject() throws IOException {
-        final Builder sample = builder -> builder.startObject().startObject("foo").field("bar", "test").endObject().endObject();
-
-        Builder expected = builder -> builder.startObject().startObject("foo").field("bar", "test").endObject().endObject();
-        testFilter(expected, sample, singleton("foo.bar"), emptySet());
-        testFilter(expected, sample, emptySet(), singleton("foo.baz"));
-        testFilter(expected, sample, singleton("foo"), singleton("foo.baz"));
-
-        expected = builder -> builder.startObject().endObject();
-        testFilter(expected, sample, emptySet(), singleton("foo.bar"));
-        testFilter(expected, sample, singleton("foo"), singleton("foo.b*"));
     }
 
     static void assertXContentBuilderAsString(final XContentBuilder expected, final XContentBuilder actual) {

@@ -191,7 +191,6 @@ public abstract class AggregationBuilder
         return Strings.toString(this);
     }
 
-    // TODO remove this and implement default in every QueryBuilder
     @Override
     public Version getMinimalSupportedVersion() {
         return Version.V_EMPTY;

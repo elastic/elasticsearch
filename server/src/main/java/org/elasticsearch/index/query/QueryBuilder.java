@@ -68,7 +68,6 @@ public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject,
         return this;
     }
 
-    // TODO remove this and implement default in every QueryBuilder
     @Override
     default Version getMinimalSupportedVersion() {
         return Version.V_EMPTY;

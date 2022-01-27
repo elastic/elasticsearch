@@ -260,7 +260,6 @@ public abstract class PipelineAggregationBuilder
         return this;
     }
 
-    // TODO remove this and implement default in every QueryBuilder
     @Override
     public Version getMinimalSupportedVersion() {
         return Version.V_EMPTY;

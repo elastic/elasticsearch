@@ -25,7 +25,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -206,9 +206,9 @@ public abstract class AggregationContext implements Releasable {
     public abstract Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException;
 
     /**
-     * Find an {@link ObjectMapper}.
+     * Get the {@link NestedLookup} of this index
      */
-    public abstract ObjectMapper getObjectMapper(String path);
+    public abstract NestedLookup nestedLookup();
 
     /**
      * Access the nested scope. Stay away from this unless you are dealing with nested.
@@ -474,8 +474,8 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public ObjectMapper getObjectMapper(String path) {
-            return context.getObjectMapper(path);
+        public NestedLookup nestedLookup() {
+            return context.nestedLookup();
         }
 
         @Override

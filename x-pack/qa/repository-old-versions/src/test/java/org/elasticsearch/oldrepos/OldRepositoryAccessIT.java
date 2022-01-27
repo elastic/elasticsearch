@@ -318,10 +318,10 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertThat(root.get("_meta"), instanceOf(Map.class));
         @SuppressWarnings("unchecked")
         Map<String, Object> meta = (Map<String, Object>) root.get("_meta");
-        assertThat(meta, hasKey("legacy-mappings"));
-        assertThat(meta.get("legacy-mappings"), instanceOf(Map.class));
+        assertThat(meta, hasKey("legacy_mappings"));
+        assertThat(meta.get("legacy_mappings"), instanceOf(Map.class));
         @SuppressWarnings("unchecked")
-        Map<String, Object> legacyMappings = (Map<String, Object>) meta.get("legacy-mappings");
+        Map<String, Object> legacyMappings = (Map<String, Object>) meta.get("legacy_mappings");
         assertThat(legacyMappings.keySet(), not(empty()));
         for (Map.Entry<String, Object> entry : legacyMappings.entrySet()) {
             String type = entry.getKey();

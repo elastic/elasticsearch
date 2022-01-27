@@ -180,7 +180,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             .get()
             .getTasks()
             .stream()
-            .map(TaskInfo::getAction)
+            .map(TaskInfo::action)
             .collect(Collectors.toList());
         assertThat(tasksNames, is(empty()));
     }

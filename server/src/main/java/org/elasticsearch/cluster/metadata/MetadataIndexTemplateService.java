@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -111,7 +112,6 @@ public class MetadataIndexTemplateService {
 
     private static final Logger logger = LogManager.getLogger(MetadataIndexTemplateService.class);
     private final ClusterService clusterService;
-    private final AliasValidator aliasValidator;
     private final IndicesService indicesService;
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
@@ -123,7 +123,6 @@ public class MetadataIndexTemplateService {
     public MetadataIndexTemplateService(
         ClusterService clusterService,
         MetadataCreateIndexService metadataCreateIndexService,
-        AliasValidator aliasValidator,
         IndicesService indicesService,
         IndexScopedSettings indexScopedSettings,
         NamedXContentRegistry xContentRegistry,
@@ -131,7 +130,6 @@ public class MetadataIndexTemplateService {
         IndexSettingProviders indexSettingProviders
     ) {
         this.clusterService = clusterService;
-        this.aliasValidator = aliasValidator;
         this.indicesService = indicesService;
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
@@ -146,7 +144,7 @@ public class MetadataIndexTemplateService {
             new ClusterStateUpdateTask(Priority.URGENT, request.masterTimeout) {
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
 
@@ -176,10 +174,11 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -200,7 +199,7 @@ public class MetadataIndexTemplateService {
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
 
@@ -210,10 +209,11 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -371,7 +371,7 @@ public class MetadataIndexTemplateService {
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
 
@@ -381,10 +381,11 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -487,7 +488,7 @@ public class MetadataIndexTemplateService {
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
 
@@ -497,10 +498,11 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -826,7 +828,7 @@ public class MetadataIndexTemplateService {
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
 
@@ -836,10 +838,11 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -953,7 +956,7 @@ public class MetadataIndexTemplateService {
             new ClusterStateUpdateTask(Priority.URGENT, request.masterTimeout) {
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
 
@@ -964,10 +967,11 @@ public class MetadataIndexTemplateService {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(new PutResponse(true));
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -1399,7 +1403,6 @@ public class MetadataIndexTemplateService {
                 Collections.emptySet(),
                 MetadataIndexTemplateService.resolveAliases(stateWithIndex.metadata(), templateName),
                 stateWithIndex.metadata(),
-                new AliasValidator(),
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 xContentRegistry,
@@ -1582,7 +1585,7 @@ public class MetadataIndexTemplateService {
 
         for (Alias alias : aliases) {
             // we validate the alias only partially, as we don't know yet to which index it'll get applied to
-            aliasValidator.validateAliasStandalone(alias);
+            AliasValidator.validateAliasStandalone(alias);
             if (indexPatterns.contains(alias.name())) {
                 throw new IllegalArgumentException(
                     "alias [" + alias.name() + "] cannot be the same as any pattern in [" + String.join(", ", indexPatterns) + "]"

@@ -18,6 +18,7 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -38,7 +39,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
@@ -88,7 +88,7 @@ public class UpdateHelper {
      * Tuple of operation and updated {@code _source} is returned.
      */
     Tuple<UpdateOpType, Map<String, Object>> executeScriptedUpsert(Map<String, Object> upsertDoc, Script script, LongSupplier nowInMillis) {
-        Map<String, Object> ctx = new HashMap<>(3);
+        Map<String, Object> ctx = Maps.newMapWithExpectedSize(3);
         // Tell the script that this is a create and not an update
         ctx.put(ContextFields.OP, UpdateOpType.CREATE.toString());
         ctx.put(ContextFields.SOURCE, upsertDoc);
@@ -239,7 +239,7 @@ public class UpdateHelper {
         final XContentType updateSourceContentType = sourceAndContent.v1();
         final Map<String, Object> sourceAsMap = sourceAndContent.v2();
 
-        Map<String, Object> ctx = new HashMap<>(16);
+        Map<String, Object> ctx = Maps.newMapWithExpectedSize(16);
         ctx.put(ContextFields.OP, UpdateOpType.INDEX.toString()); // The default operation is "index"
         ctx.put(ContextFields.INDEX, getResult.getIndex());
         ctx.put(ContextFields.TYPE, MapperService.SINGLE_MAPPING_NAME);

@@ -7,10 +7,20 @@
  */
 package org.elasticsearch.env;
 
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.set.Sets;
@@ -18,6 +28,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.MetadataStateFormat;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,6 +50,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.env.NodeEnvironment.checkForIndexCompatibility;
+import static org.elasticsearch.env.NodeMetadata.NODE_VERSION_KEY;
+import static org.elasticsearch.env.NodeMetadata.OLDEST_INDEX_VERSION_KEY;
+import static org.elasticsearch.gateway.PersistedClusterStateService.METADATA_DIRECTORY_NAME;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -523,6 +538,65 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
+    public void testIndexCompatibilityChecks() throws IOException {
+        final Settings settings = buildEnvSettings(Settings.EMPTY);
+
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            try (
+                PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
+                    env.nodeDataPaths(),
+                    env.nodeId(),
+                    xContentRegistry(),
+                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    () -> 0L
+                ).createWriter()
+            ) {
+                writer.writeFullStateAndCommit(
+                    1L,
+                    ClusterState.builder(ClusterName.DEFAULT)
+                        .metadata(
+                            Metadata.builder()
+                                .persistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build())
+                                .build()
+                        )
+                        .build()
+                );
+            }
+
+            Version oldIndexVersion = Version.fromId(between(1, Version.CURRENT.minimumIndexCompatibilityVersion().id - 1));
+            overrideOldestIndexVersion(oldIndexVersion, env.nodeDataPaths());
+
+            IllegalStateException ex = expectThrows(
+                IllegalStateException.class,
+                "Must fail the check on index that's too old",
+                () -> checkForIndexCompatibility(logger, env.nodePaths())
+            );
+
+            assertThat(ex.getMessage(), containsString("[" + oldIndexVersion + "] exist"));
+            assertThat(ex.getMessage(), startsWith("cannot upgrade node because incompatible indices created with version"));
+
+            // This should work
+            overrideOldestIndexVersion(Version.CURRENT.minimumIndexCompatibilityVersion(), env.nodeDataPaths());
+            checkForIndexCompatibility(logger, env.nodePaths());
+
+            // Trying to boot with newer version should pass this check
+            overrideOldestIndexVersion(NodeMetadataTests.tooNewVersion(), env.nodeDataPaths());
+            checkForIndexCompatibility(logger, env.nodePaths());
+
+            // Simulate empty old index version, attempting to upgrade before 7.17
+            removeOldestIndexVersion(oldIndexVersion, env.nodeDataPaths());
+
+            ex = expectThrows(
+                IllegalStateException.class,
+                "Must fail the check on index that's too old",
+                () -> checkForIndexCompatibility(logger, env.nodePaths())
+            );
+
+            assertThat(ex.getMessage(), startsWith("cannot upgrade a node from version [" + oldIndexVersion + "] directly"));
+            assertThat(ex.getMessage(), containsString("upgrade to version [" + Version.CURRENT.minimumCompatibilityVersion()));
+        }
+    }
+
     private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,
@@ -602,5 +676,55 @@ public class NodeEnvironmentTests extends ESTestCase {
             .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths)
             .build();
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
+    }
+
+    private static void overrideOldestIndexVersion(Version oldVersion, Path... dataPaths) throws IOException {
+        for (final Path dataPath : dataPaths) {
+            final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
+            if (Files.exists(indexPath)) {
+                try (DirectoryReader reader = DirectoryReader.open(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
+                    final Map<String, String> userData = reader.getIndexCommit().getUserData();
+                    final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+
+                    try (
+                        IndexWriter indexWriter = new IndexWriter(
+                            new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)),
+                            indexWriterConfig
+                        )
+                    ) {
+                        final Map<String, String> commitData = new HashMap<>(userData);
+                        commitData.put(NODE_VERSION_KEY, Integer.toString(Version.CURRENT.minimumCompatibilityVersion().id));
+                        commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldVersion.id));
+                        indexWriter.setLiveCommitData(commitData.entrySet());
+                        indexWriter.commit();
+                    }
+                }
+            }
+        }
+    }
+
+    private static void removeOldestIndexVersion(Version oldVersion, Path... dataPaths) throws IOException {
+        for (final Path dataPath : dataPaths) {
+            final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
+            if (Files.exists(indexPath)) {
+                try (DirectoryReader reader = DirectoryReader.open(new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
+                    final Map<String, String> userData = reader.getIndexCommit().getUserData();
+                    final IndexWriterConfig indexWriterConfig = new IndexWriterConfig(new KeywordAnalyzer());
+
+                    try (
+                        IndexWriter indexWriter = new IndexWriter(
+                            new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)),
+                            indexWriterConfig
+                        )
+                    ) {
+                        final Map<String, String> commitData = new HashMap<>(userData);
+                        commitData.put(NODE_VERSION_KEY, Integer.toString(oldVersion.id));
+                        commitData.remove(OLDEST_INDEX_VERSION_KEY);
+                        indexWriter.setLiveCommitData(commitData.entrySet());
+                        indexWriter.commit();
+                    }
+                }
+            }
+        }
     }
 }

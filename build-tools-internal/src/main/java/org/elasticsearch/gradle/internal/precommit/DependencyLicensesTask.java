@@ -266,7 +266,7 @@ public class DependencyLicensesTask extends DefaultTask {
 
             File licenseFile = new File(licensesDir, getFileName(dependencyName, licenses, "LICENSE"));
             LicenseInfo licenseInfo = LicenseAnalyzer.licenseType(licenseFile);
-            if (licenseInfo.isSourceRedistributionRequired()) {
+            if (licenseInfo.sourceRedistributionRequired()) {
                 checkFile(dependencyName, jarName, sources, "SOURCES");
             }
         }

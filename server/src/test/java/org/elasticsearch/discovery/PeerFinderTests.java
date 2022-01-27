@@ -29,6 +29,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.test.transport.StubbableConnectionManager;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.TransportException;
@@ -210,7 +211,13 @@ public class PeerFinderTests extends ESTestCase {
 
         localNode = newDiscoveryNode("local-node");
 
-        ConnectionManager innerConnectionManager = new ClusterConnectionManager(settings, capturingTransport);
+        final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
+
+        final ConnectionManager innerConnectionManager = new ClusterConnectionManager(
+            settings,
+            capturingTransport,
+            threadPool.getThreadContext()
+        );
         StubbableConnectionManager connectionManager = new StubbableConnectionManager(innerConnectionManager);
         connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> {
             final boolean isConnected = connectedNodes.contains(discoveryNode);
@@ -222,7 +229,7 @@ public class PeerFinderTests extends ESTestCase {
         transportService = new TransportService(
             settings,
             capturingTransport,
-            deterministicTaskQueue.getThreadPool(),
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode,
             null,
@@ -548,7 +555,7 @@ public class PeerFinderTests extends ESTestCase {
 
         final CapturedRequest[] capturedRequests = capturingTransport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, is(1));
-        final PeersRequest peersRequest = (PeersRequest) capturedRequests[0].request;
+        final PeersRequest peersRequest = (PeersRequest) capturedRequests[0].request();
         assertThat(peersRequest.getKnownPeers(), contains(otherNode));
     }
 
@@ -892,11 +899,11 @@ public class PeerFinderTests extends ESTestCase {
     private void respondToRequests(Function<DiscoveryNode, PeersResponse> responseFactory) {
         final CapturedRequest[] capturedRequests = capturingTransport.getCapturedRequestsAndClear();
         for (final CapturedRequest capturedRequest : capturedRequests) {
-            assertThat(capturedRequest.action, is(REQUEST_PEERS_ACTION_NAME));
-            assertThat(capturedRequest.request, instanceOf(PeersRequest.class));
-            final PeersRequest peersRequest = (PeersRequest) capturedRequest.request;
+            assertThat(capturedRequest.action(), is(REQUEST_PEERS_ACTION_NAME));
+            assertThat(capturedRequest.request(), instanceOf(PeersRequest.class));
+            final PeersRequest peersRequest = (PeersRequest) capturedRequest.request();
             assertThat(peersRequest.getSourceNode(), is(localNode));
-            capturingTransport.handleResponse(capturedRequests[0].requestId, responseFactory.apply(capturedRequest.node));
+            capturingTransport.handleResponse(capturedRequests[0].requestId(), responseFactory.apply(capturedRequest.node()));
         }
     }
 

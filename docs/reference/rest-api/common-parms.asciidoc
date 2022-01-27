@@ -916,9 +916,11 @@ pattern (for example, `"my-index-*"`), an array of indices (for example,
 `["my-index-000001", "my-index-000002"]`), or an array of index patterns (for
 example, `["my-index-*", "my-other-index-*"]`. For remote indices use the syntax
 `"remote_name:index_name"`.
-
++
+--
 NOTE: If any indices are in remote clusters then the master node and at least
 one transform node must have the `remote_cluster_client` node role.
+--
 end::source-index-transforms[]
 
 tag::source-query-transforms[]
@@ -1033,6 +1035,11 @@ is specified as a group source in the transform config. As an effect, less docum
 destination index will be performed thus improving overall performance.
 The default value is `true`, which means the checkpoint ranges will be optimized if possible.
 end::transform-settings-align-checkpoints[]
+
+tag::transform-settings-deduce-mappings[]
+Specifies whether the transform should deduce the destination index mappings from the transform config.
+The default value is `true`, which means the destination index mappings will be deduced if possible.
+end::transform-settings-deduce-mappings[]
 
 tag::transform-settings-max-page-search-size[]
 Defines the initial page size to use for the composite aggregation for each

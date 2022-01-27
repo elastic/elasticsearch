@@ -8,25 +8,47 @@
 
 package org.elasticsearch.packaging.test;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ssl.PemKeyConfig;
+import org.elasticsearch.packaging.util.FileMatcher;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Shell;
+import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.EnrollmentToken;
+import org.hamcrest.CoreMatchers;
 import org.junit.BeforeClass;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.security.SecureRandom;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
 
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
+import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
+import static org.elasticsearch.packaging.util.FileMatcher.p660;
+import static org.elasticsearch.packaging.util.FileMatcher.p750;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -110,7 +132,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         // We cannot run two packaged installations simultaneously here so that we can test that the second node enrolls successfully
         // We trigger with an invalid enrollment token, to verify that we removed the existing auto-configuration
         Shell.Result result = installation.executables().nodeReconfigureTool.run("--enrollment-token thisisinvalid", "y", true);
-        assertThat(result.exitCode, equalTo(ExitCodes.DATA_ERROR)); // invalid enrollment token
+        assertThat(result.exitCode(), equalTo(ExitCodes.DATA_ERROR)); // invalid enrollment token
         verifySecurityNotAutoConfigured(installation);
     }
 
@@ -123,7 +145,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         verifySecurityAutoConfigured(installation);
         assertNotNull(installation.getElasticPassword());
         Shell.Result result = installation.executables().nodeReconfigureTool.run("", null, true);
-        assertThat(result.exitCode, equalTo(ExitCodes.USAGE)); // missing enrollment token
+        assertThat(result.exitCode(), equalTo(ExitCodes.USAGE)); // missing enrollment token
         // we fail on command invocation so we don't even try to remove autoconfiguration
         verifySecurityAutoConfigured(installation);
     }
@@ -143,7 +165,7 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         // Move instead of delete because Files.deleteIfExists bails on non empty dirs
         Files.move(installation.config(autoConfigDirName.get()), installation.config("temp-autoconf-dir"));
         Shell.Result result = installation.executables().nodeReconfigureTool.run("--enrollment-token a-token", "y", true);
-        assertThat(result.exitCode, equalTo(ExitCodes.USAGE)); //
+        assertThat(result.exitCode(), equalTo(ExitCodes.USAGE)); //
     }
 
     public void test71ReconfigureFailsWhenKeyStorePasswordWrong() throws Exception {
@@ -155,14 +177,14 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         verifySecurityAutoConfigured(installation);
         assertNotNull(installation.getElasticPassword());
         Shell.Result changePassword = installation.executables().keystoreTool.run("passwd", "some-password\nsome-password\n");
-        assertThat(changePassword.exitCode, equalTo(0));
+        assertThat(changePassword.exitCode(), equalTo(0));
         Shell.Result result = installation.executables().nodeReconfigureTool.run(
             "--enrollment-token a-token",
             "y" + "\n" + "some-wrong-password",
             true
         );
-        assertThat(result.exitCode, equalTo(ExitCodes.IO_ERROR)); //
-        assertThat(result.stderr, containsString("Error was: Provided keystore password was incorrect"));
+        assertThat(result.exitCode(), equalTo(ExitCodes.IO_ERROR)); //
+        assertThat(result.stderr(), containsString("Error was: Provided keystore password was incorrect"));
     }
 
     public void test71ReconfigureFailsWhenKeyStoreDoesNotContainExpectedSettings() throws Exception {
@@ -176,11 +198,11 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         Shell.Result removeSetting = installation.executables().keystoreTool.run(
             "remove xpack.security.transport.ssl.keystore.secure_password"
         );
-        assertThat(removeSetting.exitCode, equalTo(0));
+        assertThat(removeSetting.exitCode(), equalTo(0));
         Shell.Result result = installation.executables().nodeReconfigureTool.run("--enrollment-token a-token", "y", true);
-        assertThat(result.exitCode, equalTo(ExitCodes.IO_ERROR));
+        assertThat(result.exitCode(), equalTo(ExitCodes.IO_ERROR));
         assertThat(
-            result.stderr,
+            result.stderr(),
             containsString(
                 "elasticsearch.keystore did not contain expected setting [xpack.security.transport.ssl.keystore.secure_password]."
             )
@@ -200,8 +222,8 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         Files.write(yml, List.of(), TRUNCATE_EXISTING);
 
         Shell.Result result = installation.executables().nodeReconfigureTool.run("--enrollment-token a-token", "y", true);
-        assertThat(result.exitCode, equalTo(ExitCodes.USAGE)); //
-        assertThat(result.stderr, containsString("Expected configuration is missing from elasticsearch.yml."));
+        assertThat(result.exitCode(), equalTo(ExitCodes.USAGE)); //
+        assertThat(result.stderr(), containsString("Expected configuration is missing from elasticsearch.yml."));
     }
 
     public void test72ReconfigureRetainsUserSettings() throws Exception {
@@ -226,13 +248,76 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         // We cannot run two packaged installations simultaneously here so that we can test that the second node enrolls successfully
         // We trigger with an invalid enrollment token, to verify that we removed the existing auto-configuration
         Shell.Result result = installation.executables().nodeReconfigureTool.run("--enrollment-token thisisinvalid", "y", true);
-        assertThat(result.exitCode, equalTo(ExitCodes.DATA_ERROR)); // invalid enrollment token
+        assertThat(result.exitCode(), equalTo(ExitCodes.DATA_ERROR)); // invalid enrollment token
         verifySecurityNotAutoConfigured(installation);
         // Check that user configuration , both inside and outside the autocofiguration stanza, was retained
         Path editedYml = installation.config("elasticsearch.yml");
         List<String> newConfigurationLines = Files.readAllLines(editedYml);
         assertThat(newConfigurationLines, hasItem("cluster.name: testclustername"));
         assertThat(newConfigurationLines, hasItem("node.name: testnodename"));
+    }
+
+    public void test73ReconfigureCreatesFilesWithCorrectPermissions() throws Exception {
+        cleanup();
+        assertRemoved(distribution());
+        installation = installPackage(sh, distribution(), successfulAutoConfiguration());
+        assertInstalled(distribution());
+        verifyPackageInstallation(installation, distribution(), sh);
+        verifySecurityAutoConfigured(installation);
+        assertNotNull(installation.getElasticPassword());
+        final PemKeyConfig keyConfig = new PemKeyConfig(
+            Paths.get(getClass().getResource("http.crt").toURI()).toAbsolutePath().normalize().toString(),
+            Paths.get(getClass().getResource("http.key").toURI()).toAbsolutePath().normalize().toString(),
+            new char[0],
+            Paths.get(getClass().getResource("http.crt").toURI()).getParent().toAbsolutePath().normalize()
+        );
+        final SSLContext sslContext = SSLContext.getInstance("TLS");
+        sslContext.init(new KeyManager[] { keyConfig.createKeyManager() }, new TrustManager[] {}, new SecureRandom());
+        // We can't run multiple nodes as package installations. We mock an initial node that would respond to the enroll node API
+        try (MockWebServer mockNode = new MockWebServer(sslContext, false)) {
+            mockNode.start();
+            final String httpCaCertPemString = Files.readAllLines(
+                Paths.get(getClass().getResource("http_ca.crt").toURI()).toAbsolutePath().normalize()
+            ).stream().filter(l -> l.contains("-----") == false).collect(Collectors.joining());
+            final String httpCaKeyPemString = Files.readAllLines(
+                Paths.get(getClass().getResource("http_ca.key").toURI()).toAbsolutePath().normalize()
+            ).stream().filter(l -> l.contains("-----") == false).collect(Collectors.joining());
+            final String transportCaCertPemString = Files.readAllLines(
+                Paths.get(getClass().getResource("transport_ca.crt").toURI()).toAbsolutePath().normalize()
+            ).stream().filter(l -> l.contains("-----") == false).collect(Collectors.joining());
+            final String transportKeyPemString = Files.readAllLines(
+                Paths.get(getClass().getResource("transport.key").toURI()).toAbsolutePath().normalize()
+            ).stream().filter(l -> l.contains("-----") == false).collect(Collectors.joining());
+            final String transportCertPemString = Files.readAllLines(
+                Paths.get(getClass().getResource("transport.crt").toURI()).toAbsolutePath().normalize()
+            ).stream().filter(l -> l.contains("-----") == false).collect(Collectors.joining());
+            final XContentBuilder responseBuilder = jsonBuilder().startObject()
+                .field("http_ca_key", httpCaKeyPemString)
+                .field("http_ca_cert", httpCaCertPemString)
+                .field("transport_ca_cert", transportCaCertPemString)
+                .field("transport_key", transportKeyPemString)
+                .field("transport_cert", transportCertPemString)
+                .array("nodes_addresses", "192.168.1.23:9300") // won't be used, can be anything
+                .endObject();
+            mockNode.enqueue(new MockResponse().setResponseCode(200).setBody(Strings.toString(responseBuilder)));
+            final EnrollmentToken enrollmentToken = new EnrollmentToken(
+                "some-api-key",
+                "b0150fd8a29f9012207912de9a01aa1d1f0dd696c847d3a9353881f9045bf442", // fingerprint of http_ca.crt
+                Version.CURRENT.toString(),
+                List.of(mockNode.getHostName() + ":" + mockNode.getPort())
+            );
+            Shell.Result result = installation.executables().nodeReconfigureTool.run(
+                "-v --enrollment-token " + enrollmentToken.getEncoded(),
+                "y",
+                true
+            );
+            assertThat(result.exitCode(), CoreMatchers.equalTo(0));
+            assertThat(installation.config("certs"), FileMatcher.file(Directory, "root", "elasticsearch", p750));
+            Stream.of("http.p12", "http_ca.crt", "transport.p12")
+                .forEach(
+                    file -> assertThat(installation.config("certs").resolve(file), FileMatcher.file(File, "root", "elasticsearch", p660))
+                );
+        }
     }
 
     private Predicate<String> successfulAutoConfiguration() {

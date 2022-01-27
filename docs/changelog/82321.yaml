@@ -1,0 +1,6 @@
+pr: 82321
+summary: Prevent upgrades to 8.0 from 7.non-last
+area: Infra/Core
+type: enhancement
+issues:
+ - 81865

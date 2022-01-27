@@ -87,7 +87,7 @@ public class CodecTests extends ESTestCase {
         MapperService service = new MapperService(
             settings,
             indexAnalyzers,
-            xContentRegistry(),
+            parserConfig(),
             similarityService,
             mapperRegistry,
             () -> null,

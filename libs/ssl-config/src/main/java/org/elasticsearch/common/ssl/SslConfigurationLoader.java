@@ -252,7 +252,7 @@ public abstract class SslConfigurationLoader {
 
     /**
      * Clients of this class should implement this method to determine whether there are any settings for a given prefix.
-     * This is used to populate {@link SslConfiguration#isExplicitlyConfigured()}.
+     * This is used to populate {@link SslConfiguration#explicitlyConfigured()}.
      */
     protected abstract boolean hasSettings(String prefix);
 

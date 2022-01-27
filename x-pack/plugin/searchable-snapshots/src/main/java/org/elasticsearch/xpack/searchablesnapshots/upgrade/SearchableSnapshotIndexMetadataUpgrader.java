@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -71,12 +72,12 @@ public class SearchableSnapshotIndexMetadataUpgrader {
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     clusterService.removeListener(listener);
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     logger.warn(
                         "upgrading frozen indices to have frozen shard limit group failed, will retry on the next cluster state update",
                         e
@@ -84,7 +85,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
                     // let us try again later.
                     upgraded.set(false);
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         } else {
             clusterService.removeListener(listener);
         }

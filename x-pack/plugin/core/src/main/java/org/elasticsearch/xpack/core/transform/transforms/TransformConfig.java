@@ -622,7 +622,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     builder.getSettings().getDocsPerSecond(),
                     builder.getSettings().getDatesAsEpochMillis(),
                     builder.getSettings().getAlignCheckpoints(),
-                    builder.getSettings().getUsePit()
+                    builder.getSettings().getUsePit(),
+                    builder.getSettings().getDeduceMappings()
                 )
             );
         }
@@ -635,7 +636,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     builder.getSettings().getDocsPerSecond(),
                     true,
                     builder.getSettings().getAlignCheckpoints(),
-                    builder.getSettings().getUsePit()
+                    builder.getSettings().getUsePit(),
+                    builder.getSettings().getDeduceMappings()
                 )
             );
         }
@@ -648,7 +650,8 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
                     builder.getSettings().getDocsPerSecond(),
                     builder.getSettings().getDatesAsEpochMillis(),
                     false,
-                    builder.getSettings().getUsePit()
+                    builder.getSettings().getUsePit(),
+                    builder.getSettings().getDeduceMappings()
                 )
             );
         }

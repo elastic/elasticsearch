@@ -54,6 +54,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -61,7 +62,8 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -742,17 +744,18 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
 
         static TestTransportService newTestTransportService() {
             final TestThreadPool threadPool = new TestThreadPool("test");
-            MockNioTransport mockTransport = new MockNioTransport(
+            TcpTransport transport = new Netty4Transport(
                 Settings.EMPTY,
                 Version.CURRENT,
                 threadPool,
                 new NetworkService(Collections.emptyList()),
                 PageCacheRecycler.NON_RECYCLING_INSTANCE,
                 new NamedWriteableRegistry(Collections.emptyList()),
-                new NoneCircuitBreakerService()
+                new NoneCircuitBreakerService(),
+                new SharedGroupFactory(Settings.EMPTY)
             );
             SetOnce<TransportInterceptor.AsyncSender> asyncSenderHolder = new SetOnce<>();
-            TestTransportService transportService = new TestTransportService(mockTransport, new TransportInterceptor.AsyncSender() {
+            TestTransportService transportService = new TestTransportService(transport, new TransportInterceptor.AsyncSender() {
                 @Override
                 public <T extends TransportResponse> void sendRequest(
                     Transport.Connection connection,

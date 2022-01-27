@@ -15,15 +15,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class PainlessMethod {
-
-    public final Method javaMethod;
-    public final Class<?> targetClass;
-    public final Class<?> returnType;
-    public final List<Class<?>> typeParameters;
-    public final MethodHandle methodHandle;
-    public final MethodType methodType;
-    public final Map<Class<?>, Object> annotations;
+public record PainlessMethod(
+    Method javaMethod,
+    Class<?> targetClass,
+    Class<?> returnType,
+    List<Class<?>> typeParameters,
+    MethodHandle methodHandle,
+    MethodType methodType,
+    Map<Class<?>, Object> annotations
+) {
 
     public PainlessMethod(
         Method javaMethod,
@@ -34,7 +34,6 @@ public class PainlessMethod {
         MethodType methodType,
         Map<Class<?>, Object> annotations
     ) {
-
         this.javaMethod = javaMethod;
         this.targetClass = targetClass;
         this.returnType = returnType;
@@ -55,7 +54,6 @@ public class PainlessMethod {
         }
 
         PainlessMethod that = (PainlessMethod) object;
-
         return Objects.equals(javaMethod, that.javaMethod)
             && Objects.equals(targetClass, that.targetClass)
             && Objects.equals(returnType, that.returnType)

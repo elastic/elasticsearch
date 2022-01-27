@@ -122,7 +122,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         }
     }
 
-    public static class FieldMappingMetadata implements ToXContentFragment {
+    public record FieldMappingMetadata(String fullName, BytesReference source) implements ToXContentFragment {
 
         private static final ParseField FULL_NAME = new ParseField("full_name");
         private static final ParseField MAPPING = new ParseField("mapping");
@@ -133,26 +133,11 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             a -> new FieldMappingMetadata((String) a[0], (BytesReference) a[1])
         );
 
-        private final String fullName;
-        private final BytesReference source;
-
-        public FieldMappingMetadata(String fullName, BytesReference source) {
-            this.fullName = fullName;
-            this.source = source;
-        }
-
-        public String fullName() {
-            return fullName;
-        }
-
-        /** Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#name}. */
+        /**
+         * Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#name}.
+         */
         public Map<String, Object> sourceAsMap() {
             return XContentHelper.convertToMap(source, true, XContentType.JSON).v2();
-        }
-
-        // pkg-private for testing
-        BytesReference getSource() {
-            return source;
         }
 
         @Override
@@ -166,24 +151,6 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                 }
             }
             return builder;
-        }
-
-        @Override
-        public String toString() {
-            return "FieldMappingMetadata{fullName='" + fullName + '\'' + ", source=" + source + '}';
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof FieldMappingMetadata) == false) return false;
-            FieldMappingMetadata that = (FieldMappingMetadata) o;
-            return Objects.equals(fullName, that.fullName) && Objects.equals(source, that.source);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(fullName, source);
         }
     }
 

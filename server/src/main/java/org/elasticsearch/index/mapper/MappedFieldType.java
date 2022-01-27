@@ -480,6 +480,18 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * @return if the field may have values in the underlying index
+     *
+     * Note that this should only return {@code false} if it is not possible for it to
+     * match on a term query.
+     *
+     * @see org.elasticsearch.index.search.QueryParserHelper
+     */
+    public boolean mayExistInIndex(SearchExecutionContext context) {
+        return true;
+    }
+
+    /**
      * Pick a {@link DocValueFormat} that can be used to display and parse
      * values of fields of this type.
      */

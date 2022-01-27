@@ -610,7 +610,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             null,
-            xContentRegistry(),
+            parserConfig(),
             writableRegistry(),
             null,
             null,

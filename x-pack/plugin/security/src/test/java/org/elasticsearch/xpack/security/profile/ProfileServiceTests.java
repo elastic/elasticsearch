@@ -20,6 +20,13 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.junit.After;
@@ -36,6 +43,7 @@ import java.util.Set;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -47,30 +55,39 @@ public class ProfileServiceTests extends ESTestCase {
 
     public static final String SAMPLE_PROFILE_DOCUMENT_TEMPLATE = """
         {
-          "uid": "%s",
-          "enabled": true,
-          "user": {
-            "username": "foo",
-            "realm": {
-              "name": "realm_name",
-              "type": "realm_type",
-              "node_name": "node1"
+          "user_profile":  {
+            "uid": "%s",
+            "enabled": true,
+            "user": {
+              "username": "foo",
+              "roles": [
+                "role1",
+                "role2"
+              ],
+              "realm": {
+                "name": "realm_name_1",
+                "type": "realm_type_1",
+                "domain": {
+                  "name": "domainA",
+                  "realms": [
+                    { "name": "realm_name_1", "type": "realm_type_1" },
+                    { "name": "realm_name_2", "type": "realm_type_2" }
+                  ]
+                },
+                "node_name": "node1"
+              },
+              "email": "foo@example.com",
+              "full_name": "User Foo",
+              "display_name": "Curious Foo",
+              "active": true
             },
-            "email": "foo@example.com",
-            "full_name": "User Foo",
-            "display_name": "Curious Foo"
-          },
-          "last_synchronized": %s,
-          "access": {
-            "roles": [
-              "role1",
-              "role2"
-            ],
-            "applications": {}
-          },
-          "application_data": {
-            "app1": { "name": "app1" },
-            "app2": { "name": "app2" }
+            "last_synchronized": %s,
+            "access": {
+            },
+            "application_data": {
+              "app1": { "name": "app1" },
+              "app2": { "name": "app2" }
+            }
           }
         }
         """;
@@ -142,8 +159,17 @@ public class ProfileServiceTests extends ESTestCase {
                     uid,
                     true,
                     lastSynchronized,
-                    new Profile.ProfileUser("foo", "realm_name", null, "foo@example.com", "User Foo", "Curious Foo"),
-                    new Profile.Access(List.of("role1", "role2"), Map.of()),
+                    new Profile.ProfileUser(
+                        "foo",
+                        List.of("role1", "role2"),
+                        "realm_name_1",
+                        null,
+                        "foo@example.com",
+                        "User Foo",
+                        "Curious Foo",
+                        true
+                    ),
+                    Map.of(),
                     applicationData,
                     new Profile.VersionControl(1, 0)
                 )
@@ -151,10 +177,39 @@ public class ProfileServiceTests extends ESTestCase {
         );
     }
 
+    public void testActivateProfileShouldFailIfSubjectTypeIsNotUser() {
+        final Authentication authentication;
+        if (randomBoolean()) {
+            final User user = new User(randomAlphaOfLengthBetween(5, 8));
+            authentication = AuthenticationTests.randomApiKeyAuthentication(user, randomAlphaOfLength(20));
+        } else {
+            authentication = AuthenticationTests.randomServiceAccountAuthentication();
+        }
+
+        final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
+        profileService.activateProfile(authentication, future1);
+        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, future1::actionGet);
+        assertThat(e1.getMessage(), containsString("profile is supported for user only"));
+    }
+
+    public void testActivateProfileShouldFailForInternalUser() {
+        final User user = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
+        final Authentication.RealmRef realmRef = new Authentication.RealmRef(
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLength(5)
+        );
+        final Authentication authentication = new Authentication(user, realmRef, null);
+
+        final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
+        profileService.activateProfile(authentication, future1);
+        final IllegalStateException e1 = expectThrows(IllegalStateException.class, future1::actionGet);
+        assertThat(e1.getMessage(), containsString("profile should not be created for internal user"));
+    }
+
     private void mockGetRequest(String uid, long lastSynchronized) {
         final String source = SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, lastSynchronized);
 
         SecurityMocks.mockGetRequest(client, SECURITY_PROFILE_ALIAS, "profile_" + uid, new BytesArray(source));
     }
-
 }

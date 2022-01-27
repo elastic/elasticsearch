@@ -205,10 +205,6 @@ public final class KeywordFieldMapper extends FieldMapper {
                     .runForDoc(doc, consumer);
         }
 
-        boolean isRoutingDimension(String fullName) {
-            return dimension.get() && isRoutingDimension(fullName);
-        }
-
         @Override
         protected List<Parameter<?>> getParameters() {
             return List.of(

@@ -52,19 +52,19 @@ public class NodeMetadataTests extends ESTestCase {
                         return new NodeMetadata(
                             randomAlphaOfLength(21 - nodeMetadata.nodeId().length()),
                             nodeMetadata.nodeVersion(),
-                            Version.CURRENT
+                            nodeMetadata.oldestIndexVersion()
                         );
                     case 1:
                         return new NodeMetadata(
                             nodeMetadata.nodeId(),
                             randomValueOtherThan(nodeMetadata.nodeVersion(), this::randomVersion),
-                            Version.CURRENT
+                            nodeMetadata.oldestIndexVersion()
                         );
                     default:
                         return new NodeMetadata(
                             nodeMetadata.nodeId(),
                             nodeMetadata.nodeVersion(),
-                            randomValueOtherThan(Version.CURRENT, this::randomVersion)
+                            randomValueOtherThan(nodeMetadata.oldestIndexVersion(), this::randomVersion)
                         );
                 }
             }

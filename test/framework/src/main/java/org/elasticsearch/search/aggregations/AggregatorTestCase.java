@@ -409,6 +409,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));
+        when(indexShard.indexSettings()).thenReturn(indexSettings);
         when(ctx.indexShard()).thenReturn(indexShard);
         return new SubSearchContext(ctx);
     }

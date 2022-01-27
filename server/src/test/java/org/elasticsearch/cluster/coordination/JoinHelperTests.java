@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.test.transport.MockTransport;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
@@ -53,15 +54,16 @@ public class JoinHelperTests extends ESTestCase {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         CapturingTransport capturingTransport = new HandshakingCapturingTransport();
         DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             capturingTransport,
-            deterministicTaskQueue.getThreadPool(),
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode,
             null,
             Collections.emptySet(),
-            new ClusterConnectionManager(Settings.EMPTY, capturingTransport)
+            new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext())
         );
         JoinHelper joinHelper = new JoinHelper(
             Settings.EMPTY,

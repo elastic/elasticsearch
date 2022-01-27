@@ -21,6 +21,7 @@ import org.elasticsearch.join.query.HasChildQueryBuilder;
 import org.elasticsearch.join.query.HasParentQueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -87,7 +88,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
-            null,
+            mock(ThreadPool.class),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,
@@ -129,7 +130,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
-            null,
+            mock(ThreadPool.class),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,
@@ -182,7 +183,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
-            null,
+            mock(ThreadPool.class),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,
@@ -232,7 +233,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
-            null,
+            mock(ThreadPool.class),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,
@@ -287,7 +288,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
-            null,
+            mock(ThreadPool.class),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,

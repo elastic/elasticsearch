@@ -22,7 +22,7 @@ public class HealthService {
         this.healthIndicatorServices = healthIndicatorServices;
     }
 
-    public Map<String, List<HealthIndicator>> getHealthIndicatorss() {
+    public Map<String, List<HealthIndicator>> getHealthIndicators() {
         final Map<String, List<HealthIndicator>> map = new HashMap<>();
         for (HealthIndicatorService healthIndicatorService : healthIndicatorServices) {
             for (HealthIndicator healthIndicator : healthIndicatorService.getIndicators()) {

@@ -111,7 +111,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            listener.onResponse(new Response(clusterService.getClusterName(), healthService.getHealthIndicatorss()));
+            listener.onResponse(new Response(clusterService.getClusterName(), healthService.getHealthIndicators()));
         }
     }
 }

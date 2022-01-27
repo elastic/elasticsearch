@@ -228,6 +228,7 @@ public class Constants {
         "cluster:admin/xpack/watcher/watch/delete",
         "cluster:admin/xpack/watcher/watch/execute",
         "cluster:admin/xpack/watcher/watch/put",
+        "cluster:internal/health",
         "cluster:internal/xpack/ml/datafeed/isolate",
         "cluster:internal/xpack/ml/datafeed/running_state",
         "cluster:internal/xpack/ml/inference/infer",

@@ -17,31 +17,27 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.health.components.backups.Backups;
+import org.elasticsearch.health.components.controller.Controller;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
     public static final GetHealthAction INSTANCE = new GetHealthAction();
-    // TODO: Need new name maybe
-    // cluster:health/get
-    public static final String NAME = "cluster:monitor/health2";
+    // TODO: Decide on name
+    public static final String NAME = "cluster:internal/health";
 
     private GetHealthAction() {
         super(NAME, GetHealthAction.Response::new);
@@ -69,29 +65,13 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field("timed_out", false);
             builder.field("status", "green");
             builder.field("cluster_name", clusterName.value());
             builder.array("impacts");
             builder.startObject("components");
             for (Component component : components) {
-                builder.startObject(component.getName());
-                builder.field("status", component.getStatus());
-                builder.startArray("indicators");
-                List<Indicator> indicators = component.getIndicators();
-                for (Indicator indicator : indicators) {
-                    builder.startObject();
-                    builder.field("name", indicator.getName());
-                    builder.field("status", indicator.getStatus());
-                    builder.field("explain", indicator.getExplain());
-                    builder.startObject("meta");
-                    indicator.toXContent(builder, params);
-                    builder.endObject();
-                    // TODO: Add detail / documentation
-                    builder.endObject();
-                }
-                builder.endArray();
-                builder.endObject();
+                builder.field(component.getName());
+                component.toXContent(builder, params);
             }
             builder.endObject();
             return builder.endObject();
@@ -128,115 +108,48 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         }
     }
 
-    private interface Component {
+    public abstract static class Component implements ToXContentObject {
 
-        String getName();
+        public abstract String getName();
 
-        ClusterHealthStatus getStatus();
+        public abstract ClusterHealthStatus getStatus();
 
-        List<Indicator> getIndicators();
-
-    }
-
-    private interface Indicator extends ToXContentFragment {
-
-        String getName();
-
-        ClusterHealthStatus getStatus();
-
-        String getExplain();
-
-    }
-
-    private record NodeDoesNotHaveMaster(DiscoveryNode node, DiscoveryNode masterNode) implements Indicator {
-
-        public static final String GREEN_EXPLAIN = "health coordinating instance has a master node";
-        public static final String RED_EXPLAIN = "health coordinating instance does not have a master node";
+        public abstract List<Indicator> getIndicators();
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("node-id", node.getId());
-            builder.field("name-name", node.getName());
-            if (masterNode != null) {
-                builder.field("master-node-id", masterNode.getId());
-                builder.field("master-node-name", masterNode.getName());
-            } else {
-                builder.field("master-node-id", (String) null);
-                builder.field("master-node-name", (String) null);
+            builder.startObject();
+            builder.field("status", getStatus());
+            builder.startArray("indicators");
+            List<Indicator> indicators = getIndicators();
+            for (Indicator indicator : indicators) {
+                indicator.toXContent(builder, params);
             }
-            return builder;
+            builder.endArray();
+            return builder.endObject();
         }
 
-        @Override
-        public String getExplain() {
-            if (masterNode == null) {
-                return RED_EXPLAIN;
-            } else {
-                return GREEN_EXPLAIN;
-            }
-        }
-
-        @Override
-        public String getName() {
-            return "instance does not have master";
-        }
-
-        @Override
-        public ClusterHealthStatus getStatus() {
-            if (masterNode == null) {
-                return ClusterHealthStatus.RED;
-            } else {
-                return ClusterHealthStatus.GREEN;
-            }
-        }
     }
 
-    private static class Controller implements Component {
+    public abstract static class Indicator implements ToXContentObject {
 
-        private final ClusterHealthStatus status;
-        private final List<Indicator> indicators = new ArrayList<>(2);
+        public abstract String getName();
 
-        private Controller(final DiscoveryNode node, final ClusterState clusterState) {
-            final DiscoveryNodes nodes = clusterState.nodes();
-            final DiscoveryNode masterNode = nodes.getMasterNode();
-            NodeDoesNotHaveMaster nodeDoesNotHaveMaster = new NodeDoesNotHaveMaster(node, masterNode);
-            indicators.add(nodeDoesNotHaveMaster);
-            // Only a single indicator currently so it determines the status
-            status = nodeDoesNotHaveMaster.getStatus();
+        public abstract ClusterHealthStatus getStatus();
 
-        }
+        public abstract String getExplain();
+
+        public abstract void writeMeta(XContentBuilder builder, Params params) throws IOException;
 
         @Override
-        public String getName() {
-            return "controller";
-        }
-
-        @Override
-        public ClusterHealthStatus getStatus() {
-            return status;
-        }
-
-        @Override
-        public List<Indicator> getIndicators() {
-            return indicators;
-        }
-    }
-
-    private static class Backups implements Component {
-
-        @Override
-        public String getName() {
-            return "backups";
-        }
-
-        @Override
-        public ClusterHealthStatus getStatus() {
-            return ClusterHealthStatus.GREEN;
-        }
-
-        @Override
-        public List<Indicator> getIndicators() {
-            return Collections.emptyList();
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("name", getName());
+            builder.field("status", getStatus());
+            builder.field("explain", getExplain());
+            builder.object("meta", xContentBuilder -> writeMeta(builder, params));
+            // TODO: Add detail / documentation
+            return builder.endObject();
         }
     }
 }

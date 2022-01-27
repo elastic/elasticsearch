@@ -94,7 +94,7 @@ public enum IndexMode {
 
         private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
             if (Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
-                throw new IllegalArgumentException(tsdbMode() +" requires [" + setting.getKey() + "]");
+                throw new IllegalArgumentException(tsdbMode() + " requires [" + setting.getKey() + "]");
             }
         }
 

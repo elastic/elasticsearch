@@ -11,7 +11,6 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -19,13 +18,11 @@ import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.StringFieldScript.LeafFactory;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.hamcrest.CoreMatchers;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
 
-import static java.time.temporal.ChronoField.INSTANT_SECONDS;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
 import static org.hamcrest.Matchers.equalTo;

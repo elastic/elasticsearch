@@ -189,10 +189,16 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
+    /**
+     * @return The composable index template that matches with the index that will be cretaed by this request.
+     */
     public ComposableIndexTemplate matchingTemplate() {
         return matchingTemplate;
     }
 
+    /**
+     * Sets the composable index template that matches with index that will be created by this request.
+     */
     public CreateIndexClusterStateUpdateRequest setMatchingTemplate(ComposableIndexTemplate matchingTemplate) {
         this.matchingTemplate = matchingTemplate;
         return this;
@@ -229,6 +235,8 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
             + waitForActiveShards
             + ", systemDataStreamDescriptor="
             + systemDataStreamDescriptor
+            + ", matchingTemplate="
+            + matchingTemplate
             + '}';
     }
 }

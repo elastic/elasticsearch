@@ -184,7 +184,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     /**
-     * Validates this data stream. If this is a time serie data stream then this method validates that temporal range
+     * Validates this data stream. If this is a time series data stream then this method validates that temporal range
      * of backing indices (defined by index.time_series.start_time and index.time_series.end_time) do not overlap with each other.
      *
      * @param imSupplier Function that supplies {@link IndexMetadata} instances based on the provided index name
@@ -192,7 +192,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public void validate(Function<String, IndexMetadata> imSupplier) {
         if (indexMode == IndexMode.TIME_SERIES) {
             // Get a sorted overview of each backing index with there start and end time range:
-            List<Tuple<String, Tuple<Instant, Instant>>> startAndEndTimes = indices.stream()
+            var startAndEndTimes = indices.stream()
                 .map(index -> imSupplier.apply(index.getName()))
                 .map(im -> {
                     Instant start = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
@@ -204,14 +204,14 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                 .collect(Collectors.toList());
 
             Tuple<String, Tuple<Instant, Instant>> previous = null;
-            for (Tuple<String, Tuple<Instant, Instant>> current : startAndEndTimes) {
+            var formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+            for (var current : startAndEndTimes) {
                 if (previous == null) {
                     previous = current;
                 } else {
                     // The end_time of previous backing index should be equal or less than start_time of current backing index.
                     // If previous.end_time > current.start_time then we should fail here:
                     if (previous.v2().v2().compareTo(current.v2().v1()) > 0) {
-                        var formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
                         String range1 = formatter.format(previous.v2().v1()) + " TO " + formatter.format(previous.v2().v2());
                         String range2 = formatter.format(current.v2().v1()) + " TO " + formatter.format(current.v2().v2());
                         throw new IllegalArgumentException(

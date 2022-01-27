@@ -21,6 +21,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -89,7 +90,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
     ClusterState updateTimeSeriesTemporalRange(ClusterState current, Instant now) {
         Metadata.Builder mBuilder = null;
         for (DataStream dataStream : current.metadata().dataStreams().values()) {
-            if (dataStream.isTimeSeries(index -> current.metadata().index(index)) == false) {
+            if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
                 continue;
             }
             if (dataStream.isReplicated()) {

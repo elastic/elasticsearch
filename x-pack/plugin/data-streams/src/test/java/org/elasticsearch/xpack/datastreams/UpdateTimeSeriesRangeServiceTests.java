@@ -11,6 +11,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
@@ -20,10 +22,13 @@ import org.junit.Before;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
 
@@ -31,7 +36,10 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
 
     @Before
     public void createInstance() {
-        instance = new UpdateTimeSeriesRangeService(Settings.EMPTY, null, null);
+        ClusterService mockClusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL));
+        when(mockClusterService.getClusterSettings()).thenReturn(clusterSettings);
+        instance = new UpdateTimeSeriesRangeService(Settings.EMPTY, null, mockClusterService);
     }
 
     public void testUpdateTimeSeriesTemporalRange() {
@@ -83,7 +91,8 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
                     d.isHidden(),
                     true,
                     d.isSystem(),
-                    d.isAllowCustomRouting()
+                    d.isAllowCustomRouting(),
+                    d.getIndexMode()
                 )
             )
             .build();

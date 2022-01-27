@@ -13,6 +13,7 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -139,10 +140,8 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
         Index index = new Index("test", "uuid");
         IndexResult indexResult = new CloseIndexResponse.IndexResult(index);
         CloseIndexResponse closeIndexResponse = new CloseIndexResponse(true, true, Collections.singletonList(indexResult));
-        assertEquals(
-            "{\"acknowledged\":true,\"shards_acknowledged\":true,\"indices\":{\"test\":{\"closed\":true}}}",
-            Strings.toString(closeIndexResponse)
-        );
+        assertEquals("""
+            {"acknowledged":true,"shards_acknowledged":true,"indices":{"test":{"closed":true}}}""", Strings.toString(closeIndexResponse));
 
         CloseIndexResponse.ShardResult[] shards = new CloseIndexResponse.ShardResult[1];
         shards[0] = new CloseIndexResponse.ShardResult(
@@ -152,14 +151,32 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
         );
         indexResult = new CloseIndexResponse.IndexResult(index, shards);
         closeIndexResponse = new CloseIndexResponse(true, true, Collections.singletonList(indexResult));
-        assertEquals(
-            "{\"acknowledged\":true,\"shards_acknowledged\":true,"
-                + "\"indices\":{\"test\":{\"closed\":false,\"failedShards\":{\"0\":{"
-                + "\"failures\":[{\"node\":\"nodeId\",\"shard\":0,\"index\":\"test\",\"status\":\"INTERNAL_SERVER_ERROR\","
-                + "\"reason\":{\"type\":\"action_not_found_transport_exception\","
-                + "\"reason\":\"No handler for action [test]\"}}]}}}}}",
-            Strings.toString(closeIndexResponse)
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "acknowledged": true,
+              "shards_acknowledged": true,
+              "indices": {
+                "test": {
+                  "closed": false,
+                  "failedShards": {
+                    "0": {
+                      "failures": [
+                        {
+                          "node": "nodeId",
+                          "shard": 0,
+                          "index": "test",
+                          "status": "INTERNAL_SERVER_ERROR",
+                          "reason": {
+                            "type": "action_not_found_transport_exception",
+                            "reason": "No handler for action [test]"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }"""), Strings.toString(closeIndexResponse));
     }
 
     private CloseIndexResponse randomResponse() {

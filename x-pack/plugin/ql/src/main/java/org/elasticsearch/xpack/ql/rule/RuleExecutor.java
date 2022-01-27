@@ -37,9 +37,9 @@ public abstract class RuleExecutor<TreeType extends Node<TreeType>> {
             this.runs = maximumRuns;
         }
 
-        boolean reached(int runs) {
-            if (runs >= this.runs) {
-                throw new RuleExecutionException("Rule execution limit [{}] reached", runs);
+        boolean reached(int numberOfRuns) {
+            if (numberOfRuns >= this.runs) {
+                throw new RuleExecutionException("Rule execution limit [{}] reached", numberOfRuns);
             }
             return false;
         }

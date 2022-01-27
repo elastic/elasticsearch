@@ -29,8 +29,8 @@ public interface MlDataRemover {
         DocumentField docField = hit.field(fieldName);
         if (docField != null) {
             Object value = docField.getValue();
-            if (value instanceof String) {
-                return (String) value;
+            if (value instanceof String str) {
+                return str;
             }
         }
         return null;

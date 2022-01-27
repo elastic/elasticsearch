@@ -20,7 +20,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class HighLevelRestClientCompressionIT extends ESRestHighLevelClientTestCase {
 
     private static final String GZIP_ENCODING = "gzip";
-    private static final String SAMPLE_DOCUMENT = "{\"name\":{\"first name\":\"Steve\",\"last name\":\"Jobs\"}}";
+    private static final String SAMPLE_DOCUMENT = """
+        {"name":{"first name":"Steve","last name":"Jobs"}}""";
 
     public void testCompressesResponseIfRequested() throws IOException {
         Request doc = new Request(HttpPut.METHOD_NAME, "/company/_doc/1");

@@ -603,7 +603,12 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
-                return new LatLonPointIndexFieldData(fieldName, CoreValuesSourceType.GEOPOINT);
+                return new LatLonPointIndexFieldData(
+                    fieldName,
+                    CoreValuesSourceType.GEOPOINT,
+                    // we do not support scripting for unmapped sorts
+                    (dv, n) -> { throw new UnsupportedOperationException(); }
+                );
             } else {
                 throw new IllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
             }

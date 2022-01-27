@@ -45,27 +45,28 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
         waitForMlTemplates();
     }
 
-    private static final String AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL = "{\n"
-        + "    \"datafeed_id\": \"farequote-datafeed-with-old-agg\",\n"
-        + "    \"job_id\": \"farequote\",\n"
-        + "    \"frequency\": \"1h\",\n"
-        + "    \"config_type\": \"datafeed\",\n"
-        + "    \"indices\": [\"farequote1\", \"farequote2\"],\n"
-        + "    \"aggregations\": {\n"
-        + "    \"buckets\": {\n"
-        + "      \"date_histogram\": {\n"
-        + "        \"field\": \"time\",\n"
-        + "        \"interval\": \"360s\",\n"
-        + "        \"time_zone\": \"UTC\"\n"
-        + "      },\n"
-        + "      \"aggregations\": {\n"
-        + "        \"time\": {\n"
-        + "          \"max\": {\"field\": \"time\"}\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  }\n"
-        + "}";
+    private static final String AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL = """
+        {
+            "datafeed_id": "farequote-datafeed-with-old-agg",
+            "job_id": "farequote",
+            "frequency": "1h",
+            "config_type": "datafeed",
+            "indices": ["farequote1", "farequote2"],
+            "aggregations": {
+            "buckets": {
+              "date_histogram": {
+                "field": "time",
+                "interval": "360s",
+                "time_zone": "UTC"
+              },
+              "aggregations": {
+                "time": {
+                  "max": {"field": "time"}
+                }
+              }
+            }
+          }
+        }""";
 
     public void testAutomaticModelUpdate() throws Exception {
         ensureGreen("_all");

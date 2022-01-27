@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.action.admin.indices.template.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -26,6 +24,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
 
@@ -73,9 +72,9 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
 
         for (String name : request.names()) {
             if (Regex.isSimpleMatchPattern(name)) {
-                for (ObjectObjectCursor<String, IndexTemplateMetadata> entry : state.metadata().templates()) {
-                    if (Regex.simpleMatch(name, entry.key)) {
-                        results.add(entry.value);
+                for (Map.Entry<String, IndexTemplateMetadata> entry : state.metadata().templates().entrySet()) {
+                    if (Regex.simpleMatch(name, entry.getKey())) {
+                        results.add(entry.getValue());
                     }
                 }
             } else if (state.metadata().templates().containsKey(name)) {

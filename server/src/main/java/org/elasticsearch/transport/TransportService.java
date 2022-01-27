@@ -186,7 +186,7 @@ public class TransportService extends AbstractLifecycleComponent
             localNodeFactory,
             clusterSettings,
             taskHeaders,
-            new ClusterConnectionManager(settings, transport)
+            new ClusterConnectionManager(settings, transport, threadPool.getThreadContext())
         );
     }
 
@@ -901,6 +901,7 @@ public class TransportService extends AbstractLifecycleComponent
             @SuppressWarnings("unchecked")
             final RequestHandlerRegistry<TransportRequest> reg = (RequestHandlerRegistry<TransportRequest>) getRequestHandler(action);
             if (reg == null) {
+                assert false : action;
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }
             final String executor = reg.getExecutor();

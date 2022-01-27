@@ -20,7 +20,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -143,8 +143,10 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
         final String query = Strings.toString(request.source().query());
-        assertThat(query, containsString("{\"terms\":{\"application\":[\"myapp\"]"));
-        assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
+        assertThat(query, containsString("""
+            {"terms":{"application":["myapp"]"""));
+        assertThat(query, containsString("""
+            {"term":{"type":{"value":"application-privilege\""""));
 
         final SearchHit[] hits = buildHits(sourcePrivileges);
         listener.get()
@@ -217,14 +219,11 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
-        assertThat(
-            query,
-            anyOf(
-                containsString("{\"terms\":{\"application\":[\"myapp\",\"yourapp\"]"),
-                containsString("{\"terms\":{\"application\":[\"yourapp\",\"myapp\"]")
-            )
-        );
-        assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
+        assertThat(query, anyOf(containsString("""
+            {"terms":{"application":["myapp","yourapp"]"""), containsString("""
+            {"terms":{"application":["yourapp","myapp"]""")));
+        assertThat(query, containsString("""
+            {"term":{"type":{"value":"application-privilege\""""));
 
         final SearchHit[] hits = buildHits(sourcePrivileges);
         listener.get()

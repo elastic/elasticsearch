@@ -1,4 +1,4 @@
-[[knn-search]]
+[[knn-search-api]]
 === kNN search API
 ++++
 <titleabbrev>kNN search</titleabbrev>
@@ -68,10 +68,12 @@ The kNN search API performs a k-nearest neighbor (kNN) search on a
 <<dense-vector,`dense_vector`>> field. Given a query vector, it finds the _k_
 closest vectors and returns those documents as search hits.
 
+//tag::hnsw-algorithm[]
 {es} uses the https://arxiv.org/abs/1603.09320[HNSW algorithm] to support
 efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
 that sacrifices result accuracy for improved search speed. This means the
 results returned are not always the true _k_ closest neighbors.
+//end::hnsw-algorithm[]
 
 [[knn-search-api-path-params]]
 ==== {api-path-parms-title}

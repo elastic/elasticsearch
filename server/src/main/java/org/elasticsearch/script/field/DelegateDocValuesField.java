@@ -23,13 +23,16 @@ public class DelegateDocValuesField implements DocValuesField<Object> {
     private final String name;
 
     public DelegateDocValuesField(ScriptDocValues<?> scriptDocValues, String name) {
+        // Suppliers provided via ScriptDocValues should never be a DocValuesField
+        // as we expect DelegateDocValuesField to only support old-style ScriptDocValues
+        assert scriptDocValues.getSupplier() instanceof DocValuesField == false;
         this.scriptDocValues = scriptDocValues;
         this.name = name;
     }
 
     @Override
     public void setNextDocId(int docId) throws IOException {
-        scriptDocValues.setNextDocId(docId);
+        scriptDocValues.getSupplier().setNextDocId(docId);
     }
 
     @Override

@@ -135,12 +135,16 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
 
     private void checkHasPrivileges() throws IOException {
         final Request request = new Request("GET", "/_security/user/_has_privileges");
-        request.setJsonEntity(
-            "{"
-                + "\"cluster\": [ \"manage\", \"monitor\" ],"
-                + "\"index\": [{ \"names\": [ \"index_allowed\", \"index_denied\" ], \"privileges\": [ \"read\", \"all\" ] }]"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "cluster": [ "manage", "monitor" ],
+              "index": [
+                {
+                  "names": [ "index_allowed", "index_denied" ],
+                  "privileges": [ "read", "all" ]
+                }
+              ]
+            }""");
         Response response = client().performRequest(request);
         final Map<String, Object> auth = entityAsMap(response);
         assertThat(ObjectPath.evaluate(auth, "username"), equalTo("security_test_user"));
@@ -170,18 +174,21 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
 
     private Request buildGetTokenRequest() {
         final Request getToken = new Request("POST", "/_security/oauth2/token");
-        getToken.setJsonEntity(
-            "{\"grant_type\" : \"password\",\n"
-                + "  \"username\" : \"security_test_user\",\n"
-                + "  \"password\" : \"security-test-password\"\n"
-                + "}"
-        );
+        getToken.setJsonEntity("""
+            {"grant_type" : "password",
+              "username" : "security_test_user",
+              "password" : "security-test-password"
+            }""");
         return getToken;
     }
 
     private Request buildGetApiKeyRequest() {
         final Request getApiKey = new Request("POST", "/_security/api_key");
-        getApiKey.setJsonEntity("{\"name\" : \"my-api-key\",\n" + "  \"expiration\" : \"2d\",\n" + "  \"role_descriptors\" : {} \n" + "}");
+        getApiKey.setJsonEntity("""
+            {"name" : "my-api-key",
+              "expiration" : "2d",
+              "role_descriptors" : {}\s
+            }""");
         return getApiKey;
     }
 
@@ -262,26 +269,25 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
 
     private void assertAddRoleWithDLS(boolean shouldSucceed) throws IOException {
         final Request addRole = new Request("POST", "/_security/role/dlsrole");
-        addRole.setJsonEntity(
-            "{\n"
-                + "  \"cluster\": [\"all\"],\n"
-                + "  \"indices\": [\n"
-                + "    {\n"
-                + "      \"names\": [ \"index1\", \"index2\" ],\n"
-                + "      \"privileges\": [\"all\"],\n"
-                + "      \"query\": \"{\\\"match\\\": {\\\"title\\\": \\\"foo\\\"}}\" \n"
-                + "    },\n"
-                + "    {\n"
-                + "      \"names\": [ \"index41\", \"index42\" ],\n"
-                + "      \"privileges\": [\"read\"]\n"
-                + "    }\n"
-                + "  ],\n"
-                + "  \"run_as\": [ \"other_user\" ],\n"
-                + "  \"metadata\" : { // optional\n"
-                + "    \"version\" : 1\n"
-                + "  }\n"
-                + "}"
-        );
+        addRole.setJsonEntity("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": [ "index1", "index2" ],
+                  "privileges": ["all"],
+                  "query": "{\\"match\\": {\\"title\\": \\"foo\\"}}"\s
+                },
+                {
+                  "names": [ "index41", "index42" ],
+                  "privileges": ["read"]
+                }
+              ],
+              "run_as": [ "other_user" ],
+              "metadata" : { // optional
+                "version" : 1
+              }
+            }""");
         if (shouldSucceed) {
             Response addRoleResponse = adminClient().performRequest(addRole);
             assertThat(addRoleResponse.getStatusLine().getStatusCode(), equalTo(200));
@@ -294,28 +300,27 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
 
     private void assertAddRoleWithFLS(boolean shouldSucceed) throws IOException {
         final Request addRole = new Request("POST", "/_security/role/flsrole");
-        addRole.setJsonEntity(
-            "{\n"
-                + "  \"cluster\": [\"all\"],\n"
-                + "  \"indices\": [\n"
-                + "    {\n"
-                + "      \"names\": [ \"index1\", \"index2\" ],\n"
-                + "      \"privileges\": [\"all\"],\n"
-                + "      \"field_security\" : { // optional\n"
-                + "        \"grant\" : [ \"title\", \"body\" ]\n"
-                + "      }\n"
-                + "    },\n"
-                + "    {\n"
-                + "      \"names\": [ \"index41\", \"index42\" ],\n"
-                + "      \"privileges\": [\"read\"]\n"
-                + "    }\n"
-                + "  ],\n"
-                + "  \"run_as\": [ \"other_user\" ],\n"
-                + "  \"metadata\" : { // optional\n"
-                + "    \"version\" : 1\n"
-                + "  }\n"
-                + "}"
-        );
+        addRole.setJsonEntity("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": [ "index1", "index2" ],
+                  "privileges": ["all"],
+                  "field_security" : { // optional
+                    "grant" : [ "title", "body" ]
+                  }
+                },
+                {
+                  "names": [ "index41", "index42" ],
+                  "privileges": ["read"]
+                }
+              ],
+              "run_as": [ "other_user" ],
+              "metadata" : { // optional
+                "version" : 1
+              }
+            }""");
         if (shouldSucceed) {
             Response addRoleResponse = adminClient().performRequest(addRole);
             assertThat(addRoleResponse.getStatusLine().getStatusCode(), equalTo(200));
@@ -341,29 +346,69 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         final boolean keyRoleHasDlsFls = randomBoolean();
         if (keyRoleHasDlsFls) {
             if (randomBoolean()) {
-                request.setJsonEntity(
-                    "{\"name\":\"my-key\",\"role_descriptors\":"
-                        + "{\"a\":{\"indices\":["
-                        + "{\"names\":[\"index41\"],\"privileges\":[\"read\"],"
-                        + "\"query\":{\"term\":{\"tag\":{\"value\":\"prod\"}}}},"
-                        + "{\"names\":[\"index1\",\"index2\",\"index42\"],\"privileges\":[\"read\"]}"
-                        + "]}}}"
-                );
+                request.setJsonEntity("""
+                    {
+                      "name": "my-key",
+                      "role_descriptors": {
+                        "a": {
+                          "indices": [
+                            {
+                              "names": [ "index41" ],
+                              "privileges": [ "read" ],
+                              "query": {
+                                "term": {
+                                  "tag": {
+                                    "value": "prod"
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "names": [ "index1", "index2", "index42" ],
+                              "privileges": [ "read" ]
+                            }
+                          ]
+                        }
+                      }
+                    }""");
             } else {
-                request.setJsonEntity(
-                    "{\"name\":\"my-key\",\"role_descriptors\":"
-                        + "{\"a\":{\"indices\":["
-                        + "{\"names\":[\"index41\"],\"privileges\":[\"read\"],"
-                        + "\"field_security\":{\"grant\":[\"tag\"]}},"
-                        + "{\"names\":[\"index1\",\"index2\",\"index42\"],\"privileges\":[\"read\"]}"
-                        + "]}}}"
-                );
+                request.setJsonEntity("""
+                    {
+                      "name": "my-key",
+                      "role_descriptors": {
+                        "a": {
+                          "indices": [
+                            {
+                              "names": [ "index41" ],
+                              "privileges": [ "read" ],
+                              "field_security": {
+                                "grant": [ "tag" ]
+                              }
+                            },
+                            {
+                              "names": [ "index1", "index2", "index42" ],
+                              "privileges": [ "read" ]
+                            }
+                          ]
+                        }
+                      }
+                    }""");
             }
         } else {
-            request.setJsonEntity(
-                "{\"name\":\"my-key\",\"role_descriptors\":"
-                    + "{\"a\":{\"indices\":[{\"names\":[\"index1\",\"index2\",\"index41\",\"index42\"],\"privileges\":[\"read\"]}]}}}"
-            );
+            request.setJsonEntity("""
+                {
+                  "name": "my-key",
+                  "role_descriptors": {
+                    "a": {
+                      "indices": [
+                        {
+                          "names": [ "index1", "index2", "index41", "index42" ],
+                          "privileges": [ "read" ]
+                        }
+                      ]
+                    }
+                  }
+                }""");
         }
         request.setOptions(
             request.getOptions()

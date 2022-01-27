@@ -13,6 +13,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -287,7 +288,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         return new Bucket(prototype.key, prototype.docCount, prototype.keyed, prototype.format, aggregations);
     }
 
-    private List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    private List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
 
         final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(aggregations.size()) {
             @Override
@@ -348,7 +349,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
      * requires all buckets to have the same key.
      */
     @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
+    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
         List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
         long docCount = 0;
@@ -372,7 +373,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
      */
     private static final int REPORT_EMPTY_EVERY = 10_000;
 
-    private void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
+    private void addEmptyBuckets(List<Bucket> list, AggregationReduceContext reduceContext) {
         /*
          * Make sure we have space for the empty buckets we're going to add by
          * counting all of the empties we plan to add and firing them into
@@ -456,7 +457,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         List<Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
         boolean alreadyAccountedForBuckets = false;
         if (reduceContext.isFinalReduce()) {

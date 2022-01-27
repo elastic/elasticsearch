@@ -208,7 +208,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             Build.CURRENT.hash(),
             Build.CURRENT.date(),
             false,
-            Build.CURRENT.getQualifiedVersion()
+            Build.CURRENT.qualifiedVersion()
         );
 
         mockGetRoot(restClient, build, true);
@@ -220,7 +220,7 @@ public class RestHighLevelClientTests extends ESTestCase {
     public static void mockGetRoot(RestClient restClient, Build build, boolean setProductHeader) throws IOException {
         org.elasticsearch.action.main.MainResponse mainResp = new org.elasticsearch.action.main.MainResponse(
             "node",
-            Version.fromString(build.getQualifiedVersion().replace("-SNAPSHOT", "")),
+            Version.fromString(build.qualifiedVersion().replace("-SNAPSHOT", "")),
             new ClusterName("cluster"),
             "uuid",
             build
@@ -322,7 +322,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testSearchScroll() throws IOException {
         SearchResponse mockSearchResponse = new SearchResponse(
-            new SearchResponseSections(SearchHits.empty(), InternalAggregations.EMPTY, null, false, false, null, 1),
+            new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, InternalAggregations.EMPTY, null, false, false, null, 1),
             randomAlphaOfLengthBetween(5, 10),
             5,
             5,

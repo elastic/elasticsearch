@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY
 public final class NativeMemoryCalculator {
 
     private static final long STATIC_JVM_UPPER_THRESHOLD = ByteSizeValue.ofGb(2).getBytes();
-    static final long MINIMUM_AUTOMATIC_NODE_SIZE = ByteSizeValue.ofGb(1).getBytes();
+    public static final long MINIMUM_AUTOMATIC_NODE_SIZE = ByteSizeValue.ofGb(1).getBytes();
     private static final long OS_OVERHEAD = ByteSizeValue.ofMb(200L).getBytes();
 
     private NativeMemoryCalculator() {}

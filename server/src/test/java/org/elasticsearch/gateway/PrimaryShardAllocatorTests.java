@@ -488,7 +488,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .build();
         return new RoutingAllocation(
             allocationDeciders,
-            new RoutingNodes(state, false),
+            state.mutableRoutingNodes(),
             state,
             null,
             new SnapshotShardSizeInfo(ImmutableOpenMap.of()) {
@@ -517,25 +517,17 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         switch (reason) {
-
-            case INDEX_CREATED:
-                routingTableBuilder.addAsNew(metadata.index(shardId.getIndex()));
-                break;
-            case CLUSTER_RECOVERED:
-                routingTableBuilder.addAsRecovery(metadata.index(shardId.getIndex()));
-                break;
-            case INDEX_REOPENED:
-                routingTableBuilder.addAsFromCloseToOpen(metadata.index(shardId.getIndex()));
-                break;
-            default:
-                throw new IllegalArgumentException("can't do " + reason + " for you. teach me");
+            case INDEX_CREATED -> routingTableBuilder.addAsNew(metadata.index(shardId.getIndex()));
+            case CLUSTER_RECOVERED -> routingTableBuilder.addAsRecovery(metadata.index(shardId.getIndex()));
+            case INDEX_REOPENED -> routingTableBuilder.addAsFromCloseToOpen(metadata.index(shardId.getIndex()));
+            default -> throw new IllegalArgumentException("can't do " + reason + " for you. teach me");
         }
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
             .routingTable(routingTableBuilder.build())
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
             .build();
-        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, null, null, System.nanoTime());
+        return new RoutingAllocation(deciders, state.mutableRoutingNodes(), state, null, null, System.nanoTime());
     }
 
     private void assertClusterHealthStatus(RoutingAllocation allocation, ClusterHealthStatus expectedStatus) {

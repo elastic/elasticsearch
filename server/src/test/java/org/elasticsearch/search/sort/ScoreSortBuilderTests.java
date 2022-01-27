@@ -47,7 +47,9 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
      */
     public void testParseOrder() throws IOException {
         SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
-        String scoreSortString = "{ \"_score\": { \"order\": \"" + order.toString() + "\" }}";
+        String scoreSortString = """
+            { "_score": { "order": "%s" }}
+            """.formatted(order.toString());
         XContentParser parser = createParser(JsonXContent.jsonXContent, scoreSortString);
         // need to skip until parser is located on second START_OBJECT
         parser.nextToken();
@@ -59,7 +61,8 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
     }
 
     public void testReverseOptionFails() throws IOException {
-        String json = "{ \"_score\": { \"reverse\": true }}";
+        String json = """
+            { "_score": { "reverse": true }}""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, json);
         // need to skip until parser is located on second START_OBJECT
         parser.nextToken();

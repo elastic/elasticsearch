@@ -32,37 +32,33 @@ public class RoutingTableGenerator {
             state = ShardRoutingState.INITIALIZING;
         }
 
-        switch (state) {
-            case STARTED:
-                return TestShardRouting.newShardRouting(
-                    index,
-                    shardId,
-                    "node_" + Integer.toString(node_id++),
-                    null,
-                    primary,
-                    ShardRoutingState.STARTED
-                );
-            case INITIALIZING:
-                return TestShardRouting.newShardRouting(
-                    index,
-                    shardId,
-                    "node_" + Integer.toString(node_id++),
-                    null,
-                    primary,
-                    ShardRoutingState.INITIALIZING
-                );
-            case RELOCATING:
-                return TestShardRouting.newShardRouting(
-                    index,
-                    shardId,
-                    "node_" + Integer.toString(node_id++),
-                    "node_" + Integer.toString(node_id++),
-                    primary,
-                    ShardRoutingState.RELOCATING
-                );
-            default:
-                throw new ElasticsearchException("Unknown state: " + state.name());
-        }
+        return switch (state) {
+            case STARTED -> TestShardRouting.newShardRouting(
+                index,
+                shardId,
+                "node_" + Integer.toString(node_id++),
+                null,
+                primary,
+                ShardRoutingState.STARTED
+            );
+            case INITIALIZING -> TestShardRouting.newShardRouting(
+                index,
+                shardId,
+                "node_" + Integer.toString(node_id++),
+                null,
+                primary,
+                ShardRoutingState.INITIALIZING
+            );
+            case RELOCATING -> TestShardRouting.newShardRouting(
+                index,
+                shardId,
+                "node_" + Integer.toString(node_id++),
+                "node_" + Integer.toString(node_id++),
+                primary,
+                ShardRoutingState.RELOCATING
+            );
+            default -> throw new ElasticsearchException("Unknown state: " + state.name());
+        };
 
     }
 

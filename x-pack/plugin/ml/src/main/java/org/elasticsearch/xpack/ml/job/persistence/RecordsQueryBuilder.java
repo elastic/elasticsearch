@@ -137,8 +137,8 @@ public final class RecordsQueryBuilder {
             .sort(sb)
             .fetchSource(true);
 
-        for (String sortField : SECONDARY_SORT) {
-            searchSourceBuilder.sort(sortField, sortDescending ? SortOrder.DESC : SortOrder.ASC);
+        for (String eachSortField : SECONDARY_SORT) {
+            searchSourceBuilder.sort(eachSortField, sortDescending ? SortOrder.DESC : SortOrder.ASC);
         }
 
         return searchSourceBuilder;

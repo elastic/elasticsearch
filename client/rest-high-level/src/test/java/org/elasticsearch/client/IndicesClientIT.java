@@ -357,7 +357,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     public void testGetIndex() throws IOException {
         String indexName = "get_index_test";
         Settings basicSettings = Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build();
-        String mappings = "\"properties\":{\"field-1\":{\"type\":\"integer\"}}";
+        String mappings = """
+            "properties":{"field-1":{"type":"integer"}}
+            """;
         createIndex(indexName, basicSettings, mappings);
 
         GetIndexRequest getIndexRequest = new GetIndexRequest(indexName).includeDefaults(false);
@@ -376,7 +378,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         MappingMetadata mappingMetadata = getIndexResponse.getMappings().get(indexName);
         assertNotNull(mappingMetadata);
         assertEquals("_doc", mappingMetadata.type());
-        assertEquals("{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}", mappingMetadata.source().string());
+        assertEquals("""
+            {"properties":{"field-1":{"type":"integer"}}}""", mappingMetadata.source().string());
         Object o = mappingMetadata.getSourceAsMap().get("properties");
         assertThat(o, instanceOf(Map.class));
         // noinspection unchecked
@@ -390,7 +393,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     public void testGetIndexWithDefaults() throws IOException {
         String indexName = "get_index_test";
         Settings basicSettings = Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build();
-        String mappings = "\"properties\":{\"field-1\":{\"type\":\"integer\"}}";
+        String mappings = """
+            "properties":{"field-1":{"type":"integer"}}
+            """;
         createIndex(indexName, basicSettings, mappings);
 
         GetIndexRequest getIndexRequest = new GetIndexRequest(indexName).includeDefaults(true);
@@ -520,7 +525,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         final GetFieldMappingsResponse.FieldMappingMetadata metadata = new GetFieldMappingsResponse.FieldMappingMetadata(
             "field",
-            new BytesArray("{\"field\":{\"type\":\"text\"}}")
+            new BytesArray("""
+                {"field":{"type":"text"}}""")
         );
         assertThat(fieldMappingMap, equalTo(Collections.singletonMap("field", metadata)));
     }
@@ -1067,7 +1073,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
             assertEquals("test_new", rolloverResponse.getNewIndex());
         }
         {
-            String mappings = "{\"properties\":{\"field2\":{\"type\":\"keyword\"}}}";
+            String mappings = """
+                {"properties":{"field2":{"type":"keyword"}}}
+                """;
             rolloverRequest.getCreateIndexRequest().mapping(mappings, XContentType.JSON);
             rolloverRequest.dryRun(false);
             rolloverRequest.addMaxIndexSizeCondition(new ByteSizeValue(1, ByteSizeUnit.MB));
@@ -1514,18 +1522,16 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         PutIndexTemplateRequest putTemplateRequest = new PutIndexTemplateRequest("my-template", List.of("pattern-1", "name-*")).order(10)
             .create(randomBoolean())
             .settings(Settings.builder().put("number_of_shards", "3").put("number_of_replicas", "0"))
-            .mapping(
-                "{"
-                    + "  \"my_doc_type\": {"
-                    + "    \"properties\": {"
-                    + "      \"host_name\": {"
-                    + "        \"type\": \"keyword\""
-                    + "      }"
-                    + "    }"
-                    + "  }"
-                    + "}",
-                XContentType.JSON
-            )
+            .mapping("""
+                {
+                  "my_doc_type": {
+                    "properties": {
+                      "host_name": {
+                        "type": "keyword"
+                      }
+                    }
+                  }
+                }""", XContentType.JSON)
             .alias(new Alias("alias-1").indexRouting("abc"))
             .alias(new Alias("{index}-write").searchRouting("xyz"));
 
@@ -1607,17 +1613,16 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         createIndex(index, Settings.EMPTY);
         Request postDoc = new Request(HttpPost.METHOD_NAME, "/" + index + "/_doc");
-        postDoc.setJsonEntity(
-            "{"
-                + "  \"type\": \"act\","
-                + "  \"line_id\": 1,"
-                + "  \"play_name\": \"Henry IV\","
-                + "  \"speech_number\": \"\","
-                + "  \"line_number\": \"\","
-                + "  \"speaker\": \"\","
-                + "  \"text_entry\": \"ACT I\""
-                + "}"
-        );
+        postDoc.setJsonEntity("""
+            {
+              "type": "act",
+              "line_id": 1,
+              "play_name": "Henry IV",
+              "speech_number": "",
+              "line_number": "",
+              "speaker": "",
+              "text_entry": "ACT I"
+            }""");
         assertOK(client().performRequest(postDoc));
 
         QueryBuilder builder = QueryBuilders.queryStringQuery("line_id:foo").lenient(false);
@@ -1860,7 +1865,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     public void testDataStreams() throws Exception {
         String dataStreamName = "data-stream";
 
-        CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"@timestamp\":{\"type\":\"date\"}}}");
+        CompressedXContent mappings = new CompressedXContent("""
+            {"properties":{"@timestamp":{"type":"date"}}}""");
         Template template = new Template(null, mappings, null);
         ComposableIndexTemplate indexTemplate = new ComposableIndexTemplate(
             Collections.singletonList(dataStreamName),
@@ -1952,7 +1958,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     public void testIndexTemplates() throws Exception {
         String templateName = "my-template";
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
-        CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"host_name\":{\"type\":\"keyword\"}}}");
+        CompressedXContent mappings = new CompressedXContent("""
+            {"properties":{"host_name":{"type":"keyword"}}}""");
         AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
         Template template = new Template(settings, mappings, Map.of("alias", alias));
         List<String> pattern = List.of("pattern");
@@ -2028,7 +2035,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     public void testSimulateIndexTemplate() throws Exception {
         String templateName = "my-template";
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
-        CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"host_name\":{\"type\":\"keyword\"}}}");
+        CompressedXContent mappings = new CompressedXContent("""
+            {"properties":{"host_name":{"type":"keyword"}}}""");
         AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
         Template template = new Template(settings, mappings, Map.of("alias", alias));
         List<String> pattern = List.of("pattern");

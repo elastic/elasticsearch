@@ -12,6 +12,7 @@ import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -119,7 +120,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     }
 
     @Override
-    public AbstractInternalHDRPercentiles reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public AbstractInternalHDRPercentiles reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         DoubleHistogram merged = null;
         for (InternalAggregation aggregation : aggregations) {
             final AbstractInternalHDRPercentiles percentiles = (AbstractInternalHDRPercentiles) aggregation;

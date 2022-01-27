@@ -42,7 +42,7 @@ public class NlpTaskTests extends ESTestCase {
         );
 
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), equalTo("no value could be found for input field [" + fieldName + "]"));
+        assertThat(e.getMessage(), equalTo("Input field [" + fieldName + "] does not exist in the source document"));
     }
 
     public void testExtractInput_GivenFieldIsNotString() {
@@ -57,6 +57,6 @@ public class NlpTaskTests extends ESTestCase {
         );
 
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), equalTo("input value [42] for field [" + fieldName + "] is not a string"));
+        assertThat(e.getMessage(), equalTo("Input value [42] for field [" + fieldName + "] must be a string"));
     }
 }

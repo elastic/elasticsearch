@@ -19,11 +19,17 @@ apply plugin: 'elasticsearch.internal-cluster-test'
  TODOs:
    * fix permissions such that only netty4 can open sockets etc?
    * fix the hack in the build framework that copies transport-netty4 into the integ test cluster
-   * maybe figure out a way to run all tests from core with netty4/network?
  */
 esplugin {
   description 'Netty 4 based transport implementation'
   classname 'org.elasticsearch.transport.netty4.Netty4Plugin'
+}
+
+// exclude transitively pulled in version via the esplugin plugin to always build from fresh sources and make jar-hell checks pass
+configurations {
+  [testCompileClasspath, testRuntimeClasspath, internalClusterTestCompileClasspath, internalClusterTestRuntimeClasspath].each {
+    it.exclude group: 'org.elasticsearch.plugin', module: 'transport-netty4'
+  }
 }
 
 dependencies {
@@ -111,10 +117,7 @@ tasks.named("thirdPartyAudit").configure {
     // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
     'org.bouncycastle.cert.X509v3CertificateBuilder',
     'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
-    'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
-    'org.bouncycastle.jce.provider.BouncyCastleProvider',
     'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
-    'org.bouncycastle.asn1.x500.X500Name',
 
     // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
     'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',

@@ -36,7 +36,7 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
             int successfulShards = randomIntBetween(0, totalShards);
             int skippedShards = totalShards - successfulShards;
             SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
-            InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
+            InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
             SearchResponse searchResponse = new SearchResponse(
                 internalSearchResponse,
                 null,
@@ -64,7 +64,7 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
                 int successfulShards = randomIntBetween(0, totalShards);
                 int skippedShards = totalShards - successfulShards;
                 SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
-                InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
+                InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
                 SearchResponse searchResponse = new SearchResponse(
                     internalSearchResponse,
                     null,

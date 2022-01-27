@@ -165,29 +165,18 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
 
     private boolean inNetwork(String ip, String network) {
         InetAddress address = InetAddresses.forString(ip);
-        switch (network) {
-            case LOOPBACK_NAMED_NETWORK:
-                return isLoopback(address);
-            case GLOBAL_UNICAST_NAMED_NETWORK:
-            case UNICAST_NAMED_NETWORK:
-                return isUnicast(address);
-            case LINK_LOCAL_UNICAST_NAMED_NETWORK:
-                return isLinkLocalUnicast(address);
-            case INTERFACE_LOCAL_NAMED_NETWORK:
-                return isInterfaceLocalMulticast(address);
-            case LINK_LOCAL_MULTICAST_NAMED_NETWORK:
-                return isLinkLocalMulticast(address);
-            case MULTICAST_NAMED_NETWORK:
-                return isMulticast(address);
-            case UNSPECIFIED_NAMED_NETWORK:
-                return isUnspecified(address);
-            case PRIVATE_NAMED_NETWORK:
-                return isPrivate(ip);
-            case PUBLIC_NAMED_NETWORK:
-                return isPublic(ip);
-            default:
-                return CIDRUtils.isInRange(ip, network);
-        }
+        return switch (network) {
+            case LOOPBACK_NAMED_NETWORK -> isLoopback(address);
+            case GLOBAL_UNICAST_NAMED_NETWORK, UNICAST_NAMED_NETWORK -> isUnicast(address);
+            case LINK_LOCAL_UNICAST_NAMED_NETWORK -> isLinkLocalUnicast(address);
+            case INTERFACE_LOCAL_NAMED_NETWORK -> isInterfaceLocalMulticast(address);
+            case LINK_LOCAL_MULTICAST_NAMED_NETWORK -> isLinkLocalMulticast(address);
+            case MULTICAST_NAMED_NETWORK -> isMulticast(address);
+            case UNSPECIFIED_NAMED_NETWORK -> isUnspecified(address);
+            case PRIVATE_NAMED_NETWORK -> isPrivate(ip);
+            case PUBLIC_NAMED_NETWORK -> isPublic(ip);
+            default -> CIDRUtils.isInRange(ip, network);
+        };
     }
 
     private boolean isLoopback(InetAddress ip) {

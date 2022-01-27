@@ -110,6 +110,12 @@ public abstract class IndexRouting {
         return Murmur3HashFunction.hash(effectiveRouting);
     }
 
+    /**
+     * Check if the _split index operation is allowed for an index
+     * @throws IllegalArgumentException if the operation is not allowed
+     */
+    public void checkIndexSplitAllowed() {}
+
     private abstract static class IdAndRoutingOnly extends IndexRouting {
         private final boolean routingRequired;
 
@@ -296,6 +302,11 @@ public abstract class IndexRouting {
         }
 
         @Override
+        public void checkIndexSplitAllowed() {
+            throw new IllegalArgumentException(error("index-split"));
+        }
+
+        @Override
         public void collectSearchShards(String routing, IntConsumer consumer) {
             throw new IllegalArgumentException(error("searching with a specified routing"));
         }
@@ -305,13 +316,5 @@ public abstract class IndexRouting {
         }
     }
 
-    private static class NameAndHash {
-        private final String name;
-        private final int hash;
-
-        NameAndHash(String name, int hash) {
-            this.name = name;
-            this.hash = hash;
-        }
-    }
+    private record NameAndHash(String name, int hash) {}
 }

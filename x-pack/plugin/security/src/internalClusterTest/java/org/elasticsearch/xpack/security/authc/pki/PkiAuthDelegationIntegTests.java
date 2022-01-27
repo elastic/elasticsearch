@@ -106,30 +106,32 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return super.configRoles()
-            + "\n"
-            + "role_manage:\n"
-            + "  cluster: [ manage ]\n"
-            + "\n"
-            + "role_manage_security:\n"
-            + "  cluster: [ manage_security ]\n"
-            + "\n"
-            + "role_delegate_pki:\n"
-            + "  cluster: [ delegate_pki ]\n"
-            + "\n"
-            + "role_all:\n"
-            + "  cluster: [ all ]\n";
+        return """
+            %s
+            role_manage:
+              cluster: [ manage ]
+
+            role_manage_security:
+              cluster: [ manage_security ]
+
+            role_delegate_pki:
+              cluster: [ delegate_pki ]
+
+            role_all:
+              cluster: [ all ]
+            """.formatted(super.configRoles());
     }
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles()
-            + "\n"
-            + "role_manage:user_manage\n"
-            + "role_manage_security:user_manage_security\n"
-            + "role_delegate_pki:user_delegate_pki\n"
-            + "role_all:user_all\n"
-            + "kibana_system:my_kibana_system\n";
+        return """
+            %s
+            role_manage:user_manage
+            role_manage_security:user_manage_security
+            role_delegate_pki:user_delegate_pki
+            role_all:user_all
+            kibana_system:my_kibana_system
+            """.formatted(super.configUsersRoles());
     }
 
     @Override

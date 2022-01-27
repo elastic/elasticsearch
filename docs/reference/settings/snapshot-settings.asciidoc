@@ -15,7 +15,7 @@ limit.
 
 ==== {slm-init} settings
 
-The following cluster settings configure <<snapshot-lifecycle-management,{slm}
+The following cluster settings configure <<automate-snapshots-slm,{slm}
 ({slm-init})>>.
 
 [[slm-history-index-enabled]]
@@ -27,7 +27,7 @@ to the `slm-history-*` indices. Defaults to `true`.
 [[slm-retention-schedule]]
 `slm.retention_schedule`::
 (<<dynamic-cluster-setting,Dynamic>>, <<schedule-cron,cron scheduler value>>)
-Controls when the <<slm-retention,retention task>> runs.
+Controls when the <<slm-retention-task,retention task>> runs.
 Can be a periodic or absolute time schedule.
 Supports all values supported by the <<schedule-cron,cron scheduler>>.
 Defaults to daily at 1:30am UTC: `0 30 1 * * ?`.

@@ -26,8 +26,7 @@ public abstract class ExpressionTranslator<E extends Expression> {
     protected abstract Query asQuery(E e, TranslatorHandler handler);
 
     public static Query wrapIfNested(Query query, Expression exp) {
-        if (query != null && exp instanceof FieldAttribute) {
-            FieldAttribute fa = (FieldAttribute) exp;
+        if (query != null && exp instanceof FieldAttribute fa) {
             if (fa.isNested()) {
                 return new NestedQuery(fa.source(), fa.nestedParent().name(), query);
             }

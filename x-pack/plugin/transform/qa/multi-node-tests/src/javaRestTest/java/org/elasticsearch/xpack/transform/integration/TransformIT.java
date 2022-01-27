@@ -70,11 +70,13 @@ public class TransformIT extends TransformIntegTestCase {
     @Before
     public void setClusterSettings() throws IOException {
         Request settingsRequest = new Request("PUT", "/_cluster/settings");
-        settingsRequest.setJsonEntity(
-            "{\"persistent\": {"
-                + "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"debug\","
-                + "\"logger.org.elasticsearch.xpack.transform\": \"debug\"}}"
-        );
+        settingsRequest.setJsonEntity("""
+            {
+              "persistent": {
+                "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "debug",
+                "logger.org.elasticsearch.xpack.transform": "debug"
+              }
+            }""");
         client().performRequest(settingsRequest);
     }
 
@@ -408,21 +410,10 @@ public class TransformIT extends TransformIntegTestCase {
             int stars = (i + 20) % 5;
             long business = (i + 100) % 50;
 
-            StringBuilder sourceBuilder = new StringBuilder();
-            sourceBuilder.append("{\"user_id\":\"")
-                .append("user_")
-                .append(userId)
-                .append("\",\"count\":")
-                .append(i)
-                .append(",\"business_id\":\"")
-                .append("business_")
-                .append(business)
-                .append("\",\"stars\":")
-                .append(stars)
-                .append(",\"timestamp\":")
-                .append(timestamp)
-                .append("}");
-            bulk.add(new IndexRequest().source(sourceBuilder.toString(), XContentType.JSON));
+            String source = """
+                {"user_id":"user_%s","count":%s,"business_id":"business_%s","stars":%s,"timestamp":%s}
+                """.formatted(userId, i, business, stars, timestamp);
+            bulk.add(new IndexRequest().source(source, XContentType.JSON));
         }
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         bulkIndexDocs(bulk);

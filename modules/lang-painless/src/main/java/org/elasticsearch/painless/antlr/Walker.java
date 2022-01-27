@@ -918,7 +918,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitCalllocal(CalllocalContext ctx) {
-        String name = ctx.ID().getText();
+        String name = ctx.ID() == null ? ctx.DOLLAR().getText() : ctx.ID().getText();
         List<AExpression> arguments = collectArguments(ctx.arguments());
 
         return new ECallLocal(nextIdentifier(), location(ctx), name, arguments);

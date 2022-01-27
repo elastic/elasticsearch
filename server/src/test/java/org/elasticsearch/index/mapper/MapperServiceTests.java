@@ -283,7 +283,8 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
             // Text fields are not stored by default, so an incoming update that is identical but
             // just has `stored:false` should not require an update
-            builder.putMapping("{\"properties\":{\"field\":{\"type\":\"text\",\"store\":\"false\"}}}");
+            builder.putMapping("""
+                {"properties":{"field":{"type":"text","store":"false"}}}""");
             assertTrue(mapperService.assertNoUpdateRequired(builder.build()));
         }
 
@@ -297,7 +298,8 @@ public class MapperServiceTests extends MapperServiceTestCase {
             builder.settings(settings);
 
             // However, an update that really does need a rebuild will throw an exception
-            builder.putMapping("{\"properties\":{\"field\":{\"type\":\"text\",\"store\":\"true\"}}}");
+            builder.putMapping("""
+                {"properties":{"field":{"type":"text","store":"true"}}}""");
             Exception e = expectThrows(IllegalStateException.class, () -> mapperService.assertNoUpdateRequired(builder.build()));
 
             assertThat(e.getMessage(), containsString("expected current mapping ["));

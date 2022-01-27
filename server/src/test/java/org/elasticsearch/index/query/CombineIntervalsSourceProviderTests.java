@@ -33,24 +33,15 @@ public class CombineIntervalsSourceProviderTests extends AbstractSerializingTest
         int maxGaps = instance.getMaxGaps();
         IntervalsSourceProvider.IntervalFilter filter = instance.getFilter();
         switch (between(0, 3)) {
-            case 0:
-                subSources = subSources == null
-                    ? IntervalQueryBuilderTests.createRandomSourceList(0, randomBoolean(), randomInt(5) + 1)
-                    : null;
-                break;
-            case 1:
-                ordered = ordered == false;
-                break;
-            case 2:
-                maxGaps++;
-                break;
-            case 3:
-                filter = filter == null
-                    ? IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean())
-                    : FilterIntervalsSourceProviderTests.mutateFilter(filter);
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> subSources = subSources == null
+                ? IntervalQueryBuilderTests.createRandomSourceList(0, randomBoolean(), randomInt(5) + 1)
+                : null;
+            case 1 -> ordered = ordered == false;
+            case 2 -> maxGaps++;
+            case 3 -> filter = filter == null
+                ? IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean())
+                : FilterIntervalsSourceProviderTests.mutateFilter(filter);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new Combine(subSources, ordered, maxGaps, filter);
     }

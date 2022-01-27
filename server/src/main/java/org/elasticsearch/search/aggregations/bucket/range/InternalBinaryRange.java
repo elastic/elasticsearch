@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -223,7 +224,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         reduceContext.consumeBucketsAndMaybeBreak(buckets.size());
         long[] docCounts = new long[buckets.size()];
         InternalAggregations[][] aggs = new InternalAggregations[buckets.size()][];
@@ -260,7 +261,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
     }
 
     @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
+    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
         List<InternalAggregations> aggregationsList = buckets.stream().map(bucket -> bucket.aggregations).collect(Collectors.toList());
         final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);

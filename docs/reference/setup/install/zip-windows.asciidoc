@@ -5,10 +5,6 @@
 comes with a `elasticsearch-service.bat` command which will setup {es} to run as a
 service.
 
-TIP: {es} has historically been installed on Windows using the `.zip` archive.
-An <<windows, MSI installer package>> is available that provides the easiest getting started
-experience for Windows. You can continue using the `.zip` approach if you prefer.
-
 include::license.asciidoc[]
 
 NOTE: On Windows the {es} {ml} feature requires the Microsoft Universal
@@ -127,7 +123,7 @@ C:\elasticsearch-{version}{backslash}bin>\bin\elasticsearch-reset-password -u el
 ----
 
 NOTE: While a JRE can be used for the {es} service, due to its use of a client
-VM (as opposed to a server JVM which offers better performance for long-running 
+VM (as opposed to a server JVM which offers better performance for long-running
 applications) its usage is discouraged and a warning will be issued.
 
 NOTE: The system environment variable `ES_JAVA_HOME` should be set to the path
@@ -256,6 +252,8 @@ It is also possible to configure the service after it's been installed using the
 
 Most changes (like JVM settings) made through the manager GUI will require a restart of the service to take affect.
 
+include::connect-clients.asciidoc[]
+
 [[windows-layout]]
 ==== Directory layout of `.zip` archive
 
@@ -291,7 +289,7 @@ directory so that you do not delete important data later on.
 
 | conf
   | Generated TLS keys and certificates for the transport and HTTP layer.
-  | %ES_HOME%\config\tls_auto_config_<timestamp>
+  | %ES_HOME%\config\certs
  d|
 
 | data

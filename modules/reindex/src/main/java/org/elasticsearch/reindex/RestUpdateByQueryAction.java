@@ -8,7 +8,7 @@
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;

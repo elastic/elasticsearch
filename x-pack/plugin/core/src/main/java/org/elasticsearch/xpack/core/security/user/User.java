@@ -72,7 +72,7 @@ public class User implements ToXContentObject {
 
     /**
      * @return  The principal of this user - effectively serving as the
-     *          unique identity of of the user.
+     *          unique identity of the user (within a given realm).
      */
     public String principal() {
         return this.username;
@@ -116,14 +116,20 @@ public class User implements ToXContentObject {
     }
 
     /**
+     * @deprecated We are transitioning to AuthenticationContext which frees User from managing the run-as information.
      * @return The user that was originally authenticated.
      * This may be the user itself, or a different user which used runAs.
      */
+    @Deprecated
     public User authenticatedUser() {
         return authenticatedUser == null ? this : authenticatedUser;
     }
 
-    /** Return true if this user was not the originally authenticated user, false otherwise. */
+    /**
+     * @deprecated We are transitioning to AuthenticationContext which frees User from managing the run-as information.
+     * Return true if this user was not the originally authenticated user, false otherwise.
+     * */
+    @Deprecated
     public boolean isRunAs() {
         return authenticatedUser != null;
     }

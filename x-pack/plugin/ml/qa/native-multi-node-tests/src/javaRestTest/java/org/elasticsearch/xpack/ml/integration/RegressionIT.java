@@ -562,20 +562,21 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         initialize("regression_alias_fields");
         String predictionField = "field_2_prediction";
 
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"field_1\": {\n"
-            + "          \"type\": \"integer\"\n"
-            + "        },"
-            + "        \"field_2\": {\n"
-            + "          \"type\": \"integer\"\n"
-            + "        },"
-            + "        \"field_1_alias\": {\n"
-            + "          \"type\": \"alias\",\n"
-            + "          \"path\": \"field_1\"\n"
-            + "        }"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+                "properties": {
+                    "field_1": {
+                        "type": "integer"
+                    },
+                    "field_2": {
+                        "type": "integer"
+                    },
+                    "field_1_alias": {
+                        "type": "alias",
+                        "path": "field_1"
+                    }
+                }
+            }""";
         client().admin().indices().prepareCreate(sourceIndex).setMapping(mapping).get();
 
         int totalDocCount = 300;
@@ -878,28 +879,23 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     }
 
     static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, boolean dataStream) {
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"date\"\n"
-            + "        },"
-            + "        \""
-            + NUMERICAL_FEATURE_FIELD
-            + "\": {\n"
-            + "          \"type\": \"double\"\n"
-            + "        },"
-            + "        \""
-            + DISCRETE_NUMERICAL_FEATURE_FIELD
-            + "\": {\n"
-            + "          \"type\": \"unsigned_long\"\n"
-            + "        },"
-            + "        \""
-            + DEPENDENT_VARIABLE_FIELD
-            + "\": {\n"
-            + "          \"type\": \"double\"\n"
-            + "        }"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+              "properties": {
+                "@timestamp": {
+                  "type": "date"
+                },
+                "%s": {
+                  "type": "double"
+                },
+                "%s": {
+                  "type": "unsigned_long"
+                },
+                "%s": {
+                  "type": "double"
+                }
+              }
+            }""".formatted(NUMERICAL_FEATURE_FIELD, DISCRETE_NUMERICAL_FEATURE_FIELD, DEPENDENT_VARIABLE_FIELD);
         if (dataStream) {
             try {
                 createDataStreamAndTemplate(sourceIndex, mapping);

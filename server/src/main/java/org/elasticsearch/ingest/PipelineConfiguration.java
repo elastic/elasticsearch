@@ -103,8 +103,8 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
             Object o = configMap.get("version");
             if (o == null) {
                 return null;
-            } else if (o instanceof Number) {
-                return ((Number) o).intValue();
+            } else if (o instanceof Number number) {
+                return number.intValue();
             } else {
                 throw new IllegalStateException("unexpected version type [" + o.getClass().getName() + "]");
             }

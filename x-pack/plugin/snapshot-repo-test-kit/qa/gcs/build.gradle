@@ -18,11 +18,9 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:gcs-fixture')
-final Project repositoryPlugin = project(':plugins:repository-gcs')
 
 dependencies {
   testImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
-  testImplementation repositoryPlugin
 }
 
 restResources {
@@ -96,7 +94,6 @@ tasks.named("integTest").configure {
 
 testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
-  plugin repositoryPlugin.path
 
   keystore 'gcs.client.repository_test_kit.credentials_file', serviceAccountFile, IGNORE_VALUE
   if (useFixture) {

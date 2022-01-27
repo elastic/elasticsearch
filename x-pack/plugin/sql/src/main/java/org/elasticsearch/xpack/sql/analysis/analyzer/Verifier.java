@@ -143,8 +143,7 @@ public final class Verifier {
                         // again the usual suspects
                         if (ae instanceof Unresolvable) {
                             // handle Attributes different to provide more context
-                            if (ae instanceof UnresolvedAttribute) {
-                                UnresolvedAttribute ua = (UnresolvedAttribute) ae;
+                            if (ae instanceof UnresolvedAttribute ua) {
                                 // only work out the synonyms for raw unresolved attributes
                                 if (ua.customMessage() == false) {
                                     boolean useQualifier = ua.qualifier() != null;
@@ -320,8 +319,7 @@ public final class Verifier {
         Set<LogicalPlan> groupingFailures,
         AttributeMap<Expression> attributeRefs
     ) {
-        if (p instanceof OrderBy) {
-            OrderBy o = (OrderBy) p;
+        if (p instanceof OrderBy o) {
             LogicalPlan child = o.child();
 
             if (child instanceof Project) {
@@ -331,8 +329,7 @@ public final class Verifier {
                 child = ((Filter) child).child();
             }
 
-            if (child instanceof Aggregate) {
-                Aggregate a = (Aggregate) child;
+            if (child instanceof Aggregate a) {
 
                 Map<Expression, Node<?>> missing = new LinkedHashMap<>();
 
@@ -350,8 +347,7 @@ public final class Verifier {
                     List<Expression> groupingAndMatchingAggregatesAliases = new ArrayList<>(a.groupings());
 
                     a.aggregates().forEach(as -> {
-                        if (as instanceof Alias) {
-                            Alias al = (Alias) as;
+                        if (as instanceof Alias al) {
                             if (Expressions.anyMatch(a.groupings(), g -> Expressions.equalsAsAttribute(al.child(), g))) {
                                 groupingAndMatchingAggregatesAliases.add(al);
                             }
@@ -399,11 +395,10 @@ public final class Verifier {
         Set<LogicalPlan> groupingFailures,
         AttributeMap<Expression> attributeRefs
     ) {
-        if (p instanceof Having) {
-            Having h = (Having) p;
-            if (h.child() instanceof Aggregate) {
-                Aggregate a = (Aggregate) h.child();
-
+        if (p instanceof Having h) {
+            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+            if (h.child() instanceof Aggregate a) {
+                // end::noformat
                 Set<Expression> missing = new LinkedHashSet<>();
                 Set<Expression> unsupported = new LinkedHashSet<>();
                 Expression condition = h.condition();
@@ -451,8 +446,7 @@ public final class Verifier {
         // scalar functions can be a binary tree
         // first test the function against the grouping
         // and if that fails, start unpacking hoping to find matches
-        if (e instanceof ScalarFunction) {
-            ScalarFunction sf = (ScalarFunction) e;
+        if (e instanceof ScalarFunction sf) {
 
             // unwrap function to find the base
             for (Expression arg : sf.arguments()) {
@@ -544,8 +538,7 @@ public final class Verifier {
     }
 
     private static boolean checkGroupByTime(LogicalPlan p, Set<Failure> localFailures) {
-        if (p instanceof Aggregate) {
-            Aggregate a = (Aggregate) p;
+        if (p instanceof Aggregate a) {
 
             // TIME data type is not allowed for grouping key
             // https://github.com/elastic/elasticsearch/issues/40639
@@ -570,8 +563,7 @@ public final class Verifier {
 
     // check whether plain columns specified in an agg are mentioned in the group-by
     private static boolean checkGroupByAgg(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
-        if (p instanceof Aggregate) {
-            Aggregate a = (Aggregate) p;
+        if (p instanceof Aggregate a) {
 
             // The grouping can not be an aggregate function
             a.groupings().forEach(e -> e.forEachUp(c -> {
@@ -657,8 +649,7 @@ public final class Verifier {
         // scalar functions can be a binary tree
         // first test the function against the grouping
         // and if that fails, start unpacking hoping to find matches
-        if (e instanceof ScalarFunction) {
-            ScalarFunction sf = (ScalarFunction) e;
+        if (e instanceof ScalarFunction sf) {
 
             // found group for the expression
             if (Expressions.anyMatch(groupings, e::semanticEquals)) {
@@ -702,8 +693,7 @@ public final class Verifier {
 
     private static void checkGroupingFunctionInGroupBy(LogicalPlan p, Set<Failure> localFailures) {
         // check if the query has a grouping function (Histogram) but no GROUP BY
-        if (p instanceof Project) {
-            Project proj = (Project) p;
+        if (p instanceof Project proj) {
             proj.projections()
                 .forEach(
                     e -> e.forEachDown(
@@ -713,8 +703,7 @@ public final class Verifier {
                 );
         }
         // if it does have a GROUP BY, check if the groupings contain the grouping functions (Histograms)
-        else if (p instanceof Aggregate) {
-            Aggregate a = (Aggregate) p;
+        else if (p instanceof Aggregate a) {
             a.aggregates().forEach(agg -> agg.forEachDown(GroupingFunction.class, e -> {
                 if (a.groupings().size() == 0 || Expressions.anyMatch(a.groupings(), g -> g instanceof Function && e.equals(g)) == false) {
                     localFailures.add(fail(e, "[{}] needs to be part of the grouping", Expressions.name(e)));
@@ -743,8 +732,7 @@ public final class Verifier {
     }
 
     private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
-        if (p instanceof Filter) {
-            Filter filter = (Filter) p;
+        if (p instanceof Filter filter) {
             if (filter.anyMatch(Aggregate.class::isInstance) == false) {
                 filter.condition().forEachDown(Expression.class, e -> {
                     if (Functions.isAggregate(attributeRefs.resolve(e, e))) {
@@ -787,8 +775,7 @@ public final class Verifier {
     }
 
     private static void checkFilterOnGrouping(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
-        if (p instanceof Filter) {
-            Filter filter = (Filter) p;
+        if (p instanceof Filter filter) {
             filter.condition().forEachDown(Expression.class, e -> {
                 if (Functions.isGrouping(attributeRefs.resolve(e, e))) {
                     localFailures.add(fail(e, "Cannot filter on grouping function [{}], use its argument instead", Expressions.name(e)));

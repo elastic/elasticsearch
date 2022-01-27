@@ -178,7 +178,7 @@ setup:
   - is_false: fields.metricset.keyword.non_searchable_indices
   - is_false: fields.metricset.keyword.non_aggregatable_indices
   - match: {fields.metricset.keyword.non_dimension_indices: ["tsdb_index2"]}
-  - is_false: fields.metricset.keyword.mertric_conflicts_indices
+  - is_false: fields.metricset.keyword.metric_conflicts_indices
 
   - match: {fields.non_tsdb_field.keyword.searchable: true}
   - match: {fields.non_tsdb_field.keyword.aggregatable: true}
@@ -188,44 +188,44 @@ setup:
   - is_false: fields.non_tsdb_field.keyword.non_searchable_indices
   - is_false: fields.non_tsdb_field.keyword.non_aggregatable_indices
   - is_false: fields.non_tsdb_field.keyword.non_dimension_indices
-  - is_false: fields.non_tsdb_field.keyword.mertric_conflicts_indices
+  - is_false: fields.non_tsdb_field.keyword.metric_conflicts_indices
 
   - match: {fields.k8s\.pod\.availability_zone.short.time_series_dimension: true}
   - is_false: fields.k8s\.pod\.availability_zone.short.time_series_metric
   - is_false: fields.k8s\.pod\.availability_zone.short.non_dimension_indices
-  - is_false: fields.k8s\.pod\.availability_zone.short.mertric_conflicts_indices
+  - is_false: fields.k8s\.pod\.availability_zone.short.metric_conflicts_indices
 
   - match: {fields.k8s\.pod\.uid.keyword.time_series_dimension: true}
   - is_false: fields.k8s\.pod\.uid.keyword.time_series_metric
   - is_false: fields.k8s\.pod\.uid.keyword.non_dimension_indices
-  - is_false: fields.k8s\.pod\.uid.keyword.mertric_conflicts_indices
+  - is_false: fields.k8s\.pod\.uid.keyword.metric_conflicts_indices
 
   - is_false: fields.k8s\.pod\.name.keyword.time_series_dimension
   - is_false: fields.k8s\.pod\.name.keyword.time_series_metric
   - is_false: fields.k8s\.pod\.name.keyword.non_dimension_indices
-  - is_false: fields.k8s\.pod\.name.keyword.mertric_conflicts_indices
+  - is_false: fields.k8s\.pod\.name.keyword.metric_conflicts_indices
 
   - match: {fields.k8s\.pod\.ip.ip.time_series_dimension: true}
   - is_false: fields.k8s\.pod\.ip.ip.time_series_metric
   - is_false: fields.k8s\.pod\.ip.ip.non_dimension_indices
-  - is_false: fields.k8s\.pod\.ip.ip.mertric_conflicts_indices
+  - is_false: fields.k8s\.pod\.ip.ip.metric_conflicts_indices
 
   - is_false: fields.k8s\.pod\.network\.tx.long.time_series_dimension
   - is_false: fields.k8s\.pod\.network\.tx.long.time_series_metric
   - is_false: fields.k8s\.pod\.network\.tx.long.non_dimension_indices
-  - match: {fields.k8s\.pod\.network\.tx.long.mertric_conflicts_indices: ["tsdb_index1", "tsdb_index2"]}
+  - match: {fields.k8s\.pod\.network\.tx.long.metric_conflicts_indices: ["tsdb_index1", "tsdb_index2"]}
 
   - is_false: fields.k8s\.pod\.network\.rx.integer.time_series_dimension
   - is_false: fields.k8s\.pod\.network\.rx.integer.time_series_metric
   - is_false: fields.k8s\.pod\.network\.rx.integer.non_dimension_indices
-  - match: {fields.k8s\.pod\.network\.rx.integer.mertric_conflicts_indices: ["tsdb_index1", "tsdb_index2"]}
+  - match: {fields.k8s\.pod\.network\.rx.integer.metric_conflicts_indices: ["tsdb_index1", "tsdb_index2"]}
 
   - is_false: fields.k8s\.pod\.network\.packets_dropped.long.time_series_dimension
   - match: {fields.k8s\.pod\.network\.packets_dropped.long.time_series_metric: gauge}
   - is_false: fields.k8s\.pod\.network\.packets_dropped.long.non_dimension_indices
-  - is_false: fields.k8s\.pod\.network\.packets_dropped.long.mertric_conflicts_indices
+  - is_false: fields.k8s\.pod\.network\.packets_dropped.long.metric_conflicts_indices
 
   - is_false: fields.k8s\.pod\.network\.latency.double.time_series_dimension
   - match: {fields.k8s\.pod\.network\.latency.double.time_series_metric: gauge}
   - is_false: fields.k8s\.pod\.network\.latency.double.non_dimension_indices
-  - is_false: fields.k8s\.pod\.network\.latency.double.mertric_conflicts_indices
+  - is_false: fields.k8s\.pod\.network\.latency.double.metric_conflicts_indices

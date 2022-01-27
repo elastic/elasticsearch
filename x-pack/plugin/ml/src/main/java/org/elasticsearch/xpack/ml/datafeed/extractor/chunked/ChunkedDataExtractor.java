@@ -13,7 +13,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
@@ -106,7 +106,7 @@ public class ChunkedDataExtractor implements DataExtractor {
     }
 
     @Override
-    public Optional<InputStream> next() throws IOException {
+    public Result next() throws IOException {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
@@ -136,6 +136,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         } else {
             // search is over
             currentEnd = context.end;
+            LOGGER.debug("[{}] Chunked search configured: no data found", context.jobId);
         }
     }
 
@@ -143,7 +144,8 @@ public class ChunkedDataExtractor implements DataExtractor {
         return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
     }
 
-    private Optional<InputStream> getNextStream() throws IOException {
+    private Result getNextStream() throws IOException {
+        SearchInterval lastSearchInterval = new SearchInterval(context.start, context.end);
         while (hasNext()) {
             boolean isNewSearch = false;
 
@@ -153,9 +155,10 @@ public class ChunkedDataExtractor implements DataExtractor {
                 isNewSearch = true;
             }
 
-            Optional<InputStream> nextStream = currentExtractor.next();
-            if (nextStream.isPresent()) {
-                return nextStream;
+            Result result = currentExtractor.next();
+            lastSearchInterval = result.searchInterval();
+            if (result.data().isPresent()) {
+                return result;
             }
 
             if (isNewSearch && hasNext()) {
@@ -164,7 +167,7 @@ public class ChunkedDataExtractor implements DataExtractor {
                 setUpChunkedSearch();
             }
         }
-        return Optional.empty();
+        return new Result(lastSearchInterval, Optional.empty());
     }
 
     private void advanceTime() {

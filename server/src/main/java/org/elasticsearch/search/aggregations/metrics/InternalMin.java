@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -58,7 +59,7 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalMin reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalMin reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         double min = Double.POSITIVE_INFINITY;
         for (InternalAggregation aggregation : aggregations) {
             min = Math.min(min, ((InternalMin) aggregation).min);

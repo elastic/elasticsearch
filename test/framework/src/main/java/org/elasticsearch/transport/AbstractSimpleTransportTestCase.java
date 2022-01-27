@@ -104,6 +104,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     private static final TimeValue HUNDRED_MS = TimeValue.timeValueMillis(100L);
 
+    // public copy of package-private setting so that tests in other packages can use it
+    public static final Setting<Boolean> IGNORE_DESERIALIZATION_ERRORS_SETTING = TcpTransport.IGNORE_DESERIALIZATION_ERRORS_SETTING;
+
     protected ThreadPool threadPool;
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions
     private static final Version CURRENT_VERSION = Version.fromString(String.valueOf(Version.CURRENT.major) + ".0.0");
@@ -198,6 +201,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .put(TransportSettings.PORT.getKey(), getPortRange())
             .put(settings)
             .put(Node.NODE_NAME_SETTING.getKey(), name)
+            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
             .build();
         if (clusterSettings == null) {
             clusterSettings = new ClusterSettings(updatedSettings, getSupportedSettings());
@@ -891,13 +895,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         final String info = sender + "_B_" + iter;
                         serviceB.sendRequest(
                             nodeA,
-                            "test",
+                            "internal:test",
                             new TestRequest(info),
                             new ActionListenerResponseHandler<>(listener, TestResponse::new)
                         );
                         try {
                             listener.actionGet();
-
                         } catch (Exception e) {
                             logger.trace(
                                 (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", nodeA),

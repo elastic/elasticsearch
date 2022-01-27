@@ -48,11 +48,10 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
 
         for (int i = 0; i < customFormats.length; i++) {
             String field = "date_" + i;
-            docs[i] = "{\""
-                + field
-                + "\":\""
-                + DateTimeFormatter.ofPattern(customFormats[i], Locale.ROOT).format(DateUtils.nowWithMillisResolution())
-                + "\"}";
+            String format = DateTimeFormatter.ofPattern(customFormats[i], Locale.ROOT).format(DateUtils.nowWithMillisResolution());
+            docs[i] = """
+                {"%s":"%s"}
+                """.formatted(field, format);
             datesConditions.append(i > 0 ? " OR " : "").append(field + randomFrom(operators) + randomFrom(nowFunctions));
         }
 
@@ -63,7 +62,8 @@ public abstract class CustomDateFormatTestCase extends BaseRestSqlTestCase {
         request.setEntity(new StringEntity(query(query).mode(Mode.PLAIN).timeZone(zID).toString(), ContentType.APPLICATION_JSON));
 
         Response response = client().performRequest(request);
-        String expectedJsonSnippet = "{\"columns\":[{\"name\":\"c\",\"type\":\"long\"}],\"rows\":[[";
+        String expectedJsonSnippet = """
+            {"columns":[{"name":"c","type":"long"}],"rows":[[""";
         try (InputStream content = response.getEntity().getContent()) {
             String actualJson = new BytesArray(content.readAllBytes()).utf8ToString();
             // we just need to get a response that's not a date parsing error

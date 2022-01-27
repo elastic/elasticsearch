@@ -57,6 +57,7 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
@@ -133,8 +134,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         try (
             XContentParser parser = xContentType.xContent()
                 .createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    XContentParserConfiguration.EMPTY.withRegistry(NamedXContentRegistry.EMPTY)
+                        .withDeprecationHandler(DeprecationHandler.THROW_UNSUPPORTED_OPERATION),
                     response.getEntity().getContent()
                 )
         ) {
@@ -151,8 +152,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         try (
             XContentParser parser = xContentType.xContent()
                 .createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    XContentParserConfiguration.EMPTY.withRegistry(NamedXContentRegistry.EMPTY)
+                        .withDeprecationHandler(DeprecationHandler.THROW_UNSUPPORTED_OPERATION),
                     response.getEntity().getContent()
                 )
         ) {
@@ -570,6 +571,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             "ilm-history-ilm-policy",
             "slm-history-ilm-policy",
             "watch-history-ilm-policy",
+            "watch-history-ilm-policy-16",
             "ml-size-based-ilm-policy",
             "logs",
             "metrics",
@@ -580,7 +582,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             "180-days-default",
             "365-days-default",
             ".fleet-actions-results-ilm-policy",
-            ".deprecation-indexing-ilm-policy"
+            ".deprecation-indexing-ilm-policy",
+            ".monitoring-8-ilm-policy"
         );
     }
 

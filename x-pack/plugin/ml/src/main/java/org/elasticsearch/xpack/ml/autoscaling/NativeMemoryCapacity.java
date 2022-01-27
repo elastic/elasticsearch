@@ -23,28 +23,28 @@ public class NativeMemoryCapacity {
     static final NativeMemoryCapacity ZERO = new NativeMemoryCapacity(0L, 0L);
 
     static NativeMemoryCapacity from(NativeMemoryCapacity capacity) {
-        return new NativeMemoryCapacity(capacity.tier, capacity.node, capacity.jvmSize);
+        return new NativeMemoryCapacity(capacity.tierMlNativeMemoryRequirement, capacity.nodeMlNativeMemoryRequirement, capacity.jvmSize);
     }
 
-    private long tier;
-    private long node;
+    private long tierMlNativeMemoryRequirement;
+    private long nodeMlNativeMemoryRequirement;
     private Long jvmSize;
 
-    public NativeMemoryCapacity(long tier, long node, Long jvmSize) {
-        this.tier = tier;
-        this.node = node;
+    public NativeMemoryCapacity(long tierMlNativeMemoryRequirement, long nodeMlNativeMemoryRequirement, Long jvmSize) {
+        this.tierMlNativeMemoryRequirement = tierMlNativeMemoryRequirement;
+        this.nodeMlNativeMemoryRequirement = nodeMlNativeMemoryRequirement;
         this.jvmSize = jvmSize;
     }
 
-    NativeMemoryCapacity(long tier, long node) {
-        this.tier = tier;
-        this.node = node;
+    NativeMemoryCapacity(long tierMlNativeMemoryRequirement, long nodeMlNativeMemoryRequirement) {
+        this.tierMlNativeMemoryRequirement = tierMlNativeMemoryRequirement;
+        this.nodeMlNativeMemoryRequirement = nodeMlNativeMemoryRequirement;
     }
 
     NativeMemoryCapacity merge(NativeMemoryCapacity nativeMemoryCapacity) {
-        this.tier += nativeMemoryCapacity.tier;
-        if (nativeMemoryCapacity.node > this.node) {
-            this.node = nativeMemoryCapacity.node;
+        this.tierMlNativeMemoryRequirement += nativeMemoryCapacity.tierMlNativeMemoryRequirement;
+        if (nativeMemoryCapacity.nodeMlNativeMemoryRequirement > this.nodeMlNativeMemoryRequirement) {
+            this.nodeMlNativeMemoryRequirement = nativeMemoryCapacity.nodeMlNativeMemoryRequirement;
             // If the new node size is bigger, we have no way of knowing if the JVM size would stay the same
             // So null out
             this.jvmSize = null;
@@ -55,32 +55,49 @@ public class NativeMemoryCapacity {
     public AutoscalingCapacity autoscalingCapacity(int maxMemoryPercent, boolean useAuto) {
         // We calculate the JVM size here first to ensure it stays the same given the rest of the calculations
         final Long jvmSize = useAuto
-            ? Optional.ofNullable(this.jvmSize).orElse(dynamicallyCalculateJvmSizeFromNativeMemorySize(node))
+            ? Optional.ofNullable(this.jvmSize).orElse(dynamicallyCalculateJvmSizeFromNativeMemorySize(nodeMlNativeMemoryRequirement))
             : null;
-        // We first need to calculate the actual node size given the current native memory size.
+        // We first need to calculate the required node size given the required native ML memory size.
         // This way we can accurately determine the required node size AND what the overall memory percentage will be
-        long actualNodeSize = NativeMemoryCalculator.calculateApproxNecessaryNodeSize(node, jvmSize, maxMemoryPercent, useAuto);
+        long requiredNodeSize = NativeMemoryCalculator.calculateApproxNecessaryNodeSize(
+            nodeMlNativeMemoryRequirement,
+            jvmSize,
+            maxMemoryPercent,
+            useAuto
+        );
         // We make the assumption that the JVM size is the same across the entire tier
         // This simplifies calculating the tier as it means that each node in the tier
         // will have the same dynamic memory calculation. And thus the tier is simply the sum of the memory necessary
         // times that scaling factor.
-        double memoryPercentForMl = NativeMemoryCalculator.modelMemoryPercent(actualNodeSize, jvmSize, maxMemoryPercent, useAuto);
+        //
+        // Since this is a _minimum_ node size, the memory percent calculated here is not
+        // necessarily what "auto" will imply after scaling. Because the JVM occupies a
+        // smaller proportion of memory the bigger the node, the memory percent might be
+        // higher than we calculate here, potentially resulting in a bigger ML tier than
+        // required. The effect is most pronounced when the minimum node size is small and
+        // the minimum tier size is a lot bigger. For example, if the minimum node size is
+        // 1GB and the total native ML memory requirement for the tier is 32GB then the memory
+        // percent will be 41%, implying a minimum ML tier size of 78GB. But in reality a
+        // single 64GB ML node would have an auto memory percent of 90%, and 90% of 64GB is
+        // plenty big enough for the 32GB of ML native memory required.
+        // TODO: improve this in the next refactoring
+        double memoryPercentForMl = NativeMemoryCalculator.modelMemoryPercent(requiredNodeSize, jvmSize, maxMemoryPercent, useAuto);
         double inverseScale = memoryPercentForMl <= 0 ? 0 : 100.0 / memoryPercentForMl;
-        long actualTier = Math.round(tier * inverseScale);
+        long requiredTierSize = Math.round(Math.ceil(tierMlNativeMemoryRequirement * inverseScale));
         return new AutoscalingCapacity(
             // Tier should always be AT LEAST the largest node size.
             // This Math.max catches any strange rounding errors or weird input.
-            new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes(Math.max(actualTier, actualNodeSize))),
-            new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes(actualNodeSize))
+            new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes(Math.max(requiredTierSize, requiredNodeSize))),
+            new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes(requiredNodeSize))
         );
     }
 
-    public long getTier() {
-        return tier;
+    public long getTierMlNativeMemoryRequirement() {
+        return tierMlNativeMemoryRequirement;
     }
 
-    public long getNode() {
-        return node;
+    public long getNodeMlNativeMemoryRequirement() {
+        return nodeMlNativeMemoryRequirement;
     }
 
     public Long getJvmSize() {
@@ -90,10 +107,10 @@ public class NativeMemoryCapacity {
     @Override
     public String toString() {
         return "NativeMemoryCapacity{"
-            + "total bytes="
-            + ByteSizeValue.ofBytes(tier)
-            + ", largest node bytes="
-            + ByteSizeValue.ofBytes(node)
+            + "total ML native bytes="
+            + ByteSizeValue.ofBytes(tierMlNativeMemoryRequirement)
+            + ", largest node ML native bytes="
+            + ByteSizeValue.ofBytes(nodeMlNativeMemoryRequirement)
             + '}';
     }
 
@@ -102,11 +119,13 @@ public class NativeMemoryCapacity {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NativeMemoryCapacity that = (NativeMemoryCapacity) o;
-        return tier == that.tier && node == that.node && Objects.equals(jvmSize, that.jvmSize);
+        return tierMlNativeMemoryRequirement == that.tierMlNativeMemoryRequirement
+            && nodeMlNativeMemoryRequirement == that.nodeMlNativeMemoryRequirement
+            && Objects.equals(jvmSize, that.jvmSize);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(tier, node, jvmSize);
+        return Objects.hash(tierMlNativeMemoryRequirement, nodeMlNativeMemoryRequirement, jvmSize);
     }
 }

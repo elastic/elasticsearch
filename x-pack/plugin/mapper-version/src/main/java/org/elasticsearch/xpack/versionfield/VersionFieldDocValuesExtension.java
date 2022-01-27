@@ -26,7 +26,10 @@ import static java.util.Collections.singletonList;
 
 public class VersionFieldDocValuesExtension implements PainlessExtension {
 
-    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(VersionFieldDocValuesExtension.class, "whitelist.txt");
+    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(
+        VersionFieldDocValuesExtension.class,
+        "org.elasticsearch.xpack.versionfield.txt"
+    );
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {

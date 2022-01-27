@@ -33,15 +33,15 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
 
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotIndexEventListener.class);
 
-    private final Supplier<CacheService> cacheService;
-    private final Supplier<FrozenCacheService> frozenCacheService;
+    private final Supplier<CacheService> cacheServiceSupplier;
+    private final Supplier<FrozenCacheService> frozenCacheServiceSupplier;
 
     public SearchableSnapshotIndexFoldersDeletionListener(
-        Supplier<CacheService> cacheService,
-        Supplier<FrozenCacheService> frozenCacheService
+        Supplier<CacheService> cacheServiceSupplier,
+        Supplier<FrozenCacheService> frozenCacheServiceSupplier
     ) {
-        this.cacheService = Objects.requireNonNull(cacheService);
-        this.frozenCacheService = Objects.requireNonNull(frozenCacheService);
+        this.cacheServiceSupplier = Objects.requireNonNull(cacheServiceSupplier);
+        this.frozenCacheServiceSupplier = Objects.requireNonNull(frozenCacheServiceSupplier);
     }
 
     @Override
@@ -61,7 +61,7 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
     }
 
     private void markShardAsEvictedInCache(ShardId shardId, IndexSettings indexSettings) {
-        final CacheService cacheService = this.cacheService.get();
+        final CacheService cacheService = this.cacheServiceSupplier.get();
         assert cacheService != null : "cache service not initialized";
 
         logger.debug("{} marking shard as evicted in searchable snapshots cache (reason: cache files deleted from disk)", shardId);
@@ -71,7 +71,7 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
             shardId
         );
 
-        final FrozenCacheService frozenCacheService = this.frozenCacheService.get();
+        final FrozenCacheService frozenCacheService = this.frozenCacheServiceSupplier.get();
         assert frozenCacheService != null : "frozen cache service not initialized";
         frozenCacheService.markShardAsEvictedInCache(
             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),

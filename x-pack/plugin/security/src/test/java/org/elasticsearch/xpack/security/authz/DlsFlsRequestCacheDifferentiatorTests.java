@@ -66,9 +66,8 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
         flsIndexName = "fls-" + randomAlphaOfLengthBetween(3, 8);
         dlsFlsIndexName = "dls-fls-" + randomAlphaOfLengthBetween(3, 8);
 
-        final DocumentPermissions documentPermissions1 = DocumentPermissions.filteredBy(
-            Set.of(new BytesArray("{\"term\":{\"number\":1}}"))
-        );
+        final DocumentPermissions documentPermissions1 = DocumentPermissions.filteredBy(Set.of(new BytesArray("""
+            {"term":{"number":1}}""")));
 
         threadContext.putTransient(
             AuthorizationServiceField.INDICES_PERMISSIONS_KEY,

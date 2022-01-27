@@ -132,109 +132,112 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         return DatafeedConfig.STRICT_PARSER.apply(parser, null).build();
     }
 
-    private static final String FUTURE_DATAFEED = "{\n"
-        + "    \"datafeed_id\": \"farequote-datafeed\",\n"
-        + "    \"job_id\": \"farequote\",\n"
-        + "    \"frequency\": \"1h\",\n"
-        + "    \"indices\": [\"farequote1\", \"farequote2\"],\n"
-        + "    \"tomorrows_technology_today\": \"amazing\",\n"
-        + "    \"scroll_size\": 1234\n"
-        + "}";
+    private static final String FUTURE_DATAFEED = """
+        {
+            "datafeed_id": "farequote-datafeed",
+            "job_id": "farequote",
+            "frequency": "1h",
+            "indices": ["farequote1", "farequote2"],
+            "tomorrows_technology_today": "amazing",
+            "scroll_size": 1234
+        }""";
 
-    private static final String ANACHRONISTIC_QUERY_DATAFEED = "{\n"
-        + "    \"datafeed_id\": \"farequote-datafeed\",\n"
-        + "    \"job_id\": \"farequote\",\n"
-        + "    \"frequency\": \"1h\",\n"
-        + "    \"indices\": [\"farequote1\", \"farequote2\"],\n"
-        +
-        // query:match:type stopped being supported in 6.x
-        "    \"query\": {\"match\" : {\"query\":\"fieldName\", \"type\": \"phrase\"}},\n"
-        + "    \"scroll_size\": 1234\n"
-        + "}";
+    // query:match:type stopped being supported in 6.x
+    private static final String ANACHRONISTIC_QUERY_DATAFEED = """
+        {
+            "datafeed_id": "farequote-datafeed",
+            "job_id": "farequote",
+            "frequency": "1h",
+            "indices": ["farequote1", "farequote2"],
+            "query": {"match" : {"query":"fieldName", "type": "phrase"}},
+            "scroll_size": 1234
+        }""";
 
-    private static final String ANACHRONISTIC_AGG_DATAFEED = "{\n"
-        + "    \"datafeed_id\": \"farequote-datafeed\",\n"
-        + "    \"job_id\": \"farequote\",\n"
-        + "    \"frequency\": \"1h\",\n"
-        + "    \"indices\": [\"farequote1\", \"farequote2\"],\n"
-        + "    \"aggregations\": {\n"
-        + "    \"buckets\": {\n"
-        + "      \"date_histogram\": {\n"
-        + "        \"field\": \"time\",\n"
-        + "        \"fixed_interval\": \"360s\",\n"
-        + "        \"time_zone\": \"UTC\"\n"
-        + "      },\n"
-        + "      \"aggregations\": {\n"
-        + "        \"time\": {\n"
-        + "          \"max\": {\"field\": \"time\"}\n"
-        + "        },\n"
-        + "        \"airline\": {\n"
-        + "          \"terms\": {\n"
-        + "            \"field\": \"airline\",\n"
-        + "            \"size\": 0\n"
-        + // size: 0 stopped being supported in 6.x
-        "          }\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  }\n"
-        + "}";
+    // size: 0 stopped being supported in 6.x
+    private static final String ANACHRONISTIC_AGG_DATAFEED = """
+        {
+            "datafeed_id": "farequote-datafeed",
+            "job_id": "farequote",
+            "frequency": "1h",
+            "indices": ["farequote1", "farequote2"],
+            "aggregations": {
+            "buckets": {
+              "date_histogram": {
+                "field": "time",
+                "fixed_interval": "360s",
+                "time_zone": "UTC"
+              },
+              "aggregations": {
+                "time": {
+                  "max": {"field": "time"}
+                },
+                "airline": {
+                  "terms": {
+                    "field": "airline",
+                    "size": 0
+                  }
+                }
+              }
+            }
+          }
+        }""";
 
-    private static final String AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL = "{\n"
-        + "    \"datafeed_id\": \"farequote-datafeed\",\n"
-        + "    \"job_id\": \"farequote\",\n"
-        + "    \"frequency\": \"1h\",\n"
-        + "    \"indices\": [\"farequote1\", \"farequote2\"],\n"
-        + "    \"aggregations\": {\n"
-        + "    \"buckets\": {\n"
-        + "      \"date_histogram\": {\n"
-        + "        \"field\": \"time\",\n"
-        + "        \"interval\": \"360s\",\n"
-        + "        \"time_zone\": \"UTC\"\n"
-        + "      },\n"
-        + "      \"aggregations\": {\n"
-        + "        \"time\": {\n"
-        + "          \"max\": {\"field\": \"time\"}\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  }\n"
-        + "}";
+    private static final String AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL = """
+        {
+            "datafeed_id": "farequote-datafeed",
+            "job_id": "farequote",
+            "frequency": "1h",
+            "indices": ["farequote1", "farequote2"],
+            "aggregations": {
+            "buckets": {
+              "date_histogram": {
+                "field": "time",
+                "interval": "360s",
+                "time_zone": "UTC"
+              },
+              "aggregations": {
+                "time": {
+                  "max": {"field": "time"}
+                }
+              }
+            }
+          }
+        }""";
 
-    private static final String MULTIPLE_AGG_DEF_DATAFEED = "{\n"
-        + "    \"datafeed_id\": \"farequote-datafeed\",\n"
-        + "    \"job_id\": \"farequote\",\n"
-        + "    \"frequency\": \"1h\",\n"
-        + "    \"indices\": [\"farequote1\", \"farequote2\"],\n"
-        + "    \"aggregations\": {\n"
-        + "    \"buckets\": {\n"
-        + "      \"date_histogram\": {\n"
-        + "        \"field\": \"time\",\n"
-        + "        \"fixed_interval\": \"360s\",\n"
-        + "        \"time_zone\": \"UTC\"\n"
-        + "      },\n"
-        + "      \"aggregations\": {\n"
-        + "        \"time\": {\n"
-        + "          \"max\": {\"field\": \"time\"}\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  },"
-        + "    \"aggs\": {\n"
-        + "    \"buckets2\": {\n"
-        + "      \"date_histogram\": {\n"
-        + "        \"field\": \"time\",\n"
-        + "        \"fixed_interval\": \"360s\",\n"
-        + "        \"time_zone\": \"UTC\"\n"
-        + "      },\n"
-        + "      \"aggregations\": {\n"
-        + "        \"time\": {\n"
-        + "          \"max\": {\"field\": \"time\"}\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  }\n"
-        + "}";
+    private static final String MULTIPLE_AGG_DEF_DATAFEED = """
+        {
+            "datafeed_id": "farequote-datafeed",
+            "job_id": "farequote",
+            "frequency": "1h",
+            "indices": ["farequote1", "farequote2"],
+            "aggregations": {
+            "buckets": {
+              "date_histogram": {
+                "field": "time",
+                "fixed_interval": "360s",
+                "time_zone": "UTC"
+              },
+              "aggregations": {
+                "time": {
+                  "max": {"field": "time"}
+                }
+              }
+            }
+          },    "aggs": {
+            "buckets2": {
+              "date_histogram": {
+                "field": "time",
+                "fixed_interval": "360s",
+                "time_zone": "UTC"
+              },
+              "aggregations": {
+                "time": {
+                  "max": {"field": "time"}
+                }
+              }
+            }
+          }
+        }""";
 
     public void testFutureConfigParse() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)

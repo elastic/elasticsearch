@@ -1655,14 +1655,10 @@ public class BCrypt {
     }
 
     static boolean valid_minor(char minor) {
-        switch (minor) {
-            case 'a':
-            case 'b':
-            case 'y':
-                return true;
-            default:
-                return false;
-        }
+        return switch (minor) {
+            case 'a', 'b', 'y' -> true;
+            default -> false;
+        };
     }
 
     /**

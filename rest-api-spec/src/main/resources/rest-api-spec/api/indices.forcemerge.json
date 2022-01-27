@@ -63,6 +63,11 @@
       "only_expunge_deletes":{
         "type":"boolean",
         "description":"Specify whether the operation should only expunge deleted documents"
+      },
+      "wait_for_completion":{
+        "type":"boolean",
+        "default":true,
+        "description":"Should the request wait until the force merge is completed."
       }
     }
   }

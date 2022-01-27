@@ -182,6 +182,11 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
             return TYPE;
         }
 
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
+        }
+
         static Diff<LifecyclePolicyMetadata> readLifecyclePolicyDiffFrom(StreamInput in) throws IOException {
             return AbstractDiffable.readDiffFrom(LifecyclePolicyMetadata::new, in);
         }

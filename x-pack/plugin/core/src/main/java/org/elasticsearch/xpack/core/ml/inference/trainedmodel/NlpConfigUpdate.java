@@ -19,25 +19,47 @@ import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXContentObject {
 
     @SuppressWarnings("unchecked")
     public static TokenizationUpdate tokenizationFromMap(Map<String, Object> map) {
-        Map<String, Object> tokenziation = (Map<String, Object>) map.remove("tokenization");
-        if (tokenziation == null) {
+        Map<String, Object> tokenization = (Map<String, Object>) map.remove("tokenization");
+        if (tokenization == null) {
             return null;
         }
 
-        Map<String, Object> bert = (Map<String, Object>) tokenziation.remove("bert");
-        if (bert == null && tokenziation.isEmpty() == false) {
-            throw ExceptionsHelper.badRequestException("unknown tokenization type expecting one of [bert] got {}", tokenziation.keySet());
+        Map<String, Function<Tokenization.Truncate, TokenizationUpdate>> knownTokenizers = Map.of(
+            BertTokenization.NAME.getPreferredName(),
+            BertTokenizationUpdate::new,
+            MPNetTokenization.NAME.getPreferredName(),
+            MPNetTokenizationUpdate::new
+        );
+
+        Map<String, Object> tokenizationConfig = null;
+        Function<Tokenization.Truncate, TokenizationUpdate> updater = null;
+        for (var tokenizerType : knownTokenizers.keySet()) {
+            tokenizationConfig = (Map<String, Object>) tokenization.remove(tokenizerType);
+            if (tokenizationConfig != null) {
+                updater = knownTokenizers.get(tokenizerType);
+                break;
+            }
         }
-        Object truncate = bert.remove("truncate");
+
+        if (tokenizationConfig == null && tokenization.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException(
+                "unknown tokenization type expecting one of {} got {}",
+                knownTokenizers.keySet().stream().sorted().collect(Collectors.toList()),
+                tokenization.keySet()
+            );
+        }
+        Object truncate = tokenizationConfig.remove("truncate");
         if (truncate == null) {
             return null;
         }
-        return new BertTokenizationUpdate(Tokenization.Truncate.fromString(truncate.toString()));
+        return updater.apply(Tokenization.Truncate.fromString(truncate.toString()));
     }
 
     protected final TokenizationUpdate tokenizationUpdate;

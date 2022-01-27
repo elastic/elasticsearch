@@ -203,18 +203,19 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     /**
-     * Loads the snapshot if and only if it the snapshot is not loaded yet.
+     * Loads the snapshot if and only if the snapshot is not loaded yet.
      *
      * @return true if the snapshot was loaded by executing this method, false otherwise
      */
-    public boolean loadSnapshot(RecoveryState recoveryState, ActionListener<Void> preWarmListener) {
-        assert recoveryState != null;
-        assert recoveryState instanceof SearchableSnapshotRecoveryState;
-        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
-            || recoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER : recoveryState.getRecoverySource().getType();
+    public boolean loadSnapshot(RecoveryState snapshotRecoveryState, ActionListener<Void> preWarmListener) {
+        assert snapshotRecoveryState != null;
+        assert snapshotRecoveryState instanceof SearchableSnapshotRecoveryState;
+        assert snapshotRecoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
+            || snapshotRecoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER
+            : snapshotRecoveryState.getRecoverySource().getType();
         assert assertCurrentThreadMayLoadSnapshot();
         // noinspection ConstantConditions in case assertions are disabled
-        if (recoveryState instanceof SearchableSnapshotRecoveryState == false) {
+        if (snapshotRecoveryState instanceof SearchableSnapshotRecoveryState == false) {
             throw new IllegalArgumentException("A SearchableSnapshotRecoveryState instance was expected");
         }
         boolean alreadyLoaded = this.loaded;
@@ -227,7 +228,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     this.loaded = true;
                     cleanExistingRegularShardFiles();
                     waitForPendingEvictions();
-                    this.recoveryState = (SearchableSnapshotRecoveryState) recoveryState;
+                    this.recoveryState = (SearchableSnapshotRecoveryState) snapshotRecoveryState;
                     prewarmCache(preWarmListener);
                 }
             }

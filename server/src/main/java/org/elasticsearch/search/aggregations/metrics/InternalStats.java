@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -139,20 +140,13 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     @Override
     public double value(String name) {
         Metrics metrics = Metrics.valueOf(name);
-        switch (metrics) {
-            case min:
-                return this.min;
-            case max:
-                return this.max;
-            case avg:
-                return this.getAvg();
-            case count:
-                return this.count;
-            case sum:
-                return this.sum;
-            default:
-                throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
-        }
+        return switch (metrics) {
+            case min -> this.min;
+            case max -> this.max;
+            case avg -> this.getAvg();
+            case count -> this.count;
+            case sum -> this.sum;
+        };
     }
 
     @Override
@@ -161,7 +155,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    public InternalStats reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalStats reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         long count = 0;
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;

@@ -12,10 +12,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -84,26 +82,15 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
     @Override
     protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
         throws IOException {
-        ObjectMapper childObjectMapper = context.getObjectMapper(path);
-        if (childObjectMapper == null) {
+        NestedObjectMapper nestedMapper = context.nestedLookup().getNestedMappers().get(path);
+        if (nestedMapper == null) {
             // in case the path has been unmapped:
             return new NestedAggregatorFactory(name, null, null, context, parent, subFactoriesBuilder, metadata);
         }
 
-        if (childObjectMapper.isNested() == false) {
-            throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
-        }
         try {
-            NestedObjectMapper parentObjectMapper = context.nestedScope().nextLevel((NestedObjectMapper) childObjectMapper);
-            return new NestedAggregatorFactory(
-                name,
-                parentObjectMapper,
-                (NestedObjectMapper) childObjectMapper,
-                context,
-                parent,
-                subFactoriesBuilder,
-                metadata
-            );
+            NestedObjectMapper parentObjectMapper = context.nestedScope().nextLevel(nestedMapper);
+            return new NestedAggregatorFactory(name, parentObjectMapper, nestedMapper, context, parent, subFactoriesBuilder, metadata);
         } finally {
             context.nestedScope().previousLevel();
         }

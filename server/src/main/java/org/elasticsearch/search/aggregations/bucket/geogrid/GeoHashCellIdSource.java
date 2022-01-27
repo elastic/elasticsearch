@@ -65,7 +65,7 @@ public class GeoHashCellIdSource extends ValuesSource.Numeric {
         }
 
         @Override
-        int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
+        protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
             values[valuesIdx] = Geohash.longEncode(target.getLon(), target.getLat(), precision);
             return valuesIdx + 1;
         }
@@ -83,7 +83,7 @@ public class GeoHashCellIdSource extends ValuesSource.Numeric {
         }
 
         @Override
-        int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
+        protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
             final String hash = Geohash.stringEncode(target.getLon(), target.getLat(), precision);
             if (validHash(hash)) {
                 values[valuesIdx] = Geohash.longEncode(hash);

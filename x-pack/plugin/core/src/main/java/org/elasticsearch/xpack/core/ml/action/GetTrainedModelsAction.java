@@ -213,8 +213,8 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
                 return this;
             }
 
-            public Builder setModels(List<TrainedModelConfig> configs) {
-                this.configs = configs;
+            public Builder setModels(List<TrainedModelConfig> models) {
+                this.configs = models;
                 return this;
             }
 

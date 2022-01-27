@@ -25,45 +25,30 @@ import static org.hamcrest.Matchers.equalTo;
 public class TimeSeriesModeTests extends MapperServiceTestCase {
 
     public void testConfigureIndex() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
-            .build();
+        Settings s = getSettings();
         assertSame(IndexMode.TIME_SERIES, IndexSettings.MODE.get(s));
     }
 
     public void testPartitioned() {
-        Settings s = Settings.builder()
-            .put(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.getKey(), 2)
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .build();
+        Settings s = Settings.builder().put(getSettings()).put(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.getKey(), 2).build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.routing_partition_size]"));
     }
 
     public void testSortField() {
-        Settings s = Settings.builder()
-            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "a")
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .build();
+        Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "a").build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.field]"));
     }
 
     public void testSortMode() {
-        Settings s = Settings.builder()
-            .put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last")
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .build();
+        Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last").build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.missing]"));
     }
 
     public void testSortOrder() {
-        Settings s = Settings.builder()
-            .put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc")
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .build();
+        Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc").build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.order]"));
     }
@@ -75,10 +60,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testRequiredRouting() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
-            .build();
+        Settings s = getSettings();
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> createMapperService(s, topMapping(b -> b.startObject("_routing").field("required", true).endObject()))
@@ -87,36 +69,24 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testValidateAlias() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
-            .build();
+        Settings s = getSettings();
         IndexSettings.MODE.get(s).validateAlias(null, null); // Doesn't throw exception
     }
 
     public void testValidateAliasWithIndexRouting() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
-            .build();
+        Settings s = getSettings();
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s).validateAlias("r", null));
         assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
     }
 
     public void testValidateAliasWithSearchRouting() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
-            .build();
+        Settings s = getSettings();
         Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettings.MODE.get(s).validateAlias(null, "r"));
         assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
     }
 
     public void testRoutingPathMatchesObject() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), randomBoolean() ? "dim.o" : "dim.*")
-            .build();
+        Settings s = getSettings(randomBoolean() ? "dim.o" : "dim.*");
         Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
             b.startObject("dim").startObject("properties");
             {
@@ -137,10 +107,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testRoutingPathMatchesNonDimensionKeyword() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), randomBoolean() ? "dim.non_dim" : "dim.*")
-            .build();
+        Settings s = getSettings(randomBoolean() ? "dim.non_dim" : "dim.*");
         Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
             b.startObject("dim").startObject("properties");
             b.startObject("non_dim").field("type", "keyword").endObject();
@@ -157,10 +124,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testRoutingPathMatchesNonKeyword() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), randomBoolean() ? "dim.non_kwd" : "dim.*")
-            .build();
+        Settings s = getSettings(randomBoolean() ? "dim.non_kwd" : "dim.*");
         Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
             b.startObject("dim").startObject("properties");
             b.startObject("non_kwd").field("type", "integer").field("time_series_dimension", true).endObject();
@@ -177,10 +141,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testRoutingPathMatchesScriptedKeyword() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), randomBoolean() ? "dim.kwd" : "dim.*")
-            .build();
+        Settings s = getSettings(randomBoolean() ? "dim.kwd" : "dim.*");
         Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
             b.startObject("dim.kwd");
             b.field("type", "keyword");
@@ -198,10 +159,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testRoutingPathMatchesRuntimeKeyword() {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), randomBoolean() ? "dim.kwd" : "dim.*")
-            .build();
+        Settings s = getSettings(randomBoolean() ? "dim.kwd" : "dim.*");
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> createMapperService(s, runtimeMapping(b -> b.startObject("dim.kwd").field("type", "keyword").endObject()))
@@ -216,10 +174,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     public void testRoutingPathMatchesOnlyKeywordDimensions() throws IOException {
-        Settings s = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), randomBoolean() ? "dim.metric_type,dim.server,dim.species,dim.uuid" : "dim.*")
-            .build();
+        Settings s = getSettings(randomBoolean() ? "dim.metric_type,dim.server,dim.species,dim.uuid" : "dim.*");
         createMapperService(s, mapping(b -> {
             b.startObject("dim").startObject("properties");
             b.startObject("metric_type").field("type", "keyword").field("time_series_dimension", true).endObject();
@@ -242,5 +197,22 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             };
         }
         return super.compileScript(script, context);
+    }
+
+    private Settings getSettings() {
+        return getSettings(randomAlphaOfLength(5), "2021-04-28T00:00:00Z", "2021-04-29T00:00:00Z");
+    }
+
+    private Settings getSettings(String routingPath) {
+        return getSettings(routingPath, "2021-04-28T00:00:00Z", "2021-04-29T00:00:00Z");
+    }
+
+    private Settings getSettings(String routingPath, String startTime, String endTime) {
+        return Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), startTime)
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), endTime)
+            .build();
     }
 }

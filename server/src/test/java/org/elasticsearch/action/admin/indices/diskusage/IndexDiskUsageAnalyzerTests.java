@@ -526,40 +526,14 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 }
                 final long bytes = directory.fileLength(file);
                 switch (ext) {
-                    case DVD:
-                    case DVM:
-                        stats.addDocValues(fieldLookup.getDocValuesField(file), bytes);
-                        break;
-                    case TIM:
-                    case TIP:
-                    case TMD:
-                    case DOC:
-                    case POS:
-                    case PAY:
-                        stats.addInvertedIndex(fieldLookup.getPostingsField(file), bytes);
-                        break;
-                    case KDI:
-                    case KDD:
-                    case KDM:
-                    case DIM:
-                        stats.addPoints("_all_points_fields", bytes);
-                        break;
-                    case FDT:
-                    case FDX:
-                    case FDM:
+                    case DVD, DVM -> stats.addDocValues(fieldLookup.getDocValuesField(file), bytes);
+                    case TIM, TIP, TMD, DOC, POS, PAY -> stats.addInvertedIndex(fieldLookup.getPostingsField(file), bytes);
+                    case KDI, KDD, KDM, DIM -> stats.addPoints("_all_points_fields", bytes);
+                    case FDT, FDX, FDM ->
                         // We don't have per field Codec for stored, vector, and norms field
                         stats.addStoredField("_all_stored_fields", bytes);
-                        break;
-                    case TVX:
-                    case TVD:
-                        stats.addTermVectors("_all_vectors_fields", bytes);
-                        break;
-                    case NVD:
-                    case NVM:
-                        stats.addNorms("_all_norms_fields", bytes);
-                        break;
-                    default:
-                        break;
+                    case TVX, TVD -> stats.addTermVectors("_all_vectors_fields", bytes);
+                    case NVD, NVM -> stats.addNorms("_all_norms_fields", bytes);
                 }
             }
         } finally {

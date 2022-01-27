@@ -63,19 +63,19 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
-        Query query = fieldType.termQuery(55.2, null);
+        Query query = fieldType.termQuery(55.2, MOCK_CONTEXT);
         assertThat(query, equalTo(DoublePoint.newRangeQuery("foo.max", 55.2, 55.2)));
     }
 
     public void testTermsQuery() {
         final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
-        Query query = fieldType.termsQuery(asList(55.2, 500.3), null);
+        Query query = fieldType.termsQuery(asList(55.2, 500.3), MOCK_CONTEXT);
         assertThat(query, equalTo(DoublePoint.newSetQuery("foo.max", 55.2, 500.3)));
     }
 
     public void testRangeQuery() {
         final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
-        Query query = fieldType.rangeQuery(10.1, 100.1, true, true, null, null, null, null);
+        Query query = fieldType.rangeQuery(10.1, 100.1, true, true, null, null, null, MOCK_CONTEXT);
         assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
     }
 

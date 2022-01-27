@@ -95,25 +95,14 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         Explain.Type type = null;
 
         if (ctx.type != null) {
-            switch (ctx.type.getType()) {
-                case SqlBaseLexer.PARSED:
-                    type = Explain.Type.PARSED;
-                    break;
-                case SqlBaseLexer.ANALYZED:
-                    type = Explain.Type.ANALYZED;
-                    break;
-                case SqlBaseLexer.OPTIMIZED:
-                    type = Explain.Type.OPTIMIZED;
-                    break;
-                case SqlBaseLexer.MAPPED:
-                    type = Explain.Type.MAPPED;
-                    break;
-                case SqlBaseLexer.EXECUTABLE:
-                    type = Explain.Type.EXECUTABLE;
-                    break;
-                default:
-                    type = Explain.Type.ALL;
-            }
+            type = switch (ctx.type.getType()) {
+                case SqlBaseLexer.PARSED -> Explain.Type.PARSED;
+                case SqlBaseLexer.ANALYZED -> Explain.Type.ANALYZED;
+                case SqlBaseLexer.OPTIMIZED -> Explain.Type.OPTIMIZED;
+                case SqlBaseLexer.MAPPED -> Explain.Type.MAPPED;
+                case SqlBaseLexer.EXECUTABLE -> Explain.Type.EXECUTABLE;
+                default -> Explain.Type.ALL;
+            };
         }
         boolean graphViz = ctx.format != null && ctx.format.getType() == SqlBaseLexer.GRAPHVIZ;
         Explain.Format format = graphViz ? Explain.Format.GRAPHVIZ : Explain.Format.TEXT;
@@ -170,14 +159,9 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
                     // https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/value-list-arguments
                 } else {
                     switch (value.toUpperCase(Locale.ROOT)) {
-                        case IndexResolver.SQL_TABLE:
-                            types.add(IndexType.STANDARD_INDEX);
-                            break;
-                        case IndexResolver.SQL_VIEW:
-                            types.add(IndexType.ALIAS);
-                            break;
-                        default:
-                            types.add(IndexType.UNKNOWN);
+                        case IndexResolver.SQL_TABLE -> types.add(IndexType.STANDARD_INDEX);
+                        case IndexResolver.SQL_VIEW -> types.add(IndexType.ALIAS);
+                        default -> types.add(IndexType.UNKNOWN);
                     }
                 }
             }

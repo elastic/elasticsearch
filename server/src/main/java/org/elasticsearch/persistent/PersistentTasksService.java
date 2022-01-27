@@ -14,8 +14,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -92,7 +92,7 @@ public class PersistentTasksService {
      */
     void sendCancelRequest(final long taskId, final String reason, final ActionListener<CancelTasksResponse> listener) {
         CancelTasksRequest request = new CancelTasksRequest();
-        request.setTaskId(new TaskId(clusterService.localNode().getId(), taskId));
+        request.setTargetTaskId(new TaskId(clusterService.localNode().getId(), taskId));
         request.setReason(reason);
         try {
             client.admin().cluster().cancelTasks(request, listener);

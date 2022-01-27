@@ -79,7 +79,12 @@ public class DataLoader {
         createEmptyIndex(client, index);
         Request request = new Request("POST", "/" + index + "/_bulk");
         request.addParameter("refresh", "true");
-        request.setJsonEntity("{\"index\":{}}\n{}\n" + "{\"index\":{}}\n{}\n");
+        request.setJsonEntity("""
+            {"index":{}}
+            {}
+            {"index":{}}
+            {}
+            """);
         client.performRequest(request);
     }
 

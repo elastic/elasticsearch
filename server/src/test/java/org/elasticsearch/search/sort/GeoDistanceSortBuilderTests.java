@@ -56,25 +56,20 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
         int id = randomIntBetween(0, 2);
         switch (id) {
-            case 0:
+            case 0 -> {
                 int count = randomIntBetween(1, 10);
                 String[] geohashes = new String[count];
                 for (int i = 0; i < count; i++) {
                     geohashes[i] = RandomGeoGenerator.randomPoint(random()).geohash();
                 }
-
                 result = new GeoDistanceSortBuilder(fieldName, geohashes);
-                break;
-            case 1:
+            }
+            case 1 -> {
                 GeoPoint pt = RandomGeoGenerator.randomPoint(random());
                 result = new GeoDistanceSortBuilder(fieldName, pt.getLat(), pt.getLon());
-                break;
-            case 2:
-                result = new GeoDistanceSortBuilder(fieldName, points(new GeoPoint[0]));
-                break;
-            default:
-                throw new IllegalStateException("one of three geo initialisation strategies must be used");
-
+            }
+            case 2 -> result = new GeoDistanceSortBuilder(fieldName, points(new GeoPoint[0]));
+            default -> throw new IllegalStateException("one of three geo initialisation strategies must be used");
         }
         if (randomBoolean()) {
             result.geoDistance(geoDistance(result.geoDistance()));
@@ -92,8 +87,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.validation(randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));
         }
         if (randomBoolean()) {
-            // don't fully randomize here, GeoDistanceSort is picky about the filters that are allowed
-            NestedSortBuilder nestedSort = new NestedSortBuilder(randomAlphaOfLengthBetween(3, 10));
+            NestedSortBuilder nestedSort = new NestedSortBuilder("path");
             nestedSort.setFilter(new MatchAllQueryBuilder());
             result.setNestedSort(nestedSort);
         }
@@ -190,15 +184,16 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     }
 
     public void testSortModeSumIsRejectedInJSON() throws IOException {
-        String json = "{\n"
-            + "  \"testname\" : [ {\n"
-            + "    \"lat\" : -6.046997540714173,\n"
-            + "    \"lon\" : -51.94128329747579\n"
-            + "  } ],\n"
-            + "  \"unit\" : \"m\",\n"
-            + "  \"distance_type\" : \"arc\",\n"
-            + "  \"mode\" : \"SUM\"\n"
-            + "}";
+        String json = """
+            {
+              "testname" : [ {
+                "lat" : -6.046997540714173,
+                "lon" : -51.94128329747579
+              } ],
+              "unit" : "m",
+              "distance_type" : "arc",
+              "mode" : "SUM"
+            }""";
         try (XContentParser itemParser = createParser(JsonXContent.jsonXContent, json)) {
             itemParser.nextToken();
 
@@ -211,22 +206,22 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
     }
 
     public void testGeoDistanceSortCanBeParsedFromGeoHash() throws IOException {
-        String json = "{\n"
-            + "    \"VDcvDuFjE\" : [ \"7umzzv8eychg\", \"dmdgmt5z13uw\", "
-            + "    \"ezu09wxw6v4c\", \"kc7s3515p6k6\", \"jgeuvjwrmfzn\", \"kcpcfj7ruyf8\" ],\n"
-            + "    \"unit\" : \"m\",\n"
-            + "    \"distance_type\" : \"arc\",\n"
-            + "    \"mode\" : \"MAX\",\n"
-            + "    \"nested\" : {\n"
-            + "      \"filter\" : {\n"
-            + "        \"ids\" : {\n"
-            + "          \"values\" : [ ],\n"
-            + "          \"boost\" : 5.711116\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"validation_method\" : \"STRICT\"\n"
-            + "  }";
+        String json = """
+            {
+                "VDcvDuFjE" : [ "7umzzv8eychg", "dmdgmt5z13uw",     "ezu09wxw6v4c", "kc7s3515p6k6", "jgeuvjwrmfzn", "kcpcfj7ruyf8" ],
+                "unit" : "m",
+                "distance_type" : "arc",
+                "mode" : "MAX",
+                "nested" : {
+                  "filter" : {
+                    "ids" : {
+                      "values" : [ ],
+                      "boost" : 5.711116
+                    }
+                  }
+                },
+                "validation_method" : "STRICT"
+              }""";
         try (XContentParser itemParser = createParser(JsonXContent.jsonXContent, json)) {
             itemParser.nextToken();
 
@@ -390,7 +385,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         assertEquals(SortField.class, sort.field.getClass()); // descending means the max value should be considered rather than min
 
         builder = new GeoDistanceSortBuilder("random_field_name", new GeoPoint(3.5, 2.1));
-        builder.setNestedSort(new NestedSortBuilder("some_nested_path"));
+        builder.setNestedSort(new NestedSortBuilder("path"));
         sort = builder.build(context);
         assertEquals(SortField.class, sort.field.getClass()); // can't use LatLon optimized sorting with nested fields
 

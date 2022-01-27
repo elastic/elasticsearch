@@ -62,13 +62,24 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
 
     private void createTestIndex() throws IOException {
         Request createTestIndex = new Request("PUT", "/airline-data");
-        createTestIndex.setJsonEntity(
-            "{\"mappings\": { \"doc\": {\"properties\": {"
-                + "\"time\": {\"type\": \"date\"},"
-                + "\"airline\": {\"type\": \"keyword\"},"
-                + "\"responsetime\": {\"type\": \"float\"}"
-                + "}}}}"
-        );
+        createTestIndex.setJsonEntity("""
+            {
+              "mappings": {
+                "doc": {
+                  "properties": {
+                    "time": {
+                      "type": "date"
+                    },
+                    "airline": {
+                      "type": "keyword"
+                    },
+                    "responsetime": {
+                      "type": "float"
+                    }
+                  }
+                }
+              }
+            }""");
         client().performRequest(createTestIndex);
     }
 
@@ -194,20 +205,19 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     }
 
     private void putJob(String jobId) throws IOException {
-        String jobConfig = "{\n"
-            + "    \"job_id\": \""
-            + jobId
-            + "\",\n"
-            + "    \"analysis_config\": {\n"
-            + "        \"bucket_span\": \"10m\",\n"
-            + "        \"detectors\": [{\n"
-            + "            \"function\": \"metric\",\n"
-            + "            \"by_field_name\": \"airline\",\n"
-            + "            \"field_name\": \"responsetime\"\n"
-            + "        }]\n"
-            + "    },\n"
-            + "    \"data_description\": {}\n"
-            + "}";
+        String jobConfig = """
+            {
+                "job_id": "%s",
+                "analysis_config": {
+                    "bucket_span": "10m",
+                    "detectors": [{
+                        "function": "metric",
+                        "by_field_name": "airline",
+                        "field_name": "responsetime"
+                    }]
+                },
+                "data_description": {}`
+            }""".formatted(jobId);
         Request putClosedJob = new Request("PUT", "/_xpack/ml/anomaly_detectors/" + jobId);
         putClosedJob.setJsonEntity(jobConfig);
         client().performRequest(putClosedJob);

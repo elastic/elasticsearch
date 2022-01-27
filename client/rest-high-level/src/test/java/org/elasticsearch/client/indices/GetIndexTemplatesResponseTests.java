@@ -43,7 +43,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class GetIndexTemplatesResponseTests extends ESTestCase {
 
-    static final String mappingString = "{\"properties\":{\"f1\": {\"type\":\"text\"},\"f2\": {\"type\":\"keyword\"}}}";
+    static final String mappingString = """
+        {"properties":{"f1": {"type":"text"},"f2": {"type":"keyword"}}}""";
 
     public void testFromXContent() throws IOException {
         xContentTester(

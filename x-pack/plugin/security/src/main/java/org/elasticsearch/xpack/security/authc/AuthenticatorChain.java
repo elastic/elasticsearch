@@ -35,6 +35,11 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
+
 class AuthenticatorChain {
 
     private static final Logger logger = LogManager.getLogger(AuthenticatorChain.class);
@@ -168,9 +173,8 @@ class AuthenticatorChain {
                 // Because (1) unlike security errors which are intentionally obscure, non-security errors are clear
                 // about their nature so that no additional information is needed; (2) Non-security errors may
                 // not inherit ElasticsearchException and thus does not have the addMetadata method.
-                if (e instanceof ElasticsearchSecurityException) {
+                if (e instanceof final ElasticsearchSecurityException ese) {
                     // Attach any other unsuccessful messages to the final error
-                    final ElasticsearchSecurityException ese = (ElasticsearchSecurityException) e;
                     if (false == context.getUnsuccessfulMessages().isEmpty()) {
                         addMetadata(context, ese);
                     }
@@ -298,7 +302,7 @@ class AuthenticatorChain {
                 context.getRequest(),
                 context.getFallbackUser().principal()
             );
-            Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("__fallback", "__fallback", nodeName);
+            Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(FALLBACK_REALM_NAME, FALLBACK_REALM_TYPE, nodeName);
             authentication = new Authentication(
                 context.getFallbackUser(),
                 authenticatedBy,
@@ -313,7 +317,7 @@ class AuthenticatorChain {
                 context.getRequest(),
                 anonymousUser.principal()
             );
-            Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("__anonymous", "__anonymous", nodeName);
+            Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(ANONYMOUS_REALM_NAME, ANONYMOUS_REALM_TYPE, nodeName);
             authentication = new Authentication(
                 anonymousUser,
                 authenticatedBy,

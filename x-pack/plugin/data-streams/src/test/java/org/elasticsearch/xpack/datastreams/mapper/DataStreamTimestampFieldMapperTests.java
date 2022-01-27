@@ -53,7 +53,7 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
     private XContentBuilder timestampMapping(boolean enabled, CheckedConsumer<XContentBuilder, IOException> propertiesBuilder)
         throws IOException {
         return topMapping(b -> {
-            b.startObject("_data_stream_timestamp").field("enabled", enabled).endObject();
+            b.startObject(DataStreamTimestampFieldMapper.NAME).field("enabled", enabled).endObject();
             b.startObject("properties");
             propertiesBuilder.accept(b);
             b.endObject();

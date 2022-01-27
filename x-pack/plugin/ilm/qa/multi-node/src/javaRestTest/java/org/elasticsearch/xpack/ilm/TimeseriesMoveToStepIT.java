@@ -72,20 +72,19 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         // move to a step
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + originalIndex);
         assertBusy(() -> assertTrue(getStepKeyForIndex(client(), originalIndex).equals(new StepKey("new", "complete", "complete"))));
-        moveToStepRequest.setJsonEntity(
-            "{\n"
-                + "  \"current_step\": {\n"
-                + "    \"phase\": \"new\",\n"
-                + "    \"action\": \"complete\",\n"
-                + "    \"name\": \"complete\"\n"
-                + "  },\n"
-                + "  \"next_step\": {\n"
-                + "    \"phase\": \"cold\",\n"
-                + "    \"action\": \"allocate\",\n"
-                + "    \"name\": \"allocate\"\n"
-                + "  }\n"
-                + "}"
-        );
+        moveToStepRequest.setJsonEntity("""
+            {
+              "current_step": {
+                "phase": "new",
+                "action": "complete",
+                "name": "complete"
+              },
+              "next_step": {
+                "phase": "cold",
+                "action": "allocate",
+                "name": "allocate"
+              }
+            }""");
         client().performRequest(moveToStepRequest);
         assertBusy(() -> assertFalse(indexExists(originalIndex)));
     }
@@ -113,20 +112,19 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
         // index document to trigger rollover
         index(client(), originalIndex, "_id", "foo", "bar");
         logger.info(getStepKeyForIndex(client(), originalIndex));
-        moveToStepRequest.setJsonEntity(
-            "{\n"
-                + "  \"current_step\": {\n"
-                + "    \"phase\": \"new\",\n"
-                + "    \"action\": \"complete\",\n"
-                + "    \"name\": \"complete\"\n"
-                + "  },\n"
-                + "  \"next_step\": {\n"
-                + "    \"phase\": \"hot\",\n"
-                + "    \"action\": \"rollover\",\n"
-                + "    \"name\": \"attempt-rollover\"\n"
-                + "  }\n"
-                + "}"
-        );
+        moveToStepRequest.setJsonEntity("""
+            {
+              "current_step": {
+                "phase": "new",
+                "action": "complete",
+                "name": "complete"
+              },
+              "next_step": {
+                "phase": "hot",
+                "action": "rollover",
+                "name": "attempt-rollover"
+              }
+            }""");
         client().performRequest(moveToStepRequest);
 
         /*
@@ -161,20 +159,19 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
 
         // Move to a step from the injected unfollow action
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity(
-            "{\n"
-                + "  \"current_step\": { \n"
-                + "    \"phase\": \"new\",\n"
-                + "    \"action\": \"complete\",\n"
-                + "    \"name\": \"complete\"\n"
-                + "  },\n"
-                + "  \"next_step\": { \n"
-                + "    \"phase\": \"warm\",\n"
-                + "    \"action\": \"unfollow\",\n"
-                + "    \"name\": \"wait-for-indexing-complete\"\n"
-                + "  }\n"
-                + "}"
-        );
+        moveToStepRequest.setJsonEntity("""
+            {
+              "current_step": {
+                "phase": "new",
+                "action": "complete",
+                "name": "complete"
+              },
+              "next_step": {
+                "phase": "warm",
+                "action": "unfollow",
+                "name": "wait-for-indexing-complete"
+              }
+            }""");
         // If we get an OK on this request we have successfully moved to the injected step
         assertOK(client().performRequest(moveToStepRequest));
 
@@ -218,20 +215,19 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
 
         // Move to the same step, which should re-read the policy
         Request moveToStepRequest = new Request("POST", "_ilm/move/test-1");
-        moveToStepRequest.setJsonEntity(
-            "{\n"
-                + "  \"current_step\": { \n"
-                + "    \"phase\": \"hot\",\n"
-                + "    \"action\": \"rollover\",\n"
-                + "    \"name\": \"check-rollover-ready\"\n"
-                + "  },\n"
-                + "  \"next_step\": { \n"
-                + "    \"phase\": \"hot\",\n"
-                + "    \"action\": \"rollover\",\n"
-                + "    \"name\": \"check-rollover-ready\"\n"
-                + "  }\n"
-                + "}"
-        );
+        moveToStepRequest.setJsonEntity("""
+            {
+              "current_step": {
+                "phase": "hot",
+                "action": "rollover",
+                "name": "check-rollover-ready"
+              },
+              "next_step": {
+                "phase": "hot",
+                "action": "rollover",
+                "name": "check-rollover-ready"
+              }
+            }""");
         // busy asserting here as ILM moves the index from the `check-rollover-ready` step into the `error` step and back into the
         // `check-rollover-ready` when retrying. the `_ilm/move` api might fail when the as the `current_step` of the index might be
         // the `error` step at execution time.
@@ -257,20 +253,19 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
 
         // move to a step
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity(
-            "{\n"
-                + "  \"current_step\": {\n"
-                + "    \"phase\": \"new\",\n"
-                + "    \"action\": \"complete\",\n"
-                + "    \"name\": \"complete\"\n"
-                + "  },\n"
-                + "  \"next_step\": {\n"
-                + "    \"phase\": \"hot\",\n"
-                + "    \"action\": \"rollover\",\n"
-                + "    \"name\": \"attempt-rollover\"\n"
-                + "  }\n"
-                + "}"
-        );
+        moveToStepRequest.setJsonEntity("""
+            {
+              "current_step": {
+                "phase": "new",
+                "action": "complete",
+                "name": "complete"
+              },
+              "next_step": {
+                "phase": "hot",
+                "action": "rollover",
+                "name": "attempt-rollover"
+              }
+            }""");
         assertBusy(() -> {
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(moveToStepRequest));
 
@@ -300,19 +295,18 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
 
         // move to a step
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity(
-            "{\n"
-                + "  \"current_step\": {\n"
-                + "    \"phase\": \"new\",\n"
-                + "    \"action\": \"complete\",\n"
-                + "    \"name\": \"complete\"\n"
-                + "  },\n"
-                + "  \"next_step\": {\n"
-                + "    \"phase\": \"warm\",\n"
-                + "    \"action\": \"forcemerge\"\n"
-                + "  }\n"
-                + "}"
-        );
+        moveToStepRequest.setJsonEntity("""
+            {
+              "current_step": {
+                "phase": "new",
+                "action": "complete",
+                "name": "complete"
+              },
+              "next_step": {
+                "phase": "warm",
+                "action": "forcemerge"
+              }
+            }""");
 
         assertOK(client().performRequest(moveToStepRequest));
 
@@ -338,18 +332,17 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
 
         // move to a step
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity(
-            "{\n"
-                + "  \"current_step\": {\n"
-                + "    \"phase\": \"new\",\n"
-                + "    \"action\": \"complete\",\n"
-                + "    \"name\": \"complete\"\n"
-                + "  },\n"
-                + "  \"next_step\": {\n"
-                + "    \"phase\": \"warm\"\n"
-                + "  }\n"
-                + "}"
-        );
+        moveToStepRequest.setJsonEntity("""
+            {
+              "current_step": {
+                "phase": "new",
+                "action": "complete",
+                "name": "complete"
+              },
+              "next_step": {
+                "phase": "warm"
+              }
+            }""");
 
         assertOK(client().performRequest(moveToStepRequest));
 
@@ -375,19 +368,18 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
 
         // move to a step with an invalid request
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity(
-            "{\n"
-                + "  \"current_step\": {\n"
-                + "    \"phase\": \"new\",\n"
-                + "    \"action\": \"complete\",\n"
-                + "    \"name\": \"complete\"\n"
-                + "  },\n"
-                + "  \"next_step\": {\n"
-                + "    \"phase\": \"warm\",\n"
-                + "    \"name\": \"forcemerge\"\n"
-                + "  }\n"
-                + "}"
-        );
+        moveToStepRequest.setJsonEntity("""
+            {
+              "current_step": {
+                "phase": "new",
+                "action": "complete",
+                "name": "complete"
+              },
+              "next_step": {
+                "phase": "warm",
+                "name": "forcemerge"
+              }
+            }""");
 
         assertBusy(() -> {
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(moveToStepRequest));
@@ -412,25 +404,25 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
 
         // move to a step with an invalid request
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
-        moveToStepRequest.setJsonEntity(
-            "{\n"
-                + "  \"current_step\": {\n"
-                + "    \"phase\": \"new\",\n"
-                + "    \"action\": \"complete\",\n"
-                + "    \"name\": \"complete\"\n"
-                + "  },\n"
-                + "  \"next_step\": {\n"
-                + "    \"phase\": \"warm\",\n"
-                + "    \"action\": \"shrink\"\n"
-                + "  }\n"
-                + "}"
-        );
+        moveToStepRequest.setJsonEntity("""
+            {
+              "current_step": {
+                "phase": "new",
+                "action": "complete",
+                "name": "complete"
+              },
+              "next_step": {
+                "phase": "warm",
+                "action": "shrink"
+              }
+            }""");
 
         assertBusy(() -> {
             ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(moveToStepRequest));
             String responseEntityAsString = EntityUtils.toString(exception.getResponse().getEntity());
-            String expectedErrorMessage = "unable to determine concrete step key from target next step key: "
-                + "{\\\"phase\\\":\\\"warm\\\",\\\"action\\\":\\\"shrink\\\"}";
+            String expectedErrorMessage = """
+                unable to determine concrete step key from target next step key: \
+                {\\"phase\\":\\"warm\\",\\"action\\":\\"shrink\\"}""";
             assertThat(responseEntityAsString, containsStringIgnoringCase(expectedErrorMessage));
         });
     }

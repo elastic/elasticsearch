@@ -212,16 +212,14 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
     public void testBulkProcessorConcurrentRequestsReadOnlyIndex() throws Exception {
         Request request = new Request("PUT", "/test-ro");
-        request.setJsonEntity(
-            "{\n"
-                + "    \"settings\" : {\n"
-                + "        \"index\" : {\n"
-                + "            \"blocks.write\" : true\n"
-                + "        }\n"
-                + "    }\n"
-                + "    \n"
-                + "}"
-        );
+        request.setJsonEntity("""
+            {
+              "settings": {
+                "index": {
+                  "blocks.write": true
+                }
+              }
+            }""");
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 

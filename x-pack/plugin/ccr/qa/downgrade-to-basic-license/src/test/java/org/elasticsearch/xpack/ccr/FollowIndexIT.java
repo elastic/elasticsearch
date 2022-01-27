@@ -41,7 +41,8 @@ public class FollowIndexIT extends ESCCRRestTestCase {
 
         {
             Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
-            request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"], \"remote_cluster\": \"leader_cluster\"}");
+            request.setJsonEntity("""
+                {"leader_index_patterns": ["logs-*"], "remote_cluster": "leader_cluster"}""");
             assertOK(client().performRequest(request));
         }
 
@@ -124,7 +125,8 @@ public class FollowIndexIT extends ESCCRRestTestCase {
 
     private void createNewIndexAndIndexDocs(RestClient client, String index) throws IOException {
         Request request = new Request("PUT", "/" + index);
-        request.setJsonEntity("{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
+        request.setJsonEntity("""
+            {"mappings": {"properties": {"field": {"type": "keyword"}}}}""");
         assertOK(client.performRequest(request));
 
         for (int i = 0; i < 5; i++) {

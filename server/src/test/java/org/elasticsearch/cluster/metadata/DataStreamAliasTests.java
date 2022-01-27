@@ -88,7 +88,8 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));
             assertThat(result.getWriteDataStream(), nullValue());
             assertThat(result.getFilter(), notNullValue());
-            assertThat(result.getFilter().string(), equalTo("{\"term\":{\"field\":\"value\"}}"));
+            assertThat(result.getFilter().string(), equalTo("""
+                {"term":{"field":"value"}}"""));
         }
         // noop update to filter:
         {
@@ -114,7 +115,8 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));
             assertThat(result.getWriteDataStream(), nullValue());
             assertThat(result.getFilter(), notNullValue());
-            assertThat(result.getFilter().string(), equalTo("{\"term\":{\"field\":\"value1\"}}"));
+            assertThat(result.getFilter().string(), equalTo("""
+                {"term":{"field":"value1"}}"""));
         }
         // Filter not specified, keep existing filter:
         {
@@ -128,7 +130,8 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
             assertThat(result, sameInstance(alias));
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));
             assertThat(result.getWriteDataStream(), nullValue());
-            assertThat(result.getFilter().string(), equalTo("{\"term\":{\"field\":\"value\"}}"));
+            assertThat(result.getFilter().string(), equalTo("""
+                {"term":{"field":"value"}}"""));
         }
     }
 
@@ -186,41 +189,83 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
         }
     }
 
-    public void testMerge() {
+    public void testRestore() {
         {
             DataStreamAlias alias1 = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), null, null);
             DataStreamAlias alias2 = new DataStreamAlias("my-alias", List.of("ds-2", "ds-3"), null, null);
-            DataStreamAlias result = alias1.merge(alias2);
+            DataStreamAlias result = alias1.restore(alias2, null, null);
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2", "ds-3"));
             assertThat(result.getWriteDataStream(), nullValue());
         }
         {
             DataStreamAlias alias1 = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), "ds-2", null);
             DataStreamAlias alias2 = new DataStreamAlias("my-alias", List.of("ds-2", "ds-3"), null, null);
-            DataStreamAlias result = alias1.merge(alias2);
+            DataStreamAlias result = alias1.restore(alias2, null, null);
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2", "ds-3"));
             assertThat(result.getWriteDataStream(), equalTo("ds-2"));
         }
         {
             DataStreamAlias alias1 = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), "ds-2", null);
             DataStreamAlias alias2 = new DataStreamAlias("my-alias", List.of("ds-2", "ds-3"), "ds-3", null);
-            DataStreamAlias result = alias1.merge(alias2);
+            var e = expectThrows(IllegalArgumentException.class, () -> alias1.restore(alias2, null, null));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "cannot merge alias [my-alias], write data stream of this [ds-2] and write data stream of other [ds-3] are different"
+                )
+            );
+        }
+        {
+            DataStreamAlias alias1 = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), "ds-2", null);
+            DataStreamAlias alias2 = new DataStreamAlias("my-alias", List.of("ds-2", "ds-3"), "ds-2", null);
+            DataStreamAlias result = alias1.restore(alias2, null, null);
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2", "ds-3"));
             assertThat(result.getWriteDataStream(), equalTo("ds-2"));
         }
         {
             DataStreamAlias alias1 = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), null, null);
             DataStreamAlias alias2 = new DataStreamAlias("my-alias", List.of("ds-2", "ds-3"), "ds-3", null);
-            DataStreamAlias result = alias1.merge(alias2);
+            DataStreamAlias result = alias1.restore(alias2, null, null);
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2", "ds-3"));
             assertThat(result.getWriteDataStream(), equalTo("ds-3"));
         }
     }
 
-    public void testRenameDataStreams() {
-        DataStreamAlias alias = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), "ds-2", null);
-        DataStreamAlias result = alias.renameDataStreams("ds-2", "ds-3");
-        assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-3"));
+    public void testRestoreWithRename() {
+        {
+            DataStreamAlias alias = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), "ds-2", null);
+            DataStreamAlias result = alias.restore(null, "ds-2", "ds-3");
+            assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-3"));
+            assertThat(result.getWriteDataStream(), equalTo("ds-3"));
+        }
+        {
+            DataStreamAlias alias1 = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), "ds-2", null);
+            DataStreamAlias alias2 = new DataStreamAlias("my-alias", List.of("ds-2", "ds-4", "ds-5"), "ds-2", null);
+            DataStreamAlias result = alias1.restore(alias2, "ds-2", "ds-3");
+            assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2", "ds-3", "ds-4", "ds-5"));
+            assertThat(result.getWriteDataStream(), equalTo("ds-3"));
+        }
+        {
+            DataStreamAlias alias1 = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), "ds-2", null);
+            DataStreamAlias alias2 = new DataStreamAlias("my-alias", List.of("ds-3", "ds-4", "ds-5"), "ds-3", null);
+            DataStreamAlias result = alias1.restore(alias2, "ds-2", "ds-3");
+            assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-3", "ds-4", "ds-5"));
+            assertThat(result.getWriteDataStream(), equalTo("ds-3"));
+        }
+        {
+            DataStreamAlias alias1 = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2", "ds-3"), "ds-3", null);
+            DataStreamAlias alias2 = new DataStreamAlias("my-alias", List.of("ds-2", "ds-4", "ds-5"), "ds-2", null);
+            DataStreamAlias result = alias1.restore(alias2, "ds-2", "ds-3");
+            assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2", "ds-3", "ds-4", "ds-5"));
+            assertThat(result.getWriteDataStream(), equalTo("ds-3"));
+        }
+    }
+
+    public void testRestoreDataStreamWithWriteDataStreamThatDoesNotExistInOriginalAlias() {
+        DataStreamAlias alias1 = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), null, null);
+        DataStreamAlias alias2 = new DataStreamAlias("my-alias", List.of("ds-2", "ds-3"), "ds-3", null);
+        DataStreamAlias result = alias1.restore(alias2, "ds-3", null);
+        assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2", "ds-3"));
         assertThat(result.getWriteDataStream(), equalTo("ds-3"));
     }
 }

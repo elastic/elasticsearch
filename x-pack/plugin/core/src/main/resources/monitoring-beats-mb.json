@@ -1042,450 +1042,6 @@
         },
         "beats_stats": {
           "properties": {
-            "apm-server": {
-              "properties": {
-                "acm": {
-                  "properties": {
-                    "request": {
-                      "properties": {
-                        "count": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.acm.request.count"
-                        }
-                      }
-                    },
-                    "response": {
-                      "properties": {
-                        "count": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.acm.response.count"
-                        },
-                        "errors": {
-                          "properties": {
-                            "closed": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.errors.closed"
-                            },
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.errors.count"
-                            },
-                            "decode": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.errors.decode"
-                            },
-                            "forbidden": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.errors.forbidden"
-                            },
-                            "internal": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.errors.internal"
-                            },
-                            "invalidquery": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.errors.invalidquery"
-                            },
-                            "method": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.errors.method"
-                            },
-                            "notfound": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.errors.notfound"
-                            },
-                            "queue": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.errors.queue"
-                            },
-                            "ratelimit": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.errors.ratelimit"
-                            },
-                            "toolarge": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.errors.toolarge"
-                            },
-                            "unauthorized": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.errors.unauthorized"
-                            },
-                            "unavailable": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.errors.unavailable"
-                            },
-                            "validate": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.errors.validate"
-                            }
-                          }
-                        },
-                        "request": {
-                          "properties": {
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.request.count"
-                            }
-                          }
-                        },
-                        "unset": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.acm.response.unset"
-                        },
-                        "valid": {
-                          "properties": {
-                            "accepted": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.valid.accepted"
-                            },
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.valid.count"
-                            },
-                            "notmodified": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.valid.notmodified"
-                            },
-                            "ok": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.acm.response.valid.ok"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                },
-                "decoder": {
-                  "properties": {
-                    "deflate": {
-                      "properties": {
-                        "content-length": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.decoder.deflate.content-length"
-                        },
-                        "count": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.decoder.deflate.count"
-                        }
-                      }
-                    },
-                    "gzip": {
-                      "properties": {
-                        "content-length": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.decoder.gzip.content-length"
-                        },
-                        "count": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.decoder.gzip.count"
-                        }
-                      }
-                    },
-                    "missing-content-length": {
-                      "properties": {
-                        "count": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.decoder.missing-content-length.count"
-                        }
-                      }
-                    },
-                    "reader": {
-                      "properties": {
-                        "count": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.decoder.reader.count"
-                        },
-                        "size": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.decoder.reader.size"
-                        }
-                      }
-                    },
-                    "uncompressed": {
-                      "properties": {
-                        "content-length": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.decoder.uncompressed.content-length"
-                        },
-                        "count": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.decoder.uncompressed.count"
-                        }
-                      }
-                    }
-                  }
-                },
-                "processor": {
-                  "properties": {
-                    "error": {
-                      "properties": {
-                        "decoding": {
-                          "properties": {
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.error.decoding.count"
-                            },
-                            "errors": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.error.decoding.errors"
-                            }
-                          }
-                        },
-                        "frames": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.processor.error.frames"
-                        },
-                        "spans": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.processor.error.spans"
-                        },
-                        "stacktraces": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.processor.error.stacktraces"
-                        },
-                        "transformations": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.processor.error.transformations"
-                        },
-                        "validation": {
-                          "properties": {
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.error.validation.count"
-                            },
-                            "errors": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.error.validation.errors"
-                            }
-                          }
-                        }
-                      }
-                    },
-                    "metric": {
-                      "properties": {
-                        "decoding": {
-                          "properties": {
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.metric.decoding.count"
-                            },
-                            "errors": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.metric.decoding.errors"
-                            }
-                          }
-                        },
-                        "transformations": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.processor.metric.transformations"
-                        },
-                        "validation": {
-                          "properties": {
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.metric.validation.count"
-                            },
-                            "errors": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.metric.validation.errors"
-                            }
-                          }
-                        }
-                      }
-                    },
-                    "sourcemap": {
-                      "properties": {
-                        "counter": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.processor.sourcemap.counter"
-                        },
-                        "decoding": {
-                          "properties": {
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.sourcemap.decoding.count"
-                            },
-                            "errors": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.sourcemap.decoding.errors"
-                            }
-                          }
-                        },
-                        "validation": {
-                          "properties": {
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.sourcemap.validation.count"
-                            },
-                            "errors": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.sourcemap.validation.errors"
-                            }
-                          }
-                        }
-                      }
-                    },
-                    "span": {
-                      "properties": {
-                        "transformations": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.processor.span.transformations"
-                        }
-                      }
-                    },
-                    "transaction": {
-                      "properties": {
-                        "decoding": {
-                          "properties": {
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.transaction.decoding.count"
-                            },
-                            "errors": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.transaction.decoding.errors"
-                            }
-                          }
-                        },
-                        "frames": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.processor.transaction.frames"
-                        },
-                        "spans": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.processor.transaction.spans"
-                        },
-                        "stacktraces": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.processor.transaction.stacktraces"
-                        },
-                        "transactions": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.processor.transaction.transactions"
-                        },
-                        "transformations": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.processor.transaction.transformations"
-                        },
-                        "validation": {
-                          "properties": {
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.transaction.validation.count"
-                            },
-                            "errors": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.processor.transaction.validation.errors"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                },
-                "server": {
-                  "properties": {
-                    "concurrent": {
-                      "properties": {
-                        "wait": {
-                          "properties": {
-                            "ms": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.server.concurrent.wait.ms"
-                            }
-                          }
-                        }
-                      }
-                    },
-                    "request": {
-                      "properties": {
-                        "count": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.server.request.count"
-                        }
-                      }
-                    },
-                    "response": {
-                      "properties": {
-                        "count": {
-                          "type": "alias",
-                          "path": "beat.stats.apm_server.server.response.count"
-                        },
-                        "errors": {
-                          "properties": {
-                            "closed": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.server.response.errors.closed"
-                            },
-                            "concurrency": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.server.response.errors.concurrency"
-                            },
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.server.response.errors.count"
-                            },
-                            "decode": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.server.response.errors.decode"
-                            },
-                            "forbidden": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.server.response.errors.forbidden"
-                            },
-                            "internal": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.server.response.errors.internal"
-                            },
-                            "method": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.server.response.errors.method"
-                            },
-                            "queue": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.server.response.errors.queue"
-                            },
-                            "ratelimit": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.server.response.errors.ratelimit"
-                            },
-                            "toolarge": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.server.response.errors.toolarge"
-                            },
-                            "unauthorized": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.server.response.errors.unauthorized"
-                            },
-                            "validate": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.server.response.errors.validate"
-                            }
-                          }
-                        },
-                        "valid": {
-                          "properties": {
-                            "accepted": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.server.response.valid.accepted"
-                            },
-                            "count": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.server.response.valid.count"
-                            },
-                            "ok": {
-                              "type": "alias",
-                              "path": "beat.stats.apm_server.server.response.valid.ok"
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            },
             "beat": {
               "properties": {
                 "host": {
@@ -1512,6 +1068,450 @@
             },
             "metrics": {
               "properties": {
+                "apm-server": {
+                  "properties": {
+                    "acm": {
+                      "properties": {
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.acm.request.count"
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.acm.response.count"
+                            },
+                            "errors": {
+                              "properties": {
+                                "closed": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.closed"
+                                },
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.count"
+                                },
+                                "decode": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.decode"
+                                },
+                                "forbidden": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.forbidden"
+                                },
+                                "internal": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.internal"
+                                },
+                                "invalidquery": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.invalidquery"
+                                },
+                                "method": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.method"
+                                },
+                                "notfound": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.notfound"
+                                },
+                                "queue": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.queue"
+                                },
+                                "ratelimit": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.ratelimit"
+                                },
+                                "toolarge": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.toolarge"
+                                },
+                                "unauthorized": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.unauthorized"
+                                },
+                                "unavailable": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.unavailable"
+                                },
+                                "validate": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.validate"
+                                }
+                              }
+                            },
+                            "request": {
+                              "properties": {
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.request.count"
+                                }
+                              }
+                            },
+                            "unset": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.acm.response.unset"
+                            },
+                            "valid": {
+                              "properties": {
+                                "accepted": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.valid.accepted"
+                                },
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.valid.count"
+                                },
+                                "notmodified": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.valid.notmodified"
+                                },
+                                "ok": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.valid.ok"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "decoder": {
+                      "properties": {
+                        "deflate": {
+                          "properties": {
+                            "content-length": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.decoder.deflate.content-length"
+                            },
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.decoder.deflate.count"
+                            }
+                          }
+                        },
+                        "gzip": {
+                          "properties": {
+                            "content-length": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.decoder.gzip.content-length"
+                            },
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.decoder.gzip.count"
+                            }
+                          }
+                        },
+                        "missing-content-length": {
+                          "properties": {
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.decoder.missing-content-length.count"
+                            }
+                          }
+                        },
+                        "reader": {
+                          "properties": {
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.decoder.reader.count"
+                            },
+                            "size": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.decoder.reader.size"
+                            }
+                          }
+                        },
+                        "uncompressed": {
+                          "properties": {
+                            "content-length": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.decoder.uncompressed.content-length"
+                            },
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.decoder.uncompressed.count"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "processor": {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "decoding": {
+                              "properties": {
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.error.decoding.count"
+                                },
+                                "errors": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.error.decoding.errors"
+                                }
+                              }
+                            },
+                            "frames": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.error.frames"
+                            },
+                            "spans": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.error.spans"
+                            },
+                            "stacktraces": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.error.stacktraces"
+                            },
+                            "transformations": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.error.transformations"
+                            },
+                            "validation": {
+                              "properties": {
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.error.validation.count"
+                                },
+                                "errors": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.error.validation.errors"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "metric": {
+                          "properties": {
+                            "decoding": {
+                              "properties": {
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.metric.decoding.count"
+                                },
+                                "errors": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.metric.decoding.errors"
+                                }
+                              }
+                            },
+                            "transformations": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.metric.transformations"
+                            },
+                            "validation": {
+                              "properties": {
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.metric.validation.count"
+                                },
+                                "errors": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.metric.validation.errors"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "sourcemap": {
+                          "properties": {
+                            "counter": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.sourcemap.counter"
+                            },
+                            "decoding": {
+                              "properties": {
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.sourcemap.decoding.count"
+                                },
+                                "errors": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.sourcemap.decoding.errors"
+                                }
+                              }
+                            },
+                            "validation": {
+                              "properties": {
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.sourcemap.validation.count"
+                                },
+                                "errors": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.sourcemap.validation.errors"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "span": {
+                          "properties": {
+                            "transformations": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.span.transformations"
+                            }
+                          }
+                        },
+                        "transaction": {
+                          "properties": {
+                            "decoding": {
+                              "properties": {
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.transaction.decoding.count"
+                                },
+                                "errors": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.transaction.decoding.errors"
+                                }
+                              }
+                            },
+                            "frames": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.transaction.frames"
+                            },
+                            "spans": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.transaction.spans"
+                            },
+                            "stacktraces": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.transaction.stacktraces"
+                            },
+                            "transactions": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.transaction.transactions"
+                            },
+                            "transformations": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.transaction.transformations"
+                            },
+                            "validation": {
+                              "properties": {
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.transaction.validation.count"
+                                },
+                                "errors": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.transaction.validation.errors"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "server": {
+                      "properties": {
+                        "concurrent": {
+                          "properties": {
+                            "wait": {
+                              "properties": {
+                                "ms": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.concurrent.wait.ms"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.server.request.count"
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.server.response.count"
+                            },
+                            "errors": {
+                              "properties": {
+                                "closed": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.closed"
+                                },
+                                "concurrency": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.concurrency"
+                                },
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.count"
+                                },
+                                "decode": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.decode"
+                                },
+                                "forbidden": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.forbidden"
+                                },
+                                "internal": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.internal"
+                                },
+                                "method": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.method"
+                                },
+                                "queue": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.queue"
+                                },
+                                "ratelimit": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.ratelimit"
+                                },
+                                "toolarge": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.toolarge"
+                                },
+                                "unauthorized": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.unauthorized"
+                                },
+                                "validate": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.validate"
+                                }
+                              }
+                            },
+                            "valid": {
+                              "properties": {
+                                "accepted": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.valid.accepted"
+                                },
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.valid.count"
+                                },
+                                "ok": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.valid.ok"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
                 "beat": {
                   "properties": {
                     "cgroup": {

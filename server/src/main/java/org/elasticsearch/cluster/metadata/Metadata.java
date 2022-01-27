@@ -1352,14 +1352,25 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         public Builder dataStreams(Map<String, DataStream> dataStreams, Map<String, DataStreamAlias> dataStreamAliases) {
             previousIndicesLookup = null;
 
+            // Only perform data stream validation only when data streams are modified in Metadata:
+            for (DataStream dataStream : dataStreams.values()) {
+                dataStream.validate(indices::get);
+            }
+
             this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams, dataStreamAliases));
             return this;
         }
 
         public Builder put(DataStream dataStream) {
             previousIndicesLookup = null;
-
             Objects.requireNonNull(dataStream, "it is invalid to add a null data stream");
+
+            // Every time the backing indices of a data stream is modified a new instance will be created and
+            // that instance needs to be added here. So this is a good place to do data stream validation for
+            // the data stream and all of its backing indices. Doing this validation in the build() method would
+            // trigger this validation on each new Metadata creation, even if there are no changes to data streams.
+            dataStream.validate(indices::get);
+
             Map<String, DataStream> existingDataStreams = Optional.ofNullable(
                 (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE)
             ).map(dsmd -> new HashMap<>(dsmd.dataStreams())).orElse(new HashMap<>());

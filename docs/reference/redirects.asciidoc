@@ -3,6 +3,15 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="java-clients"]
+=== Java transport client and security
+
+The Java transport client has been removed. Use the
+https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.15/java-rest-high.html[Java
+high-level REST client] instead. For migration steps, refer to the
+https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.15/java-rest-high-level-migration.html[migration
+guide].
+
 // [START] Snapshot and restore
 
 [role="exclude",id="snapshot-lifecycle-management"]

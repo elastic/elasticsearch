@@ -1,0 +1,5 @@
+pr: 81237
+summary: More avoidance for `loadAuthorizedIndices`
+area: Authorization
+type: enhancement
+issues: []

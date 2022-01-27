@@ -36,7 +36,6 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                     "index": {
                         "number_of_replicas": 0,
                         "number_of_shards": 2,
-                        "mode": "time_series",
                         "routing_path": ["metricset", "time_series_dimension"]
                     }
                 },
@@ -80,7 +79,9 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
                     }
                 }
             },
-            "data_stream": {}
+            "data_stream": {
+                "index_mode": "time_series"
+            }
         }""";
 
     private static final String DOC = """
@@ -196,10 +197,12 @@ public class TsdbDataStreamRestIT extends ESRestTestCase {
         var response = client().performRequest(simulateIndexTemplateRequest);
         assertOK(response);
         var responseBody = entityAsMap(response);
-        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index"), aMapWithSize(4));
+        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index"), aMapWithSize(6));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_shards"), equalTo("2"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.number_of_replicas"), equalTo("0"));
         assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.mode"), equalTo("time_series"));
+        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.start_time"), notNullValue());
+        assertThat(ObjectPath.evaluate(responseBody, "template.settings.index.time_series.end_time"), notNullValue());
         assertThat(
             ObjectPath.evaluate(responseBody, "template.settings.index.routing_path"),
             contains("metricset", "time_series_dimension")

@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -166,7 +167,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
         Metadata metadata = Metadata.builder()
             .put(indexMetadata, true)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(indexMetadata.getIndex())))
+            .put(DataStreamTestHelper.newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(indexMetadata.getIndex())))
             .build();
         step.evaluateCondition(metadata, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
 
@@ -208,7 +209,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             .put(firstGenerationIndex, true)
             .put(writeIndex, true)
             .put(
-                new DataStream(
+                DataStreamTestHelper.newInstance(
                     dataStreamName,
                     createTimestampField("@timestamp"),
                     List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())

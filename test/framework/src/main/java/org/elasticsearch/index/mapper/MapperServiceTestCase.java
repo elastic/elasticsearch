@@ -16,6 +16,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -187,7 +189,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return new MapperService(
             indexSettings,
             createIndexAnalyzers(indexSettings),
-            xContentRegistry(),
+            parserConfig(),
             similarityService,
             mapperRegistry,
             () -> { throw new UnsupportedOperationException(); },
@@ -443,7 +445,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public ObjectMapper getObjectMapper(String path) {
+            public NestedLookup nestedLookup() {
                 throw new UnsupportedOperationException();
             }
 
@@ -513,6 +515,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public boolean isInSortOrderExecutionRequired() {
+                return false;
+            }
+
+            @Override
             public void close() {
                 throw new UnsupportedOperationException();
             }
@@ -572,23 +579,42 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService) {
-        final SimilarityService similarityService = new SimilarityService(mapperService.getIndexSettings(), null, Map.of());
+        return createSearchExecutionContext(mapperService, null, Settings.EMPTY);
+    }
+
+    protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService, IndexSearcher searcher) {
+        return createSearchExecutionContext(mapperService, searcher, Settings.EMPTY);
+    }
+
+    protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService, IndexSearcher searcher, Settings settings) {
+        Settings mergedSettings = Settings.builder().put(mapperService.getIndexSettings().getSettings()).put(settings).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder(mapperService.getIndexSettings().getIndexMetadata())
+            .settings(mergedSettings)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        final SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         final long nowInMillis = randomNonNegativeLong();
-        return new SearchExecutionContext(
-            0,
-            0,
-            mapperService.getIndexSettings(),
-            null,
+        return new SearchExecutionContext(0, 0, indexSettings, new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+
+            }
+        }),
             (ft, idxName, lookup) -> ft.fielddataBuilder(idxName, lookup)
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),
             similarityService,
             null,
-            xContentRegistry(),
+            parserConfig(),
             writableRegistry(),
             null,
-            null,
+            searcher,
             () -> nowInMillis,
             null,
             null,

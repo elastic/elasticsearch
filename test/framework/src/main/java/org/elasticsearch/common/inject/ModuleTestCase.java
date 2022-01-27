@@ -41,16 +41,14 @@ public abstract class ModuleTestCase extends ESTestCase {
     ) {
         List<Element> elements = Elements.getElements(module);
         for (Element element : elements) {
-            if (element instanceof InstanceBinding) {
-                InstanceBinding<?> binding = (InstanceBinding<?>) element;
+            if (element instanceof InstanceBinding<?> binding) {
                 if (to.equals(binding.getKey().getTypeLiteral().getType())) {
                     if (annotation == null || annotation.equals(binding.getKey().getAnnotationType())) {
                         assertTrue(tester.test(to.cast(binding.getInstance())));
                         return;
                     }
                 }
-            } else if (element instanceof ProviderInstanceBinding) {
-                ProviderInstanceBinding<?> binding = (ProviderInstanceBinding<?>) element;
+            } else if (element instanceof ProviderInstanceBinding<?> binding) {
                 if (to.equals(binding.getKey().getTypeLiteral().getType())) {
                     assertTrue(tester.test(to.cast(binding.getProviderInstance().get())));
                     return;

@@ -21,6 +21,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -67,7 +68,6 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomMap;
-import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -78,6 +78,20 @@ public final class DataStreamTestHelper {
     private static final Settings.Builder SETTINGS = ESTestCase.settings(Version.CURRENT).put("index.hidden", true);
     private static final int NUMBER_OF_SHARDS = 1;
     private static final int NUMBER_OF_REPLICAS = 1;
+
+    public static DataStream newInstance(String name, DataStream.TimestampField timeStampField, List<Index> indices) {
+        return newInstance(name, timeStampField, indices, indices.size(), null);
+    }
+
+    public static DataStream newInstance(
+        String name,
+        DataStream.TimestampField timeStampField,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata
+    ) {
+        return new DataStream(name, timeStampField, indices, generation, metadata, false, false, false, false, null);
+    }
 
     public static String getLegacyDefaultBackingIndexName(
         String dataStreamName,
@@ -194,6 +208,7 @@ public final class DataStreamTestHelper {
         if (randomBoolean()) {
             metadata = Map.of("key", "value");
         }
+
         return new DataStream(
             dataStreamName,
             createTimestampField("@timestamp"),
@@ -202,9 +217,10 @@ public final class DataStreamTestHelper {
             metadata,
             randomBoolean(),
             randomBoolean(),
-            false,
+            false, // Some tests don't work well with system data streams, since these data streams require special handling
             timeProvider,
-            false
+            randomBoolean(),
+            randomBoolean() ? IndexMode.STANDARD : null // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
         );
     }
 
@@ -262,7 +278,7 @@ public final class DataStreamTestHelper {
             }
             allIndices.addAll(backingIndices);
 
-            DataStream ds = new DataStream(
+            DataStream ds = DataStreamTestHelper.newInstance(
                 dsTuple.v1(),
                 createTimestampField("@timestamp"),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
@@ -305,7 +321,14 @@ public final class DataStreamTestHelper {
         DataStream ds = new DataStream(
             dataStream,
             createTimestampField("@timestamp"),
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
+            backingIndices.size(),
+            null,
+            false,
+            false,
+            false,
+            false,
+            IndexMode.TIME_SERIES
         );
         builder.put(ds);
 
@@ -410,8 +433,6 @@ public final class DataStreamTestHelper {
             mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of(), List.of());
         }
         IndicesService indicesService = mockIndicesServices(mappingLookup);
-        IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
 
         ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
@@ -419,7 +440,6 @@ public final class DataStreamTestHelper {
             clusterService,
             indicesService,
             allocationService,
-            null,
             shardLimitValidator,
             env,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
@@ -429,20 +449,8 @@ public final class DataStreamTestHelper {
             false,
             new IndexSettingProviders(providers)
         );
-        MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(
-            clusterService,
-            indicesService,
-            new AliasValidator(),
-            null,
-            registry
-        );
-        return new MetadataRolloverService(
-            testThreadPool,
-            createIndexService,
-            indexAliasesService,
-            mockIndexNameExpressionResolver,
-            EmptySystemIndices.INSTANCE
-        );
+        MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService, null, registry);
+        return new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService, EmptySystemIndices.INSTANCE);
     }
 
     private static MetadataFieldMapper getDataStreamTimestampFieldMapper() {

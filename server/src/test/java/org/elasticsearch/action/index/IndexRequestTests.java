@@ -326,7 +326,7 @@ public class IndexRequestTests extends ESTestCase {
                 .put(backingIndex1, true)
                 .put(backingIndex2, true)
                 .put(
-                    new DataStream(
+                    DataStreamTestHelper.newInstance(
                         regularDataStream,
                         new DataStream.TimestampField("@timestamp"),
                         List.of(backingIndex1.getIndex(), backingIndex2.getIndex()),

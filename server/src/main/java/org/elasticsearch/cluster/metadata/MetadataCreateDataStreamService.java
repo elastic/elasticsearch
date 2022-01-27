@@ -19,12 +19,14 @@ import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -86,7 +88,8 @@ public class MetadataCreateDataStreamService {
                     firstBackingIndexRef.set(clusterState.metadata().dataStreams().get(request.name).getIndices().get(0).getName());
                     return clusterState;
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -212,7 +215,8 @@ public class MetadataCreateDataStreamService {
             ).dataStreamName(dataStreamName)
                 .systemDataStreamDescriptor(systemDataStreamDescriptor)
                 .nameResolvedInstant(request.startTime)
-                .performReroute(request.performReroute());
+                .performReroute(request.performReroute())
+                .setMatchingTemplate(template);
 
             if (isSystem) {
                 createIndexRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
@@ -243,6 +247,7 @@ public class MetadataCreateDataStreamService {
         List<Index> dsBackingIndices = backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList());
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
+        final IndexMode indexMode = template.getDataStreamTemplate().getIndexMode();
         DataStream newDataStream = new DataStream(
             dataStreamName,
             timestampField,
@@ -252,7 +257,8 @@ public class MetadataCreateDataStreamService {
             hidden,
             false,
             isSystem,
-            template.getDataStreamTemplate().isAllowCustomRouting()
+            template.getDataStreamTemplate().isAllowCustomRouting(),
+            indexMode
         );
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
 

@@ -41,8 +41,8 @@ import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
@@ -188,9 +188,8 @@ public class RBACEngine implements AuthorizationEngine {
                     || sameUsername == false : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
                 return sameUsername;
             } else if (request instanceof GetApiKeyRequest getApiKeyRequest) {
-                if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
-                    assert authentication.getLookedUpBy() == null : "runAs not supported for api key authentication";
-                    // if authenticated by API key then the request must also contain same API key id
+                if (authentication.isApiKey()) {
+                    // if the authentication is an API key then the request must also contain same API key id
                     String authenticatedApiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
                     if (Strings.hasText(getApiKeyRequest.getApiKeyId())) {
                         return getApiKeyRequest.getApiKeyId().equals(authenticatedApiKeyId);

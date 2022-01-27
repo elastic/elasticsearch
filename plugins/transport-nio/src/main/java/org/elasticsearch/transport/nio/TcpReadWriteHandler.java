@@ -45,7 +45,7 @@ public class TcpReadWriteHandler extends BytesWriteHandler {
             breaker,
             requestHandlers::getHandler,
             transport::inboundMessage,
-            false
+            transport.ignoreDeserializationErrors()
         );
     }
 

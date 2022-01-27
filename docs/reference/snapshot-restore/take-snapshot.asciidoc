@@ -330,15 +330,6 @@ GET _snapshot/_status
 [[check-slm-history]]
 ==== Check {slm-init} history
 
-Use the <<slm-api-get-policy,get {slm-init} policy API>> to check when an
-{slm-init} policy last successfully started the snapshot process. A successful
-start doesn't guarantee the snapshot completed.
-
-[source,console]
-----
-GET _slm/policy/nightly-snapshots
-----
-
 To get more information about a cluster's {slm-init} execution history,
 including stats for each {slm-init} policy, use the <<slm-api-get-stats,get
 {slm-init} stats API>>. The API also returns information about the cluster's
@@ -347,6 +338,20 @@ snapshot retention task history.
 [source,console]
 ----
 GET _slm/stats
+----
+
+To get information about a specific {slm-init} policy's execution history, use
+the <<slm-api-get-policy,get {slm-init} policy API>>. The response includes:
+
+* The next scheduled policy execution.
+* The last time the policy successfully started the snapshot process, if
+  applicable. A successful start doesn't guarantee the snapshot completed.
+* The last time policy execution failed, if applicable, and the associated
+  error.
+
+[source,console]
+----
+GET _slm/policy/nightly-snapshots
 ----
 
 [discrete]

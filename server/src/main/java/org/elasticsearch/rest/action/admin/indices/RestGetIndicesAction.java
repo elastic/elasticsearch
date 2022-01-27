@@ -69,6 +69,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
         getIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexRequest.masterNodeTimeout()));
         getIndexRequest.humanReadable(request.paramAsBoolean("human", false));
         getIndexRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
+        getIndexRequest.features(GetIndexRequest.Feature.fromRequest(request));
         return channel -> client.admin().indices().getIndex(getIndexRequest, new RestToXContentListener<>(channel));
     }
 

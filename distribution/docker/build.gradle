@@ -101,6 +101,7 @@ ext.expansions = { Architecture architecture, DockerBase base ->
   def buildDate = BuildParams.isCi() ? BuildParams.buildDate : BuildParams.buildDate.truncatedTo(ChronoUnit.DAYS)
 
   return [
+    'arch'               : architecture.classifier,
     'base_image'         : base.image,
     'bin_dir'            : base == DockerBase.IRON_BANK ? 'scripts' : 'bin',
     'build_date'         : buildDate,

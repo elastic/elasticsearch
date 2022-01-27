@@ -79,6 +79,11 @@ public class BasicTokenizerTests extends ESTestCase {
         assertThat(tokenStrings(tokens), contains("Hello", "-", "[UNK]"));
         tokens = tokenizer.tokenize("Hello~[UNK][UNK]");
         assertThat(tokenStrings(tokens), contains("Hello", "~", "[UNK]", "[UNK]"));
+        assertThat(tokenStrings(tokenizer.tokenize("Hello~[[UNK]")), contains("Hello", "~", "[", "[UNK]"));
+        assertThat(tokenStrings(tokenizer.tokenize("Hello~[[[UNK]")), contains("Hello", "~", "[", "[", "[UNK]"));
+        assertThat(tokenStrings(tokenizer.tokenize("Hello~[UNK]]")), contains("Hello", "~", "[UNK]", "]"));
+        assertThat(tokenStrings(tokenizer.tokenize("Hello~[UNK]]]")), contains("Hello", "~", "[UNK]", "]", "]"));
+        assertThat(tokenStrings(tokenizer.tokenize("Hello~[[UNK]]")), contains("Hello", "~", "[", "[UNK]", "]"));
         tokens = tokenizer.tokenize("Hello-[unk]");
         assertThat(tokenStrings(tokens), contains("Hello", "-", "[", "unk", "]"));
     }

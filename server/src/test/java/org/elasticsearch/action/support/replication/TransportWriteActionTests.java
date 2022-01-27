@@ -387,7 +387,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 new TransportService(
                     Settings.EMPTY,
                     mock(Transport.class),
-                    null,
+                    TransportWriteActionTests.threadPool,
                     TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                     x -> null,
                     null,

@@ -800,6 +800,18 @@ public class RestControllerTests extends ESTestCase {
         assertTrue(channel.getSendResponseCalled());
     }
 
+
+    public void testSafelistedContentTypesAreRejected() {
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+
+        final String mediaType = randomFrom("text/plain");
+        FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
+
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.METHOD_NOT_ALLOWED);
+        restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
+        assertTrue(channel.getSendResponseCalled());
+    }
+
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
 
         TestHttpServerTransport() {}

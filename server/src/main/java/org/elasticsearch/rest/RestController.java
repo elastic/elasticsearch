@@ -334,7 +334,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
-            if (handler.mediaTypesValid(request) == false) {
+            if (isContentTypeFromSafelist(request) && handler.mediaTypesValid(request) == false) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
@@ -386,6 +386,17 @@ public class RestController implements HttpServerTransport.Dispatcher {
         } catch (Exception e) {
             responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
         }
+    }
+
+    /**
+     * in order to prevent CSRF we have to reject all media types that are from a safelist
+     * see https://fetch.spec.whatwg.org/#cors-safelisted-request-header
+     * see https://www.elastic.co/blog/strict-content-type-checking-for-elasticsearch-rest-requests
+     * @param request
+     */
+    private boolean isContentTypeFromSafelist(RestRequest request) {
+        final Set<String> safelistSet = Set.of("plain/text");
+        return safelistSet.contains(request.getParsedContentType().mediaTypeWithoutParameters());
     }
 
     private boolean handleNoHandlerFound(String rawPath, RestRequest.Method method, String uri, RestChannel channel) {

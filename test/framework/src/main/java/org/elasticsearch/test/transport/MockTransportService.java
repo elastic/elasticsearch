@@ -232,7 +232,7 @@ public final class MockTransportService extends TransportService {
             localNodeFactory,
             clusterSettings,
             taskHeaders,
-            new StubbableConnectionManager(new ClusterConnectionManager(settings, transport))
+            new StubbableConnectionManager(new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()))
         );
         this.original = transport.getDelegate();
     }

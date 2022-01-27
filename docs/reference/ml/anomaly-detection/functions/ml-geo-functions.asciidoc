@@ -36,8 +36,8 @@ PUT _ml/anomaly_detectors/example1
   "analysis_config": {
     "detectors": [{
       "function" : "lat_long",
-      "field_name" : "transactionCoordinates",
-      "by_field_name" : "creditCardNumber"
+      "field_name" : "transaction_coordinates",
+      "by_field_name" : "credit_card_number"
     }]
   },
   "data_description": {
@@ -50,13 +50,14 @@ PUT _ml/anomaly_detectors/example1
 
 If you use this `lat_long` function in a detector in your {anomaly-job}, it
 detects anomalies where the geographic location of a credit card transaction is
-unusual for a particular customer’s credit card. An anomaly might indicate fraud.
+unusual for a particular customer’s credit card. An anomaly might indicate 
+fraud.
 
-IMPORTANT: The `field_name` that you supply must be a single string that contains
-two comma-separated numbers of the form `latitude,longitude`, a `geo_point` field,
-a `geo_shape` field that contains point values, or a `geo_centroid` aggregation.
-The `latitude` and `longitude` must be in the range -180 to 180 and represent a
-point on the surface of the Earth.
+IMPORTANT: The `field_name` that you supply must be a single string that 
+contains two comma-separated numbers of the form `latitude,longitude`, a 
+`geo_point` field, a `geo_shape` field that contains point values, or a 
+`geo_centroid` aggregation. The `latitude` and `longitude` must be in the range 
+-180 to 180 and represent a point on the surface of the Earth.
 
 For example, JSON data might contain the following transaction coordinates:
 
@@ -64,8 +65,8 @@ For example, JSON data might contain the following transaction coordinates:
 --------------------------------------------------
 {
   "time": 1460464275,
-  "transactionCoordinates": "40.7,-74.0",
-  "creditCardNumber": "1234123412341234"
+  "transaction_coordinates": "40.7,-74.0",
+  "credit_card_number": "1234123412341234"
 }
 --------------------------------------------------
 // NOTCONSOLE

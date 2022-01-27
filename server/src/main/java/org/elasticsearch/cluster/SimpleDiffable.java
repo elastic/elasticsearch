@@ -15,10 +15,10 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 
 /**
- * Abstract diffable object with simple diffs implementation that sends the entire object if object has changed or
+ * Simple diffable object with simple diffs implementation that sends the entire object if object has changed or
  * nothing if object remained the same.
  */
-public interface AbstractDiffable<T extends Diffable<T>> extends Diffable<T> {
+public interface SimpleDiffable<T extends Diffable<T>> extends Diffable<T> {
 
     Diff<?> EMPTY = new CompleteDiff<>();
 

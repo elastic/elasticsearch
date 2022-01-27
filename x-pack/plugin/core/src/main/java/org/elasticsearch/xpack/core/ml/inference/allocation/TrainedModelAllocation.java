@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.allocation;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,7 +36,7 @@ import java.util.Optional;
 /**
  * Trained model allocation object that contains allocation options and the allocation routing table
  */
-public class TrainedModelAllocation implements AbstractDiffable<TrainedModelAllocation>, ToXContentObject {
+public class TrainedModelAllocation implements SimpleDiffable<TrainedModelAllocation>, ToXContentObject {
 
     private static final ParseField REASON = new ParseField("reason");
     private static final ParseField ALLOCATION_STATE = new ParseField("allocation_state");

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling.policy;
 
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -19,7 +19,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-public class AutoscalingPolicyMetadata implements AbstractDiffable<AutoscalingPolicyMetadata>, ToXContentObject {
+public class AutoscalingPolicyMetadata implements SimpleDiffable<AutoscalingPolicyMetadata>, ToXContentObject {
 
     static final ParseField POLICY_FIELD = new ParseField("policy");
 

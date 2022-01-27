@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.slm;
 
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -25,7 +25,7 @@ import java.util.Objects;
  * Holds information about Snapshots kicked off by Snapshot Lifecycle Management in the cluster state, so that this information can be
  * presented to the user. This class is used for both successes and failures as the structure of the data is very similar.
  */
-public class SnapshotInvocationRecord implements AbstractDiffable<SnapshotInvocationRecord>, Writeable, ToXContentObject {
+public class SnapshotInvocationRecord implements SimpleDiffable<SnapshotInvocationRecord>, Writeable, ToXContentObject {
 
     static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
     static final ParseField START_TIMESTAMP = new ParseField("start_time");

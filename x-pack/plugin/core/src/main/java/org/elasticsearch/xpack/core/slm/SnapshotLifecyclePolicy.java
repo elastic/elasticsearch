@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.slm;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validate
  * snapshot should be triggered, what the snapshot should be named, what repository it should go
  * to, and the configuration for the snapshot itself.
  */
-public class SnapshotLifecyclePolicy implements AbstractDiffable<SnapshotLifecyclePolicy>, Writeable, ToXContentObject {
+public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecyclePolicy>, Writeable, ToXContentObject {
 
     private final String id;
     private final String name;

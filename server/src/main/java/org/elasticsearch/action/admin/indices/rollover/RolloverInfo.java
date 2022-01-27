@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,7 +27,7 @@ import java.util.Objects;
 /**
  * Class for holding Rollover related information within an index
  */
-public class RolloverInfo implements AbstractDiffable<RolloverInfo>, Writeable, ToXContentFragment {
+public class RolloverInfo implements SimpleDiffable<RolloverInfo>, Writeable, ToXContentFragment {
 
     public static final ParseField CONDITION_FIELD = new ParseField("met_conditions");
     public static final ParseField TIME_FIELD = new ParseField("time");
@@ -81,7 +81,7 @@ public class RolloverInfo implements AbstractDiffable<RolloverInfo>, Writeable, 
     }
 
     public static Diff<RolloverInfo> readDiffFrom(StreamInput in) throws IOException {
-        return AbstractDiffable.readDiffFrom(RolloverInfo::new, in);
+        return SimpleDiffable.readDiffFrom(RolloverInfo::new, in);
     }
 
     @Override

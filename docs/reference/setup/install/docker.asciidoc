@@ -140,11 +140,18 @@ The following requirements and recommendations apply when running {es} in Docker
 
 The `vm.max_map_count` kernel setting must be set to at least `262144` for production use.
 
-How you set `vm.max_map_count` depends on your platform:
+How you set `vm.max_map_count` depends on your platform.
 
-* Linux
-+
---
+====== Linux
+
+To view the current value for the `vm.max_map_count` setting, run:
+
+[source,sh]
+--------------------------------------------
+grep vm.max_map_count /etc/sysctl.conf
+vm.max_map_count=262144
+--------------------------------------------
+
 To apply the setting on a live system, run:
 
 [source,sh]
@@ -152,20 +159,11 @@ To apply the setting on a live system, run:
 sysctl -w vm.max_map_count=262144
 --------------------------------------------
 
-The setting should be set permanently in `/etc/sysctl.conf`:
+To permanently change the value for the `vm.max_map_count` setting, update the
+value in `/etc/sysctl.conf`.
 
-To view any current value set in the file:
-[source,sh]
---------------------------------------------
-grep vm.max_map_count /etc/sysctl.conf
-vm.max_map_count=262144
---------------------------------------------
+====== macOS with https://docs.docker.com/docker-for-mac[Docker for Mac]
 
---
-
-* macOS with https://docs.docker.com/docker-for-mac[Docker for Mac]
-+
---
 The `vm.max_map_count` setting must be set within the xhyve virtual machine:
 
 . From the command line, run:
@@ -175,7 +173,7 @@ The `vm.max_map_count` setting must be set within the xhyve virtual machine:
 screen ~/Library/Containers/com.docker.docker/Data/vms/0/tty
 --------------------------------------------
 
-. Press enter and use`sysctl` to configure `vm.max_map_count`:
+. Press enter and use `sysctl` to configure `vm.max_map_count`:
 +
 [source,sh]
 --------------------------------------------
@@ -183,11 +181,9 @@ sysctl -w vm.max_map_count=262144
 --------------------------------------------
 
 . To exit the `screen` session, type `Ctrl a d`.
---
 
-* Windows and macOS with https://www.docker.com/products/docker-desktop[Docker Desktop]
-+
---
+====== Windows and macOS with https://www.docker.com/products/docker-desktop[Docker Desktop]
+
 The `vm.max_map_count` setting must be set via docker-machine:
 
 [source,sh]
@@ -195,11 +191,9 @@ The `vm.max_map_count` setting must be set via docker-machine:
 docker-machine ssh
 sudo sysctl -w vm.max_map_count=262144
 --------------------------------------------
---
 
-* Windows with https://docs.docker.com/docker-for-windows/wsl[Docker Desktop WSL 2 backend]
-+
---
+====== Windows with https://docs.docker.com/docker-for-windows/wsl[Docker Desktop WSL 2 backend]
+
 The `vm.max_map_count` setting must be set in the docker-desktop container:
 
 [source,sh]
@@ -207,7 +201,7 @@ The `vm.max_map_count` setting must be set in the docker-desktop container:
 wsl -d docker-desktop
 sysctl -w vm.max_map_count=262144
 --------------------------------------------
---
+
 
 ===== Configuration files must be readable by the `elasticsearch` user
 

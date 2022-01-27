@@ -137,7 +137,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
-            null,
+            mock(ThreadPool.class),
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,

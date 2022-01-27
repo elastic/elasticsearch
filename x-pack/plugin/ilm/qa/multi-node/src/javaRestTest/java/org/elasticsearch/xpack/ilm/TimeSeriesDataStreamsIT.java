@@ -71,7 +71,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     public void testRolloverAction() throws Exception {
-        createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, null, 1L, 1L));
+        createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, null, 1L, null));
 
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
 
@@ -94,7 +94,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     }
 
     public void testRolloverIsSkippedOnManualDataStreamRollover() throws Exception {
-        createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, null, 2L, 2L));
+        createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, null, 2L, null));
 
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
 

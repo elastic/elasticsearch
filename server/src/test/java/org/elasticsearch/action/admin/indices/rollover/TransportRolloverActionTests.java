@@ -121,7 +121,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         ByteSizeValue notMatchMaxSize = ByteSizeValue.ofMb(randomIntBetween(0, 9));
         long indexCreated = TimeValue.timeValueHours(3).getMillis();
         long matchMaxPrimaryShardDocs = randomIntBetween(10, 100);
-        long notMatchShardDocs = randomIntBetween(0, 9);
+        long notMatchMaxPrimaryShardDocs = randomIntBetween(0, 9);
 
         expectThrows(
             NullPointerException.class,
@@ -145,7 +145,7 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         results = evaluateConditions(
             conditions,
-            new Condition.Stats(notMatchMaxDocs, indexCreated, notMatchMaxSize, ByteSizeValue.ofMb(0), notMatchShardDocs)
+            new Condition.Stats(notMatchMaxDocs, indexCreated, notMatchMaxSize, ByteSizeValue.ofMb(0), notMatchMaxPrimaryShardDocs)
         );
         assertThat(results.size(), equalTo(5));
         for (Map.Entry<String, Boolean> entry : results.entrySet()) {

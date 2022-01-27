@@ -228,6 +228,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         private final Integer forceMergeMaxNumberOfSegments;
         private final TimeValue rolloverMaxAge;
         private final Long rolloverMaxDocs;
+        private final Long rolloverMaxPrimaryShardDocs;
         private final ByteSizeValue rolloverMaxPrimaryShardSize;
         private final ByteSizeValue rolloverMaxSize;
         private final Integer setPriorityPriority;
@@ -247,6 +248,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             private Integer forceMergeMaxNumberOfSegments;
             private TimeValue rolloverMaxAge;
             private Long rolloverMaxDocs;
+            private Long rolloverMaxPrimaryShardDocs;
             private ByteSizeValue rolloverMaxPrimaryShardSize;
             private ByteSizeValue rolloverMaxSize;
             private Integer setPriorityPriority;
@@ -260,6 +262,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 this.forceMergeMaxNumberOfSegments = existing.forceMergeMaxNumberOfSegments;
                 this.rolloverMaxAge = existing.rolloverMaxAge;
                 this.rolloverMaxDocs = existing.rolloverMaxDocs;
+                this.rolloverMaxPrimaryShardDocs = existing.rolloverMaxPrimaryShardDocs;
                 this.rolloverMaxPrimaryShardSize = existing.rolloverMaxPrimaryShardSize;
                 this.rolloverMaxSize = existing.rolloverMaxSize;
                 this.setPriorityPriority = existing.setPriorityPriority;
@@ -318,6 +321,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                     forceMergeMaxNumberOfSegments,
                     rolloverMaxAge,
                     rolloverMaxDocs,
+                    rolloverMaxPrimaryShardDocs,
                     rolloverMaxPrimaryShardSize,
                     rolloverMaxSize,
                     setPriorityPriority,
@@ -332,6 +336,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             Integer forceMergeMaxNumberOfSegments,
             TimeValue rolloverMaxAge,
             Long rolloverMaxDocs,
+            Long rolloverMaxPrimaryShardDocs,
             ByteSizeValue rolloverMaxPrimaryShardSize,
             ByteSizeValue rolloverMaxSize,
             Integer setPriorityPriority,
@@ -342,6 +347,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             this.forceMergeMaxNumberOfSegments = forceMergeMaxNumberOfSegments;
             this.rolloverMaxAge = rolloverMaxAge;
             this.rolloverMaxDocs = rolloverMaxDocs;
+            this.rolloverMaxPrimaryShardDocs = rolloverMaxPrimaryShardDocs;
             this.rolloverMaxPrimaryShardSize = rolloverMaxPrimaryShardSize;
             this.rolloverMaxSize = rolloverMaxSize;
             this.setPriorityPriority = setPriorityPriority;
@@ -359,6 +365,11 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             this.setPriorityPriority = in.readOptionalVInt();
             this.shrinkMaxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::new);
             this.shrinkNumberOfShards = in.readOptionalVInt();
+            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+                this.rolloverMaxPrimaryShardDocs = in.readOptionalVLong();
+            } else {
+                this.rolloverMaxPrimaryShardDocs = null;
+            }
         }
 
         @Override
@@ -372,6 +383,9 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             out.writeOptionalVInt(setPriorityPriority);
             out.writeOptionalWriteable(shrinkMaxPrimaryShardSize);
             out.writeOptionalVInt(shrinkNumberOfShards);
+            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                out.writeOptionalVLong(rolloverMaxPrimaryShardDocs);
+            }
         }
 
         @Override
@@ -387,7 +401,11 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 builder.field(ForceMergeAction.MAX_NUM_SEGMENTS_FIELD.getPreferredName(), forceMergeMaxNumberOfSegments);
                 builder.endObject();
             }
-            if (rolloverMaxAge != null || rolloverMaxDocs != null || rolloverMaxSize != null || rolloverMaxPrimaryShardSize != null) {
+            if (rolloverMaxAge != null
+                || rolloverMaxDocs != null
+                || rolloverMaxPrimaryShardDocs != null
+                || rolloverMaxSize != null
+                || rolloverMaxPrimaryShardSize != null) {
                 builder.startObject(RolloverAction.NAME);
                 if (rolloverMaxAge != null) {
                     builder.field(RolloverAction.MAX_AGE_FIELD.getPreferredName(), rolloverMaxAge.getStringRep());
@@ -395,6 +413,9 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 }
                 if (rolloverMaxDocs != null) {
                     builder.field(RolloverAction.MAX_DOCS_FIELD.getPreferredName(), rolloverMaxDocs);
+                }
+                if (rolloverMaxPrimaryShardDocs != null) {
+                    builder.field(RolloverAction.MAX_PRIMARY_SHARD_DOCS_FIELD.getPreferredName(), rolloverMaxPrimaryShardDocs);
                 }
                 if (rolloverMaxSize != null) {
                     builder.field(RolloverAction.MAX_SIZE_FIELD.getPreferredName(), rolloverMaxSize.getStringRep());
@@ -446,6 +467,10 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
 
         public Long getRolloverMaxDocs() {
             return rolloverMaxDocs;
+        }
+
+        public Long getRolloverMaxPrimaryShardDocs() {
+            return rolloverMaxPrimaryShardDocs;
         }
 
         public ByteSizeValue getRolloverMaxPrimaryShardSize() {

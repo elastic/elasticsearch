@@ -13,8 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.Condition;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
-import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -62,7 +62,16 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             : null;
         Long maxPrimaryShardDocs = randomBoolean() ? null : randomNonNegativeLong();
-        return new WaitForRolloverReadyStep(stepKey, nextStepKey, client, maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxPrimaryShardDocs);
+        return new WaitForRolloverReadyStep(
+            stepKey,
+            nextStepKey,
+            client,
+            maxSize,
+            maxPrimaryShardSize,
+            maxAge,
+            maxDocs,
+            maxPrimaryShardDocs
+        );
     }
 
     @Override
@@ -94,7 +103,16 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             case 6 -> maxPrimaryShardDocs = randomValueOtherThan(maxPrimaryShardDocs, () -> randomNonNegativeLong());
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new WaitForRolloverReadyStep(key, nextKey, instance.getClient(), maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxPrimaryShardDocs);
+        return new WaitForRolloverReadyStep(
+            key,
+            nextKey,
+            instance.getClient(),
+            maxSize,
+            maxPrimaryShardSize,
+            maxAge,
+            maxDocs,
+            maxPrimaryShardDocs
+        );
     }
 
     @Override

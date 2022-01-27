@@ -185,7 +185,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         // add a policy
         Map<String, LifecycleAction> hotActions = Map.of(
             RolloverAction.NAME,
-            new RolloverAction(null, null, null, 1L, 1L),
+            new RolloverAction(null, null, null, 1L, null),
             ShrinkAction.NAME,
             new ShrinkAction(expectedFinalShards, null)
         );

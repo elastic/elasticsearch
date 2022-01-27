@@ -67,7 +67,7 @@ public class RolloverActionIT extends ESRestTestCase {
         );
 
         // create policy
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, 1L));
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null));
         // update policy on index
         updatePolicy(client(), originalIndex, policy);
         // index document {"foo": "bar"} to trigger rollover
@@ -118,7 +118,7 @@ public class RolloverActionIT extends ESRestTestCase {
         client().performRequest(updateAliasRequest);
 
         // create policy
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, 1L));
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null));
         // update policy on index
         updatePolicy(client(), originalIndex, policy);
         // index document {"foo": "bar"} to trigger rollover
@@ -149,6 +149,34 @@ public class RolloverActionIT extends ESRestTestCase {
 
         // create policy
         createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, ByteSizeValue.ofBytes(1), null, null, null));
+        // update policy on index
+        updatePolicy(client(), originalIndex, policy);
+
+        assertBusy(() -> {
+            assertThat(getStepKeyForIndex(client(), originalIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey()));
+            assertTrue(indexExists(secondIndex));
+            assertTrue(indexExists(originalIndex));
+            assertEquals("true", getOnlyIndexSettings(client(), originalIndex).get(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testRolloverActionWithMaxPrimaryDocsSize() throws Exception {
+        String originalIndex = index + "-000001";
+        String secondIndex = index + "-000002";
+        createIndexWithSettings(
+            client(),
+            originalIndex,
+            alias,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+        );
+
+        index(client(), originalIndex, "_id", "foo", "bar");
+
+        // create policy
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, null, 1L));
         // update policy on index
         updatePolicy(client(), originalIndex, policy);
 
@@ -203,7 +231,7 @@ public class RolloverActionIT extends ESRestTestCase {
         String thirdIndex = index + "-000003";
 
         // Set up a policy with rollover
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 2L, 2L));
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 2L, null));
         Request createIndexTemplate = new Request("PUT", "_template/rolling_indexes");
         createIndexTemplate.setJsonEntity("""
             {
@@ -343,7 +371,7 @@ public class RolloverActionIT extends ESRestTestCase {
     public void testUpdateRolloverLifecycleDateStepRetriesWhenRolloverInfoIsMissing() throws Exception {
         String index = this.index + "-000001";
 
-        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, 1L));
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L, null));
 
         createIndexWithSettings(
             client(),

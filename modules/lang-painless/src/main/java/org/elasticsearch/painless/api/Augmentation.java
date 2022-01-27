@@ -787,14 +787,13 @@ public class Augmentation {
     public static int getWeekOfWeekyear(ZonedDateTime receiver) {
         throw new UnsupportedOperationException(
             "joda method [getWeekOfWeekyear] is no longer available; "
-                + "use [<ZonedDateTime instance>.get(DateFormatters.WEEK_FIELDS.weekOfWeekBasedYear())] instead"
+                + "use [<ZonedDateTime instance>.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)] instead"
         );
     }
 
     public static int getWeekyear(ZonedDateTime receiver) {
         throw new UnsupportedOperationException(
-            "joda method [getWeekyear] is no longer available; "
-                + "use [<ZonedDateTime instance>.get(DateFormatters.WEEK_FIELDS.weekBasedYear())] instead"
+            "joda method [getWeekyear] is no longer available; use [<ZonedDateTime instance>.get(IsoFields.WEEK_BASED_YEAR)] instead"
         );
     }
 

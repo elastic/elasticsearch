@@ -16,7 +16,7 @@ For detailed information about this release, see the <<es-release-notes>> and
 
 // tag::notable-highlights[] 
 [discrete]
-=== Better space efficiency for `keyword`, `text` and `match_only_text` fields
+=== Better space efficiency for `keyword`, `match_only_text`, and `text` fields
 
 The inverted index switched to a new encoding that is more space-efficient.
 This change will benefit `keyword` fields, `match_only_text` fields and, to a

@@ -33,7 +33,6 @@ import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
@@ -173,15 +172,7 @@ public class SecurityContextTests extends ESTestCase {
             AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
             new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}")
         );
-        final Authentication original = new Authentication(
-            user,
-            authBy,
-            authBy,
-            Version.V_8_0_0,
-            AuthenticationType.API_KEY,
-            metadata,
-            Set.of()
-        );
+        final Authentication original = new Authentication(user, authBy, authBy, Version.V_8_0_0, AuthenticationType.API_KEY, metadata);
         original.writeToContext(threadContext);
 
         // If target is old node, rewrite new style API key metadata to old format
@@ -212,15 +203,7 @@ public class SecurityContextTests extends ESTestCase {
         metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10));
         metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, Map.of("a role", Map.of("cluster", List.of("all"))));
         metadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, Map.of("limitedBy role", Map.of("cluster", List.of("all"))));
-        final Authentication original = new Authentication(
-            user,
-            authBy,
-            authBy,
-            Version.V_7_8_0,
-            AuthenticationType.API_KEY,
-            metadata,
-            Set.of()
-        );
+        final Authentication original = new Authentication(user, authBy, authBy, Version.V_7_8_0, AuthenticationType.API_KEY, metadata);
         original.writeToContext(threadContext);
 
         // If target is old node, no need to rewrite old style API key metadata

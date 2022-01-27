@@ -266,6 +266,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.checkVersionedNamedWritable = true;
         out.writeByte(searchType.id());
         out.writeStringArray(indices);
         out.writeOptionalString(routing);
@@ -308,6 +309,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     + "] or greater."
             );
         }
+        out.checkVersionedNamedWritable = false;
     }
 
     @Override

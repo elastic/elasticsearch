@@ -79,6 +79,8 @@ public abstract class StreamOutput extends OutputStream {
 
     private Version version = Version.CURRENT;
 
+    public boolean checkVersionedNamedWritable = false;
+
     /**
      * The version of the node on the other side of this stream.
      */
@@ -1038,6 +1040,11 @@ public abstract class StreamOutput extends OutputStream {
      * Writes a {@link NamedWriteable} to the current stream, by first writing its name and then the object itself
      */
     public void writeNamedWriteable(NamedWriteable namedWriteable) throws IOException {
+        if (checkVersionedNamedWritable) {
+            if (namedWriteable instanceof VersionedNamedWriteable == false) {
+                throw new UnsupportedOperationException(namedWriteable.getWriteableName() + "|" + namedWriteable.getClass());
+            }
+        }
         writeString(namedWriteable.getWriteableName());
         namedWriteable.writeTo(this);
     }

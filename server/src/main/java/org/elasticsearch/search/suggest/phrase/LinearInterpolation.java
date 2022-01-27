@@ -119,6 +119,11 @@ public final class LinearInterpolation extends SmoothingModel {
         return Objects.hash(trigramLambda, bigramLambda, unigramLambda);
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
+
     public static LinearInterpolation fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
         String fieldName = null;

@@ -27,6 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -162,6 +163,11 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         @Override
         public String fieldName() {
             return "foo";
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
         }
     }
 

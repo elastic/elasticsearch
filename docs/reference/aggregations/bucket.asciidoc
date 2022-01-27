@@ -40,6 +40,8 @@ include::bucket/geodistance-aggregation.asciidoc[]
 
 include::bucket/geohashgrid-aggregation.asciidoc[]
 
+include::bucket/geohexgrid-aggregation.asciidoc[]
+
 include::bucket/geotilegrid-aggregation.asciidoc[]
 
 include::bucket/global-aggregation.asciidoc[]

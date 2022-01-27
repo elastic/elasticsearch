@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -136,7 +137,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                     String id = "testdoc" + i;
                     expectedIds.add(id);
                     // use multiple types for ES versions < 6.0.0
-                    String type = "doc" + (oldVersion.before(Version.fromString("6.0.0")) ? Murmur3HashFunction.hash(id) % 2 : 0);
+                    String type = getType(oldVersion, id);
                     Request doc = new Request("PUT", "/test/" + type + "/" + id);
                     doc.addParameter("refresh", "true");
                     doc.setJsonEntity(sourceForDoc(i));
@@ -146,7 +147,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 for (int i = 0; i < extraDocs; i++) {
                     String id = randomFrom(expectedIds);
                     expectedIds.remove(id);
-                    String type = "doc" + (oldVersion.before(Version.fromString("6.0.0")) ? Murmur3HashFunction.hash(id) % 2 : 0);
+                    String type = getType(oldVersion, id);
                     Request doc = new Request("DELETE", "/test/" + type + "/" + id);
                     doc.addParameter("refresh", "true");
                     oldEs.performRequest(doc);
@@ -267,6 +268,10 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         }
     }
 
+    private String getType(Version oldVersion, String id) {
+        return "doc" + (oldVersion.before(Version.fromString("6.0.0")) ? Math.abs(Murmur3HashFunction.hash(id) % 2) : 0);
+    }
+
     private static String sourceForDoc(int i) {
         return "{\"test\":\"test" + i + "\",\"val\":" + i + "}";
     }
@@ -337,7 +342,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         }
 
         // run a search against the index
-        assertDocs("restored_test", numDocs, expectedIds, client, sourceOnlyRepository);
+        assertDocs("restored_test", numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
 
         // mount as full copy searchable snapshot
         RestoreSnapshotResponse mountSnapshotResponse = client.searchableSnapshots()
@@ -363,7 +368,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         );
 
         // run a search against the index
-        assertDocs("mounted_full_copy_test", numDocs, expectedIds, client, sourceOnlyRepository);
+        assertDocs("mounted_full_copy_test", numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
 
         // mount as shared cache searchable snapshot
         mountSnapshotResponse = client.searchableSnapshots()
@@ -378,12 +383,18 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().successfulShards());
 
         // run a search against the index
-        assertDocs("mounted_shared_cache_test", numDocs, expectedIds, client, sourceOnlyRepository);
+        assertDocs("mounted_shared_cache_test", numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
     }
 
     @SuppressWarnings("removal")
-    private void assertDocs(String index, int numDocs, Set<String> expectedIds, RestHighLevelClient client, boolean sourceOnlyRepository)
-        throws IOException {
+    private void assertDocs(
+        String index,
+        int numDocs,
+        Set<String> expectedIds,
+        RestHighLevelClient client,
+        boolean sourceOnlyRepository,
+        Version oldVersion
+    ) throws IOException {
         // run a search against the index
         SearchResponse searchResponse = client.search(new SearchRequest(index), RequestOptions.DEFAULT);
         logger.info(searchResponse);
@@ -420,9 +431,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             // check that doc values can be accessed by (reverse) sorting on numeric val field
             // first add mapping for field (this will be done automatically in the future)
             XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
-            mappingBuilder.startObject().startObject("properties").startObject("val");
-            mappingBuilder.field("type", "long");
-            mappingBuilder.endObject().endObject().endObject();
+            mappingBuilder.startObject().startObject("properties");
+            mappingBuilder.startObject("val").field("type", "long").endObject();
+            mappingBuilder.endObject().endObject();
             assertTrue(
                 client.indices().putMapping(new PutMappingRequest(index).source(mappingBuilder), RequestOptions.DEFAULT).isAcknowledged()
             );
@@ -442,6 +453,24 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 expectedIds.stream().sorted(Comparator.comparingInt(this::getIdAsNumeric).reversed()).collect(Collectors.toList()),
                 Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toList())
             );
+
+            if (oldVersion.before(Version.fromString("6.0.0"))) {
+                // search on _type and check that results contain _type information
+                String randomType = getType(oldVersion, randomFrom(expectedIds));
+                long typeCount = expectedIds.stream().filter(idd -> getType(oldVersion, idd).equals(randomType)).count();
+                searchResponse = client.search(
+                    new SearchRequest(index).source(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("_type", randomType))),
+                    RequestOptions.DEFAULT
+                );
+                logger.info(searchResponse);
+                assertEquals(typeCount, searchResponse.getHits().getTotalHits().value);
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    DocumentField typeField = hit.field("_type");
+                    assertNotNull(typeField);
+                    assertThat(typeField.getValue(), instanceOf(String.class));
+                    assertEquals(randomType, typeField.getValue());
+                }
+            }
         }
     }
 

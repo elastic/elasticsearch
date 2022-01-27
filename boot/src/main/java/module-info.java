@@ -10,5 +10,7 @@ module org.elasticsearch.boot {
     requires java.se;
     requires jdk.unsupported;
 
+    provides java.util.spi.CalendarDataProvider with org.elasticsearch.boot.IsoCalendarDataProvider;
+
     // #### this should be sufficient, once binding occurs, but could need more.
 }

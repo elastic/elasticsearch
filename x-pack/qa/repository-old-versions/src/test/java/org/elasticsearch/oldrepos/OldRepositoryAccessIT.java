@@ -269,7 +269,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     }
 
     private String getType(Version oldVersion, String id) {
-        return "doc" + (oldVersion.before(Version.fromString("6.0.0")) ? Murmur3HashFunction.hash(id) % 2 : 0);
+        return "doc" + (oldVersion.before(Version.fromString("6.0.0")) ? Math.abs(Murmur3HashFunction.hash(id) % 2) : 0);
     }
 
     private static String sourceForDoc(int i) {

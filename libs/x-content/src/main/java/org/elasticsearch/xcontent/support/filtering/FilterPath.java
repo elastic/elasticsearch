@@ -71,17 +71,6 @@ public class FilterPath {
      * @return true if the name equal a final node, otherwise return false
      */
     boolean matches(String name, List<FilterPath> nextFilters) {
-        return matches(name, nextFilters, false);
-    }
-
-    /**
-     * Similar to {@link #matches(String, List)}, but can set whether support dot in field name or not
-     * @param name the xcontent property name
-     * @param nextFilters nextFilters is a List, used to check the inner property of name
-     * @param supportDotInFieldName support dot in field name or not
-     * @return true if the name equal a final node, otherwise return false
-     */
-    boolean matches(String name, List<FilterPath> nextFilters, boolean supportDotInFieldName) {
         if (nextFilters == null) {
             return false;
         }
@@ -110,23 +99,6 @@ public class FilterPath {
             nextFilters.add(this);
         }
 
-        // support dot in path
-        if (supportDotInFieldName && nextFilters.isEmpty()) {
-            // contains dot and not the first or last char
-            int dotIndex = name.indexOf('.');
-            if ((dotIndex != -1) && (dotIndex != 0) && (dotIndex != name.length() - 1)) {
-                String prefixName = name.substring(0, dotIndex);
-                String subName = name.substring(dotIndex + 1);
-                termNode = termsChildren.get(prefixName);
-                if (termNode != null) {
-                    if (termNode.isFinalNode) {
-                        return true;
-                    } else {
-                        return termNode.matches(subName, nextFilters, true);
-                    }
-                }
-            }
-        }
         return false;
     }
 

@@ -74,7 +74,7 @@ public interface XContentFieldFilter {
             final XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
                 Set.of(includes),
                 Set.of(excludes)
-            ).withSupportDotInFieldName(true);
+            );
             return (originalSource, contentType) -> {
                 if (originalSource == null || originalSource.length() <= 0) {
                     if (contentType == null) {

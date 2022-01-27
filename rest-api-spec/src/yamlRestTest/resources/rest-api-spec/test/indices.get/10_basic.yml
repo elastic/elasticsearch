@@ -169,3 +169,18 @@ setup:
      catch: bad_request
      indices.get:
        index: _foo
+
+---
+"Should return only selected features":
+  - skip:
+      version: " - 8.0.99"
+      reason: "features option added in 8.1.0"
+
+  - do:
+      indices.get:
+        index: test_index
+        features: aliases,settings
+
+  - is_true: test_index.aliases
+  - is_true: test_index.settings
+  - match:   { test_index.mappings: {}}

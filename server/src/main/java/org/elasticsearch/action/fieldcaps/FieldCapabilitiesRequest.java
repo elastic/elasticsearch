@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -35,6 +36,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private String[] fields = Strings.EMPTY_ARRAY;
+    private String[] filters = Strings.EMPTY_ARRAY;
     private boolean includeUnmapped = false;
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
@@ -52,6 +54,9 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readOptionalLong();
         runtimeFields = in.readMap();
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            filters = in.readStringArray();
+        }
     }
 
     public FieldCapabilitiesRequest() {}
@@ -86,6 +91,9 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeOptionalLong(nowInMillis);
         out.writeMap(runtimeFields);
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeStringArray(filters);
+        }
     }
 
     @Override
@@ -115,6 +123,15 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
 
     public String[] fields() {
         return fields;
+    }
+
+    public FieldCapabilitiesRequest filters(String... filters) {
+        this.filters = filters;
+        return this;
+    }
+
+    public String[] filters() {
+        return filters;
     }
 
     /**
@@ -213,6 +230,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             && Arrays.equals(fields, that.fields)
             && Objects.equals(indexFilter, that.indexFilter)
             && Objects.equals(nowInMillis, that.nowInMillis)
+            && Arrays.equals(filters, that.filters)
             && Objects.equals(runtimeFields, that.runtimeFields);
     }
 
@@ -221,6 +239,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         int result = Objects.hash(indicesOptions, includeUnmapped, mergeResults, indexFilter, nowInMillis, runtimeFields);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(fields);
+        result = 31 * result + Arrays.hashCode(filters);
         return result;
     }
 
@@ -230,6 +249,8 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         Strings.collectionToDelimitedStringWithLimit(Arrays.asList(indices), ",", "", "", 1024, stringBuilder);
         stringBuilder.append("], fields[");
         Strings.collectionToDelimitedStringWithLimit(Arrays.asList(fields), ",", "", "", 1024, stringBuilder);
+        stringBuilder.append("], filters[");
+        stringBuilder.append(Strings.collectionToDelimitedString(Arrays.asList(filters), ","));
         stringBuilder.append("]");
         return stringBuilder.toString();
     }

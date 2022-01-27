@@ -8,11 +8,13 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -28,6 +30,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
 
     private final List<ShardId> shardIds;
     private final String[] fields;
+    private final String[] filters;
     private final OriginalIndices originalIndices;
     private final QueryBuilder indexFilter;
     private final long nowInMillis;
@@ -37,6 +40,11 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         super(in);
         shardIds = in.readList(ShardId::new);
         fields = in.readStringArray();
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            filters = in.readStringArray();
+        } else {
+            filters = Strings.EMPTY_ARRAY;
+        }
         originalIndices = OriginalIndices.readOriginalIndices(in);
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readLong();
@@ -46,6 +54,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     FieldCapabilitiesNodeRequest(
         List<ShardId> shardIds,
         String[] fields,
+        String[] filters,
         OriginalIndices originalIndices,
         QueryBuilder indexFilter,
         long nowInMillis,
@@ -53,6 +62,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     ) {
         this.shardIds = Objects.requireNonNull(shardIds);
         this.fields = fields;
+        this.filters = filters;
         this.originalIndices = originalIndices;
         this.indexFilter = indexFilter;
         this.nowInMillis = nowInMillis;
@@ -61,6 +71,10 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
 
     public String[] fields() {
         return fields;
+    }
+
+    public String[] filters() {
+        return filters;
     }
 
     public OriginalIndices originalIndices() {
@@ -98,6 +112,9 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         super.writeTo(out);
         out.writeList(shardIds);
         out.writeStringArray(fields);
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeStringArray(filters);
+        }
         OriginalIndices.writeOriginalIndices(originalIndices, out);
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeLong(nowInMillis);
@@ -117,6 +134,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         return nowInMillis == that.nowInMillis
             && shardIds.equals(that.shardIds)
             && Arrays.equals(fields, that.fields)
+            && Arrays.equals(filters, that.filters)
             && Objects.equals(originalIndices, that.originalIndices)
             && Objects.equals(indexFilter, that.indexFilter)
             && Objects.equals(runtimeFields, that.runtimeFields);

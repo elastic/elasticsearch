@@ -1,0 +1,148 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.action.fieldcaps;
+
+import org.elasticsearch.Version;
+import org.elasticsearch.test.ESTestCase;
+
+import java.util.Collections;
+import java.util.Map;
+
+public class ResponseRewriterTests extends ESTestCase {
+
+    public void testExcludeMetadata() {
+        Map<String, IndexFieldCapabilities> oldResponse = Map.of(
+            "field",
+            new IndexFieldCapabilities("field", "keyword", false, true, true, false, null, Collections.emptyMap()),
+            "_index",
+            new IndexFieldCapabilities("_index", "_index", true, true, true, false, null, Collections.emptyMap())
+        );
+
+        Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
+            Version.V_8_0_0,
+            oldResponse,
+            new String[] { "-metadata" },
+            f -> f.startsWith("_")
+        );
+
+        assertTrue(rewritten.containsKey("field"));
+        assertFalse(rewritten.containsKey("_index"));
+    }
+
+    public void testIncludeOnlyMetadata() {
+        Map<String, IndexFieldCapabilities> oldResponse = Map.of(
+            "field",
+            new IndexFieldCapabilities("field", "keyword", false, true, true, false, null, Collections.emptyMap()),
+            "_index",
+            new IndexFieldCapabilities("_index", "_index", true, true, true, false, null, Collections.emptyMap())
+        );
+
+        Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
+            Version.V_8_0_0,
+            oldResponse,
+            new String[] { "+metadata" },
+            f -> f.startsWith("_")
+        );
+
+        assertFalse(rewritten.containsKey("field"));
+        assertTrue(rewritten.containsKey("_index"));
+    }
+
+    public void testExcludeNested() {
+        Map<String, IndexFieldCapabilities> oldResponse = Map.of(
+            "field",
+            new IndexFieldCapabilities("field", "keyword", false, true, true, false, null, Collections.emptyMap()),
+            "parent",
+            new IndexFieldCapabilities("parent", "nested", false, false, false, false, null, Collections.emptyMap()),
+            "parent.child",
+            new IndexFieldCapabilities("parent.child", "keyword", false, true, true, false, null, Collections.emptyMap())
+        );
+
+        Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
+            Version.V_8_0_0,
+            oldResponse,
+            new String[] { "-nested" },
+            f -> f.startsWith("_")
+        );
+
+        assertTrue(rewritten.containsKey("field"));
+        assertFalse(rewritten.containsKey("parent.child"));
+        assertFalse(rewritten.containsKey("parent"));
+    }
+
+    public void testExcludeMultifield() {
+        Map<String, IndexFieldCapabilities> oldResponse = Map.of(
+            "field",
+            fieldCaps("field", "text", false),
+            "field.keyword",
+            fieldCaps("field.keyword", "keyword", false),
+            "parent",
+            fieldCaps("parent", "object", false),
+            "parent.child",
+            fieldCaps("parent.child", "keyword", false)
+        );
+
+        Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
+            Version.V_8_0_0,
+            oldResponse,
+            new String[] { "-multifield" },
+            f -> f.startsWith("_")
+        );
+
+        assertTrue(rewritten.containsKey("field"));
+        assertFalse(rewritten.containsKey("field.keyword"));
+        assertTrue(rewritten.containsKey("parent.child"));
+    }
+
+    public void testIncludeOnlyDimensions() {
+        Map<String, IndexFieldCapabilities> oldResponse = Map.of(
+            "field1",
+            fieldCaps("field1", "text", false),
+            "field2",
+            new IndexFieldCapabilities("field2", "keyword", false, true, true, true, null, Collections.emptyMap())
+        );
+
+        Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
+            Version.V_8_0_0,
+            oldResponse,
+            new String[] { "+dimension" },
+            f -> f.startsWith("_")
+        );
+
+        assertFalse(rewritten.containsKey("field1"));
+        assertTrue(rewritten.containsKey("field2"));
+    }
+
+    public void testExcludeParents() {
+        Map<String, IndexFieldCapabilities> oldResponse = Map.of(
+            "field",
+            fieldCaps("field", "text", false),
+            "parent",
+            fieldCaps("parent", "object", false),
+            "parent.child",
+            fieldCaps("parent.child", "keyword", false)
+        );
+
+        Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
+            Version.V_8_0_0,
+            oldResponse,
+            new String[] { "-parent" },
+            f -> f.startsWith("_")
+        );
+
+        assertTrue(rewritten.containsKey("field"));
+        assertFalse(rewritten.containsKey("parent"));
+        assertTrue(rewritten.containsKey("parent.child"));
+    }
+
+    private static IndexFieldCapabilities fieldCaps(String name, String type, boolean isMetadata) {
+        return new IndexFieldCapabilities(name, type, isMetadata, true, true, false, null, Collections.emptyMap());
+    }
+
+}

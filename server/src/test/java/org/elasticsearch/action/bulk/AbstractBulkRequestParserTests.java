@@ -9,9 +9,12 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
@@ -20,16 +23,27 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class BulkRequestParserTests extends ESTestCase {
+public abstract class AbstractBulkRequestParserTests extends ESTestCase {
+
+    protected abstract XContentBuilder getBuilder() throws IOException;
+
+    protected abstract XContentType getXContentType();
 
     public void testIndexRequest() throws IOException {
-        BytesArray request = new BytesArray("""
-            { "index":{ "_id": "bar" } }
-            {}
-            """);
+        XContentBuilder builderIndex = getBuilder().startObject().startObject("index").field("_id", "bar").endObject().endObject();
+        XContentBuilder builderDocument = getBuilder().startObject().endObject();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+
+        writeXContent(out, builderIndex);
+        writeXContent(out, builderDocument);
+
+        BytesReference request = out.bytes();
+
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
+
         final AtomicBoolean parsed = new AtomicBoolean();
-        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON, (indexRequest, type) -> {
+        parser.parse(request, "foo", null, null, null, null, false, getXContentType(), (indexRequest, type) -> {
             assertFalse(parsed.get());
             assertEquals("foo", indexRequest.index());
             assertEquals("bar", indexRequest.id());
@@ -46,16 +60,21 @@ public class BulkRequestParserTests extends ESTestCase {
             null,
             true,
             false,
-            XContentType.JSON,
+            getXContentType(),
             (indexRequest, type) -> { assertTrue(indexRequest.isRequireAlias()); },
             req -> fail(),
             req -> fail()
         );
 
-        request = new BytesArray("""
-            { "index":{ "_id": "bar", "require_alias": true } }
-            {}
-            """);
+        builderIndex = getBuilder();
+        builderIndex.startObject().startObject("index").field("_id", "bar").field("require_alias", true).endObject().endObject();
+
+        out.reset();
+        writeXContent(out, builderIndex);
+        writeXContent(out, builderDocument);
+
+        request = out.bytes();
+
         parser.parse(
             request,
             "foo",
@@ -64,16 +83,21 @@ public class BulkRequestParserTests extends ESTestCase {
             null,
             null,
             false,
-            XContentType.JSON,
+            getXContentType(),
             (indexRequest, type) -> { assertTrue(indexRequest.isRequireAlias()); },
             req -> fail(),
             req -> fail()
         );
 
-        request = new BytesArray("""
-            { "index":{ "_id": "bar", "require_alias": false } }
-            {}
-            """);
+        builderIndex = getBuilder();
+        builderIndex.startObject().startObject("index").field("_id", "bar").field("require_alias", false).endObject().endObject();
+
+        out.reset();
+        writeXContent(out, builderIndex);
+        writeXContent(out, builderDocument);
+
+        request = out.bytes();
+
         parser.parse(
             request,
             "foo",
@@ -82,7 +106,7 @@ public class BulkRequestParserTests extends ESTestCase {
             null,
             true,
             false,
-            XContentType.JSON,
+            getXContentType(),
             (indexRequest, type) -> { assertFalse(indexRequest.isRequireAlias()); },
             req -> fail(),
             req -> fail()
@@ -90,9 +114,13 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testDeleteRequest() throws IOException {
-        BytesArray request = new BytesArray("""
-            { "delete":{ "_id": "bar" } }
-            """);
+        XContentBuilder builderIndex = getBuilder().startObject().startObject("delete").field("_id", "bar").endObject().endObject();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        writeXContent(out, builderIndex);
+
+        BytesReference request = out.bytes();
+
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
         final AtomicBoolean parsed = new AtomicBoolean();
         parser.parse(
@@ -103,7 +131,7 @@ public class BulkRequestParserTests extends ESTestCase {
             null,
             null,
             false,
-            XContentType.JSON,
+            getXContentType(),
             (req, type) -> fail(),
             req -> fail(),
             deleteRequest -> {
@@ -117,13 +145,19 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testUpdateRequest() throws IOException {
-        BytesArray request = new BytesArray("""
-            { "update":{ "_id": "bar" } }
-            {}
-            """);
+        XContentBuilder builderIndex = getBuilder();
+        builderIndex.startObject().startObject("update").field("_id", "bar").endObject().endObject();
+        XContentBuilder builderDocument = getBuilder().startObject().endObject();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        writeXContent(out, builderIndex);
+        writeXContent(out, builderDocument);
+
+        BytesReference request = out.bytes();
+
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
         final AtomicBoolean parsed = new AtomicBoolean();
-        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON, (req, type) -> fail(), updateRequest -> {
+        parser.parse(request, "foo", null, null, null, null, false, getXContentType(), (req, type) -> fail(), updateRequest -> {
             assertFalse(parsed.get());
             assertEquals("foo", updateRequest.index());
             assertEquals("bar", updateRequest.id());
@@ -140,16 +174,21 @@ public class BulkRequestParserTests extends ESTestCase {
             null,
             true,
             false,
-            XContentType.JSON,
+            getXContentType(),
             (req, type) -> fail(),
             updateRequest -> { assertTrue(updateRequest.isRequireAlias()); },
             req -> fail()
         );
 
-        request = new BytesArray("""
-            { "update":{ "_id": "bar", "require_alias": true } }
-            {}
-            """);
+        builderIndex = getBuilder();
+        builderIndex.startObject().startObject("update").field("_id", "bar").field("require_alias", true).endObject().endObject();
+
+        out.reset();
+        writeXContent(out, builderIndex);
+        writeXContent(out, builderDocument);
+
+        request = out.bytes();
+
         parser.parse(
             request,
             "foo",
@@ -158,16 +197,21 @@ public class BulkRequestParserTests extends ESTestCase {
             null,
             null,
             false,
-            XContentType.JSON,
+            getXContentType(),
             (req, type) -> fail(),
             updateRequest -> { assertTrue(updateRequest.isRequireAlias()); },
             req -> fail()
         );
 
-        request = new BytesArray("""
-            { "update":{ "_id": "bar", "require_alias": false } }
-            {}
-            """);
+        builderIndex = getBuilder();
+        builderIndex.startObject().startObject("update").field("_id", "bar").field("require_alias", false).endObject().endObject();
+
+        out.reset();
+        writeXContent(out, builderIndex);
+        writeXContent(out, builderDocument);
+
+        request = out.bytes();
+
         parser.parse(
             request,
             "foo",
@@ -176,17 +220,24 @@ public class BulkRequestParserTests extends ESTestCase {
             null,
             true,
             false,
-            XContentType.JSON,
+            getXContentType(),
             (req, type) -> fail(),
             updateRequest -> { assertFalse(updateRequest.isRequireAlias()); },
             req -> fail()
         );
     }
 
-    public void testBarfOnLackOfTrailingNewline() {
-        BytesArray request = new BytesArray("""
-            { "index":{ "_id": "bar" } }
-            {}""");
+    public void testBarfOnLackOfTrailingNewline() throws IOException {
+        XContentBuilder builderIndex = getBuilder();
+        builderIndex.startObject().startObject("update").field("_id", "bar").endObject().endObject();
+        XContentBuilder builderDocument = getBuilder().startObject().endObject();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        writeXContent(out, builderIndex);
+        out.write(BytesReference.bytes(builderDocument).array());
+
+        BytesReference request = out.bytes();
+
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -198,7 +249,7 @@ public class BulkRequestParserTests extends ESTestCase {
                 null,
                 null,
                 false,
-                XContentType.JSON,
+                getXContentType(),
                 (req, type) -> fail(),
                 req -> fail(),
                 req -> fail()
@@ -207,11 +258,17 @@ public class BulkRequestParserTests extends ESTestCase {
         assertEquals("The bulk request must be terminated by a newline [\\n]", e.getMessage());
     }
 
-    public void testFailOnExplicitIndex() {
-        BytesArray request = new BytesArray("""
-            { "index":{ "_index": "foo", "_id": "bar" } }
-            {}
-            """);
+    public void testFailOnExplicitIndex() throws IOException {
+        XContentBuilder builderIndex = getBuilder();
+        builderIndex.startObject().startObject("index").field("_index", "foo").field("_id", "bar").endObject().endObject();
+        XContentBuilder builderDocument = getBuilder().startObject().endObject();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        writeXContent(out, builderIndex);
+        writeXContent(out, builderDocument);
+
+        BytesReference request = out.bytes();
+
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
 
         IllegalArgumentException ex = expectThrows(
@@ -224,7 +281,7 @@ public class BulkRequestParserTests extends ESTestCase {
                 null,
                 null,
                 false,
-                XContentType.JSON,
+                getXContentType(),
                 (req, type) -> fail(),
                 req -> fail(),
                 req -> fail()
@@ -234,13 +291,19 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testTypesStillParsedForBulkMonitoring() throws IOException {
-        BytesArray request = new BytesArray("""
-            { "index":{ "_type": "quux", "_id": "bar" } }
-            {}
-            """);
+        XContentBuilder builderIndex = getBuilder();
+        builderIndex.startObject().startObject("index").field("_type", "quux").field("_id", "bar").endObject().endObject();
+        XContentBuilder builderDocument = getBuilder().startObject().endObject();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        writeXContent(out, builderIndex);
+        writeXContent(out, builderDocument);
+
+        BytesReference request = out.bytes();
+
         BulkRequestParser parser = new BulkRequestParser(false, RestApiVersion.current());
         final AtomicBoolean parsed = new AtomicBoolean();
-        parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON, (indexRequest, type) -> {
+        parser.parse(request, "foo", null, null, null, null, false, getXContentType(), (indexRequest, type) -> {
             assertFalse(parsed.get());
             assertEquals("foo", indexRequest.index());
             assertEquals("bar", indexRequest.id());
@@ -251,12 +314,20 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testParseDeduplicatesParameterStrings() throws IOException {
-        BytesArray request = new BytesArray("""
-            { "index":{ "_index": "bar", "pipeline": "foo", "routing": "blub"} }
-            {}
-            { "index":{ "_index": "bar", "pipeline": "foo", "routing": "blub" } }
-            {}
-            """);
+        XContentBuilder builderIndex = getBuilder();
+        builderIndex.startObject().startObject("index")
+            .field("_id", "bar").field("pipeline", "foo").field("routing", "blub")
+            .endObject().endObject();
+        XContentBuilder builderDocument = getBuilder().startObject().endObject();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        writeXContent(out, builderIndex);
+        writeXContent(out, builderDocument);
+        writeXContent(out, builderIndex);
+        writeXContent(out, builderDocument);
+
+        BytesReference request = out.bytes();
+
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
         final List<IndexRequest> indexRequests = new ArrayList<>();
         parser.parse(
@@ -267,7 +338,7 @@ public class BulkRequestParserTests extends ESTestCase {
             null,
             null,
             true,
-            XContentType.JSON,
+            getXContentType(),
             (indexRequest, type) -> indexRequests.add(indexRequest),
             req -> fail(),
             req -> fail()
@@ -278,5 +349,35 @@ public class BulkRequestParserTests extends ESTestCase {
         assertSame(first.index(), second.index());
         assertSame(first.getPipeline(), second.getPipeline());
         assertSame(first.routing(), second.routing());
+    }
+
+    public void testIndexRandomBytes() throws IOException {
+        byte[] bytes = randomByteArrayOfLength(randomIntBetween(10, 1024));
+        XContentBuilder builderIndex = getBuilder().startObject().startObject("index").field("_id", "bar").endObject().endObject();
+        XContentBuilder builderDocument = getBuilder().startObject().field("bytes", bytes).endObject();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+
+        writeXContent(out, builderIndex);
+        writeXContent(out, builderDocument);
+
+        BytesReference request = out.bytes();
+
+        BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
+
+        final AtomicBoolean parsed = new AtomicBoolean();
+        parser.parse(request, "foo", null, null, null, null, false, getXContentType(), (indexRequest, type) -> {
+            assertFalse(parsed.get());
+            assertEquals("foo", indexRequest.index());
+            assertEquals("bar", indexRequest.id());
+            assertFalse(indexRequest.isRequireAlias());
+            parsed.set(true);
+        }, req -> fail(), req -> fail());
+        assertTrue(parsed.get());
+    }
+
+    private void writeXContent(StreamOutput out, XContentBuilder builder) throws IOException {
+        out.write(BytesReference.bytes(builder).array());
+        out.write(getXContentType().xContent().streamSeparator());
     }
 }

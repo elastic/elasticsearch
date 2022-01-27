@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'nebula.optional-base'
 apply plugin: 'elasticsearch.publish'
 
 dependencies {

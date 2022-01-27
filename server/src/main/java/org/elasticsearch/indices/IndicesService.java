@@ -368,6 +368,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 1,
                 0,
                 TimeUnit.MILLISECONDS,
+                true,
                 daemonThreadFactory(nodeName, DANGLING_INDICES_UPDATE_THREAD_NAME),
                 threadPool.getThreadContext()
             )

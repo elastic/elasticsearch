@@ -70,11 +70,17 @@ To manage repositories in {kib}, go to the main menu and click **Stack
 Management** > **Snapshot and Restore** > **Repositories**. To register a
 snapshot repository, click **Register repository**.
 
+You can also register a repository using the <<put-snapshot-repo-api,Create
+snapshot repository API>>.
+
 [discrete]
 [[snapshot-repo-types]]
 === Snapshot repository types
 
-Supported snapshot repository types vary based on your deployment type.
+Supported snapshot repository types vary based on your deployment type:
+
+* <<ess-repo-types>>
+* <<self-managed-repo-types>>
 
 [discrete]
 [[ess-repo-types]]
@@ -94,24 +100,24 @@ clusters].
 
 {ess} deployments also support the following repository types:
 
+* {cloud}/ec-azure-snapshotting.html[Azure]
+* {cloud}/ec-gcs-snapshotting.html[Google Cloud Storage]
 * {cloud}/ec-aws-custom-repository.html[AWS S3]
-* {cloud}/ec-gcs-snapshotting.html[Google Cloud Storage (GCS)]
-* {cloud}/ec-azure-snapshotting.html[Microsoft Azure]
-* <<snapshots-source-only-repository>>
+* <<snapshots-source-only-repository,Source-only>>
 
 [discrete]
 [[self-managed-repo-types]]
 ==== Self-managed repository types
 
-If you run the {es} on your own hardware, you can use the following built-in
+If you run {es} on your own hardware, you can use the following built-in
 snapshot repository types:
 
-* <<repository-s3,AWS S3>>
-* <<repository-gcs,Google Cloud Storage>>
 * <<repository-azure,Azure>>
+* <<repository-gcs,Google Cloud Storage>>
+* <<repository-s3,AWS S3>>
 * <<snapshots-filesystem-repository,Shared file system>>
-* <<snapshots-read-only-repository>>
-* <<snapshots-source-only-repository>>
+* <<snapshots-read-only-repository,Read-only URL>>
+* <<snapshots-source-only-repository,Source-only>>
 
 [[snapshots-repository-plugins]]
 Other repository types are available through official plugins:
@@ -121,108 +127,6 @@ Other repository types are available through official plugins:
 You can also use alternative implementations of these repository types, such as
 MinIO, as long as they're compatible. To verify a repository's compatibility,
 see <<snapshots-repository-verification>>.
-
-[discrete]
-[[snapshots-filesystem-repository]]
-==== Shared file system repository
-
-// tag::on-prem-repo-type[]
-NOTE: This repository type is only available if you run {es} on your own
-hardware. If you use {ess}, see <<ess-repo-types>>.
-// end::on-prem-repo-type[]
-
-Use a shared file system repository to store snapshots on a
-shared file system.
-
-To register a shared file system repository, first mount the file system to the
-same location on all master and data nodes. Then add the file system's
-path or parent directory to the `path.repo` setting in `elasticsearch.yml` for
-each master and data node. For running clusters, this requires a
-<<restart-cluster-rolling,rolling restart>> of each node.
-
-IMPORTANT: By default, a network file system (NFS) uses user IDs (UIDs) and
-group IDs (GIDs) to match accounts across nodes. If your shared file system is
-an NFS and your nodes don't use the same UIDs and GIDs, update your NFS
-configuration to account for this.
-
-Supported `path.repo` values vary by platform:
-
-include::{es-repo-dir}/tab-widgets/register-fs-repo-widget.asciidoc[]
-
-[discrete]
-[[snapshots-read-only-repository]]
-==== Read-only URL repository
-
-include::register-repository.asciidoc[tag=on-prem-repo-type]
-
-You can use a URL repository to give a cluster read-only access to a shared file
-system. Since URL repositories are always read-only, they're a safer and more
-convenient alternative to registering a read-only shared filesystem repository.
-
-Use {kib} or the <<put-snapshot-repo-api,create snapshot repository API>> to
-register a URL repository.
-
-[source,console]
-----
-PUT _snapshot/my_read_only_url_repository
-{
-  "type": "url",
-  "settings": {
-    "url": "file:/mount/backups/my_fs_backup_location"
-  }
-}
-----
-// TEST[skip:no access to url file path]
-
-[discrete]
-[[snapshots-source-only-repository]]
-==== Source-only repository
-
-You can use a source-only repository to take minimal, source-only snapshots that
-use up to 50% less disk space than regular snapshots.
-
-Unlike other repository types, a source-only repository doesn't directly store
-snapshots. It delegates storage to another registered snapshot repository.
-
-When you take a snapshot using a source-only repository, {es} creates a
-source-only snapshot in the delegated storage repository. This snapshot only
-contains stored fields and metadata. It doesn't include index or doc values
-structures and isn't immediately searchable when restored. To search the
-restored data, you first have to <<docs-reindex,reindex>> it into a new data
-stream or index.
-
-[IMPORTANT]
-==================================================
-
-Source-only snapshots are only supported if the `_source` field is enabled and no source-filtering is applied.
-When you restore a source-only snapshot:
-
- * The restored index is read-only and can only serve `match_all` search or scroll requests to enable reindexing.
-
- * Queries other than `match_all` and `_get` requests are not supported.
-
- * The mapping of the restored index is empty, but the original mapping is available from the types top
-   level `meta` element.
-
-==================================================
-
-Before registering a source-only repository, use {kib} or the
-<<put-snapshot-repo-api,create snapshot repository API>> to register a snapshot
-repository of another type to use for storage. Then register the source-only
-repository and specify the delegated storage repository in the request.
-
-[source,console]
-----
-PUT _snapshot/my_src_only_repository
-{
-  "type": "source",
-  "settings": {
-    "delegate_type": "fs",
-    "location": "my_backup_location"
-  }
-}
-----
-// TEST[continued]
 
 [discrete]
 [[snapshots-repository-verification]]
@@ -245,7 +149,8 @@ PUT _snapshot/my_unverified_backup?verify=false
   }
 }
 ----
-// TEST[continued]
+// TEST[setup:setup-repository]
+// TEST[s/my_unverified_backup_location/my_repository/]
 
 If wanted, you can manually run the repository verification check. To verify a
 repository in {kib}, go to the **Repositories** list page and click the name of
@@ -257,6 +162,7 @@ a repository. Then click **Verify repository**. You can also use the
 POST _snapshot/my_unverified_backup/_verify
 ----
 // TEST[continued]
+// TEST[s/my_unverified_backup_location/my_repository/]
 
 If successful, the request returns a list of nodes used to verify the
 repository. If verification fails, the request returns an error.
@@ -285,7 +191,7 @@ API>>.
 ----
 POST _snapshot/my_repository/_cleanup
 ----
-// TEST[continued]
+// TEST[setup:setup-snapshots]
 
 The API returns:
 
@@ -298,6 +204,8 @@ The API returns:
   }
 }
 ----
+// TESTRESPONSE[s/"deleted_bytes": 20/"deleted_bytes": $body.results.deleted_bytes/]
+// TESTRESPONSE[s/"deleted_blobs": 5/"deleted_blobs": $body.results.deleted_bytes/]
 
 Depending on the concrete repository implementation the numbers shown for bytes free as well as the number of blobs removed will either
 be an approximation or an exact result. Any non-zero value for the number of blobs removed implies that unreferenced blobs were found and
@@ -336,9 +244,9 @@ with {es} until the repository contents are fully restored. If you alter the
 contents of a repository while it is registered with {es} then the repository
 may become unreadable or may silently lose some of its contents.
 
-
-include::repository-s3.asciidoc[]
-
-include::repository-gcs.asciidoc[]
-
 include::repository-azure.asciidoc[]
+include::repository-gcs.asciidoc[]
+include::repository-s3.asciidoc[]
+include::repository-shared-file-system.asciidoc[]
+include::repository-read-only-url.asciidoc[]
+include::repository-source-only.asciidoc[]

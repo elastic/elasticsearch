@@ -39,9 +39,6 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
 
     private static final Logger logger = LogManager.getLogger(GenerateSnapshotNameStep.class);
 
-    private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
-        new IndexNameExpressionResolver.DateMathExpressionResolver();
-
     private final String snapshotRepository;
 
     public GenerateSnapshotNameStep(StepKey key, StepKey nextStepKey, String snapshotRepository) {
@@ -84,7 +81,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
         newCustomData.setSnapshotIndexName(index.getName());
         newCustomData.setSnapshotRepository(snapshotRepository);
-        if (lifecycleState.getSnapshotName() == null) {
+        if (lifecycleState.snapshotName() == null) {
             // generate and validate the snapshotName
             String snapshotNamePrefix = ("<{now/d}-" + index.getName() + "-" + policy + ">").toLowerCase(Locale.ROOT);
             String snapshotName = generateSnapshotName(snapshotNamePrefix);
@@ -143,7 +140,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
     }
 
     public static String generateSnapshotName(String name, IndexNameExpressionResolver.Context context) {
-        List<String> candidates = DATE_MATH_RESOLVER.resolve(context, Collections.singletonList(name));
+        List<String> candidates = IndexNameExpressionResolver.DateMathExpressionResolver.resolve(context, Collections.singletonList(name));
         if (candidates.size() != 1) {
             throw new IllegalStateException("resolving snapshot name " + name + " generated more than one candidate: " + candidates);
         }

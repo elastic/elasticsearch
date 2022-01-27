@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -61,7 +62,6 @@ public class MetadataRolloverService {
     private final ThreadPool threadPool;
     private final MetadataCreateIndexService createIndexService;
     private final MetadataIndexAliasesService indexAliasesService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
 
     @Inject
@@ -69,26 +69,15 @@ public class MetadataRolloverService {
         ThreadPool threadPool,
         MetadataCreateIndexService createIndexService,
         MetadataIndexAliasesService indexAliasesService,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices
     ) {
         this.threadPool = threadPool;
         this.createIndexService = createIndexService;
         this.indexAliasesService = indexAliasesService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
     }
 
-    public static class RolloverResult {
-        public final String rolloverIndexName;
-        public final String sourceIndexName;
-        public final ClusterState clusterState;
-
-        private RolloverResult(String rolloverIndexName, String sourceIndexName, ClusterState clusterState) {
-            this.rolloverIndexName = rolloverIndexName;
-            this.sourceIndexName = sourceIndexName;
-            this.clusterState = clusterState;
-        }
+    public record RolloverResult(String rolloverIndexName, String sourceIndexName, ClusterState clusterState) {
 
         @Override
         public String toString() {
@@ -165,28 +154,15 @@ public class MetadataRolloverService {
         };
     }
 
-    public static class NameResolution {
-        final String sourceName;
-        @Nullable
-        final String unresolvedName;
-        final String rolloverName;
-
-        NameResolution(String sourceName, String unresolvedName, String rolloverName) {
-            this.sourceName = sourceName;
-            this.unresolvedName = unresolvedName;
-            this.rolloverName = rolloverName;
-        }
-    }
+    public record NameResolution(String sourceName, @Nullable String unresolvedName, String rolloverName) {}
 
     private NameResolution resolveAliasRolloverNames(Metadata metadata, IndexAbstraction alias, String newIndexName) {
         final IndexMetadata writeIndex = metadata.index(alias.getWriteIndex());
         final String sourceProvidedName = writeIndex.getSettings()
             .get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, writeIndex.getIndex().getName());
         final String sourceIndexName = writeIndex.getIndex().getName();
-        final String unresolvedName = (newIndexName != null)
-            ? newIndexName
-            : generateRolloverIndexName(sourceProvidedName, indexNameExpressionResolver);
-        final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
+        final String unresolvedName = (newIndexName != null) ? newIndexName : generateRolloverIndexName(sourceProvidedName);
+        final String rolloverIndexName = IndexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
         return new NameResolution(sourceIndexName, unresolvedName, rolloverIndexName);
     }
 
@@ -267,15 +243,17 @@ public class MetadataRolloverService {
             );
         }
 
+        final ComposableIndexTemplate templateV2;
         final SystemDataStreamDescriptor systemDataStreamDescriptor;
         if (dataStream.isSystem() == false) {
             systemDataStreamDescriptor = null;
-            lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+            templateV2 = lookupTemplateForDataStream(dataStreamName, currentState.metadata());
         } else {
             systemDataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamName);
             if (systemDataStreamDescriptor == null) {
                 throw new IllegalArgumentException("no system data stream descriptor found for data stream [" + dataStreamName + "]");
             }
+            templateV2 = systemDataStreamDescriptor.getComposableIndexTemplate();
         }
 
         final DataStream ds = dataStream.getDataStream();
@@ -295,6 +273,7 @@ public class MetadataRolloverService {
             systemDataStreamDescriptor,
             now
         );
+        createIndexClusterStateRequest.setMatchingTemplate(templateV2);
         ClusterState newState = createIndexService.applyCreateIndexRequest(
             currentState,
             createIndexClusterStateRequest,
@@ -313,8 +292,8 @@ public class MetadataRolloverService {
         return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
     }
 
-    static String generateRolloverIndexName(String sourceIndexName, IndexNameExpressionResolver indexNameExpressionResolver) {
-        String resolvedName = indexNameExpressionResolver.resolveDateMathExpression(sourceIndexName);
+    static String generateRolloverIndexName(String sourceIndexName) {
+        String resolvedName = IndexNameExpressionResolver.resolveDateMathExpression(sourceIndexName);
         final boolean isDateMath = sourceIndexName.equals(resolvedName) == false;
         if (INDEX_NAME_PATTERN.matcher(resolvedName).matches()) {
             int numberIndex = sourceIndexName.lastIndexOf("-");

@@ -2156,7 +2156,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         IndicesSegmentResponse segmentResponse = client().admin().indices().prepareSegments(indexName).execute().actionGet();
         IndexSegments indexSegments = segmentResponse.getIndices().get(indexName);
         for (IndexShardSegments indexShardSegments : indexSegments.getShards().values()) {
-            for (ShardSegments shardSegments : indexShardSegments.getShards()) {
+            for (ShardSegments shardSegments : indexShardSegments.shards()) {
                 for (Segment segment : shardSegments) {
                     assertThat(expectedIndexSort, equalTo(segment.getSegmentSort()));
                 }

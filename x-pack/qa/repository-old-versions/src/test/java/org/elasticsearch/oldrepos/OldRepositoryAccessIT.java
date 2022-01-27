@@ -25,11 +25,14 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CloseIndexRequest;
+import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -59,8 +62,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class OldRepositoryAccessIT extends ESRestTestCase {
     @Override
@@ -127,7 +135,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 for (int i = 0; i < numDocs + extraDocs; i++) {
                     String id = "testdoc" + i;
                     expectedIds.add(id);
-                    Request doc = new Request("PUT", "/test/doc/" + id);
+                    // use multiple types for ES versions < 6.0.0
+                    String type = "doc" + (oldVersion.before(Version.fromString("6.0.0")) ? Murmur3HashFunction.hash(id) % 2 : 0);
+                    Request doc = new Request("PUT", "/test/" + type + "/" + id);
                     doc.addParameter("refresh", "true");
                     doc.setJsonEntity(sourceForDoc(i));
                     assertOK(oldEs.performRequest(doc));
@@ -136,7 +146,8 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 for (int i = 0; i < extraDocs; i++) {
                     String id = randomFrom(expectedIds);
                     expectedIds.remove(id);
-                    Request doc = new Request("DELETE", "/test/doc/" + id);
+                    String type = "doc" + (oldVersion.before(Version.fromString("6.0.0")) ? Murmur3HashFunction.hash(id) % 2 : 0);
+                    Request doc = new Request("DELETE", "/test/" + type + "/" + id);
                     doc.addParameter("refresh", "true");
                     oldEs.performRequest(doc);
                 }
@@ -218,7 +229,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
                 if (Build.CURRENT.isSnapshot()) {
                     // restore / mount and check whether searches work
-                    restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards, sourceOnlyRepository);
+                    restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards, sourceOnlyRepository, oldVersion);
 
                     // close indices
                     assertTrue(
@@ -236,7 +247,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                     );
 
                     // restore / mount again
-                    restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards, sourceOnlyRepository);
+                    restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards, sourceOnlyRepository, oldVersion);
                 }
             } finally {
                 IOUtils.closeWhileHandlingException(
@@ -266,7 +277,8 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         Set<String> expectedIds,
         RestHighLevelClient client,
         int numberOfShards,
-        boolean sourceOnlyRepository
+        boolean sourceOnlyRepository,
+        Version oldVersion
     ) throws IOException {
         // restore index
         RestoreSnapshotResponse restoreSnapshotResponse = client.snapshot()
@@ -290,6 +302,39 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 )
                 .getStatus()
         );
+
+        MappingMetadata mapping = client.indices()
+            .getMapping(new GetMappingsRequest().indices("restored_test"), RequestOptions.DEFAULT)
+            .mappings()
+            .get("restored_test");
+        logger.info("mapping for {}: {}", mapping.type(), mapping.source().string());
+        Map<String, Object> root = mapping.sourceAsMap();
+        assertThat(root, hasKey("_meta"));
+        assertThat(root.get("_meta"), instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> meta = (Map<String, Object>) root.get("_meta");
+        assertThat(meta, hasKey("legacy_mappings"));
+        assertThat(meta.get("legacy_mappings"), instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> legacyMappings = (Map<String, Object>) meta.get("legacy_mappings");
+        assertThat(legacyMappings.keySet(), not(empty()));
+        for (Map.Entry<String, Object> entry : legacyMappings.entrySet()) {
+            String type = entry.getKey();
+            assertThat(type, startsWith("doc"));
+            assertThat(entry.getValue(), instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> legacyMapping = (Map<String, Object>) entry.getValue();
+            assertThat(legacyMapping, hasKey("properties"));
+            assertThat(legacyMapping.get("properties"), instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> propertiesMapping = (Map<String, Object>) legacyMapping.get("properties");
+            assertThat(propertiesMapping, hasKey("val"));
+            assertThat(propertiesMapping.get("val"), instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> valMapping = (Map<String, Object>) propertiesMapping.get("val");
+            assertThat(valMapping, hasKey("type"));
+            assertEquals("long", valMapping.get("type"));
+        }
 
         // run a search against the index
         assertDocs("restored_test", numDocs, expectedIds, client, sourceOnlyRepository);

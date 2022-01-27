@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -68,7 +69,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         }
         // support _uid for loading older indices
         if ("_uid".equals(fieldInfo.name)) {
-            if (requiredFields.remove(IdFieldMapper.NAME) || requiredFields.remove("_type")) {
+            if (requiredFields.remove(IdFieldMapper.NAME) || requiredFields.remove(LegacyTypeFieldMapper.NAME)) {
                 return Status.YES;
             }
         }
@@ -115,7 +116,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
             int delimiterIndex = value.indexOf('#'); // type is not allowed to have # in it..., ids can
             String type = value.substring(0, delimiterIndex);
             id = value.substring(delimiterIndex + 1);
-            addValue("_type", type);
+            addValue(LegacyTypeFieldMapper.NAME, type);
         } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
             // only applies to 5.x indices that have single_type = true
             id = value;

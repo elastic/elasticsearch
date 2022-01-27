@@ -66,10 +66,10 @@ public final class MapperRegistry {
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMapperParsers(Version indexCreatedVersion) {
         if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
             return metadataMapperParsers;
-        } else if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
-            return metadataMapperParsers7x;
-        } else {
+        } else if (indexCreatedVersion.major < 6) {
             return metadataMapperParsers5x;
+        } else {
+            return metadataMapperParsers7x;
         }
     }
 

@@ -387,9 +387,14 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("removal")
-    private void assertDocs(String index, int numDocs, Set<String> expectedIds, RestHighLevelClient client, boolean sourceOnlyRepository,
-                            Version oldVersion)
-        throws IOException {
+    private void assertDocs(
+        String index,
+        int numDocs,
+        Set<String> expectedIds,
+        RestHighLevelClient client,
+        boolean sourceOnlyRepository,
+        Version oldVersion
+    ) throws IOException {
         // run a search against the index
         SearchResponse searchResponse = client.search(new SearchRequest(index), RequestOptions.DEFAULT);
         logger.info(searchResponse);
@@ -449,24 +454,22 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toList())
             );
 
-            // search on _type and check that results contain _type information
-            String randomType = getType(oldVersion, randomFrom(expectedIds));
-            long typeCount = expectedIds.stream().filter(idd -> getType(oldVersion, idd).equals(randomType)).count();
-            searchResponse = client.search(
-                new SearchRequest(index).source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.termQuery("_type", randomType))
-                )
-                ,
-                RequestOptions.DEFAULT
-            );
-            logger.info(searchResponse);
-            assertEquals(typeCount, searchResponse.getHits().getTotalHits().value);
-            for (SearchHit hit : searchResponse.getHits().getHits()) {
-                DocumentField typeField = hit.field("_type");
-                assertNotNull(typeField);
-                assertThat(typeField.getValue(), instanceOf(String.class));
-                assertEquals(randomType, typeField.getValue());
+            if (oldVersion.before(Version.fromString("6.0.0"))) {
+                // search on _type and check that results contain _type information
+                String randomType = getType(oldVersion, randomFrom(expectedIds));
+                long typeCount = expectedIds.stream().filter(idd -> getType(oldVersion, idd).equals(randomType)).count();
+                searchResponse = client.search(
+                    new SearchRequest(index).source(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("_type", randomType))),
+                    RequestOptions.DEFAULT
+                );
+                logger.info(searchResponse);
+                assertEquals(typeCount, searchResponse.getHits().getTotalHits().value);
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    DocumentField typeField = hit.field("_type");
+                    assertNotNull(typeField);
+                    assertThat(typeField.getValue(), instanceOf(String.class));
+                    assertEquals(randomType, typeField.getValue());
+                }
             }
         }
     }

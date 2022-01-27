@@ -186,6 +186,52 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testDoubleRangeWithLongField() throws IOException {
+        final String fieldName = "long_field";
+        MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.LONG);
+        testCase(
+            new RangeAggregationBuilder("0").field(fieldName).addRange(990.0, 999.9).addUnboundedFrom(999.9),
+            new MatchAllDocsQuery(),
+            iw -> {
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, 998)));
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, 999)));
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, 1000)));
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, 1001)));
+            },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals(2, ranges.get(0).getDocCount());
+                assertEquals(2, ranges.get(1).getDocCount());
+            },
+            field
+        );
+    }
+
+    public void testDoubleRangeWithIntegerField() throws IOException {
+        final String fieldName = "integer_field";
+        MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.INTEGER);
+        testCase(
+            new RangeAggregationBuilder("0").field(fieldName).addRange(990.0, 999.9).addUnboundedFrom(999.9),
+            new MatchAllDocsQuery(),
+            iw -> {
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, 998)));
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, 999)));
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, 1000)));
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, 1001)));
+            },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals(2, ranges.get(0).getDocCount());
+                assertEquals(2, ranges.get(1).getDocCount());
+            },
+            field
+        );
+    }
+
     /**
      * Confirm that a non-representable decimal stored as a float correctly follows the half-open interval rule
      */

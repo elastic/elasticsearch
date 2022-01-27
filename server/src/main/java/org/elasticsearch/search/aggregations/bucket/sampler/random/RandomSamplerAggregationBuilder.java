@@ -51,7 +51,6 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         return PARSER.parse(parser, new RandomSamplerAggregationBuilder(aggregationName), null);
     }
 
-    private boolean setSeed = false;
     private int seed = Randomness.get().nextInt();
     private double p = 0.1;
 
@@ -69,7 +68,6 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
 
     public RandomSamplerAggregationBuilder setSeed(int seed) {
         this.seed = seed;
-        this.setSeed = true;
         return this;
     }
 
@@ -77,7 +75,6 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         super(in);
         this.p = in.readDouble();
         this.seed = in.readInt();
-        this.setSeed = in.readBoolean();
     }
 
     protected RandomSamplerAggregationBuilder(
@@ -88,14 +85,12 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         super(clone, factoriesBuilder, metadata);
         this.p = clone.p;
         this.seed = clone.seed;
-        this.setSeed = clone.setSeed;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(p);
         out.writeInt(seed);
-        out.writeBoolean(setSeed);
     }
 
     void recursivelyCheckSubAggs(Collection<AggregationBuilder> builders, Consumer<AggregationBuilder> aggregationCheck) {
@@ -144,9 +139,7 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(PROBABILITY.getPreferredName(), p);
-        if (setSeed) {
-            builder.field(SEED.getPreferredName(), seed);
-        }
+        builder.field(SEED.getPreferredName(), seed);
         builder.endObject();
         return null;
     }

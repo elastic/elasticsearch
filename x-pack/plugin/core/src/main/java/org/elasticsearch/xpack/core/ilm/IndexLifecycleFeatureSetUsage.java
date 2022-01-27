@@ -290,6 +290,10 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 return this;
             }
 
+            public void setRolloverMaxPrimaryShardDocs(Long rolloverMaxPrimaryShardDocs) {
+                this.rolloverMaxPrimaryShardDocs = rolloverMaxPrimaryShardDocs;
+            }
+
             public Builder setRolloverMaxPrimaryShardSize(ByteSizeValue rolloverMaxPrimaryShardSize) {
                 this.rolloverMaxPrimaryShardSize = rolloverMaxPrimaryShardSize;
                 return this;

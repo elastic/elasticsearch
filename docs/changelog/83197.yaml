@@ -1,0 +1,5 @@
+pr: 83197
+summary: Adding binary data to SMILE should not generate the 0xFF byte separator
+area: Distributed
+type: bug
+issues: []

@@ -309,15 +309,15 @@ public abstract class IndexRouting {
 
         @Override
         public int deleteShard(String id, @Nullable String routing) {
-            return readShard(id, routing);
+            return readShard(routing);
         }
 
         @Override
         public int getShard(String id, @Nullable String routing) {
-            return readShard(id, routing);
+            return readShard(routing);
         }
 
-        private int readShard(String id, @Nullable String routing) {
+        private int readShard(String routing) {
             if (routing == null) {
                 throw new ResourceNotFoundException("routing is required because [{}] is in time series mode", indexName);
             }

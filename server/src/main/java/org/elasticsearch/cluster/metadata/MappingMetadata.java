@@ -141,6 +141,16 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         return sourceAsMap();
     }
 
+    /**
+     * Converts the serialized compressed form of the mappings into a parsed map.
+     * In contrast to {@link #sourceAsMap()}, this does not remove the type
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> rawSourceAsMap() throws ElasticsearchParseException {
+        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true).v2();
+        return mapping;
+    }
+
     public boolean routingRequired() {
         return this.routingRequired;
     }

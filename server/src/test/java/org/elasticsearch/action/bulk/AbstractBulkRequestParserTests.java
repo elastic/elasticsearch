@@ -315,9 +315,13 @@ public abstract class AbstractBulkRequestParserTests extends ESTestCase {
 
     public void testParseDeduplicatesParameterStrings() throws IOException {
         XContentBuilder builderIndex = getBuilder();
-        builderIndex.startObject().startObject("index")
-            .field("_id", "bar").field("pipeline", "foo").field("routing", "blub")
-            .endObject().endObject();
+        builderIndex.startObject()
+            .startObject("index")
+            .field("_id", "bar")
+            .field("pipeline", "foo")
+            .field("routing", "blub")
+            .endObject()
+            .endObject();
         XContentBuilder builderDocument = getBuilder().startObject().endObject();
 
         BytesStreamOutput out = new BytesStreamOutput();

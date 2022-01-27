@@ -201,6 +201,58 @@ ids query:
   - match: {hits.hits.1.fields.k8s\.pod\.network\.tx: [2012916202]}
 
 ---
+get:
+  - skip:
+      version: " - 8.0.99"
+      reason: ids generation changed in 8.1
+
+  - do:
+      get:
+        index:   test
+        id:      g11Xnx49I8iTA9IZeQEAAA
+        routing: AY0BPQ
+  - match: {_index: test}
+  - match: {_id: g11Xnx49I8iTA9IZeQEAAA}
+  - match: {_routing: AY0BPQ}
+  - match:
+      _source:
+        "@timestamp": "2021-04-28T18:51:04.467Z"
+        metricset: pod
+        k8s:
+          pod:
+            name: cat
+            uid: 947e4ced-1786-4e53-9e0c-5c447e959507
+            ip: 10.10.55.2
+            network:
+              tx: 2012916202
+              rx: 803685721
+
+---
+get not found:
+  - skip:
+      version: " - 8.0.99"
+      reason: ids generation changed in 8.1
+
+  - do:
+      catch: missing
+      get:
+        index:   test
+        id:      not found
+        routing: AY0BPQ
+
+---
+get without routing:
+  - skip:
+      version: " - 8.0.99"
+      reason: ids generation changed in 8.1
+
+  - do:
+      catch: missing
+      get:
+        index:   test
+        id:      g11Xnx49I8iTA9IZeQEAAA
+
+---
 delete:
   - skip:
       version: " - 8.0.99"
@@ -243,13 +295,6 @@ delete over _bulk:
   - skip:
       version: " - 8.0.99"
       reason: ids generation changed in 8.1
-
-  # - do:
-  #     search:
-  #       index: test
-  #       body:
-  #         size: 1000
-  # - match: {aggregations.max_tx.value: 2.012916202E9}
 
   - do:
       bulk:

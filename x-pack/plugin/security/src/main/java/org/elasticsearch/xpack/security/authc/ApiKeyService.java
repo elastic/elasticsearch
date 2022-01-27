@@ -440,7 +440,8 @@ public class ApiKeyService {
         final RealmRef authenticatedBy = new RealmRef(
             AuthenticationField.API_KEY_REALM_NAME,
             AuthenticationField.API_KEY_REALM_TYPE,
-            nodeName
+            nodeName,
+            null
         );
         return new Authentication(
             user,
@@ -448,8 +449,7 @@ public class ApiKeyService {
             null,
             Version.CURRENT,
             Authentication.AuthenticationType.API_KEY,
-            authResult.getMetadata(),
-            Set.of()
+            authResult.getMetadata()
         );
     }
 

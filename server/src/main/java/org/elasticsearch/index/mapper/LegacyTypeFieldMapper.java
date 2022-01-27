@@ -9,12 +9,20 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.sandbox.search.DocValuesTermsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.util.Collection;
 import java.util.Collections;
 
+/**
+ * Field mapper to access the legacy _type that existed in Elasticsearch 5
+ */
 public class LegacyTypeFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_type";
@@ -62,14 +70,37 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected boolean allowDocValueBasedQueries() {
+        public boolean isSearchable() {
+            // The _type field is always searchable.
             return true;
         }
 
         @Override
-        public boolean isSearchable() {
-            // The _type field is always searchable.
-            return true;
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+        }
+
+        @Override
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+            BytesRef[] bytesRefs = values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new);
+            return new DocValuesTermsQuery(name(), bytesRefs);
+        }
+
+        @Override
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
+            return SortedSetDocValuesField.newSlowRangeQuery(
+                name(),
+                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                includeLower,
+                includeUpper
+            );
         }
 
         @Override

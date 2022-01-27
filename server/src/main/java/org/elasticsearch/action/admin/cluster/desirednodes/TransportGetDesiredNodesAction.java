@@ -53,19 +53,11 @@ public class TransportGetDesiredNodesAction extends TransportMasterNodeReadActio
         ClusterState state,
         ActionListener<GetDesiredNodesAction.Response> listener
     ) throws Exception {
-        listener.onResponse(new GetDesiredNodesAction.Response(getDesiredNodesMetadata(state).getLatestDesiredNodes()));
+        listener.onResponse(new GetDesiredNodesAction.Response(DesiredNodesMetadata.latestFromClusterState(state)));
     }
 
     @Override
     protected ClusterBlockException checkBlock(GetDesiredNodesAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
-    }
-
-    private DesiredNodesMetadata getDesiredNodesMetadata(ClusterState clusterState) {
-        DesiredNodesMetadata desiredNodesMetadata = clusterState.metadata().custom(DesiredNodesMetadata.TYPE);
-        if (desiredNodesMetadata == null) {
-            return DesiredNodesMetadata.EMPTY;
-        }
-        return desiredNodesMetadata;
     }
 }

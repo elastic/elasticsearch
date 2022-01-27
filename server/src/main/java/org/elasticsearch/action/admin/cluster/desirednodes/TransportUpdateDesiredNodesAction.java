@@ -97,7 +97,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     }
 
     static Tuple<ClusterState, String> updateDesiredNodes(ClusterState currentState, UpdateDesiredNodesRequest request) {
-        DesiredNodesMetadata desiredNodesMetadata = getDesiredNodesMetadata(currentState);
+        DesiredNodesMetadata desiredNodesMetadata = currentState.metadata().custom(DesiredNodesMetadata.TYPE, DesiredNodesMetadata.EMPTY);
         DesiredNodes latestDesiredNodes = desiredNodesMetadata.getLatestDesiredNodes();
         DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
 
@@ -140,14 +140,6 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             return proposedDesiredNodes.historyID();
         } else {
             return null;
-        }
-    }
-
-    private static DesiredNodesMetadata getDesiredNodesMetadata(ClusterState currentState) {
-        if (currentState.metadata().custom(DesiredNodesMetadata.TYPE) != null) {
-            return currentState.metadata().custom(DesiredNodesMetadata.TYPE);
-        } else {
-            return DesiredNodesMetadata.EMPTY;
         }
     }
 }

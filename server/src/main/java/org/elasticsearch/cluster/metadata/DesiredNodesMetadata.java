@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -69,6 +70,10 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Custom>
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(LATEST_FIELD.getPreferredName(), latestDesiredNodes);
         return builder;
+    }
+
+    public static DesiredNodes latestFromClusterState(ClusterState clusterState) {
+        return clusterState.metadata().custom(TYPE, EMPTY).getLatestDesiredNodes();
     }
 
     @Nullable

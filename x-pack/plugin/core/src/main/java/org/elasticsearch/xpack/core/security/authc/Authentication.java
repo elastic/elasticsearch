@@ -389,12 +389,6 @@ public class Authentication implements ToXContentObject {
                 Set<RealmConfig.RealmIdentifier> realms = in.readSet(RealmConfig.RealmIdentifier::new);
                 return new Domain(domainName, realms);
             }
-
-            public static ConstructingObjectParser<Domain, Void> DOMAIN_PARSER = new ConstructingObjectParser<>(
-                "domain",
-                false,
-                (args, v) -> new Domain((String) args[0], new HashSet<>((List<RealmConfig.RealmIdentifier>) args[1]))
-            );
         }
 
         private final String nodeName;

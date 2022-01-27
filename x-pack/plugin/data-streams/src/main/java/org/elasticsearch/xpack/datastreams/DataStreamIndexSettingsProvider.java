@@ -50,9 +50,9 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     TimeValue lookAheadTime = IndexSettings.LOOK_AHEAD_TIME.get(allSettings);
                     Instant start;
                     Instant end;
-                if (dataStream == null) {
-                    start = Instant.ofEpochMilli(resolvedAt).minusMillis(lookAheadTime.getMillis());
-                    end = Instant.ofEpochMilli(resolvedAt).plusMillis(lookAheadTime.getMillis());
+                    if (dataStream == null) {
+                        start = Instant.ofEpochMilli(resolvedAt).minusMillis(lookAheadTime.getMillis());
+                        end = Instant.ofEpochMilli(resolvedAt).plusMillis(lookAheadTime.getMillis());
                     } else {
                         IndexMetadata currentLatestBackingIndex = metadata.index(dataStream.getWriteIndex());
                         if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
@@ -62,19 +62,19 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                                     "backing index [%s] in tsdb mode doesn't have the [%s] index setting",
                                     currentLatestBackingIndex.getIndex().getName(),
                                     IndexSettings.TIME_SERIES_END_TIME.getKey()
-                            )
-                        );
+                                )
+                            );
+                        }
+                        start = IndexSettings.TIME_SERIES_END_TIME.get(currentLatestBackingIndex.getSettings());
+                        Instant resolvedAtInstant = Instant.ofEpochMilli(resolvedAt);
+                        if (start.isAfter(resolvedAtInstant)) {
+                            end = start.plusMillis(lookAheadTime.getMillis());
+                        } else {
+                            end = resolvedAtInstant.plusMillis(lookAheadTime.getMillis());
+                        }
                     }
-                    start = IndexSettings.TIME_SERIES_END_TIME.get(currentLatestBackingIndex.getSettings());
-                    Instant resolvedAtInstant = Instant.ofEpochMilli(resolvedAt);
-                    if (start.isAfter(resolvedAtInstant)) {
-                        end = start.plusMillis(lookAheadTime.getMillis());
-                    } else {
-                        end = resolvedAtInstant.plusMillis(lookAheadTime.getMillis());
-                    }
-                }
-                assert start.isBefore(end);
-                builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
+                    assert start.isBefore(end);
+                    builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
                     builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
                 }
                 return builder.build();

@@ -8,9 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.sandbox.search.DocValuesTermsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -35,27 +33,6 @@ public class LegacyTypeFieldMapper extends MetadataFieldMapper {
 
     protected LegacyTypeFieldMapper() {
         super(new LegacyTypeFieldType(), Lucene.KEYWORD_ANALYZER);
-    }
-
-    public static class Defaults {
-
-        public static final FieldType FIELD_TYPE = new FieldType();
-        public static final FieldType NESTED_FIELD_TYPE;
-
-        static {
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setStored(true);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-
-            NESTED_FIELD_TYPE = new FieldType();
-            NESTED_FIELD_TYPE.setTokenized(false);
-            NESTED_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            NESTED_FIELD_TYPE.setStored(false);
-            NESTED_FIELD_TYPE.setOmitNorms(true);
-            NESTED_FIELD_TYPE.freeze();
-        }
     }
 
     static final class LegacyTypeFieldType extends TermBasedFieldType {

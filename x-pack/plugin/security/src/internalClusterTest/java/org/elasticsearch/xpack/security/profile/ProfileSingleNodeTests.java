@@ -312,24 +312,24 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         });
 
         final SearchProfilesResponse.ProfileHit[] profiles1 = doSearch(null);
-        assertThat(extraUsernames(profiles1), equalTo(users.keySet()));
+        assertThat(extractUsernames(profiles1), equalTo(users.keySet()));
 
         final SearchProfilesResponse.ProfileHit[] profiles2 = doSearch(randomFrom("super admin", "admin super"));
-        assertThat(extraUsernames(profiles2), equalTo(Set.of("user_bar", "user_qux")));
+        assertThat(extractUsernames(profiles2), equalTo(Set.of("user_bar", "user_qux")));
 
         // Prefix match on full name
         final SearchProfilesResponse.ProfileHit[] profiles3 = doSearch("ver");
-        assertThat(extraUsernames(profiles3), equalTo(Set.of("user_foo", "user_baz")));
+        assertThat(extractUsernames(profiles3), equalTo(Set.of("user_foo", "user_baz")));
 
         // Prefix match on the username
         final SearchProfilesResponse.ProfileHit[] profiles4 = doSearch("user");
-        assertThat(extraUsernames(profiles4), equalTo(users.keySet()));
+        assertThat(extractUsernames(profiles4), equalTo(users.keySet()));
         // Documents scored higher are those with matches in more fields
-        assertThat(extraUsernames(Arrays.copyOfRange(profiles4, 0, 2)), equalTo(Set.of("user_foo", "user_baz")));
+        assertThat(extractUsernames(Arrays.copyOfRange(profiles4, 0, 2)), equalTo(Set.of("user_foo", "user_baz")));
 
         // Match of different terms on different fields
         final SearchProfilesResponse.ProfileHit[] profiles5 = doSearch(randomFrom("admin very", "very admin"));
-        assertThat(extraUsernames(profiles5), equalTo(users.keySet()));
+        assertThat(extractUsernames(profiles5), equalTo(users.keySet()));
     }
 
     private SearchProfilesResponse.ProfileHit[] doSearch(String query) {
@@ -340,7 +340,7 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
         return searchProfilesResponse.getProfileHits();
     }
 
-    private Set<String> extraUsernames(SearchProfilesResponse.ProfileHit[] profileHits) {
+    private Set<String> extractUsernames(SearchProfilesResponse.ProfileHit[] profileHits) {
         return Arrays.stream(profileHits)
             .map(SearchProfilesResponse.ProfileHit::profile)
             .map(Profile::user)

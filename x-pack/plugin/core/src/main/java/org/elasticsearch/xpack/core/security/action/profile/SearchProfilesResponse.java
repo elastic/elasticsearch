@@ -111,7 +111,7 @@ public class SearchProfilesResponse extends ActionResponse implements ToXContent
                 if (profile.applicationData() != null && false == profile.applicationData().isEmpty()) {
                     builder.field("data", profile.applicationData());
                 }
-                // TODO: output a field of sort which is just score plus uid
+                // TODO: output a field of sort which is just score plus uid?
             }
             builder.endObject();
             return builder;

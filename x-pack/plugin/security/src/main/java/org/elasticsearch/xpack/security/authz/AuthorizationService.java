@@ -407,17 +407,15 @@ public class AuthorizationService {
             }, clusterAuthzListener::onFailure));
         } else if (isIndexAction(action)) {
             final Metadata metadata = clusterService.state().metadata();
-            final AsyncSupplier<Set<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(
-                authzIndicesListener -> {
-                    authzEngine.loadAuthorizedIndices(requestInfo, authzInfo, metadata.getIndicesLookup(), authzIndicesListener);
-                }
-            );
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
                 final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
                 if (resolvedIndices != null) {
                     resolvedIndicesListener.onResponse(resolvedIndices);
                 } else {
-                    authorizedIndicesSupplier.getAsync(
+                    authzEngine.loadAuthorizedIndices(
+                        requestInfo,
+                        authzInfo,
+                        metadata.getIndicesLookup(),
                         ActionListener.wrap(
                             authorizedIndices -> resolvedIndicesListener.onResponse(
                                 indicesAndAliasesResolver.resolve(action, request, metadata, authorizedIndices)

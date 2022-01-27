@@ -708,9 +708,8 @@ public class RBACEngine implements AuthorizationEngine {
                     }
                 }
             }
-            final Set<String> authorizedIndices = Collections.unmodifiableSet(indicesAndAliases);
-            timeChecker.accept(authorizedIndices);
-            return authorizedIndices;
+            timeChecker.accept(indicesAndAliases);
+            return indicesAndAliases;
         }, name -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
             if (indexAbstraction == null) {
@@ -859,6 +858,9 @@ public class RBACEngine implements AuthorizationEngine {
     /**
      * A lazily loaded Set for authorized indices. It avoids loading the set if only contains check is required.
      * It only loads the set if iterating through it is necessary, i.e. when expanding wildcards.
+     *
+     * NOTE that the lazy loading does not guarantee to run only once and is not meant to be used by multi-threads
+     * because loading multiple times can incur performance penalty (but not correctness).
      */
     private static class AuthorizedIndicesSet implements Set<String> {
 
@@ -924,7 +926,7 @@ public class RBACEngine implements AuthorizationEngine {
 
         @Override
         public boolean containsAll(Collection<?> c) {
-            return false;
+            return c.stream().allMatch(this::contains);
         }
 
         @Override

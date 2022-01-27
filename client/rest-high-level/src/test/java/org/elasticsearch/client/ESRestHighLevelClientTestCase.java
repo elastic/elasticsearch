@@ -341,7 +341,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
             list.rethrowFailures("Finding tasks to rethrottle");
             List<TaskGroup> taskGroups = list.getTaskGroups()
                 .stream()
-                .filter(taskGroup -> taskGroup.getTaskInfo().getDescription().equals(description))
+                .filter(taskGroup -> taskGroup.taskInfo().description().equals(description))
                 .collect(Collectors.toList());
             assertThat("tasks are left over from the last execution of this test", taskGroups, hasSize(lessThan(2)));
             if (0 == taskGroups.size()) {
@@ -349,11 +349,11 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
                 continue;
             }
             TaskGroup taskGroup = taskGroups.get(0);
-            assertThat(taskGroup.getChildTasks(), empty());
+            assertThat(taskGroup.childTasks(), empty());
             // check that the task initialized enough that it can rethrottle too.
-            Map<String, Object> statusMap = ((RawTaskStatus) taskGroup.getTaskInfo().getStatus()).toMap();
+            Map<String, Object> statusMap = ((RawTaskStatus) taskGroup.taskInfo().status()).toMap();
             if (statusMap.get("batches").equals(1)) {
-                return taskGroup.getTaskInfo().getTaskId();
+                return taskGroup.taskInfo().taskId();
             }
         } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));
         throw new AssertionError(

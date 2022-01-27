@@ -254,6 +254,46 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         );
     }
 
+    public void testDotsInIncludedFieldNamePrefixMatch() throws IOException {
+        testFilter(
+            builder -> builder.startObject().field("foo.bar.baz", "test").endObject(),
+            builder -> builder.startObject().field("foo.bar.baz", "test").endObject(),
+            singleton("foo.bar"),
+            emptySet(),
+            true
+        );
+    }
+
+    public void testDotsInExcludedFieldNamePrefixMatch() throws IOException {
+        testFilter(
+            builder -> builder.startObject().endObject(),
+            builder -> builder.startObject().field("foo.bar.baz", "test").endObject(),
+            emptySet(),
+            singleton("foo.bar"),
+            true
+        );
+    }
+
+    public void testDotsInIncludedFieldNamePatternPrefixMatch() throws IOException {
+        testFilter(
+            builder -> builder.startObject().field("foo.bar.baz", "test").endObject(),
+            builder -> builder.startObject().field("foo.bar.baz", "test").endObject(),
+            singleton("f*.*r"),
+            emptySet(),
+            true
+        );
+    }
+
+    public void testDotsInExcludedFieldNamePatternPrefixMatch() throws IOException {
+        testFilter(
+            builder -> builder.startObject().endObject(),
+            builder -> builder.startObject().field("foo.bar.baz", "test").endObject(),
+            emptySet(),
+            singleton("f*.*r"),
+            true
+        );
+    }
+
     @Override
     protected final void testFilter(Builder expected, Builder sample, Set<String> includes, Set<String> excludes) throws IOException {
         testFilter(expected, sample, includes, excludes, false);

@@ -702,7 +702,7 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
-        this.timestampBounds = TIME_SERIES_START_TIME.exists(settings) ? new TimestampBounds(scopedSettings) : null;
+        this.timestampBounds = mode == IndexMode.TIME_SERIES ? new TimestampBounds(scopedSettings) : null;
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);

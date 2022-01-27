@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -24,6 +25,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
 
+import static java.time.temporal.ChronoField.INSTANT_SECONDS;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
 import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
 import static org.hamcrest.Matchers.equalTo;
@@ -78,7 +80,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         Settings s = getSettings("");
         IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
         Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
-        assertThat(e.getMessage(), equalTo("[index.mode=time_series] index.routing_path can not be empty"));
+        assertThat(e.getMessage(), equalTo("[index.mode=time_series] requires [index.routing_path]"));
     }
 
     public void testWithoutStartTime() {
@@ -88,8 +90,9 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             .build();
         IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", settings);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
-        assertThat(e.getMessage(), Matchers.containsString("[index.mode=time_series] requires [index.time_series.start_time]"));
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        assertThat(indexSettings.getTimestampBounds().startTime(), CoreMatchers.equalTo(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999));
+        assertThat(indexSettings.getTimestampBounds().endTime(), CoreMatchers.equalTo(DateUtils.MAX_MILLIS_BEFORE_9999));
     }
 
     public void testWithoutEndTime() {
@@ -100,20 +103,21 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             .build();
         IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", settings);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
-        assertThat(e.getMessage(), Matchers.containsString("[index.mode=time_series] requires [index.time_series.end_time]"));
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        assertThat(indexSettings.getTimestampBounds().startTime(), CoreMatchers.equalTo(0L));
+        assertThat(indexSettings.getTimestampBounds().endTime(), CoreMatchers.equalTo(DateUtils.MAX_MILLIS_BEFORE_9999));
     }
 
     public void testSetDefaultTimeRangeValue() {
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
-            .put(TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(0).toString())
+            .put(TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999).toString())
             .put(TIME_SERIES_END_TIME.getKey(), Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999).toString())
             .build();
         IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", settings);
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
-        assertThat(indexSettings.getTimestampBounds().startTime(), CoreMatchers.equalTo(0L));
+        assertThat(indexSettings.getTimestampBounds().startTime(), CoreMatchers.equalTo(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999));
         assertThat(indexSettings.getTimestampBounds().endTime(), CoreMatchers.equalTo(DateUtils.MAX_MILLIS_BEFORE_9999));
     }
 

@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPriv
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -237,8 +236,7 @@ class AuthenticatorChain {
                     null,
                     authentication.getVersion(),
                     authentication.getAuthenticationType(),
-                    authentication.getMetadata(),
-                    Set.of()
+                    authentication.getMetadata()
                 );
             } else {
                 finalAuth = new Authentication(
@@ -247,8 +245,7 @@ class AuthenticatorChain {
                     tuple.v2().getRealmRef(),
                     authentication.getVersion(),
                     authentication.getAuthenticationType(),
-                    authentication.getMetadata(),
-                    tuple.v2().getDomainRealmRef()
+                    authentication.getMetadata()
                 );
             }
             finishAuthentication(context, finalAuth, listener);
@@ -312,8 +309,7 @@ class AuthenticatorChain {
                 null,
                 Version.CURRENT,
                 Authentication.AuthenticationType.INTERNAL,
-                Collections.emptyMap(),
-                Set.of()
+                Collections.emptyMap()
             );
         } else if (shouldFallbackToAnonymous(context)) {
             logger.trace(
@@ -328,8 +324,7 @@ class AuthenticatorChain {
                 null,
                 Version.CURRENT,
                 Authentication.AuthenticationType.ANONYMOUS,
-                Collections.emptyMap(),
-                Set.of()
+                Collections.emptyMap()
             );
         } else {
             authentication = null;

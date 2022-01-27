@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
@@ -34,14 +35,10 @@ public abstract class Realm implements Comparable<Realm> {
     protected final Logger logger = LogManager.getLogger(getClass());
 
     protected RealmConfig config;
-    private final RealmRef realmRef;
-    private Set<RealmRef> domainRealmRef;
+    private final SetOnce<RealmRef> realmRef = new SetOnce<>();
 
     public Realm(RealmConfig config) {
         this.config = config;
-        final String nodeName = Node.NODE_NAME_SETTING.get(config.settings());
-        this.realmRef = new RealmRef(config.name(), config.type(), nodeName, config.domain());
-        // {@code #domainRealmRef} is populated in the {@code #initialize} method
     }
 
     /**
@@ -66,10 +63,10 @@ public abstract class Realm implements Comparable<Realm> {
     }
 
     /**
-     * The domain of this realm, if set, or {@code null} otherwise. Identical usernames under different
+     * The domain name of this realm, if set, or {@code null} otherwise. Identical usernames under different
      * realms are considered to be the same end-user person iff the realms are under the same domain.
      */
-    public String domain() {
+    public String domainName() {
         return config.domain();
     }
 
@@ -158,19 +155,17 @@ public abstract class Realm implements Comparable<Realm> {
     }
 
     public RealmRef getRealmRef() {
-        return realmRef;
-    }
-
-    public Set<RealmRef> getDomainRealmRef() {
-        if (null == domainRealmRef) {
-            throw new IllegalStateException("Realm has not been initialized");
+        RealmRef realmRef = this.realmRef.get();
+        if (realmRef == null) {
+            throw new IllegalStateException("Realm not initialized");
         }
-        return domainRealmRef;
+        assert domainName() == null || (realmRef.getDomain() != null && domainName().equals(realmRef.getDomain().name()));
+        return realmRef;
     }
 
     @Override
     public String toString() {
-        if (domain() != null) {
+        if (domainName() != null) {
             return config.type() + "/" + config.name() + "/" + config.domain();
         } else {
             return config.type() + "/" + config.name();
@@ -183,18 +178,20 @@ public abstract class Realm implements Comparable<Realm> {
      * @see DelegatedAuthorizationSettings
      */
     public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
-        final String domainName = getRealmRef().getDomain();
-        if (null == domainName) {
-            this.domainRealmRef = Set.of();
-            return;
-        }
-        final Set<RealmRef> domainRealmRefBuilder = new HashSet<>();
-        for (Realm otherRealm : realms) {
-            if (false == getRealmRef().equals(otherRealm.getRealmRef()) && domainName.equals(otherRealm.getRealmRef().getDomain())) {
-                domainRealmRefBuilder.add(otherRealm.getRealmRef());
+        final String nodeName = Node.NODE_NAME_SETTING.get(config.settings());
+        if (null == domainName()) {
+            this.realmRef.set(new RealmRef(config.name(), config.type(), nodeName, null));
+        } else {
+            final Set<RealmConfig.RealmIdentifier> domainBuilder = new HashSet<>();
+            for (Realm otherRealm : realms) {
+                if (domainName().equals(otherRealm.domainName())) {
+                    domainBuilder.add(otherRealm.config.identifier());
+                }
             }
+            assert domainBuilder.contains(config.identifier());
+            RealmRef.Domain domain = new RealmRef.Domain(domainName(), Set.copyOf(domainBuilder));
+            this.realmRef.set(new RealmRef(config.name(), config.type(), nodeName, domain));
         }
-        this.domainRealmRef = Set.copyOf(domainRealmRefBuilder);
     }
 
     /**

@@ -33,9 +33,9 @@ public class DataStreamsActionUtil {
     }
 
     public static IndicesOptions updateIndicesOptions(IndicesOptions indicesOptions) {
-        EnumSet<IndicesOptions.WildcardStates> expandWildcards = indicesOptions.getExpandWildcards();
+        EnumSet<IndicesOptions.WildcardStates> expandWildcards = indicesOptions.expandWildcards();
         expandWildcards.add(IndicesOptions.WildcardStates.OPEN);
-        indicesOptions = new IndicesOptions(indicesOptions.getOptions(), expandWildcards);
+        indicesOptions = new IndicesOptions(indicesOptions.options(), expandWildcards);
         return indicesOptions;
     }
 }

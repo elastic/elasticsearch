@@ -90,14 +90,7 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
     static int getPendingAllocations(Index index, AllocationDeciders allocationDeciders, ClusterState clusterState) {
         // All the allocation attributes are already set so just need to check
         // if the allocation has happened
-        RoutingAllocation allocation = new RoutingAllocation(
-            allocationDeciders,
-            clusterState.getRoutingNodes(),
-            clusterState,
-            null,
-            null,
-            System.nanoTime()
-        );
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, System.nanoTime());
 
         int allocationPendingAllShards = 0;
 

@@ -44,25 +44,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     private final AllocationService allocationService;
     private final RerouteService rerouteService;
 
-    public static class Task implements ClusterStateTaskListener {
-
-        private final DiscoveryNode node;
-        private final String reason;
-        private final ActionListener<Void> listener;
-
-        public Task(DiscoveryNode node, String reason, ActionListener<Void> listener) {
-            this.node = node;
-            this.reason = reason;
-            this.listener = listener;
-        }
-
-        public DiscoveryNode node() {
-            return node;
-        }
-
-        public String reason() {
-            return reason;
-        }
+    public record Task(DiscoveryNode node, String reason, ActionListener<Void> listener) implements ClusterStateTaskListener {
 
         @Override
         public String toString() {

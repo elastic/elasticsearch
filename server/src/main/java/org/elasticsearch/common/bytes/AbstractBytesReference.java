@@ -18,7 +18,7 @@ import java.util.function.ToIntBiFunction;
 
 public abstract class AbstractBytesReference implements BytesReference {
 
-    private Integer hash = null; // we cache the hash of this reference since it can be quite costly to re-calculated it
+    private int hash; // we cache the hash of this reference since it can be quite costly to re-calculated it
 
     @Override
     public int getInt(int index) {
@@ -89,7 +89,7 @@ public abstract class AbstractBytesReference implements BytesReference {
 
     @Override
     public int hashCode() {
-        if (hash == null) {
+        if (hash == 0) {
             final BytesRefIterator iterator = iterator();
             BytesRef ref;
             int result = 1;

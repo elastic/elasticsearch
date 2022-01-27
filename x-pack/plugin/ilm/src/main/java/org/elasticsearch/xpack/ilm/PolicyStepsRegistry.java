@@ -172,6 +172,12 @@ public class PolicyStepsRegistry {
      * policy changes, but in a long-lived cluster that doesn't happen to experience
      * either of those events (and where indices are removed regularly) we still want
      * the cache to trim deleted indices.
+     *
+     * n.b. even with this, there's still a pretty small chance that a given index
+     * could leak, if we're right in the middle of populating the cache for that
+     * index (in getStep) when we process the delete here, then we'll end up with an
+     * entry that doesn't get deleted until the master changes or a policy changes
+     * -- it's harmless enough
      */
     public void delete(Index deleted) {
         cachedSteps.remove(deleted);

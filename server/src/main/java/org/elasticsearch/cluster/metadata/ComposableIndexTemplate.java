@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -305,28 +306,35 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         private static final ParseField HIDDEN = new ParseField("hidden");
         private static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
+        private static final ParseField INDEX_MODE = new ParseField("index_mode");
 
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
-            a -> new DataStreamTemplate(a[0] != null && (boolean) a[0], a[1] != null && (boolean) a[1])
+            args -> {
+                IndexMode indexMode = args[2] != null ? IndexMode.fromString((String) args[2]) : null;
+                return new DataStreamTemplate(args[0] != null && (boolean) args[0], args[1] != null && (boolean) args[1], indexMode);
+            }
         );
 
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
         }
 
         private final boolean hidden;
         private final boolean allowCustomRouting;
+        private final IndexMode indexMode;
 
         public DataStreamTemplate() {
-            this(false, false);
+            this(false, false, null);
         }
 
-        public DataStreamTemplate(boolean hidden, boolean allowCustomRouting) {
+        public DataStreamTemplate(boolean hidden, boolean allowCustomRouting, IndexMode indexMode) {
             this.hidden = hidden;
             this.allowCustomRouting = allowCustomRouting;
+            this.indexMode = indexMode;
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
@@ -335,6 +343,11 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
                 allowCustomRouting = in.readBoolean();
             } else {
                 allowCustomRouting = false;
+            }
+            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+                indexMode = in.readOptionalEnum(IndexMode.class);
+            } else {
+                indexMode = null;
             }
         }
 
@@ -368,11 +381,19 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             return allowCustomRouting;
         }
 
+        @Nullable
+        public IndexMode getIndexMode() {
+            return indexMode;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
                 out.writeBoolean(allowCustomRouting);
+            }
+            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                out.writeOptionalEnum(indexMode);
             }
         }
 
@@ -381,6 +402,9 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             builder.startObject();
             builder.field("hidden", hidden);
             builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
+            if (indexMode != null) {
+                builder.field(INDEX_MODE.getPreferredName(), indexMode);
+            }
             builder.endObject();
             return builder;
         }
@@ -390,12 +414,12 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DataStreamTemplate that = (DataStreamTemplate) o;
-            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting;
+            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting && indexMode == that.indexMode;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(hidden, allowCustomRouting);
+            return Objects.hash(hidden, allowCustomRouting, indexMode);
         }
     }
 

@@ -46,27 +46,22 @@ public class NodeMetadataTests extends ESTestCase {
                 assertThat(nodeMetadataLongTuple.v2(), equalTo(generation));
                 return nodeMetadataLongTuple.v1();
             },
-            nodeMetadata -> {
-                switch (randomInt(3)) {
-                    case 0:
-                        return new NodeMetadata(
-                            randomAlphaOfLength(21 - nodeMetadata.nodeId().length()),
-                            nodeMetadata.nodeVersion(),
-                            Version.CURRENT
-                        );
-                    case 1:
-                        return new NodeMetadata(
-                            nodeMetadata.nodeId(),
-                            randomValueOtherThan(nodeMetadata.nodeVersion(), this::randomVersion),
-                            Version.CURRENT
-                        );
-                    default:
-                        return new NodeMetadata(
-                            nodeMetadata.nodeId(),
-                            nodeMetadata.nodeVersion(),
-                            randomValueOtherThan(Version.CURRENT, this::randomVersion)
-                        );
-                }
+            nodeMetadata -> switch (randomInt(3)) {
+            case 0 -> new NodeMetadata(
+                randomAlphaOfLength(21 - nodeMetadata.nodeId().length()),
+                nodeMetadata.nodeVersion(),
+                nodeMetadata.oldestIndexVersion()
+            );
+            case 1 -> new NodeMetadata(
+                nodeMetadata.nodeId(),
+                randomValueOtherThan(nodeMetadata.nodeVersion(), this::randomVersion),
+                nodeMetadata.oldestIndexVersion()
+            );
+            default -> new NodeMetadata(
+                nodeMetadata.nodeId(),
+                nodeMetadata.nodeVersion(),
+                randomValueOtherThan(nodeMetadata.oldestIndexVersion(), this::randomVersion)
+            );
             }
         );
     }

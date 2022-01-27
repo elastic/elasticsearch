@@ -21,6 +21,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -89,7 +90,7 @@ public final class DataStreamTestHelper {
         long generation,
         Map<String, Object> metadata
     ) {
-        return new DataStream(name, timeStampField, indices, generation, metadata, false, false, false, false);
+        return new DataStream(name, timeStampField, indices, generation, metadata, false, false, false, false, null);
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -207,6 +208,7 @@ public final class DataStreamTestHelper {
         if (randomBoolean()) {
             metadata = Map.of("key", "value");
         }
+
         return new DataStream(
             dataStreamName,
             createTimestampField("@timestamp"),
@@ -215,9 +217,10 @@ public final class DataStreamTestHelper {
             metadata,
             randomBoolean(),
             randomBoolean(),
-            false,
+            false, // Some tests don't work well with system data streams, since these data streams require special handling
             timeProvider,
-            false
+            randomBoolean(),
+            randomBoolean() ? IndexMode.STANDARD : null // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
         );
     }
 
@@ -315,10 +318,17 @@ public final class DataStreamTestHelper {
             backingIndices.add(im);
             generation++;
         }
-        DataStream ds = newInstance(
+        DataStream ds = new DataStream(
             dataStream,
             createTimestampField("@timestamp"),
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
+            backingIndices.size(),
+            null,
+            false,
+            false,
+            false,
+            false,
+            IndexMode.TIME_SERIES
         );
         builder.put(ds);
 

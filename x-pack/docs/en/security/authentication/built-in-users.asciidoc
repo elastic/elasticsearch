@@ -11,8 +11,9 @@ used to <<set-built-in-user-passwords,set all of the built-in user passwords>>.
 ****
 The built-in users serve specific purposes and are not intended for general
 use. In particular, do not use the `elastic` superuser unless full access to
-the cluster is absolutely required. Instead, create users that have the minimum 
-necessary roles or privileges for their activities.
+the cluster is absolutely required. On self-managed deployments, use the
+`elastic` user to create users that have the minimum necessary roles or 
+privileges for their activities.
 ****
 
 [NOTE]

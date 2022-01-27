@@ -1800,7 +1800,7 @@ setup:
                 source: "/* avoid stash */ $('date', null).getCenturyOfEra()"
   - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
   - match: { error.failed_shards.0.reason.caused_by.reason:
-               "joda method [getCenturyOfEra] is no longer available; use [<ZonedDateTime instance>.get(ChronoField.YEAR_OF_ERA) / 100] instead" }
+               "[getCenturyOfEra] is no longer available; use [get(ChronoField.YEAR_OF_ERA) / 100] instead" }
 
   - do:
       search:
@@ -1825,7 +1825,7 @@ setup:
                 source: "/* avoid stash */ $('date', null).getEra()"
   - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
   - match: { error.failed_shards.0.reason.caused_by.reason:
-               "joda method [getEra] is no longer available; use [<ZonedDateTime instance>.get(ChronoField.ERA)] instead" }
+               "[getEra] is no longer available; use [get(ChronoField.ERA)] instead" }
 
   - do:
       search:
@@ -1850,7 +1850,7 @@ setup:
                 source: "/* avoid stash */ $('date', null).getHourOfDay()"
   - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
   - match: { error.failed_shards.0.reason.caused_by.reason:
-               "joda method [getHourOfDay] is no longer available; use [<ZonedDateTime instance>.getHour()] instead" }
+               "[getHourOfDay] is no longer available; use [getHour()] instead" }
 
   - do:
       search:
@@ -1875,7 +1875,7 @@ setup:
                 source: "/* avoid stash */ $('date', null).getMillisOfDay()"
   - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
   - match: { error.failed_shards.0.reason.caused_by.reason:
-               "joda method [getMillisOfDay] is no longer available; use [<ZonedDateTime instance>.get(ChronoField.MILLI_OF_DAY)] instead" }
+               "[getMillisOfDay] is no longer available; use [get(ChronoField.MILLI_OF_DAY)] instead" }
 
   - do:
       search:
@@ -1900,7 +1900,7 @@ setup:
                 source: "/* avoid stash */ $('date', null).getMillisOfSecond()"
   - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
   - match: { error.failed_shards.0.reason.caused_by.reason:
-               "joda method [getMillisOfSecond] is no longer available; use [<ZonedDateTime instance>.get(ChronoField.MILLI_OF_SECOND)] instead" }
+               "[getMillisOfSecond] is no longer available; use [get(ChronoField.MILLI_OF_SECOND)] instead" }
 
   - do:
       search:
@@ -1925,7 +1925,7 @@ setup:
                 source: "/* avoid stash */ $('date', null).getMinuteOfDay()"
   - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
   - match: { error.failed_shards.0.reason.caused_by.reason:
-               "joda method [getMinuteOfDay] is no longer available; use [<ZonedDateTime instance>.get(ChronoField.MINUTE_OF_DAY)] instead" }
+               "[getMinuteOfDay] is no longer available; use [get(ChronoField.MINUTE_OF_DAY)] instead" }
 
   - do:
       search:
@@ -1950,7 +1950,7 @@ setup:
                 source: "/* avoid stash */ $('date', null).getMinuteOfHour()"
   - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
   - match: { error.failed_shards.0.reason.caused_by.reason:
-               "joda method [getMinuteOfHour] is no longer available; use [<ZonedDateTime instance>.getMinute()] instead" }
+               "[getMinuteOfHour] is no longer available; use [getMinute()] instead" }
 
   - do:
       search:
@@ -1975,7 +1975,7 @@ setup:
                 source: "/* avoid stash */ $('date', null).getMonthOfYear()"
   - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
   - match: { error.failed_shards.0.reason.caused_by.reason:
-               "joda method [getMonthOfYear] is no longer available; use [<ZonedDateTime instance>.getMonthValue()] instead" }
+               "[getMonthOfYear] is no longer available; use [getMonthValue()] instead" }
 
   - do:
       search:
@@ -2000,7 +2000,7 @@ setup:
                 source: "/* avoid stash */ $('date', null).getSecondOfDay()"
   - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
   - match: { error.failed_shards.0.reason.caused_by.reason:
-               "joda method [getSecondOfDay] is no longer available; use [<ZonedDateTime instance>.get(ChronoField.SECOND_OF_DAY)] instead" }
+               "[getSecondOfDay] is no longer available; use [get(ChronoField.SECOND_OF_DAY)] instead" }
 
   - do:
       search:
@@ -2025,7 +2025,7 @@ setup:
                 source: "/* avoid stash */ $('date', null).getSecondOfMinute()"
   - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
   - match: { error.failed_shards.0.reason.caused_by.reason:
-               "joda method [getSecondOfMinute] is no longer available; use [<ZonedDateTime instance>.getSecond()] instead" }
+               "[getSecondOfMinute] is no longer available; use [getSecond()] instead" }
 
   - do:
       search:
@@ -2050,7 +2050,7 @@ setup:
                 source: "/* avoid stash */ $('date', null).getWeekOfWeekyear()"
   - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
   - match: { error.failed_shards.0.reason.caused_by.reason:
-               "joda method [getWeekOfWeekyear] is no longer available; use [<ZonedDateTime instance>.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)] instead" }
+               "[getWeekOfWeekyear] is no longer available; use [get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)] instead" }
 
   - do:
       search:
@@ -2075,7 +2075,7 @@ setup:
                 source: "/* avoid stash */ $('date', null).getWeekyear()"
   - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
   - match: { error.failed_shards.0.reason.caused_by.reason:
-               "joda method [getWeekyear] is no longer available; use [<ZonedDateTime instance>.get(IsoFields.WEEK_BASED_YEAR)] instead" }
+               "[getWeekyear] is no longer available; use [get(IsoFields.WEEK_BASED_YEAR)] instead" }
 
   - do:
       search:
@@ -2100,7 +2100,7 @@ setup:
                 source: "/* avoid stash */ $('date', null).getYearOfCentury()"
   - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
   - match: { error.failed_shards.0.reason.caused_by.reason:
-               "joda method [getYearOfCentury] is no longer available; use [<ZonedDateTime instance>.get(ChronoField.YEAR_OF_ERA) % 100] instead" }
+               "[getYearOfCentury] is no longer available; use [get(ChronoField.YEAR_OF_ERA) % 100] instead" }
 
   - do:
       search:
@@ -2125,7 +2125,7 @@ setup:
                 source: "/* avoid stash */ $('date', null).getYearOfEra()"
   - match: { error.failed_shards.0.reason.caused_by.type: "unsupported_operation_exception" }
   - match: { error.failed_shards.0.reason.caused_by.reason:
-               "joda method [getYearOfEra] is no longer available; use [<ZonedDateTime instance>.get(ChronoField.YEAR_OF_ERA)] instead" }
+               "[getYearOfEra] is no longer available; use [get(ChronoField.YEAR_OF_ERA)] instead" }
 
   - do:
       search:

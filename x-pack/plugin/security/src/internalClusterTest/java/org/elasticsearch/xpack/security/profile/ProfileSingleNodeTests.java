@@ -334,8 +334,8 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
 
     private SearchProfilesResponse.ProfileHit[] doSearch(String query) {
         final SearchProfilesRequest searchProfilesRequest = new SearchProfilesRequest(null, query, 10);
-        final SearchProfilesResponse searchProfilesResponse =
-            client().execute(SearchProfilesAction.INSTANCE, searchProfilesRequest).actionGet();
+        final SearchProfilesResponse searchProfilesResponse = client().execute(SearchProfilesAction.INSTANCE, searchProfilesRequest)
+            .actionGet();
         assertThat(searchProfilesResponse.getTotalHits().relation, is(TotalHits.Relation.EQUAL_TO));
         return searchProfilesResponse.getProfileHits();
     }

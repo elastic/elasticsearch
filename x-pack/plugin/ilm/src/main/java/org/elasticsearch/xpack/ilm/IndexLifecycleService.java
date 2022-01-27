@@ -310,13 +310,16 @@ public class IndexLifecycleService
             }
         }
 
-        for (Index index : event.indicesDeleted()) {
-            policyRegistry.delete(index);
-        }
+        // if we're the master, then process deleted indices and trigger policies
+        if (this.isMaster) {
+            for (Index index : event.indicesDeleted()) {
+                policyRegistry.delete(index);
+            }
 
-        final IndexLifecycleMetadata lifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
-        if (this.isMaster && lifecycleMetadata != null) {
-            triggerPolicies(event.state(), true);
+            final IndexLifecycleMetadata lifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
+            if (lifecycleMetadata != null) {
+                triggerPolicies(event.state(), true);
+            }
         }
     }
 

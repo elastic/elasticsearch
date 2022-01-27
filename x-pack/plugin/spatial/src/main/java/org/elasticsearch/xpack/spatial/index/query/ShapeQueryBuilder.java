@@ -110,7 +110,7 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
 
     @Override
     protected boolean doEquals(ShapeQueryBuilder other) {
-        return super.doEquals(other);
+        return super.doEquals((AbstractGeometryQueryBuilder) other);
     }
 
     @Override

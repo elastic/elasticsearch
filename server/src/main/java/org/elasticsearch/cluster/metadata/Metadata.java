@@ -949,7 +949,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return builder;
     }
 
-    Map<String, MappingMetadata> getMappingsByHash() {
+    public Map<String, MappingMetadata> getMappingsByHash() {
         return mappingsByHash;
     }
 

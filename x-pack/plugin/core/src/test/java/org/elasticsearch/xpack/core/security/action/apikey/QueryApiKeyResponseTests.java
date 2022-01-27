@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.security.action.ApiKey;
-import org.elasticsearch.xpack.core.security.action.ApiKeyTests;
 
 import java.io.IOException;
 import java.time.Instant;

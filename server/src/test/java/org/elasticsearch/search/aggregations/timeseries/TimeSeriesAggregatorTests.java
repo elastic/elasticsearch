@@ -11,8 +11,8 @@ package org.elasticsearch.search.aggregations.timeseries;
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FloatDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -102,7 +102,7 @@ public class TimeSeriesAggregatorTests extends AggregatorTestCase {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             TimeSeriesIdFieldMapper.encodeTsid(out, dimensionFields);
             BytesReference timeSeriesId = out.bytes();
-            fields.add(new SortedSetDocValuesField(TimeSeriesIdFieldMapper.NAME, timeSeriesId.toBytesRef()));
+            fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, timeSeriesId.toBytesRef()));
         }
         // TODO: Handle metrics
         iw.addDocument(fields.stream().toList());

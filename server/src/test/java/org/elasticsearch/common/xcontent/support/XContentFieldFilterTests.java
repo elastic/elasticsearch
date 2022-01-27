@@ -32,7 +32,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 
-public class XContentFiledFilterTests extends AbstractFilteringTestCase {
+public class XContentFieldFilterTests extends AbstractFilteringTestCase {
     @Override
     protected void testFilter(Builder expected, Builder actual, Set<String> includes, Set<String> excludes) throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());

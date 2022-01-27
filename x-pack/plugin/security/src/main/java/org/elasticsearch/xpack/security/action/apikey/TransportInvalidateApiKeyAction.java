@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.action;
+package org.elasticsearch.xpack.security.action.apikey;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -15,33 +15,38 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
-public final class TransportGetApiKeyAction extends HandledTransportAction<GetApiKeyRequest, GetApiKeyResponse> {
+public final class TransportInvalidateApiKeyAction extends HandledTransportAction<InvalidateApiKeyRequest, InvalidateApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportGetApiKeyAction(
+    public TransportInvalidateApiKeyAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ApiKeyService apiKeyService,
         SecurityContext context
     ) {
-        super(GetApiKeyAction.NAME, transportService, actionFilters, (Writeable.Reader<GetApiKeyRequest>) GetApiKeyRequest::new);
+        super(
+            InvalidateApiKeyAction.NAME,
+            transportService,
+            actionFilters,
+            (Writeable.Reader<InvalidateApiKeyRequest>) InvalidateApiKeyRequest::new
+        );
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
     }
 
     @Override
-    protected void doExecute(Task task, GetApiKeyRequest request, ActionListener<GetApiKeyResponse> listener) {
-        String apiKeyId = request.getApiKeyId();
-        String apiKeyName = request.getApiKeyName();
+    protected void doExecute(Task task, InvalidateApiKeyRequest request, ActionListener<InvalidateApiKeyResponse> listener) {
+        String[] apiKeyIds = request.getIds();
+        String apiKeyName = request.getName();
         String username = request.getUserName();
         String realm = request.getRealmName();
 
@@ -57,7 +62,7 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
             realm = ApiKeyService.getCreatorRealmName(authentication);
         }
 
-        apiKeyService.getApiKeys(realm, username, apiKeyName, apiKeyId, listener);
+        apiKeyService.invalidateApiKeys(realm, username, apiKeyName, apiKeyIds, listener);
     }
 
 }

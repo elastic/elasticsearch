@@ -205,7 +205,7 @@ empty routing_path:
       reason: introduced in 8.1.0
 
   - do:
-      catch: /\[index.mode=time_series\] index.routing_path can not be empty/
+      catch: /\[index.mode=time_series\] requires \[index.routing_path\]/
       indices.create:
         index: test_index
         body:
@@ -216,6 +216,26 @@ empty routing_path:
               time_series:
                 start_time: 2021-04-28T00:00:00Z
                 end_time: 2021-04-29T00:00:00Z
+              number_of_shards: 5
+
+---
+empty start end times:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+
+  - do:
+      catch: /cannot parse empty date/
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: []
+              time_series:
+                start_time: ""
+                end_time: ""
               number_of_shards: 5
 
 ---

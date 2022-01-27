@@ -50,7 +50,7 @@ public enum IndexMode {
 
         private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
             if (false == Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
-                throw new IllegalArgumentException("[" + setting.getKey() + "] requires [" + IndexSettings.MODE.getKey() + "=time_series]");
+                throw new IllegalArgumentException("[" + setting.getKey() + "] requires " + tsdbMode());
             }
         }
 
@@ -90,13 +90,11 @@ public enum IndexMode {
                 }
             }
             settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
         }
 
         private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
             if (Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
-                throw new IllegalArgumentException("[" + IndexSettings.MODE.getKey() + "=time_series] requires [" + setting.getKey() + "]");
+                throw new IllegalArgumentException(tsdbMode() +" requires [" + setting.getKey() + "]");
             }
         }
 
@@ -132,15 +130,15 @@ public enum IndexMode {
             return "routing is forbidden on CRUD operations that target indices in " + tsdbMode();
         }
 
-        private String tsdbMode() {
-            return "[" + IndexSettings.MODE.getKey() + "=time_series]";
-        }
-
         @Override
         public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
             return TimeSeriesIdFieldMapper.INSTANCE;
         }
     };
+
+    protected String tsdbMode() {
+        return "[" + IndexSettings.MODE.getKey() + "=time_series]";
+    }
 
     public static final CompressedXContent DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
 

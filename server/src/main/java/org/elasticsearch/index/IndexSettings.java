@@ -476,7 +476,7 @@ public final class IndexSettings {
      */
     public static final Setting<Instant> TIME_SERIES_START_TIME = Setting.dateSetting(
         "index.time_series.start_time",
-        Instant.ofEpochMilli(0),
+        Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999),
         v -> {},
         Property.IndexScope,
         Property.Final
@@ -518,7 +518,20 @@ public final class IndexSettings {
         IndexMode.class,
         "index.mode",
         IndexMode.STANDARD,
-        v -> {},
+        new Setting.Validator<>() {
+            @Override
+            public void validate(IndexMode value) {}
+
+            @Override
+            public void validate(IndexMode value, Map<Setting<?>, Object> settings) {
+                value.validateWithOtherSettings(settings);
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
+            }
+        },
         Property.IndexScope,
         Property.Final
     );
@@ -689,7 +702,6 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
-        mode.validateWithOtherSettings(settings);
         this.timestampBounds = TIME_SERIES_START_TIME.exists(settings) ? new TimestampBounds(scopedSettings) : null;
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);

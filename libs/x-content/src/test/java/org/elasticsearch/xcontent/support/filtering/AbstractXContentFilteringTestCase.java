@@ -156,8 +156,7 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
             builder -> builder.startObject().endObject(),
             builder -> builder.startObject().field("foo.bar", "test").endObject(),
             emptySet(),
-            singleton("*.bar"),
-//            singleton(randomFrom("foo.*", "*.bar", "f*.bar", "foo.*ar", "*.*")),
+            singleton(randomFrom("foo.*", "*.bar", "f*.bar", "foo.*ar", "*.*")),
             true
         );
     }

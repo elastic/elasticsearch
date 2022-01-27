@@ -366,5 +366,40 @@ public class FilterPathTests extends ESTestCase {
         filterPaths = FilterPath.compile(singleton("foo.bar.test"));
         assertFalse(filterPaths[0].matches("foo.bar.text", nextFilters, true));
         assertEquals(nextFilters.size(), 0);
+
+        // wildcard
+        filterPaths = FilterPath.compile(singleton("*.bar"));
+        assertFalse(filterPaths[0].matches("foo", nextFilters, true));
+        assertEquals(nextFilters.size(), 1);
+        nextFilters.clear();
+        filterPaths = FilterPath.compile(singleton("*.bar"));
+        assertTrue(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+        filterPaths = FilterPath.compile(singleton("f*.bar"));
+        assertTrue(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+        filterPaths = FilterPath.compile(singleton("foo.*"));
+        assertTrue(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+        filterPaths = FilterPath.compile(singleton("foo.*ar"));
+        assertTrue(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+        filterPaths = FilterPath.compile(singleton("*.*"));
+        assertTrue(filterPaths[0].matches("foo.bar", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+
+        // test double wildcard
+        filterPaths = FilterPath.compile(singleton("**.c"));
+        assertFalse(filterPaths[0].matches("a.b", nextFilters, true));
+        assertEquals(nextFilters.size(), 1);
+        nextFilters.clear();
+        assertTrue(filterPaths[0].matches("a.c", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+        assertTrue(filterPaths[0].matches("a.b.c", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+        assertTrue(filterPaths[0].matches("a.b.d.c", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
+        assertTrue(filterPaths[0].matches("a.b.c.d", nextFilters, true));
+        assertEquals(nextFilters.size(), 0);
     }
 }

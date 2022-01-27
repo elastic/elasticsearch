@@ -23,7 +23,14 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static java.util.stream.Collectors.toSet;
 
 /**
  * "Mode" that controls which behaviors and settings an index supports.
@@ -33,16 +40,16 @@ import java.util.List;
  * to be set or not set and by enabling extra fields in the mapping.
  */
 public enum IndexMode {
-    STANDARD {
+    STANDARD("standard") {
         @Override
-        void validateWithOtherSettings(Settings settings) {
+        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
             settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
             settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
         }
 
-        private void settingRequiresTimeSeries(Settings settings, Setting<?> setting) {
-            if (settings.hasValue(setting.getKey())) {
+        private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
+            if (false == Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
                 throw new IllegalArgumentException("[" + setting.getKey() + "] requires [" + IndexSettings.MODE.getKey() + "=time_series]");
             }
         }
@@ -71,28 +78,24 @@ public enum IndexMode {
             return null;
         }
     },
-    TIME_SERIES {
+    TIME_SERIES("time_series") {
         @Override
-        void validateWithOtherSettings(Settings settings) {
-            if (IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings) != Integer.valueOf(1)) {
+        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
+            if (settings.get(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING) != Integer.valueOf(1)) {
                 throw new IllegalArgumentException(error(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING));
             }
             for (Setting<?> unsupported : TIME_SERIES_UNSUPPORTED) {
-                if (settings.hasValue(unsupported.getKey())) {
+                if (false == Objects.equals(unsupported.getDefault(Settings.EMPTY), settings.get(unsupported))) {
                     throw new IllegalArgumentException(error(unsupported));
                 }
             }
             settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
             settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
             settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
-
-            if (IndexMetadata.INDEX_ROUTING_PATH.get(settings).isEmpty()) {
-                throw new IllegalArgumentException(tsdbMode() + " " + IndexMetadata.INDEX_ROUTING_PATH.getKey() + " can not be empty");
-            }
         }
 
-        private void settingRequiresTimeSeries(Settings settings, Setting<?> setting) {
-            if (false == settings.hasValue(setting.getKey())) {
+        private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
+            if (Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
                 throw new IllegalArgumentException("[" + IndexSettings.MODE.getKey() + "=time_series] requires [" + setting.getKey() + "]");
             }
         }
@@ -167,7 +170,29 @@ public enum IndexMode {
         IndexSortConfig.INDEX_SORT_MISSING_SETTING
     );
 
-    abstract void validateWithOtherSettings(Settings settings);
+    static final List<Setting<?>> VALIDATE_WITH_SETTINGS = List.copyOf(
+        Stream.concat(
+            Stream.of(
+                IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
+                IndexMetadata.INDEX_ROUTING_PATH,
+                IndexSettings.TIME_SERIES_START_TIME,
+                IndexSettings.TIME_SERIES_END_TIME
+            ),
+            TIME_SERIES_UNSUPPORTED.stream()
+        ).collect(toSet())
+    );
+
+    private final String name;
+
+    IndexMode(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    abstract void validateWithOtherSettings(Map<Setting<?>, Object> settings);
 
     /**
      * Validate the mapping for this index.
@@ -196,4 +221,23 @@ public enum IndexMode {
      * field mappers for the index.
      */
     public abstract MetadataFieldMapper buildTimeSeriesIdFieldMapper();
+
+    public static IndexMode fromString(String value) {
+        return switch (value) {
+            case "standard" -> IndexMode.STANDARD;
+            case "time_series" -> IndexMode.TIME_SERIES;
+            default -> throw new IllegalArgumentException(
+                "["
+                    + value
+                    + "] is an invalid index mode, valid modes are: ["
+                    + Arrays.stream(IndexMode.values()).map(IndexMode::toString).collect(Collectors.joining())
+                    + "]"
+            );
+        };
+    }
+
+    @Override
+    public String toString() {
+        return getName();
+    }
 }

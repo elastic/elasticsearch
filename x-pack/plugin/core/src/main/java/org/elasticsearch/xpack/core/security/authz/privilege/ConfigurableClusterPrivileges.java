@@ -147,8 +147,7 @@ public final class ConfigurableClusterPrivileges {
             this.applicationNames = Collections.unmodifiableSet(applicationNames);
             this.applicationPredicate = StringMatcher.of(applicationNames);
             this.requestPredicate = request -> {
-                if (request instanceof ApplicationPrivilegesRequest) {
-                    final ApplicationPrivilegesRequest privRequest = (ApplicationPrivilegesRequest) request;
+                if (request instanceof final ApplicationPrivilegesRequest privRequest) {
                     final Collection<String> requestApplicationNames = privRequest.getApplicationNames();
                     return requestApplicationNames.isEmpty()
                         ? this.applicationNames.contains("*")

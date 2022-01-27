@@ -16,6 +16,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -443,7 +445,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public ObjectMapper getObjectMapper(String path) {
+            public NestedLookup nestedLookup() {
                 throw new UnsupportedOperationException();
             }
 
@@ -510,6 +512,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             @Override
             public boolean enableRewriteToFilterByFilter() {
                 throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean isInSortOrderExecutionRequired() {
+                return false;
             }
 
             @Override
@@ -587,11 +594,17 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         final SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         final long nowInMillis = randomNonNegativeLong();
-        return new SearchExecutionContext(
-            0,
-            0,
-            indexSettings,
-            null,
+        return new SearchExecutionContext(0, 0, indexSettings, new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+
+            }
+        }),
             (ft, idxName, lookup) -> ft.fielddataBuilder(idxName, lookup)
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,

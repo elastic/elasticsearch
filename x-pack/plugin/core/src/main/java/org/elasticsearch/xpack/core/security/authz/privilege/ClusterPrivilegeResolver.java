@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
 import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
-import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
@@ -66,6 +66,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_TOKEN_PATTERN = Set.of("cluster:admin/xpack/security/token/*");
     private static final Set<String> MANAGE_API_KEY_PATTERN = Set.of("cluster:admin/xpack/security/api_key/*");
     private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN = Set.of("cluster:admin/xpack/security/service_account/*");
+    private static final Set<String> MANAGE_USER_PROFILE_PATTERN = Set.of("cluster:admin/xpack/security/profile/*");
     private static final Set<String> GRANT_API_KEY_PATTERN = Set.of(GrantApiKeyAction.NAME + "*");
     private static final Set<String> MONITOR_PATTERN = Set.of(
         "cluster:monitor/*",
@@ -181,6 +182,10 @@ public class ClusterPrivilegeResolver {
         "manage_service_account",
         MANAGE_SERVICE_ACCOUNT_PATTERN
     );
+    public static final NamedClusterPrivilege MANAGE_USER_PROFILE = new ActionClusterPrivilege(
+        "manage_user_profile",
+        MANAGE_USER_PROFILE_PATTERN
+    );
     public static final NamedClusterPrivilege GRANT_API_KEY = new ActionClusterPrivilege("grant_api_key", GRANT_API_KEY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_PIPELINE = new ActionClusterPrivilege(
         "manage_pipeline",
@@ -240,6 +245,7 @@ public class ClusterPrivilegeResolver {
             MANAGE_API_KEY,
             GRANT_API_KEY,
             MANAGE_SERVICE_ACCOUNT,
+            MANAGE_USER_PROFILE,
             MANAGE_PIPELINE,
             MANAGE_ROLLUP,
             MANAGE_AUTOSCALING,

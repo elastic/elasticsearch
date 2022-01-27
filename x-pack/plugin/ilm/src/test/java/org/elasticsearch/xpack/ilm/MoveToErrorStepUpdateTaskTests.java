@@ -93,17 +93,17 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
         StepKey actualKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), ErrorStep.NAME)));
-        assertThat(lifecycleState.getFailedStep(), equalTo(currentStepKey.getName()));
-        assertThat(lifecycleState.getPhaseTime(), nullValue());
-        assertThat(lifecycleState.getActionTime(), nullValue());
-        assertThat(lifecycleState.getStepTime(), equalTo(now));
+        assertThat(lifecycleState.failedStep(), equalTo(currentStepKey.getName()));
+        assertThat(lifecycleState.phaseTime(), nullValue());
+        assertThat(lifecycleState.actionTime(), nullValue());
+        assertThat(lifecycleState.stepTime(), equalTo(now));
 
         XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder();
         causeXContentBuilder.startObject();
         ElasticsearchException.generateThrowableXContent(causeXContentBuilder, ToXContent.EMPTY_PARAMS, cause);
         causeXContentBuilder.endObject();
         String expectedCauseValue = BytesReference.bytes(causeXContentBuilder).utf8ToString();
-        assertThat(lifecycleState.getStepInfo(), containsString("""
+        assertThat(lifecycleState.stepInfo(), containsString("""
             {"type":"exception","reason":"THIS IS AN EXPECTED CAUSE","stack_trace":\""""));
     }
 

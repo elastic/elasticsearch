@@ -1,0 +1,6 @@
+pr: 83230
+summary: Preserve the thread context when waiting for snapshot completion
+area: Snapshot/Restore
+type: bug
+issues:
+ - 82358

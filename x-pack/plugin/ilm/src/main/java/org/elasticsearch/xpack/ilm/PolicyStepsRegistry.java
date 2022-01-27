@@ -165,6 +165,14 @@ public class PolicyStepsRegistry {
         }
     }
 
+    /**
+     * Remove the entry for an index from the index->step cache.
+     *
+     * We clear the map entirely when the master of the cluster changes, and when any
+     * policy changes, but in a long-lived cluster that doesn't happen to experience
+     * either of those events (and where indices are removed regularly) we still want
+     * the cache to trim deleted indices.
+     */
     public void delete(Index deleted) {
         cachedSteps.remove(deleted);
     }
@@ -294,6 +302,9 @@ public class PolicyStepsRegistry {
     @Nullable
     public Step getStep(final IndexMetadata indexMetadata, final Step.StepKey stepKey) {
         final Tuple<IndexMetadata, Step> cachedStep = cachedSteps.get(indexMetadata.getIndex());
+        // n.b. we're using instance equality here for the IndexMetadata rather than object equality because it's fast,
+        // this means that we're erring on the side of cache misses (if the IndexMetadata changed in any way, it'll be
+        // a new instance, so we'll miss-and-repopulate the cache for the index in question)
         if (cachedStep != null && cachedStep.v1() == indexMetadata && cachedStep.v2().getKey().equals(stepKey)) {
             return cachedStep.v2();
         }

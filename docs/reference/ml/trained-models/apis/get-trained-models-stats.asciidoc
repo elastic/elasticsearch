@@ -112,9 +112,25 @@ The detailed allocation state related to the nodes.
 The desired number of nodes for model allocation.
 ======
 
+`error_count`:::
+(integer)
+The sum of `error_count` for all nodes in the deployment.
+
+`inference_count`:::
+(integer)
+The sum of `inference_count` for all nodes in the deployment.
+
+`inference_threads`:::
+(integer)
+The number of threads used by the inference process.
+
 `model_id`:::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+`model_threads`:::
+(integer)
+The number of threads used when sending inference requests to the model.
 
 `nodes`:::
 (array of objects)
@@ -127,13 +143,29 @@ The deployment stats for each node that currently has the model allocated.
 (double)
 The average time for each inference call to complete on this node.
 
+`error_count`:::
+(integer)
+The number of errors when evaluating the trained model.
+
 `inference_count`:::
 (integer)
 The total number of inference calls made against this node for this model.
 
+`inference_threads`:::
+(integer)
+The number of threads used by the inference process.
+This value is limited by the number of hardware threads on the node;
+it might therefore differ from the `inference_threads` value in the <<start-trained-model-deployment>> API.
+
 `last_access`:::
 (long)
 The epoch time stamp of the last inference call for the model on this node.
+
+`model_threads`:::
+(integer)
+The number of threads used when sending inference requests to the model.
+This value is limited by the number of hardware threads on the node;
+it might therefore differ from the `model_threads` value in the <<start-trained-model-deployment>> API.
 
 `node`:::
 (object)
@@ -162,14 +194,24 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-id]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 ========
 
-`reason`:::
-(string)
-The reason for the current state. Usually only populated when the `routing_state` is `failed`.
+`number_of_pending_requests`:::
+(integer)
+The number of inference requests queued to be processed.
 
 `routing_state`:::
 (object)
 The current routing state and reason for the current routing state for this allocation.
 +
+.Properties of routing_state
+[%collapsible%open]
+========
+`reason`:::
+(string)
+The reason for the current state. Usually only populated when the `routing_state` is `failed`.
+
+`routing_state`:::
+(string)
+The current routing state.
 --
 * `starting`: The model is attempting to allocate on this model, inference calls are not yet accepted.
 * `started`: The model is allocated and ready to accept inference requests.
@@ -177,12 +219,33 @@ The current routing state and reason for the current routing state for this allo
 * `stopped`: The model is fully deallocated from this node.
 * `failed`: The allocation attempt failed, see `reason` field for the potential cause.
 --
+========
+
+`rejected_execution_count`:::
+(integer)
+The number of inference requests that were not processed because the
+queue was full.
 
 `start_time`:::
 (long)
 The epoch timestamp when the allocation started.
 
+`timeout_count`:::
+(integer)
+The number of inference requests that timed out before being processed.
 ======
+
+`rejected_execution_count`:::
+(integer)
+The sum of `rejected_execution_count` for all nodes in the deployment.
+Individual nodes reject an inference request if the inference queue is full.
+The queue size is controlled by the `queue_capacity` setting in the
+<<start-trained-model-deployment>> API.
+
+`reason`:::
+(string)
+The reason for the current deployment state.
+Usually only populated when the model is not deployed to a node.
 
 `start_time`:::
 (long)
@@ -197,6 +260,15 @@ The overall state of the deployment. The values may be:
 * `started`: The deployment is usable as at least one node has the model allocated.
 * `stopping`: The deployment is preparing to stop and deallocate the model from the relevant nodes.
 --
+
+`timeout_count`:::
+(integer)
+The sum of `timeout_count` for all nodes in the deployment.
+
+`queue_capacity`:::
+(integer)
+The number of inference requests that may be queued before new requests are
+rejected.
 
 =====
 

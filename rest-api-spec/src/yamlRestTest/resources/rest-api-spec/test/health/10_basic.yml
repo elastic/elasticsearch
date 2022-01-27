@@ -1,5 +1,9 @@
 ---
 "cluster health basic test":
+  - skip:
+      version: "- 8.0.99"
+      reason: "health was only added in 8.1.0"
+
   - do:
       health: {}
 

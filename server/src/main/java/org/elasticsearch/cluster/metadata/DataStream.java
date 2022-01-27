@@ -192,14 +192,12 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public void validate(Function<String, IndexMetadata> imSupplier) {
         if (indexMode == IndexMode.TIME_SERIES) {
             // Get a sorted overview of each backing index with there start and end time range:
-            var startAndEndTimes = indices.stream()
-                .map(index -> imSupplier.apply(index.getName()))
-                .map(im -> {
-                    Instant start = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
-                    Instant end = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
-                    assert end.isAfter(start); // This is also validated by TIME_SERIES_END_TIME setting.
-                    return new Tuple<>(im.getIndex().getName(), new Tuple<>(start, end));
-                })
+            var startAndEndTimes = indices.stream().map(index -> imSupplier.apply(index.getName())).map(im -> {
+                Instant start = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
+                Instant end = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
+                assert end.isAfter(start); // This is also validated by TIME_SERIES_END_TIME setting.
+                return new Tuple<>(im.getIndex().getName(), new Tuple<>(start, end));
+            })
                 .sorted(Comparator.comparing(entry -> entry.v2().v1())) // Sort by start time
                 .collect(Collectors.toList());
 

@@ -21,9 +21,11 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static java.util.stream.Collectors.joining;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -216,6 +218,37 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
             builder -> builder.startObject().endObject(),
             builder -> builder.startObject().field("foo.bar", "test").endObject(),
             singleton("f*r"),
+            emptySet(),
+            true
+        );
+    }
+
+    public void testTwoDotsInIncludedFieldNameUnconfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().endObject(),
+            builder -> builder.startObject().field("foo.bar.baz", "test").endObject(),
+            singleton("foo.bar.baz"),
+            emptySet(),
+            false
+        );
+    }
+
+    public void testTwoDotsInIncludedFieldNameConfigured() throws IOException {
+        testFilter(
+            builder -> builder.startObject().field("foo.bar.baz", "test").endObject(),
+            builder -> builder.startObject().field("foo.bar.baz", "test").endObject(),
+            singleton("foo.bar.baz"),
+            emptySet(),
+            true
+        );
+    }
+
+    public void testManyDotsInIncludedFieldName() throws IOException {
+        String name = IntStream.rangeClosed(1, 40000).mapToObj(i -> "a").collect(joining("."));
+        testFilter(
+            builder -> builder.startObject().field(name, "test").endObject(),
+            builder -> builder.startObject().field(name, "test").endObject(),
+            singleton(name),
             emptySet(),
             true
         );

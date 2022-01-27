@@ -1,10 +1,12 @@
 ---
-  setup:
-    - skip:
-        version: " - 8.0.99"
-        reason: "API added in in 8.1.0"
-    - do:
-        desired_nodes.delete_desired_nodes: {}
+setup:
+  - skip:
+      version: " - 8.0.99"
+      reason: "API added in in 8.1.0"
+---
+teardown:
+  - do:
+      desired_nodes.delete_desired_nodes: {}
 ---
 "Test update desired nodes":
   - do:

@@ -417,7 +417,7 @@ public class CcrAliasesIT extends CcrIntegTestCase {
                 TaskInfo taskInfo = null;
                 final String expectedId = "id=" + shardFollowTask.getId();
                 for (final TaskInfo info : taskInfos) {
-                    if (expectedId.equals(info.getDescription())) {
+                    if (expectedId.equals(info.description())) {
                         taskInfo = info;
                         break;
                     }

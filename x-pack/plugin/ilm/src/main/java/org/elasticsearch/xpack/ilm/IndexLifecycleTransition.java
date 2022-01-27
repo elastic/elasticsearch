@@ -93,8 +93,8 @@ public final class IndexLifecycleTransition {
         }
 
         final Set<Step.StepKey> cachedStepKeys = stepRegistry.parseStepKeysFromPhase(
-            lifecycleState.getPhaseDefinition(),
-            lifecycleState.getPhase()
+            lifecycleState.phaseDefinition(),
+            lifecycleState.phase()
         );
         boolean isNewStepCached = cachedStepKeys != null && cachedStepKeys.contains(newStepKey);
 
@@ -207,7 +207,7 @@ public final class IndexLifecycleTransition {
             // if the error is transient/recoverable from
             failedState.setIsAutoRetryableError(failedStep.isRetryable());
             // maintain the retry count of the failed step as it will be cleared after a successful execution
-            failedState.setFailedStepRetryCount(currentState.getFailedStepRetryCount());
+            failedState.setFailedStepRetryCount(currentState.failedStepRetryCount());
         } else {
             logger.warn(
                 "failed step [{}] for index [{}] is not part of policy [{}] anymore, or it is invalid",
@@ -239,7 +239,7 @@ public final class IndexLifecycleTransition {
         }
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         Step.StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
-        String failedStep = lifecycleState.getFailedStep();
+        String failedStep = lifecycleState.failedStep();
         if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.getName()) && Strings.isNullOrEmpty(failedStep) == false) {
             Step.StepKey nextStepKey = new Step.StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), failedStep);
             IndexLifecycleTransition.validateTransition(indexMetadata, currentStepKey, nextStepKey, stepRegistry);
@@ -266,12 +266,12 @@ public final class IndexLifecycleTransition {
 
             LifecycleExecutionState.Builder retryStepState = LifecycleExecutionState.builder(nextStepState);
             retryStepState.setIsAutoRetryableError(lifecycleState.isAutoRetryableError());
-            Integer currentRetryCount = lifecycleState.getFailedStepRetryCount();
+            Integer currentRetryCount = lifecycleState.failedStepRetryCount();
             if (isAutomaticRetry) {
                 retryStepState.setFailedStepRetryCount(currentRetryCount == null ? 1 : ++currentRetryCount);
             } else {
                 // manual retries don't update the retry count
-                retryStepState.setFailedStepRetryCount(lifecycleState.getFailedStepRetryCount());
+                retryStepState.setFailedStepRetryCount(lifecycleState.failedStepRetryCount());
             }
             newState = IndexLifecycleTransition.newClusterStateWithLifecycleState(
                 indexMetadata.getIndex(),
@@ -470,7 +470,7 @@ public final class IndexLifecycleTransition {
             stepInfo.toXContent(infoXContentBuilder, ToXContent.EMPTY_PARAMS);
             stepInfoString = BytesReference.bytes(infoXContentBuilder).utf8ToString();
         }
-        if (stepInfoString.equals(lifecycleState.getStepInfo())) {
+        if (stepInfoString.equals(lifecycleState.stepInfo())) {
             return clusterState;
         }
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder(lifecycleState);

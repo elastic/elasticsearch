@@ -177,7 +177,7 @@ class IndicesAndAliasesResolver {
         // shard level requests.
         final List<String> localIndices = new ArrayList<>(indices.length);
         for (String name : indices) {
-            localIndices.add(nameExpressionResolver.resolveDateMathExpression(name));
+            localIndices.add(IndexNameExpressionResolver.resolveDateMathExpression(name));
         }
         return new ResolvedIndices(localIndices, List.of());
     }

@@ -30,8 +30,12 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.stream.Stream;
 
-/** Checks for Elasticsearch Java modules. */
+/**
+ * Distribution level checks for Elasticsearch Java modules, i.e. modular jar files.
+ * Currently, ES modular jar files are only in the lib and lib/mods directory.
+ */
 public class InternalDistributionModuleCheckTaskProvider {
 
     private final Logger LOGGER = Logging.getLogger(InternalDistributionModuleCheckTaskProvider.class);  // #### add some logging
@@ -73,7 +77,8 @@ public class InternalDistributionModuleCheckTaskProvider {
     /** Checks that all expected ES jar files are modular, i.e. contain a module-info.class in their root. */
     private static void assertAllESJarsAreModular(Path libsPath) {
         try {
-            Files.walk(libsPath, 1).filter(Files::isRegularFile).filter(isESJar).filter(isNotExcluded).sorted().forEach(path -> {
+            Stream<Path> pathStream = Stream.concat(Files.walk(libsPath, 1), Files.walk(libsPath.resolve("mods"), 1));
+            pathStream.filter(Files::isRegularFile).filter(isESJar).filter(isNotExcluded).sorted().forEach(path -> {
                 try (JarFile jf = new JarFile(path.toFile())) {
                     JarEntry entry = jf.getJarEntry(MODULE_INFO);
                     if (entry == null) {
@@ -91,8 +96,9 @@ public class InternalDistributionModuleCheckTaskProvider {
     private static final Predicate<ModuleReference> isESModule = mref -> mref.descriptor().name().startsWith("org.elasticsearch");
     private static final Function<ModuleReference, String> toName = mref -> mref.descriptor().name();
 
-    /** List of the current Elasticsearch Java Modules. */
+    /** List of the current Elasticsearch Java Modules, by name. */
     private static final List<String> EXPECTED_ES_MODUlES = List.of(
+        "org.elasticsearch.boot",
         "org.elasticsearch.cli",
         "org.elasticsearch.core",
         "org.elasticsearch.geo",
@@ -103,10 +109,14 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.xcontent"
     );
 
+    /** Returns a module finder capable of finding all ES modules. */
+    private static ModuleFinder esModuleFinder(Path libPath) {
+        return ModuleFinder.compose(ModuleFinder.of(libPath), ModuleFinder.of(libPath.resolve("mods")));
+    }
+
     /** Checks that all expected Elasticsearch modules are present. */
     private static void assertAllModulesPresent(Path libPath) {
-        Set<ModuleReference> modules = ModuleFinder.of(libPath).findAll();
-        System.out.println("CHECKING assertAllModulesPresent");
+        Set<ModuleReference> modules = esModuleFinder(libPath).findAll();
         List<String> actualESModules = modules.stream().filter(isESModule).map(toName).sorted().toList();
         if (actualESModules.equals(EXPECTED_ES_MODUlES) == false) {
             throw new GradleException("expected modules " + EXPECTED_ES_MODUlES + ", actual modules " + actualESModules);
@@ -115,8 +125,8 @@ public class InternalDistributionModuleCheckTaskProvider {
 
     /** Checks that all expected Elasticsearch modules have the expected versions. */
     private static void assertModuleVersions(Path libPath, String expectedVersion) {
-        Set<ModuleReference> modules = ModuleFinder.of(libPath).findAll();
-        List<ModuleReference> esModules = modules.stream()
+        List<ModuleReference> esModules = esModuleFinder(libPath).findAll()
+            .stream()
             .filter(isESModule)
             .sorted(Comparator.comparing(ModuleReference::descriptor))
             .toList();

@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.desirednodes;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -25,6 +24,7 @@ import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -110,7 +110,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
 
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(10))).build();
 
-        final PlainActionFuture<AcknowledgedResponse> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<UpdateDesiredNodesResponse> future = PlainActionFuture.newFuture();
         action.masterOperation(mock(Task.class), randomUpdateDesiredNodesRequest(), state, future);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(exception.getMessage(), containsString("Invalid settings"));
@@ -134,7 +134,8 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             .build();
 
         UpdateDesiredNodesRequest request = randomUpdateDesiredNodesRequest();
-        if (containsDesiredNodes && randomBoolean()) {
+        final boolean updateSameHistory = containsDesiredNodes && randomBoolean();
+        if (updateSameHistory) {
             // increase the version for the current history and maybe modify the nodes
             final DesiredNodesMetadata currentDesiredNodesMetadata = currentClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
             final DesiredNodes desiredNodes = currentDesiredNodesMetadata.getLatestDesiredNodes();
@@ -142,8 +143,15 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             request = new UpdateDesiredNodesRequest(desiredNodes.historyID(), desiredNodes.version() + 1, updatedNodes);
         }
 
-        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request);
+        final Tuple<ClusterState, String> clusterStateAndNewHistoryId = TransportUpdateDesiredNodesAction.updateDesiredNodes(
+            currentClusterState,
+            request
+        );
 
+        final String newHistoryId = clusterStateAndNewHistoryId.v2();
+        assertThat(newHistoryId, updateSameHistory ? is(nullValue()) : is(equalTo(request.getHistoryID())));
+
+        final ClusterState updatedClusterState = clusterStateAndNewHistoryId.v1();
         final DesiredNodesMetadata desiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
         assertThat(desiredNodesMetadata, is(notNullValue()));
 
@@ -167,8 +175,15 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             latestDesiredNodes.nodes()
         );
 
-        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request);
+        final Tuple<ClusterState, String> clusterStateAndNewHistoryId = TransportUpdateDesiredNodesAction.updateDesiredNodes(
+            currentClusterState,
+            request
+        );
 
+        final String newHistoryId = clusterStateAndNewHistoryId.v2();
+        assertThat(newHistoryId, is(nullValue()));
+
+        final ClusterState updatedClusterState = clusterStateAndNewHistoryId.v1();
         final DesiredNodesMetadata updatedDesiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
         assertThat(updatedDesiredNodesMetadata, is(notNullValue()));
         assertThat(updatedDesiredNodesMetadata.getLatestDesiredNodes(), is(notNullValue()));

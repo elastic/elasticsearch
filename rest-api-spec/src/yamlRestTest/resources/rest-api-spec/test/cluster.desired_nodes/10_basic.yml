@@ -15,6 +15,7 @@
             nodes:
               - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
   - match: { acknowledged: true }
+  - match: { new_history_id: "test" }
 
   - do:
       desired_nodes.get_desired_nodes: {}
@@ -34,6 +35,7 @@
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
             - { settings: { "node.external_id": "instance-000188" }, processors: 16, memory: "128gb", storage: "1tb", version: "7.16.0" }
   - match: { acknowledged: true }
+  - match: { new_history_id: null }
 
   - do:
       desired_nodes.get_desired_nodes: {}
@@ -54,6 +56,7 @@
           nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
   - match: { acknowledged: true }
+  - match: { new_history_id: "test" }
 
   - do:
       desired_nodes.get_desired_nodes: {}
@@ -73,6 +76,7 @@
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
             - { settings: { "node.external_id": "instance-000188" }, processors: 16, memory: "128gb", storage: "1tb", version: "7.16.0" }
   - match: { acknowledged: true }
+  - match: { new_history_id: "new_history" }
 
   - do:
       desired_nodes.get_desired_nodes: {}
@@ -93,6 +97,7 @@
           nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
   - match: { acknowledged: true }
+  - match: { new_history_id: "test" }
 
   - do:
       desired_nodes.get_desired_nodes: {}
@@ -120,6 +125,7 @@
           nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
   - match: { acknowledged: true }
+  - match: { new_history_id: "test" }
 
   - do:
       desired_nodes.get_desired_nodes: {}
@@ -138,6 +144,7 @@
           nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
   - match: { acknowledged: true }
+  - match: { new_history_id: null }
 
   - do:
       desired_nodes.get_desired_nodes: {}
@@ -157,6 +164,7 @@
           nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
   - match: { acknowledged: true }
+  - match: { new_history_id: "test" }
 
   - do:
       catch: conflict
@@ -188,6 +196,7 @@
           nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", version: "7.16.0" }
   - match: { acknowledged: true }
+  - match: { new_history_id: "test" }
 
   - do:
       catch: bad_request
@@ -247,6 +256,7 @@
           nodes:
             - { settings: { "node.external_id": "instance-000187", "unknown_setting": -1000 }, processors: 8, memory: "64gb", storage: "128gb", version: "99.1.0" }
   - match: { acknowledged: true }
+  - match: { new_history_id: "test" }
 ---
 "Test some settings can be overridden":
   - do:
@@ -257,6 +267,7 @@
           nodes:
             - { settings: { "node.external_id": "instance-000187", node.processors: 2048 }, processors: 2048, memory: "64gb", storage: "128gb", version: "7.16.0" }
   - match: { acknowledged: true }
+  - match: { new_history_id: "test" }
 ---
 "Test external_id is required":
   - do:

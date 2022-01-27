@@ -9,13 +9,12 @@
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class UpdateDesiredNodesAction extends ActionType<AcknowledgedResponse> {
+public class UpdateDesiredNodesAction extends ActionType<UpdateDesiredNodesResponse> {
     public static final UpdateDesiredNodesAction INSTANCE = new UpdateDesiredNodesAction();
     public static final String NAME = "cluster:admin/desired_nodes/update";
 
     UpdateDesiredNodesAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME, UpdateDesiredNodesResponse::new);
     }
 }

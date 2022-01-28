@@ -442,7 +442,7 @@ teardown:
             - { settings: { "node.external_id": "instance-000187"}, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
-  - match: { error.reason: "Failed to parse int parameter [version] with value [asa]" }
+  - match: { error.reason: "Failed to parse long parameter [version] with value [asa]" }
 ---
 "Test version must be positive":
   - do:

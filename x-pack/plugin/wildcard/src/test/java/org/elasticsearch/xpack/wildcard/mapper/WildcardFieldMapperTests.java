@@ -59,6 +59,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
@@ -1101,6 +1102,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             @Override
             public MappedFieldType getFieldType(String name) {
                 return provideMappedFieldType(name);
+            }
+
+            @Override
+            public NestedLookup nestedLookup() {
+                return NestedLookup.EMPTY;
             }
         };
     }

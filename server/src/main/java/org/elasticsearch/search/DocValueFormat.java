@@ -12,6 +12,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,7 +36,10 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.function.LongSupplier;
 
 /** A formatter for values as returned by the fielddata/doc-values APIs. */
@@ -78,7 +82,7 @@ public interface DocValueFormat extends NamedWriteable {
 
     /** Parse a value that was formatted with {@link #format(BytesRef)} back
      *  to the original BytesRef. */
-    default BytesRef parseBytesRef(String value) {
+    default BytesRef parseBytesRef(Object value) {
         throw new UnsupportedOperationException();
     }
 
@@ -155,8 +159,8 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(value);
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(value.toString());
         }
 
         @Override
@@ -190,8 +194,8 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(Base64.getDecoder().decode(value));
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(Base64.getDecoder().decode(value.toString()));
         }
     };
 
@@ -443,14 +447,14 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    DocValueFormat IP = IpDocValueFormat.INSTANCE;
+    IpDocValueFormat IP = IpDocValueFormat.INSTANCE;
 
     /**
      * Stateless, singleton formatter for IP address data
      */
     class IpDocValueFormat implements DocValueFormat {
 
-        public static final DocValueFormat INSTANCE = new IpDocValueFormat();
+        public static final IpDocValueFormat INSTANCE = new IpDocValueFormat();
 
         private IpDocValueFormat() {}
 
@@ -477,8 +481,8 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value)));
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value.toString())));
         }
 
         @Override
@@ -693,6 +697,50 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public Object format(BytesRef value) {
             return TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(value).streamInput());
+        }
+
+        @Override
+        public BytesRef parseBytesRef(Object value) {
+            if (value instanceof Map<?, ?> == false) {
+                throw new IllegalArgumentException("Cannot parse tsid object [" + value + "]");
+            }
+
+            Map<?, ?> m = (Map<?, ?>) value;
+            SortedMap<String, BytesReference> dimensionFields = new TreeMap<>();
+            for (Map.Entry<?, ?> entry : m.entrySet()) {
+                String k = (String) entry.getKey();
+                Object v = entry.getValue();
+                BytesReference bytes;
+
+                if (v instanceof String s) {
+                    bytes = TimeSeriesIdFieldMapper.encodeTsidValue(s);
+                } else if (v instanceof Long || v instanceof Integer) {
+                    Long l = Long.valueOf(v.toString());
+                    // For a long encoded number, we must check if the number can be the encoded value
+                    // of an unsigned_long.
+                    Number ul = (Number) UNSIGNED_LONG_SHIFTED.format(l);
+                    if (l == ul) {
+                        bytes = TimeSeriesIdFieldMapper.encodeTsidValue(l);
+                    } else {
+                        long ll = UNSIGNED_LONG_SHIFTED.parseLong(String.valueOf(l), false, () -> 0L);
+                        bytes = TimeSeriesIdFieldMapper.encodeTsidUnsignedLongValue(ll);
+                    }
+                } else if (v instanceof BigInteger ul) {
+                    long ll = UNSIGNED_LONG_SHIFTED.parseLong(ul.toString(), false, () -> 0L);
+                    bytes = TimeSeriesIdFieldMapper.encodeTsidUnsignedLongValue(ll);
+                } else {
+                    throw new IllegalArgumentException("Unexpected value in tsid object [" + v + "]");
+                }
+
+                assert bytes != null : "Could not parse fields in _tsid field [" + value + "].";
+                dimensionFields.put(k, bytes);
+            }
+
+            try {
+                return TimeSeriesIdFieldMapper.buildTsidField(dimensionFields).toBytesRef();
+            } catch (IOException e) {
+                throw new IllegalArgumentException(e);
+            }
         }
     };
 }

@@ -17,6 +17,7 @@ import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.RegularFile;
+import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
@@ -51,6 +52,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final String path;
     private final String clusterName;
     private final NamedDomainObjectContainer<ElasticsearchNode> nodes;
+    private final FileOperations fileOperations;
     private final File workingDirBase;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final Project project;
@@ -69,6 +71,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         ExecOperations execOperations,
+        FileOperations fileOperations,
         File workingDirBase,
         Provider<File> runtimeJava
     ) {
@@ -79,6 +82,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
         this.execOperations = execOperations;
+        this.fileOperations = fileOperations;
         this.workingDirBase = workingDirBase;
         this.runtimeJava = runtimeJava;
         this.nodes = project.container(ElasticsearchNode.class);
@@ -92,6 +96,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 fileSystemOperations,
                 archiveOperations,
                 execOperations,
+                fileOperations,
                 workingDirBase,
                 runtimeJava
             )
@@ -124,6 +129,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     fileSystemOperations,
                     archiveOperations,
                     execOperations,
+                    fileOperations,
                     workingDirBase,
                     runtimeJava
                 )

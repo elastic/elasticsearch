@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.mapreduce;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -41,9 +42,9 @@ public interface MapReducer extends NamedWriteable, ToXContent {
      *
      * TODO: assumes only 1 "flat" input, what about multi inputs?
      *
-     * @param values A stream of values, while a value itself is a list of values.
+     * @param keyValues A stream of keys and values, while a value is a list of values.
      */
-    void map(Stream<List<Object>> values);
+    void map(Stream<Tuple<String, List<Object>>> keyValues);
 
     /**
      * Definition of the reducer that gets results from every shard

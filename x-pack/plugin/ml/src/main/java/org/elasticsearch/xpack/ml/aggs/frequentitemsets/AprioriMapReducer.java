@@ -72,10 +72,10 @@ public class AprioriMapReducer implements MapReducer {
     }
 
     @Override
-    public void map(Stream<List<Object>> values) {
+    public void map(Stream<Tuple<String, List<Object>>> keyValues) {
         stringBuilder.setLength(0);
-        values.forEach(v -> {
-            for (Object fieldValue : v) {
+        keyValues.forEach(v -> {
+            for (Object fieldValue : v.v2()) {
                 stringBuilder.append(fieldValue);
                 stringBuilder.append("#");
             }

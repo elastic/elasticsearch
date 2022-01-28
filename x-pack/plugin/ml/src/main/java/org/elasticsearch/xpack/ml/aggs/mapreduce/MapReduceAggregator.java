@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.mapreduce;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -23,8 +23,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -66,7 +64,13 @@ public abstract class MapReduceAggregator extends AggregatorBase {
 
             // TODO: make this nicer
             if (CoreValuesSourceType.KEYWORD.equals(c.valueSourceType())) {
-                return new KeywordValuesExtractor(vs);
+                String fieldName = c.fieldContext() != null ? c.fieldContext().field() : null;
+
+                if (Strings.isNullOrEmpty(fieldName)) {
+                    throw new IllegalArgumentException("scripts are not supported at the moment");
+                }
+
+                return new ValuesExtractor.Keyword(fieldName, vs);
             }
             return (ValuesExtractor) null;
         }).collect(Collectors.toList()), mapReducer);
@@ -103,43 +107,6 @@ public abstract class MapReduceAggregator extends AggregatorBase {
                 }));
             }
         };
-    }
-
-    interface ValuesExtractor {
-        List<Object> collectValues(LeafReaderContext ctx, int doc) throws IOException;
-    }
-
-    abstract static class ValuesExtractorBase implements ValuesExtractor {
-        protected final ValuesSource source;
-
-        ValuesExtractorBase(ValuesSource source) {
-            this.source = source;
-        }
-    }
-
-    static class KeywordValuesExtractor extends ValuesExtractorBase {
-
-        KeywordValuesExtractor(ValuesSource source) {
-            super(source);
-        }
-
-        @Override
-        public List<Object> collectValues(LeafReaderContext ctx, int doc) throws IOException {
-
-            SortedBinaryDocValues values = source.bytesValues(ctx);
-
-            if (values.advanceExact(doc)) {
-                int valuesCount = values.docValueCount();
-                List<Object> objects = new ArrayList<>(valuesCount);
-
-                for (int i = 0; i < valuesCount; ++i) {
-                    objects.add(values.nextValue().utf8ToString());
-                }
-                return objects;
-            }
-            return Collections.emptyList();
-        }
-
     }
 
 }

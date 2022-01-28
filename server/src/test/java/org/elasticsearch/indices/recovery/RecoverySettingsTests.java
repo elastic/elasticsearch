@@ -18,6 +18,7 @@ import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -137,10 +138,12 @@ public class RecoverySettingsTests extends ESTestCase {
     }
 
     public void testMaxBytesPerSecOnDataNodeWithIndicesRecoveryMaxBytesPerSec() {
+        final Set<String> roles = new HashSet<>(randomSubsetOf(randomIntBetween(1, 4), "data", "data_hot", "data_warm", "data_content"));
+        roles.addAll(randomSubsetOf(Set.of("data_cold", "data_frozen")));
         final ByteSizeValue random = randomByteSizeValue();
         assertThat(
             "Data nodes that are not dedicated to cold/frozen should use the defined rate limit when set",
-            nodeRecoverySettings().withRole(randomFrom("data", "data_hot", "data_warm", "data_content"))
+            nodeRecoverySettings().withRoles(roles)
                 .withIndicesRecoveryMaxBytesPerSec(random)
                 .withRandomMemory()
                 .build()

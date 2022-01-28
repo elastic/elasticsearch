@@ -51,7 +51,7 @@ public class RecoverySettings {
     // package private for tests
     static final Setting<ByteSizeValue> TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING = Setting.byteSizeSetting(
         "recovery_settings.total_physical_memory_override",
-        settings -> ByteSizeValue.MINUS_ONE.getStringRep(),
+        settings -> new ByteSizeValue(OsProbe.getInstance().getTotalPhysicalMemorySize()).getStringRep(),
         Property.NodeScope
     );
 
@@ -90,16 +90,12 @@ public class RecoverySettings {
              * an assumption here that the size of the instance is correlated with I/O resources. That is we are assuming that the
              * larger the instance, the more disk and networking capacity it has available.
              */
-            JavaVersion javaVersion = JAVA_VERSION_OVERRIDING_TEST_SETTING.exists(s)
-                ? JAVA_VERSION_OVERRIDING_TEST_SETTING.get(s)
-                : JavaVersion.current();
+            final JavaVersion javaVersion = JAVA_VERSION_OVERRIDING_TEST_SETTING.get(s);
             if (javaVersion.compareTo(JavaVersion.parse("14")) < 0) {
                 // prior to JDK 14, the JDK did not take into consideration container memory limits when reporting total system memory
                 return DEFAULT_MAX_BYTES_PER_SEC.getStringRep();
             }
-            final ByteSizeValue totalPhysicalMemory = TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING.exists(s)
-                ? TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING.get(s)
-                : new ByteSizeValue(OsProbe.getInstance().getTotalPhysicalMemorySize());
+            final ByteSizeValue totalPhysicalMemory = TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING.get(s);
             final ByteSizeValue maxBytesPerSec;
             if (totalPhysicalMemory.compareTo(new ByteSizeValue(4, ByteSizeUnit.GB)) <= 0) {
                 maxBytesPerSec = new ByteSizeValue(40, ByteSizeUnit.MB);

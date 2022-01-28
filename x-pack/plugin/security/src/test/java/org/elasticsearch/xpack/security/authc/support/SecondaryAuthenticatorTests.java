@@ -84,7 +84,6 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     private SecurityContext securityContext;
     private TokenService tokenService;
     private Client client;
-    private OperatorPrivileges operatorPrivileges;
 
     @Before
     public void setupMocks() throws Exception {
@@ -116,6 +115,8 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
         final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
         licenseState.update(License.OperationMode.PLATINUM, true, null);
+
+        realm.configure(List.of(realm), licenseState);
 
         final Clock clock = Clock.systemUTC();
 

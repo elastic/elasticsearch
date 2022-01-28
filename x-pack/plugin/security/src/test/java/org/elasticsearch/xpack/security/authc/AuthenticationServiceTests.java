@@ -211,10 +211,12 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(firstRealm.type()).thenReturn(FIRST_REALM_TYPE);
         when(firstRealm.name()).thenReturn(FIRST_REALM_NAME);
         when(firstRealm.toString()).thenReturn(FIRST_REALM_NAME + "/" + FIRST_REALM_TYPE);
+        when(firstRealm.realmRef()).thenReturn(new RealmRef(FIRST_REALM_NAME, FIRST_REALM_TYPE, "authc_test", null));
         secondRealm = mock(Realm.class);
         when(secondRealm.type()).thenReturn(SECOND_REALM_TYPE);
         when(secondRealm.name()).thenReturn(SECOND_REALM_NAME);
         when(secondRealm.toString()).thenReturn(SECOND_REALM_NAME + "/" + SECOND_REALM_TYPE);
+        when(secondRealm.realmRef()).thenReturn(new RealmRef(SECOND_REALM_NAME, SECOND_REALM_TYPE, "authc_test", null));
         Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put("node.name", "authc_test")
@@ -547,8 +549,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         verify(auditTrail).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
         verify(firstRealm, times(2)).name(); // used above one time
-        verify(secondRealm, Mockito.atLeast(2)).name(); // also used in license tracking
-        verify(secondRealm, Mockito.atLeast(2)).type(); // used to create realm ref, and license tracking
+        verify(secondRealm, times(2)).realmRef(); // also used in license tracking
         verify(firstRealm, times(2)).token(threadContext);
         verify(secondRealm, times(2)).token(threadContext);
         verify(firstRealm).supports(token);
@@ -680,8 +681,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
         verify(auditTrail, times(2)).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
         verify(firstRealm, times(3)).name(); // used above one time
-        verify(secondRealm, Mockito.atLeast(2)).name();
-        verify(secondRealm, Mockito.atLeast(2)).type(); // used to create realm ref
+        verify(secondRealm, times(2)).realmRef();
         verify(firstRealm, times(2)).token(threadContext);
         verify(secondRealm, times(2)).token(threadContext);
         verify(firstRealm, times(2)).supports(token);

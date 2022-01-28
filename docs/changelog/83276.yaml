@@ -1,0 +1,5 @@
+pr: 83276
+summary: Fix deprecated suggestions for `JodaCompatibleZonedDateTime`
+area: Infra/Scripting
+type: bug
+issues: []

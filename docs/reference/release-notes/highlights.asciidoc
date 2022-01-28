@@ -29,7 +29,7 @@ This change will be picked up automatically by both new indices, and existing
 indices for every new segment.
 
 [discrete]
-=== Faster indexing of `geo_point`, `geo_shape` and range fields
+=== Faster indexing of `geo_point`, `geo_shape`, and range fields
 
 Some optimizations have been made to indexing of multi-dimensional points,
 which are used by `geo_point` fields, `geo_shape` fields and range fields.

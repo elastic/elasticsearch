@@ -77,7 +77,6 @@ public class FilterPath {
         }
 
         // match dot first
-        FilterPath termNode;
         if (matchFieldNamesWithDots) {
             // contains dot and not the first or last char
             int dotIndex = name.indexOf('.');
@@ -85,8 +84,7 @@ public class FilterPath {
                 return matchFieldNamesWithDots(name, dotIndex, nextFilters);
             }
         }
-
-        termNode = termsChildren.get(name);
+        FilterPath termNode = termsChildren.get(name);
         if (termNode != null) {
             if (termNode.isFinalNode()) {
                 return true;

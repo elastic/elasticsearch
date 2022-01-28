@@ -55,20 +55,6 @@ public class FilterPathTests extends ESTestCase {
         assertEquals(nextFilters.size(), 1);
     }
 
-    public void testFilterPathWithDotInFieldNameConfiguredToAcceptThem() {
-        final String input = "foo.bar";
-
-        FilterPath[] filterPaths = FilterPath.compile(singleton(input));
-        assertNotNull(filterPaths);
-        assertThat(filterPaths, arrayWithSize(1));
-
-        List<FilterPath> nextFilters = new ArrayList<>();
-        FilterPath filterPath = filterPaths[0];
-        assertNotNull(filterPath);
-        assertThat(filterPath.matches("foo.bar", nextFilters), is(true));
-        assertEquals(nextFilters.size(), 0);
-    }
-
     public void testFilterPathWithSubFields() {
         final String input = "foo.bar.quz";
 

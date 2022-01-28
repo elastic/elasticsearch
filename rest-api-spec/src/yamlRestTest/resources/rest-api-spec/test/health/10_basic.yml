@@ -15,6 +15,6 @@
   - match:   { impacts: [] }
   - match:   { components.controller.status: "GREEN" }
   - match:   { components.controller.indicators.0.status: "GREEN" }
-  - match:   { components.controller.indicators.0.name: "instance has master" }
-  - match:   { components.controller.indicators.0.explain: "health coordinating instance has a master node" }
+  - match:   { components.controller.indicators.0.name: "instance_has_master" }
+  - match:   { components.controller.indicators.0.explain: "Health coordinating instance has a master node." }
   - match:   { components.snapshots.status: "GREEN" }

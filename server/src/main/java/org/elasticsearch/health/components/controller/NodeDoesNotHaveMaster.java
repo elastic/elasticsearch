@@ -18,8 +18,8 @@ import java.io.IOException;
 
 public class NodeDoesNotHaveMaster extends GetHealthAction.Indicator {
 
-    public static final String GREEN_EXPLAIN = "health coordinating instance has a master node";
-    public static final String RED_EXPLAIN = "health coordinating instance does not have a master node";
+    public static final String GREEN_EXPLAIN = "Health coordinating instance has a master node.";
+    public static final String RED_EXPLAIN = "Health coordinating instance does not have a master node.";
     private final DiscoveryNode coordinatingNode;
     private final DiscoveryNode masterNode;
 
@@ -48,7 +48,7 @@ public class NodeDoesNotHaveMaster extends GetHealthAction.Indicator {
 
     @Override
     public String getName() {
-        return "instance has master";
+        return "instance_has_master";
     }
 
     @Override

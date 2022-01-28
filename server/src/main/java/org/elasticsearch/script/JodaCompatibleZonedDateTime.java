@@ -12,7 +12,6 @@ import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.joda.time.DateTime;

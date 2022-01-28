@@ -74,6 +74,7 @@ public abstract class AbstractCompositeAggFunction implements Function {
             ClientHelper.TRANSFORM_ORIGIN,
             client,
             SearchAction.INSTANCE,
+            true,
             buildSearchRequest(sourceConfig, null, numberOfBuckets),
             ActionListener.wrap(r -> {
                 try {

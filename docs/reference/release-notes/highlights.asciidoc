@@ -18,22 +18,22 @@ For detailed information about this release, see the <<es-release-notes>> and
 [discrete]
 === Storage savings for `keyword`, `match_only_text`, and `text` fields
 
-We've updated inverted indices, an internal data structure, to use a more space-efficient encoding.
-This change will benefit `keyword` fields, `match_only_text` fields, and, to a
-lesser extent, `text` fields. In our benchmarks using application logs, this translated into a 14.4% reduction of the
-size of the index of the `message` field (mapped as `match_only_text`) and an
-overall 3.5% reduction of the on-disk footprint.
+We've updated inverted indices, an internal data structure, to use a more
+space-efficient encoding. This change will benefit `keyword` fields,
+`match_only_text` fields, and, to a lesser extent, `text` fields. In our
+benchmarks using application logs, this translated into a 14.4% reduction of
+the size of the index of the `message` field (mapped as `match_only_text`) and
+an overall 3.5% reduction of the on-disk footprint.
 
-This change will be picked up automatically by both new indices, and existing
-indices for every new segment.
+This change will be picked up automatically by both new indices, and existing indices for every new segment.
 
 [discrete]
 === Faster indexing of `geo_point`, `geo_shape`, and range fields
 
-We've optimized indexing speeds for multi-dimensional points, an
-internal data structure used for `geo_point`, `geo_shape`, and range fields.
-Our benchmarks reported 10-15% faster indexing for these fields types. {es}
-indices and data streams that mostly consist of these fields may see noticeable
+We've optimized indexing speeds for multi-dimensional points, an internal data
+structure used for `geo_point`, `geo_shape`, and range fields. Lucene-level
+benchmarks reported 10-15% faster indexing for these fields types. {es} indices
+and data streams that mostly consist of these fields may see noticeable
 improvements to indexing speed.
 
 // end::notable-highlights[]

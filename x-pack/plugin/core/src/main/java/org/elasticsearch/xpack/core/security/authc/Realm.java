@@ -157,7 +157,7 @@ public abstract class Realm implements Comparable<Realm> {
     public RealmRef realmRef() {
         RealmRef realmRef = this.realmRef.get();
         if (realmRef == null) {
-            throw new IllegalStateException("Realm not initialized");
+            throw new IllegalStateException("Realm [" + this + "] not fully configured");
         }
         assert domainName() == null || (realmRef.getDomain() != null && domainName().equals(realmRef.getDomain().name()));
         return realmRef;
@@ -173,11 +173,19 @@ public abstract class Realm implements Comparable<Realm> {
     }
 
     /**
-     * This allows realms to be aware of what other realms are configured
+     * This allows realms to be aware of what other realms are configured.
+     * All realms are completely configured (see {{@link #configure(Iterable, XPackLicenseState)}}) when this is invoked.
      *
      * @see DelegatedAuthorizationSettings
      */
-    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
+    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {}
+
+    /**
+     * This finishes the realm's configuration, in the cases where configuration needs to account for the other realms as well.
+     * This runs before {{@link #initialize(Iterable, XPackLicenseState)}}.
+     * WARNING The other realms might/might not be completely configured when this is invoked.
+     */
+    public void configure(Iterable<Realm> realms, XPackLicenseState licenseState) {
         final String nodeName = Node.NODE_NAME_SETTING.get(config.settings());
         if (null == domainName()) {
             this.realmRef.set(new RealmRef(config.name(), config.type(), nodeName, null));

@@ -275,7 +275,6 @@ public final class SamlRealm extends Realm implements Releasable {
 
     @Override
     public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
-        super.initialize(realms, licenseState);
         if (delegatedRealms != null) {
             throw new IllegalStateException("Realm has already been initialized");
         }

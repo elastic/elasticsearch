@@ -134,6 +134,7 @@ public class JwtRealmTests extends JwtTestCase {
 
         final int realmCount = randomIntBetween(authcRealmsRange.v1(), authcRealmsRange.v2());
         final List<Realm> allRealms = new ArrayList<>();
+        final List<JwtRealm> jwtRealms = new ArrayList<>();
         try {
             // Create JWT authc realms and mocked authz realms. Initialize each JWT realm, and test ensureInitialized() before and after.
             for (int i = 0; i < realmCount; i++) {
@@ -148,16 +149,13 @@ public class JwtRealmTests extends JwtTestCase {
                 // verify exception before initialization
                 final Exception exception = expectThrows(IllegalStateException.class, jwtRealm::ensureInitialized);
                 assertThat(exception.getMessage(), equalTo("Realm has not been initialized"));
+                jwtRealms.add(jwtRealm);
             }
             allRealms.forEach(r -> r.initialize(allRealms, this.licenseState));
-            allRealms.forEach(r -> {
-                if (r instanceof JwtRealm j) {
-                    j.ensureInitialized();
-                }
-            });
+            jwtRealms.forEach(JwtRealm::ensureInitialized);
 
             // Select one of the JWT authc Realms.
-            final JwtRealm jwtRealm = (JwtRealm) randomFrom(allRealms.stream().filter(e -> e instanceof JwtRealm).toList());
+            final JwtRealm jwtRealm = randomFrom(jwtRealms);
             LOGGER.info(
                 "REALM["
                     + jwtRealm.name()
@@ -200,6 +198,8 @@ public class JwtRealmTests extends JwtTestCase {
                 final String allowedSignatureAlgorithm = jwtRealm.allowedSignatureAlgorithms.get(indexOfJwkAndJwsAlgorithm);
                 final String jwkDesc = jwk.getKeyType() + "/" + jwk.size();
                 LOGGER.info("RUN[" + authcRun + "/" + authcRepeats + "]: jwk=[" + jwkDesc + "], alg=[" + allowedSignatureAlgorithm + "].");
+
+                // Generate different JWTs for the selected user. Use a different JWK/alg and iat each time.
                 final JWSSigner jwsSigner = JwtUtil.createJwsSigner(jwk);
                 final Tuple<JWSHeader, JWTClaimsSet> jwsHeaderAndJwtClaimsSet = JwtUtilTests.randomValidJwsHeaderAndJwtClaimsSet(
                     allowedSignatureAlgorithm,
@@ -209,20 +209,16 @@ public class JwtRealmTests extends JwtTestCase {
                     expectedUser.principal(),
                     jwtRealm.claimParserGroups.getClaimName(),
                     List.of(expectedUser.roles()),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
+                    Map.of("metadata", randomAlphaOfLength(10))
                 );
                 final SignedJWT signedJWT = JwtUtil.signSignedJwt(jwsSigner, jwsHeaderAndJwtClaimsSet.v1(), jwsHeaderAndJwtClaimsSet.v2());
                 final JWSVerifier jwkVerifier = JwtUtil.createJwsVerifier(jwk);
                 assertThat(JwtUtil.verifySignedJWT(jwkVerifier, signedJWT), is(equalTo(true)));
+
+                // Create request with headers set
                 final SecureString headerJwt = new SecureString(signedJWT.serialize().toCharArray());
                 final SecureString headerSecret = jwtRealm.clientAuthorizationSharedSecret;
                 LOGGER.info("HEADERS: jwt=[" + headerJwt + "], secret=[" + headerSecret + "].");
-
                 final ThreadContext requestThreadContext = new ThreadContext(this.globalSettings);
                 requestThreadContext.putHeader(
                     JwtRealmSettings.HEADER_END_USER_AUTHORIZATION,
@@ -349,10 +345,9 @@ public class JwtRealmTests extends JwtTestCase {
             }
             LOGGER.info("Test succeeded");
         } finally {
-            for (final Realm realm : allRealms) {
-                if (realm instanceof JwtRealm jwtRealm) {
-                    jwtRealm.close();
-                }
+            for (final JwtRealm jwtRealm : jwtRealms) {
+                LOGGER.info("Closing realm [" + jwtRealm.name() + "].");
+                jwtRealm.close();
             }
         }
     }

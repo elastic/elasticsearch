@@ -185,7 +185,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         // If set, get contents of URL or file. If set, throw SettingsException if there was a problem.
         final byte[] jwkSetContentsPkc;
-        final URI jwkSetPathPkcUri = JwtUtil.parseUriNoException(this.jwkSetPath);
+        final URI jwkSetPathPkcUri = JwtUtil.parseHttpsUriNoException(this.jwkSetPath);
         if (jwkSetPathPkcUri == null) {
             this.httpClient = null;
             jwkSetContentsPkc = JwtUtil.readFileContents(
@@ -195,7 +195,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             );
         } else {
             this.httpClient = JwtUtil.createHttpClient(realmConfig, sslService);
-            jwkSetContentsPkc = JwtUtil.readUrlContents(
+            jwkSetContentsPkc = JwtUtil.readUriContents(
                 RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.JWKSET_PKC_PATH),
                 jwkSetPathPkcUri,
                 this.httpClient

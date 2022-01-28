@@ -337,27 +337,43 @@ public class JwtUtil {
         return new Tuple<>(jwkSetHmac, jwkSetPkc);
     }
 
-    public static byte[] readUrlContents(
+    public static boolean isHttpsScheme(final URI uri) {
+        return (uri != null) && "https".equalsIgnoreCase(uri.getScheme()); // equalsIgnoreCase handles null
+    }
+
+    public static URI parseHttpsUriNoException(final String uriString) {
+        try {
+            final URI uriObj = new URI(uriString);
+            if (JwtUtil.isHttpsScheme(uriObj)) {
+                return uriObj;
+            }
+            LOGGER.trace("Invalid scheme for URI [" + uriString + "]. Only HTTPS is supported.");
+        } catch (Exception e) {
+            LOGGER.trace("Invalid URI [" + uriString + "]", e);
+        }
+        return null;
+    }
+
+    public static byte[] readUriContents(
         final String jwkSetConfigKeyPkc,
         final URI jwkSetPathPkcUri,
         final CloseableHttpAsyncClient httpClient
     ) throws SettingsException {
-        if ((jwkSetPathPkcUri == null) || (Strings.hasText(jwkSetPathPkcUri.toString()) == false)) {
-            return null;
-        }
         try {
-            if (jwkSetPathPkcUri.getScheme().equalsIgnoreCase("https") == false) {
-                throw new SettingsException("URI [" + jwkSetPathPkcUri + "] not allowed. Only HTTPS is supported.");
+            if (JwtUtil.isHttpsScheme(jwkSetPathPkcUri)) {
+                return JwtUtil.readBytes(httpClient, jwkSetPathPkcUri, Integer.MAX_VALUE);
             }
-            return JwtUtil.readBytes(httpClient, jwkSetPathPkcUri, Integer.MAX_VALUE);
+            throw new SettingsException("Invalid scheme for URI [" + jwkSetPathPkcUri + "]. Only HTTPS is supported.");
         } catch (SettingsException e) {
             throw e; // rethrow
         } catch (Exception e) {
-            throw new SettingsException(
-                "Failed to read contents for setting [" + jwkSetConfigKeyPkc + "] value [" + jwkSetPathPkcUri + "].",
-                e
-            );
+            throw new SettingsException("Can't get contents for setting [" + jwkSetConfigKeyPkc + "] value [" + jwkSetPathPkcUri + "].", e);
         }
+    }
+
+    public static Path resolvePath(final Environment environment, final String jwkSetPath) {
+        final Path directoryPath = environment.configFile();
+        return directoryPath.resolve(jwkSetPath);
     }
 
     public static byte[] readFileContents(final String jwkSetConfigKeyPkc, final String jwkSetPathPkc, final Environment environment)
@@ -511,19 +527,6 @@ public class JwtUtil {
 
     public static List<String> filter(final List<String> input, final List<String> filter) {
         return filter.stream().filter(input::contains).collect(Collectors.toList());
-    }
-
-    public static URI parseUriNoException(final String uri) {
-        try {
-            return new URI(uri);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    public static Path resolvePath(final Environment environment, final String jwkSetPath) {
-        final Path directoryPath = environment.configFile();
-        return directoryPath.resolve(jwkSetPath);
     }
 
     public static void validateJwtAuthTime(final long allowedClockSkewSeconds, final Date now, final Date auth_time) throws Exception {

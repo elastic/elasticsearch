@@ -21,11 +21,14 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class JwtUtilTests extends JwtTestCase {
 
@@ -60,21 +63,13 @@ public class JwtUtilTests extends JwtTestCase {
     }
 
     public void testCheckIfJavaDisabledES256K() throws Exception {
-        if (inFipsJvm()) {
-            // Expect ES256K to succeed because it is not deprecated in BC-FIPS yet
-            assertThat(this.helpTestSignatureAlgorithm(JWSAlgorithm.ES256K), is(true));
-        } else {
-            // Expect ES256K to fail because it is deprecated and disabled by default in Java 11.0.9/11.0.10 and 17
-            final Exception exception = expectThrows(JOSEException.class, () -> this.helpTestSignatureAlgorithm(JWSAlgorithm.ES256K));
-            // assertThat(exception.getMessage(), is(equalTo("Curve not supported: secp256k1 (1.3.132.0.10)")));
-            String actual = exception.getMessage();
-            String expected = "Unsupported signature algorithm ["
-                + JWSAlgorithm.ES256K
-                + "]. Supported signature algorithms are "
-                + JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS
-                + ".";
-            assertThat(actual, is(equalTo(expected)));
-        }
+        final Exception exception = expectThrows(JOSEException.class, () -> this.helpTestSignatureAlgorithm(JWSAlgorithm.ES256K));
+        String expected = "Unsupported signature algorithm ["
+            + JWSAlgorithm.ES256K
+            + "]. Supported signature algorithms are "
+            + JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS
+            + ".";
+        assertThat(exception.getMessage(), is(equalTo(expected)));
     }
 
     // All JWSAlgorithm values in Family.HMAC_SHA, Family.RSA, and Family.EC (except ES256K, handled separately)
@@ -177,6 +172,9 @@ public class JwtUtilTests extends JwtTestCase {
         final JWKSet jwkSetPkc = new JWKSet(jwksPkc);
         final String contentsPkc = JwtUtil.serializeJwkSet(jwkSetPkc, true);
 
+        final List<String> algorithmsBoth = new ArrayList<>(algorithmsHmac);
+        algorithmsBoth.addAll(algorithmsPkc);
+
         // If HMAC JWKSet and algorithms are present, verify they are accepted
         JwtUtil.validateJwkSets(
             JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS.getKey(),
@@ -189,7 +187,7 @@ public class JwtUtilTests extends JwtTestCase {
         // If RSA/EC JWKSet and algorithms are present, verify they are accepted
         JwtUtil.validateJwkSets(
             JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS.getKey(),
-            algorithmsHmac,
+            algorithmsPkc,
             JwtRealmSettings.JWKSET_HMAC_CONTENTS.getKey(),
             null,
             JwtRealmSettings.JWKSET_PKC_PATH.getKey(),
@@ -198,11 +196,51 @@ public class JwtUtilTests extends JwtTestCase {
         // If both valid credentials present and both algorithms present, verify they are accepted
         JwtUtil.validateJwkSets(
             JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS.getKey(),
-            algorithmsHmac,
+            algorithmsBoth,
             JwtRealmSettings.JWKSET_HMAC_CONTENTS.getKey(),
             contentsHmac,
             JwtRealmSettings.JWKSET_PKC_PATH.getKey(),
             contentsPkc
         );
+    }
+
+    public void testParseHttpsUri() {
+        // Invalid null or empty values should be rejected
+        assertThat(JwtUtil.parseHttpsUriNoException(null), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException(""), is(nullValue()));
+        // Valid Windows local file paths should be rejected
+        assertThat(JwtUtil.parseHttpsUriNoException("C:"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("C:/"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("C:/jwkset.json"), is(nullValue()));
+        // Valid Linux local file paths should be rejected
+        assertThat(JwtUtil.parseHttpsUriNoException("/"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("/tmp"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("/tmp/"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("/tmp/jwkset.json"), is(nullValue()));
+        // Malformed URIs should be rejected
+        assertThat(JwtUtil.parseHttpsUriNoException("http"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("http:"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("http://"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("https"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("https:"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("https://"), is(nullValue()));
+        // Valid HTTP URIs should be rejected
+        assertThat(JwtUtil.parseHttpsUriNoException("http:/"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("http://example.com"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("http://example.com:443"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("http://example.com:8443"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("http://example.com/"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("http://example.com:443/"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("http://example.com:8443/"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("http://example.com:8443/jwkset.json"), is(nullValue()));
+        // Valid HTTPS URIs should be accepted
+        assertThat(JwtUtil.parseHttpsUriNoException("https:/"), is(notNullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("https://example.com"), is(notNullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("https://example.com:443"), is(notNullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("https://example.com:8443"), is(notNullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("https://example.com/"), is(notNullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("https://example.com:443/"), is(notNullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("https://example.com:8443/"), is(notNullValue()));
+        assertThat(JwtUtil.parseHttpsUriNoException("https://example.com:8443/jwkset.json"), is(notNullValue()));
     }
 }

@@ -382,12 +382,6 @@ public abstract class JwtTestCase extends ESTestCase {
         final String principal = "principal1";
         final String claimGroups = randomBoolean() ? null : randomFrom("groups", "roles", "other");
         final List<String> groups = randomFrom(List.of(""), List.of("grp1"), List.of("rol1", "rol2", "rol3"), List.of("per1"));
-        final String claimDn = randomBoolean() ? null : randomFrom("dn", "distinguishedName", "subjectDn");
-        final String dn = randomFrom("cn=Something,serial=123,DC=example.com", "uid=987,DC=example.com");
-        final String claimFullName = randomBoolean() ? null : randomFrom("name", "fullName");
-        final String fullName = randomFrom("John Doe", "Jane Doe");
-        final String claimEmail = randomBoolean() ? null : randomFrom("mail", "email");
-        final String email = randomFrom("John.Doe@example.com", "Jane.Doe@example.com");
         final Tuple<JWSHeader, JWTClaimsSet> headerAndBody = randomValidJwsHeaderAndJwtClaimsSet(
             signatureAlgorithm,
             issuer,
@@ -396,12 +390,7 @@ public abstract class JwtTestCase extends ESTestCase {
             principal,
             claimGroups,
             groups,
-            claimDn,
-            dn,
-            claimFullName,
-            fullName,
-            claimEmail,
-            email
+            Map.of("metadata", randomAlphaOfLength(10))
         );
         return JwtUtil.signSignedJwt(jwsSigner, headerAndBody.v1(), headerAndBody.v2());
     }
@@ -414,12 +403,7 @@ public abstract class JwtTestCase extends ESTestCase {
         final String principalClaimValue,
         final String groupsClaimName,
         final List<String> groupsClaimValue,
-        final String dnClaimName,
-        final String dnClaimValue,
-        final String fullNameClaimName,
-        final String fullNameClaimValue,
-        final String emailClaimName,
-        final String emailClaimValue
+        final Map<String, Object> otherClaims
     ) {
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         final JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.parse(signatureAlgorithm)).build();
@@ -439,14 +423,10 @@ public abstract class JwtTestCase extends ESTestCase {
         if ((Strings.hasText(groupsClaimName)) && (groupsClaimValue != null)) {
             jwtClaimsSetBuilder.claim(groupsClaimName, groupsClaimValue.toString());
         }
-        if ((Strings.hasText(dnClaimName)) && (dnClaimValue != null)) {
-            jwtClaimsSetBuilder.claim(dnClaimName, dnClaimValue);
-        }
-        if ((Strings.hasText(fullNameClaimName)) && (fullNameClaimValue != null)) {
-            jwtClaimsSetBuilder.claim(fullNameClaimName, fullNameClaimValue);
-        }
-        if ((Strings.hasText(emailClaimName)) && (emailClaimValue != null)) {
-            jwtClaimsSetBuilder.claim(emailClaimName, emailClaimValue);
+        if (otherClaims != null) {
+            for (final Map.Entry<String, Object> entry : otherClaims.entrySet()) {
+                jwtClaimsSetBuilder.claim(entry.getKey(), entry.getValue());
+            }
         }
         final JWTClaimsSet jwtClaimsSet = jwtClaimsSetBuilder.build();
         LOGGER.info(
@@ -478,6 +458,8 @@ public abstract class JwtTestCase extends ESTestCase {
                 + jwtClaimsSet.getJWTID()
                 + "], nonce=["
                 + jwtClaimsSet.getClaim("nonce")
+                + "], other=["
+                + otherClaims
                 + "]"
         );
         return new Tuple<>(jwtHeader, jwtClaimsSet);

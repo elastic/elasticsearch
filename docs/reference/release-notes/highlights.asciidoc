@@ -31,8 +31,8 @@ indices for every new segment.
 [discrete]
 === Faster indexing of `geo_point`, `geo_shape`, and range fields
 
-Some optimizations have been made to indexing of multi-dimensional points,
-which are used by `geo_point` fields, `geo_shape` fields and range fields.
+We've optimized indexing speeds for multi-dimensional points, an
+internal data structure used for `geo_point`, `geo_shape`, and range fields.
 Lucene-level benchmarks reported 10-15% faster indexing, so Elasticsearch
 indices and data streams that mostly consist of these field types may observe a
 non-negligible indexing speedup.

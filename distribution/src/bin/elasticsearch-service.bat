@@ -17,7 +17,7 @@ echo elasticsearch-service-x64.exe was not found...
 exit /B 1
 
 :okExe
-set ES_VERSION=@project.version@
+set ES_VERSION=7.16.2
 
 if "%SERVICE_LOG_DIR%" == "" set SERVICE_LOG_DIR=%ES_HOME%\logs
 
@@ -142,8 +142,11 @@ if "%ES_JAVA_OPTS:~-1%"==";" set ES_JAVA_OPTS=%ES_JAVA_OPTS:~0,-1%
 echo %ES_JAVA_OPTS%
 
 @setlocal EnableDelayedExpansion
-for %%a in ("%ES_JAVA_OPTS:;=","%") do (
-  set var=%%a
+set loop_ES_JAVA_OPTS=%ES_JAVA_OPTS%
+:loop
+for /F "tokens=1* delims=;" %%a in ("%loop_ES_JAVA_OPTS%") do (
+  set var="%%a"
+  set loop_ES_JAVA_OPTS=%%b
   set other_opt=true
   if "!var:~1,4!" == "-Xms" (
     set XMS=!var:~5,-1!
@@ -177,6 +180,7 @@ for %%a in ("%ES_JAVA_OPTS:;=","%") do (
   )
   if "!other_opt!" == "true" set OTHER_JAVA_OPTS=!OTHER_JAVA_OPTS!;!var!
 )
+if defined loop_ES_JAVA_OPTS goto :loop
 @endlocal & set JVM_MS=%JVM_MS% & set JVM_MX=%JVM_MX% & set JVM_SS=%JVM_SS% & set OTHER_JAVA_OPTS=%OTHER_JAVA_OPTS%
 
 if "%JVM_MS%" == "" (

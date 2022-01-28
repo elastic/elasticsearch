@@ -13,14 +13,17 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -40,7 +43,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        CloseIndexRequest closeIndexRequest = CloseIndexRequest.fromRestRequest(request);
+        CloseIndexRequest closeIndexRequest = fromRequest(request);
         closeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", closeIndexRequest.masterNodeTimeout()));
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
@@ -63,6 +66,36 @@ public class RestCloseIndexAction extends BaseRestHandler {
             closeIndexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
         return channel -> client.admin().indices().close(closeIndexRequest, new RestToXContentListener<>(channel));
+    }
+
+    private CloseIndexRequest fromRequest(RestRequest request) throws IOException {
+        restRequestValidation(request);
+
+        String[] indices = request.hasParam("index") ? Strings.splitStringByCommaToArray(request.param("index")) : fromBody(request);
+
+        return new CloseIndexRequest(indices);
+    }
+
+    private String[] fromBody(RestRequest request) throws IOException {
+        Map<String, Object> map = request.contentParser().map();
+        return XContentMapValues.nodeStringArrayValue(map.get("index"));
+    }
+
+    private void restRequestValidation(RestRequest request) throws IOException {
+        boolean hasPathIndex = request.hasParam("index");
+        boolean hasContent = request.hasContent();
+
+        if (hasPathIndex == false && hasContent == false) {
+            throw new IllegalArgumentException("_close should contain [index]. Specify it either in the path or in the body");
+        }
+
+        if (hasPathIndex && hasContent) {
+            throw new IllegalArgumentException("[index] specified both in path and in body. Specify it only once.");
+        }
+
+        if (hasContent && request.contentParser().map().containsKey("index") == false) {
+            throw new IllegalArgumentException("[index] not specified in the body.");
+        }
     }
 
 }

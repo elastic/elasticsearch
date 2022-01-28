@@ -11,54 +11,13 @@ package org.elasticsearch.action.admin.indices.close;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 public class CloseIndexRequestTests extends ESTestCase {
-
-    public void testIndexPath() throws IOException {
-        Map<String, String> params = new HashMap<>();
-        params.put("index", "index01");
-
-        RestRequest restRequest = fakeRestRequest("", params, new HashMap<>());
-        CloseIndexRequest closeIndexRequest = CloseIndexRequest.fromRestRequest(restRequest);
-
-        assertArrayEquals(new String[] { "index01" }, closeIndexRequest.indices());
-    }
-
-    public void testIndicesBody() throws IOException {
-        String context = "{\"indices\":[\"index02\",\"index03\"]}";
-        Map<String, List<String>> headers = new HashMap<>();
-        headers.put("Content-Type", List.of("application/json"));
-        RestRequest restRequest = fakeRestRequest(context, new HashMap<>(), headers);
-
-        CloseIndexRequest closeIndexRequest = CloseIndexRequest.fromRestRequest(restRequest);
-
-        assertArrayEquals(new String[] { "index02", "index03" }, closeIndexRequest.indices());
-    }
-
-    public void testIndicesAbsentBody() {
-        String context = "{\"wrong\":[\"index02\",\"index03\"]}";
-        Map<String, List<String>> headers = new HashMap<>();
-        headers.put("Content-Type", List.of("application/json"));
-        RestRequest restRequest = fakeRestRequest(context, new HashMap<>(), headers);
-
-        Exception e = expectThrows(IllegalArgumentException.class, () -> CloseIndexRequest.fromRestRequest(restRequest));
-
-        assertEquals("_close should contain [indices] as an index string array. Specify it in the body.", e.getMessage());
-    }
 
     public void testSerialization() throws Exception {
         final CloseIndexRequest request = randomRequest();
@@ -170,14 +129,4 @@ public class CloseIndexRequestTests extends ESTestCase {
         }
         return request;
     }
-
-    private static RestRequest fakeRestRequest(String content, Map<String, String> params, Map<String, List<String>> headers) {
-        FakeRestRequest.Builder builder = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY);
-        builder.withHeaders(headers);
-        builder.withContent(new BytesArray(content), null);
-        builder.withParams(params);
-
-        return builder.build();
-    }
-
 }

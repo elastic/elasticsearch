@@ -210,7 +210,8 @@ public class XContentFieldFilterTests extends AbstractFilteringTestCase {
         testFilter(actual, actual, emptySet(), singleton("nonExistingField"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/FasterXML/jackson-core/pull/729")
+    // wait for PR https://github.com/FasterXML/jackson-core/pull/729 to be introduced
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
     public void testNotOmittingObjectsWithExcludedProperties() throws IOException {
         Builder actual = builder -> builder.startObject().startObject("obj").field("f1", "f2").endObject().endObject();
         Builder expected = builder -> builder.startObject().startObject("obj").endObject().endObject();
@@ -287,7 +288,8 @@ public class XContentFieldFilterTests extends AbstractFilteringTestCase {
         testFilter(expected, actual, emptySet(), singleton("foobar"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/FasterXML/jackson-core/pull/729")
+    // wait for PR https://github.com/FasterXML/jackson-core/pull/729 to be introduced
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
     public void testArraySubFieldExclusion() throws IOException {
         Builder actual = builder -> builder.startObject()
             .field("field", "value")
@@ -301,7 +303,8 @@ public class XContentFieldFilterTests extends AbstractFilteringTestCase {
         testFilter(expected, actual, emptySet(), singleton("array.exclude"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/FasterXML/jackson-core/pull/729")
+    // wait for PR https://github.com/FasterXML/jackson-core/pull/729 to be introduced
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
     public void testEmptyArraySubFieldsExclusion() throws IOException {
         Builder actual = builder -> builder.startObject().field("field", "value").startArray("array").endArray().endObject();
         testFilter(actual, actual, emptySet(), singleton("array.exclude"));

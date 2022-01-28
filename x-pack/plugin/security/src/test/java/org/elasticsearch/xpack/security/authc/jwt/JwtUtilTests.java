@@ -246,7 +246,7 @@ public class JwtUtilTests extends JwtTestCase {
     }
 
     public void testComputeBitLengthRsa() throws Exception {
-        for (int i=0; i<5; i++) {
+        for (int i = 0; i < 5; i++) {
             for (final String signatureAlgorithmRsa : JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA) {
                 final JWK jwk = JwtTestCase.randomJwk(JWSAlgorithm.parse(signatureAlgorithmRsa));
                 final int minLength = JwtUtil.computeBitLengthRsa(jwk.toRSAKey().toPublicKey());

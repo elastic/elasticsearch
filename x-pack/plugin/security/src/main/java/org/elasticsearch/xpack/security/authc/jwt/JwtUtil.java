@@ -788,7 +788,7 @@ public class JwtUtil {
      * @param sslService Realm config for SSL.
      * @return Initialized HTTPS client.
      */
-    @SuppressWarnings({"removal"})
+    @SuppressWarnings({ "removal" })
     public static CloseableHttpAsyncClient createHttpClient(final RealmConfig realmConfig, final SSLService sslService) {
         try {
             SpecialPermission.check();
@@ -848,7 +848,7 @@ public class JwtUtil {
      * @return Byte array of the URI contents up to N max bytes.
      * @throws Exception Security exception or HTTP/HTTPS failure exception.
      */
-    @SuppressWarnings({"removal","unusedThrown"})
+    @SuppressWarnings({ "removal", "unusedThrown" })
     public static byte[] readBytes(final CloseableHttpAsyncClient httpClient, final URI uri, final int maxBytes) throws Exception {
         final PlainActionFuture<byte[]> plainActionFuture = PlainActionFuture.newFuture();
         try {

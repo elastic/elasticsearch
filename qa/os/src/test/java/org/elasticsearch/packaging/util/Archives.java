@@ -232,27 +232,6 @@ public class Archives {
             .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
-    public static String waitForAutoConfigurationOutput(Shell.Result result) throws Exception {
-        int retries = 60;
-        while (retries > 0) {
-            retries -= 1;
-            // If this is printed, then we have both elastic password and kibana token already
-            if (result.stdout().contains("valid for the next 30 minutes")) {
-                return result.stdout();
-            }
-
-            try {
-                Thread.sleep(2000);
-                logger.info("DEBUG OUTPUT"+retries +" : ");
-                logger.info(result.stdout());
-            } catch (InterruptedException interrupted) {
-                Thread.currentThread().interrupt();
-                return null;
-            }
-        }
-        return null;
-    }
-
     public static Shell.Result startElasticsearchWithTty(
         Installation installation,
         Shell sh,

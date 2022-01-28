@@ -1234,6 +1234,10 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, s -> Integer.toString(defaultValue.id), s -> Version.fromId(Integer.parseInt(s)), properties);
     }
 
+    public static Setting<Version> versionSetting(final String key, Setting<Version> fallbackSetting, Property... properties) {
+        return new Setting<>(key, fallbackSetting, s -> Version.fromId(Integer.parseInt(s)), properties);
+    }
+
     public static Setting<Float> floatSetting(String key, float defaultValue, Property... properties) {
         return new Setting<>(key, (s) -> Float.toString(defaultValue), Float::parseFloat, properties);
     }

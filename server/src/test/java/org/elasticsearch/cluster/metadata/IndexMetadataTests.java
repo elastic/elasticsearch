@@ -116,6 +116,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getNumberOfReplicas(), fromXContentMeta.getNumberOfReplicas());
         assertEquals(metadata.getNumberOfShards(), fromXContentMeta.getNumberOfShards());
         assertEquals(metadata.getCreationVersion(), fromXContentMeta.getCreationVersion());
+        assertEquals(metadata.getCurrentVersion(), fromXContentMeta.getCurrentVersion());
         assertEquals(metadata.getRoutingNumShards(), fromXContentMeta.getRoutingNumShards());
         assertEquals(metadata.getCreationDate(), fromXContentMeta.getCreationDate());
         assertEquals(metadata.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
@@ -137,6 +138,7 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata.getNumberOfReplicas(), deserialized.getNumberOfReplicas());
             assertEquals(metadata.getNumberOfShards(), deserialized.getNumberOfShards());
             assertEquals(metadata.getCreationVersion(), deserialized.getCreationVersion());
+            assertEquals(metadata.getCurrentVersion(), deserialized.getCurrentVersion());
             assertEquals(metadata.getRoutingNumShards(), deserialized.getRoutingNumShards());
             assertEquals(metadata.getCreationDate(), deserialized.getCreationDate());
             assertEquals(metadata.getRoutingFactor(), deserialized.getRoutingFactor());

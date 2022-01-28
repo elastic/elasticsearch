@@ -120,24 +120,24 @@ public class LocalAllocateDangledIndices {
                     boolean importNeeded = false;
                     StringBuilder sb = new StringBuilder();
                     for (IndexMetadata indexMetadata : request.indices) {
-                        if (indexMetadata.getCreationVersion().before(minIndexCompatibilityVersion)) {
+                        if (indexMetadata.getCurrentVersion().before(minIndexCompatibilityVersion)) {
                             logger.warn(
-                                "ignoring dangled index [{}] on node [{}] since it's created version [{}] is not supported by at "
+                                "ignoring dangled index [{}] on node [{}] since it's current version [{}] is not supported by at "
                                     + "least one node in the cluster minVersion [{}]",
                                 indexMetadata.getIndex(),
                                 request.fromNode,
-                                indexMetadata.getCreationVersion(),
+                                indexMetadata.getCurrentVersion(),
                                 minIndexCompatibilityVersion
                             );
                             continue;
                         }
-                        if (currentState.nodes().getMinNodeVersion().before(indexMetadata.getCreationVersion())) {
+                        if (currentState.nodes().getMinNodeVersion().before(indexMetadata.getCurrentVersion())) {
                             logger.warn(
                                 "ignoring dangled index [{}] on node [{}]"
-                                    + " since its created version [{}] is later than the oldest versioned node in the cluster [{}]",
+                                    + " since its current version [{}] is later than the oldest versioned node in the cluster [{}]",
                                 indexMetadata.getIndex(),
                                 request.fromNode,
-                                indexMetadata.getCreationVersion(),
+                                indexMetadata.getCurrentVersion(),
                                 currentState.getNodes().getMasterNode().getVersion()
                             );
                             continue;

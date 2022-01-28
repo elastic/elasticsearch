@@ -1462,6 +1462,7 @@ public class MetadataCreateIndexService {
         }
 
         indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, sourceMetadata.getCreationVersion())
+            .put(IndexMetadata.SETTING_VERSION_CURRENT, sourceMetadata.getCurrentVersion())
             .put(builder.build())
             .put(IndexMetadata.SETTING_ROUTING_PARTITION_SIZE, sourceMetadata.getRoutingPartitionSize())
             .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME.getKey(), resizeSourceIndex.getName())

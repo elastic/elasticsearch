@@ -130,13 +130,13 @@ public abstract class RangeAggregator extends BucketsAggregator {
             final String fromAsStr,
             final Double to,
             final String toAsStr,
-            final DoubleUnaryOperator op
+            final DoubleUnaryOperator fixPrecision
         ) {
             this.key = key;
-            this.from = from == null ? Double.NEGATIVE_INFINITY : op.applyAsDouble(from);
+            this.from = from == null ? Double.NEGATIVE_INFINITY : fixPrecision.applyAsDouble(from);
             this.originalFrom = from == null ? Double.NEGATIVE_INFINITY : from;
             this.fromAsStr = fromAsStr;
-            this.to = to == null ? Double.POSITIVE_INFINITY : op.applyAsDouble(to);
+            this.to = to == null ? Double.POSITIVE_INFINITY : fixPrecision.applyAsDouble(to);
             this.originalTo = to == null ? Double.POSITIVE_INFINITY : to;
             this.toAsStr = toAsStr;
         }

@@ -34,7 +34,7 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
     private static final ParseField PROCESSORS_FIELD = new ParseField("processors");
     private static final ParseField MEMORY_FIELD = new ParseField("memory");
     private static final ParseField STORAGE_FIELD = new ParseField("storage");
-    private static final ParseField VERSION_FIELD = new ParseField("version");
+    private static final ParseField VERSION_FIELD = new ParseField("node_version");
 
     public static final ConstructingObjectParser<DesiredNode, String> PARSER = new ConstructingObjectParser<>(
         "desired_node",

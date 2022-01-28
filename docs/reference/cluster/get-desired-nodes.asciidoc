@@ -28,7 +28,7 @@ PUT /_internal/desired_nodes/my_history/1
             "processors" : 8,
             "memory" : "59gb",
             "storage" : "1700gb",
-            "version" : "8.1.0"
+            "node_version" : "8.1.0"
         }
     ]
 }
@@ -80,7 +80,7 @@ The API returns the following result:
             "processors": <node_processors>,
             "memory": "<node_memory>",
             "storage": "<node_storage>",
-            "version": "<node_version>"
+            "node_version": "<node_version>"
         }
     ]
 }

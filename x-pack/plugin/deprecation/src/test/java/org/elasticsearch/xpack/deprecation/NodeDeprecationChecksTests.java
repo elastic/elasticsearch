@@ -2036,7 +2036,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Settings settings = Settings.builder().put("xpack.monitoring.exporters.test.use_ingest", true).build();
 
         List<DeprecationIssue> issues = Collections.singletonList(
-            NodeDeprecationChecks.checkExporterUseIngestPipelineSettings(settings, null, null, null)
+            NodeDeprecationChecks.checkExporterUseIngestPipelineSettings(settings, null, ClusterState.EMPTY_STATE, null)
         );
 
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-use-ingest-setting";
@@ -2061,7 +2061,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .build();
 
         List<DeprecationIssue> issues = Collections.singletonList(
-            NodeDeprecationChecks.checkExporterPipelineMasterTimeoutSetting(settings, null, null, null)
+            NodeDeprecationChecks.checkExporterPipelineMasterTimeoutSetting(settings, null, ClusterState.EMPTY_STATE, null)
         );
 
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-pipeline-timeout-setting";
@@ -2085,7 +2085,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Settings settings = Settings.builder().put("xpack.monitoring.exporters.test.index.template.create_legacy_templates", true).build();
 
         List<DeprecationIssue> issues = Collections.singletonList(
-            NodeDeprecationChecks.checkExporterCreateLegacyTemplateSetting(settings, null, null, null)
+            NodeDeprecationChecks.checkExporterCreateLegacyTemplateSetting(settings, null, ClusterState.EMPTY_STATE, null)
         );
 
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting";

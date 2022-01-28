@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -73,7 +74,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 issueListMap.computeIfAbsent(issue, (key) -> new ArrayList<>()).add(resp.getNode().getName());
             }
         }
-
+//TODO: if some nodes have a setting in elasticsearch.yml and some don't, don't set canBeFixedByRemovingDynamicSetting to true
         return issueListMap.entrySet().stream().map(entry -> {
             DeprecationIssue issue = entry.getKey();
             String details = issue.getDetails() != null ? issue.getDetails() + " " : "";
@@ -83,7 +84,9 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 issue.getUrl(),
                 details + "(nodes impacted: " + entry.getValue() + ")",
                 issue.isResolveDuringRollingUpgrade(),
-                issue.getMeta()
+                issue.getMeta(),
+                issue.canBeFixedByRemovingDynamicSetting(),
+                issue.getSettingNames()
             );
         }).collect(Collectors.toList());
     }
@@ -165,12 +168,22 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            String[] autoRemovableSettings = Stream.concat(clusterSettingsIssues.stream(), nodeSettingsIssues.stream())
+                .filter(deprecationIssue -> deprecationIssue.canBeFixedByRemovingDynamicSetting())
+                .map(deprecationIssue -> deprecationIssue.getSettingNames()).flatMap(List::stream).toArray(String[]::new);
             return builder.startObject()
                 .array("cluster_settings", clusterSettingsIssues.toArray())
                 .array("node_settings", nodeSettingsIssues.toArray())
                 .field("index_settings")
                 .map(indexSettingsIssues)
                 .mapContents(pluginSettingsIssues)
+                .startObject("_meta")
+                    .startObject("actions")
+                        .startObject("remove_settings")
+                            .array("settings", autoRemovableSettings)
+                        .endObject()
+                    .endObject()
+                .endObject()
                 .endObject();
         }
 

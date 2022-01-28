@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -65,6 +66,8 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
     private final String details;
     private final boolean resolveDuringRollingUpgrade;
     private final Map<String, Object> meta;
+    private final boolean canBeFixedByRemovingDynamicSetting;
+    private final List<String> settingNames;
 
     public DeprecationIssue(
         Level level,
@@ -74,12 +77,27 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         boolean resolveDuringRollingUpgrade,
         @Nullable Map<String, Object> meta
     ) {
+        this(level, message, url, details, resolveDuringRollingUpgrade, meta, false, null);
+    }
+
+    public DeprecationIssue(
+        Level level,
+        String message,
+        String url,
+        @Nullable String details,
+        boolean resolveDuringRollingUpgrade,
+        @Nullable Map<String, Object> meta,
+        boolean canBeFixedByRemovingDynamicSetting,
+        @Nullable List<String> settingNames
+    ) {
         this.level = level;
         this.message = message;
         this.url = url;
         this.details = details;
         this.resolveDuringRollingUpgrade = resolveDuringRollingUpgrade;
         this.meta = meta;
+        this.canBeFixedByRemovingDynamicSetting = canBeFixedByRemovingDynamicSetting;
+        this.settingNames = settingNames;
     }
 
     public DeprecationIssue(StreamInput in) throws IOException {
@@ -89,6 +107,8 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         details = in.readOptionalString();
         resolveDuringRollingUpgrade = in.getVersion().onOrAfter(Version.V_7_15_0) && in.readBoolean();
         meta = in.getVersion().onOrAfter(Version.V_7_14_0) ? in.readMap() : null;
+        canBeFixedByRemovingDynamicSetting = in.getVersion().onOrAfter(Version.V_7_17_0) && in.readBoolean();
+        settingNames = in.getVersion().onOrAfter(Version.V_7_17_0) ? in.readOptionalStringList() : null;
     }
 
     public Level getLevel() {
@@ -105,6 +125,15 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
 
     public String getDetails() {
         return details;
+    }
+
+    public boolean canBeFixedByRemovingDynamicSetting() {
+        return canBeFixedByRemovingDynamicSetting;
+    }
+
+    @Nullable
+    public List<String> getSettingNames() {
+        return settingNames;
     }
 
     /**
@@ -133,6 +162,10 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         }
         if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
             out.writeMap(meta);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_17_0)) {
+            out.writeBoolean(canBeFixedByRemovingDynamicSetting);
+            out.writeOptionalStringCollection(settingNames);
         }
     }
 
@@ -164,6 +197,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
             && Objects.equals(details, that.details)
             && Objects.equals(resolveDuringRollingUpgrade, that.resolveDuringRollingUpgrade)
             && Objects.equals(meta, that.meta);
+//            && Objects.equals(canBeFixedByRemovingDynamicSetting, that.canBeFixedByRemovingDynamicSetting);
     }
 
     @Override

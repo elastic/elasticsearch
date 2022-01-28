@@ -29,20 +29,6 @@ import java.util.Objects;
 public class InternalRange<B extends InternalRange.Bucket, R extends InternalRange<B, R>> extends InternalMultiBucketAggregation<R, B>
     implements
         Range {
-
-    public InternalRange(
-        final String name,
-        final Map<String, Object> metadata,
-        final List<B> ranges,
-        final DocValueFormat format,
-        boolean keyed
-    ) {
-        super(name, metadata);
-        this.ranges = ranges;
-        this.format = format;
-        this.keyed = keyed;
-    }
-
     @SuppressWarnings("rawtypes")
     static final Factory FACTORY = new Factory();
 

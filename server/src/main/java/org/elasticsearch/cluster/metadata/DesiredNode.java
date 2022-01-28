@@ -65,13 +65,23 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
         );
         PARSER.declareField(
             ConstructingObjectParser.constructorArg(),
-            (p, c) -> Version.fromString(p.text()),
+            (p, c) -> parseVersion(p.text()),
             VERSION_FIELD,
             ObjectParser.ValueType.STRING
         );
     }
 
+    private static Version parseVersion(String version) {
+        if (version == null || version.isBlank()) {
+            throw new IllegalArgumentException(VERSION_FIELD.getPreferredName() + " must not be empty");
+        }
+        return Version.fromString(version);
+    }
+
     public DesiredNode {
+        assert memory != null;
+        assert storage != null;
+        assert version != null;
         if (processors < 0) {
             throw new IllegalArgumentException("processors must be positive, but got " + processors);
         }

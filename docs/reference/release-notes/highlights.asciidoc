@@ -20,8 +20,7 @@ For detailed information about this release, see the <<es-release-notes>> and
 
 We've updated inverted indices, an internal data structure, to use a more space-efficient encoding.
 This change will benefit `keyword` fields, `match_only_text` fields and, to a
-lesser extent, `text` fields. On the dataset of application logs that the {es}
-team uses for nightly benchmarks, this translated into a 14.4% reduction of the
+lesser extent, `text` fields. In our benchmarks using application logs, this translated into a 14.4% reduction of the
 size of the index of the `message` field (mapped as `match_only_text`) and an
 overall 3.5% reduction of the on-disk footprint.
 

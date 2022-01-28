@@ -64,6 +64,12 @@ public class DesiredNodesSettingsValidator {
     }
 
     private void validate(DesiredNode node) {
+        if (node.version().before(Version.CURRENT)) {
+            throw new IllegalArgumentException(
+                format(Locale.ROOT, "Illegal node version [%s]. Only [%s] or newer versions are supported", node.version(), Version.CURRENT)
+            );
+        }
+
         if (node.externalId() == null) {
             throw new IllegalArgumentException(
                 format(Locale.ROOT, "[%s] or [%s] is missing or empty", NODE_NAME_SETTING.getKey(), NODE_EXTERNAL_ID_SETTING.getKey())

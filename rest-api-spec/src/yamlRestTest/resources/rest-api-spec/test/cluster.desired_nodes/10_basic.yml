@@ -466,6 +466,21 @@ teardown:
   - match: { error.type: action_request_validation_exception }
   - match: { error.reason: "Validation Failed: 1: version must be positive;" }
 ---
+"Test node version must be at least the current master version":
+  - do:
+      catch: bad_request
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187"}, processors: 8, memory: "64gb", storage: "128gb", node_version: "7.16.0" }
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Nodes in positions [0] contain invalid settings" }
+  - match:
+      error.suppressed.0.reason: "/Illegal\\snode\\sversion.+$/"
+---
 "Test history_id must be present":
   - do:
       cluster.state: {}

@@ -129,6 +129,16 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         );
     }
 
+    public void testNodeVersionIsValidated() {
+        final DesiredNodes desiredNodes = randomDesiredNodes(Version.CURRENT.previousMajor(), settings -> {});
+
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
+        assertThat(exception.getMessage(), containsString("Nodes in positions"));
+        assertThat(exception.getMessage(), containsString("contain invalid settings"));
+        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
+        assertThat(exception.getSuppressed()[0].getMessage(), containsString("Illegal node version"));
+    }
+
     public void testUnknownSettingsAreForbiddenInKnownVersions() {
         final DesiredNodes desiredNodes = randomDesiredNodes(
             settings -> { settings.put("desired_nodes.random_setting", Integer.MIN_VALUE); }

@@ -19,9 +19,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodesWithRandomSettings;
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomSettings;
@@ -48,7 +50,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
             }
         };
 
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings, Collections.emptySet());
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings);
         final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
 
         final DesiredNodes desiredNodes = randomDesiredNodes(Version.CURRENT, settingsProvider);
@@ -60,8 +62,25 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
         assertThat(exception.getSuppressed()[0].getMessage(), containsString("Failed to parse value"));
     }
 
+    public void testNodeVersionValidation() {
+        final DesiredNodes desiredNodes = new DesiredNodes(
+            randomAlphaOfLength(10),
+            randomIntBetween(1, 20),
+            List.of(randomDesiredNode(Version.CURRENT.previousMajor(), (settings) -> {}))
+        );
+
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet());
+        final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
+
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> validator.validate(desiredNodes));
+        assertThat(exception.getMessage(), containsString("Nodes in positions"));
+        assertThat(exception.getMessage(), containsString("contain invalid settings"));
+        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
+        assertThat(exception.getSuppressed()[0].getMessage(), containsString("Illegal node version"));
+    }
+
     public void testUnknownSettingsInKnownVersionsAreInvalid() {
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet(), Collections.emptySet());
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet());
         final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
         final DesiredNodes desiredNodes = randomDesiredNodes();
 
@@ -73,7 +92,7 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
     }
 
     public void testUnknownSettingsInUnknownVersionsAreValid() {
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet(), Collections.emptySet());
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet());
         final DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(clusterSettings);
 
         final DesiredNodes desiredNodes = randomDesiredNodesWithRandomSettings(Version.fromString("99.9.0"));

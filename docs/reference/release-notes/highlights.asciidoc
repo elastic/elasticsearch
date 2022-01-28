@@ -33,8 +33,8 @@ protection, internode communication secured with TLS, and encrypted connections
 between {es} and {kib}.
 
 We're also shipping the
-<<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool, which
-you can use to generate enrollment tokens to enroll new {es} nodes with an
+{ref}/create-enrollment-token.html[`elasticsearch-create-enrollment-token`] tool,
+which you can use to generate enrollment tokens to enroll new {es} nodes with an
 existing cluster, or configure {kib} instances to communicate with an existing
 {es} cluster that has security features enabled. Just pass the enrollment token
 when starting new nodes and {es} handles all of the security configuration for

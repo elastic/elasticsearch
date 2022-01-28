@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReducer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,30 +27,34 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-public class InternalFrequentItemSetsAggregation extends InternalAggregation {
-    private static final Logger logger = LogManager.getLogger(InternalFrequentItemSetsAggregation.class);
+public class AprioriMapReducer implements MapReducer {
+    private static final Logger logger = LogManager.getLogger(AprioriMapReducer.class);
 
+    private static final int VERSION = 1;
+    public static final String NAME = "map-reduce-apriori-" + VERSION;
+
+    // TODO: parameterize
     private static final double minSupport = 0.1;
     private static final long minSetSize = 2;
     private static final long maxSetSize = 10;
 
-    private final Map<String, Long> itemSets;
-    private final List<Tuple<String, Double>> frequentSets;
+    private Map<String, Long> itemSets;
 
-    InternalFrequentItemSetsAggregation(
-        String name,
-        Map<String, Object> metadata,
-        Map<String, Long> itemSets,
-        List<Tuple<String, Double>> frequentSets
-    ) {
-        super(name, metadata);
-        this.itemSets = itemSets;
-        this.frequentSets = frequentSets;
+    private StringBuilder stringBuilder = new StringBuilder();
+    private List<Tuple<String, Double>> frequentSets;
+
+    public AprioriMapReducer() {
+        // itemSets = null;
+
+        // TODO: move into a map init method
+        itemSets = new HashMap<>();
+
+        frequentSets = null;
     }
 
-    public InternalFrequentItemSetsAggregation(StreamInput in) throws IOException {
-        super(in);
+    public AprioriMapReducer(StreamInput in) throws IOException {
         this.itemSets = in.readMap(StreamInput::readString, StreamInput::readLong);
 
         // not send over the wire
@@ -60,48 +63,40 @@ public class InternalFrequentItemSetsAggregation extends InternalAggregation {
 
     @Override
     public String getWriteableName() {
-
-        return FrequentItemSetsAggregationBuilder.NAME;
+        return NAME;
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(itemSets, StreamOutput::writeString, StreamOutput::writeLong);
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        // TODO: reduce phase goes here
-        Map<String, Long> mergedItemSet = new HashMap<>();
-        logger.info("merge results from [" + aggregations.size() + "] aggs.");
+    public void map(Stream<List<Object>> values) {
+        stringBuilder.setLength(0);
+        values.forEach(v -> {
+            for (Object fieldValue : v) {
+                stringBuilder.append(fieldValue);
+                stringBuilder.append("#");
+            }
+        });
 
-        for (InternalAggregation agg : aggregations) {
-
-            final InternalFrequentItemSetsAggregation other = (InternalFrequentItemSetsAggregation) agg;
-            logger.info("merge [" + other.itemSets.size() + "] entries");
-
-            other.itemSets.forEach((key, value) -> mergedItemSet.merge(key, value, (v1, v2) -> v1 + v2));
-        }
-
-        return new InternalFrequentItemSetsAggregation(name, getMetadata(), mergedItemSet, apprioriSimple(mergedItemSet));
+        String key = stringBuilder.toString();
+        itemSets.compute(key, (k, v) -> (v == null) ? 1 : v + 1);
     }
 
     @Override
-    protected boolean mustReduceOnSingleInternalAgg() {
-        // TODO set this to false?
-        return true;
+    public void reduce(Stream<MapReducer> partitions) {
+        partitions.forEach(p -> {
+            AprioriMapReducer apprioriPartition = (AprioriMapReducer) p;
+            apprioriPartition.itemSets.forEach((key, value) -> itemSets.merge(key, value, (v1, v2) -> v1 + v2));
+        });
+
+        apprioriSimple();
     }
 
     @Override
-    public Object getProperty(List<String> path) {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        // TODO Auto-generated method stub
-
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (frequentSets != null) {
 
             builder.startObject("frequent_sets");
@@ -126,13 +121,7 @@ public class InternalFrequentItemSetsAggregation extends InternalAggregation {
         return builder;
     }
 
-    // TODO: hashcode and equals
-
-    /**
-     * very simple apriori, not correct in many ways
-     * @return
-     */
-    private static List<Tuple<String, Double>> apprioriSimple(final Map<String, Long> itemSets) {
+    private void apprioriSimple() {
         Map<String, Long> frequentItems = new HashMap<>();
         logger.info("appriori simple");
         // TODO; this should be reverse sorted
@@ -247,6 +236,6 @@ public class InternalFrequentItemSetsAggregation extends InternalAggregation {
         closedSets.addAll(lastIteration);
         closedSets.sort((e1, e2) -> e2.v2().compareTo(e1.v2()));
 
-        return closedSets;
+        this.frequentSets = closedSets;
     }
 }

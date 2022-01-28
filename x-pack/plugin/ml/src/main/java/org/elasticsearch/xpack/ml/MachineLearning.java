@@ -278,11 +278,13 @@ import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregationBuilder
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.AprioriMapReducer;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetsAggregationBuilder;
-import org.elasticsearch.xpack.ml.aggs.frequentitemsets.InternalFrequentItemSetsAggregation;
 import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
 import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.kstest.BucketCountKSTestAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.InternalMapReduceAggregation;
+import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReducer;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
@@ -1473,7 +1475,7 @@ public class MachineLearning extends Plugin
                 FrequentItemSetsAggregationBuilder.NAME,
                 FrequentItemSetsAggregationBuilder::new,
                 FrequentItemSetsAggregationBuilder.PARSER
-            ).addResultReader(InternalFrequentItemSetsAggregation::new)
+            ).addResultReader(InternalMapReduceAggregation::new)
                 .setAggregatorRegistrar(s -> s.registerUsage(FrequentItemSetsAggregationBuilder.NAME))
         );
     }
@@ -1606,6 +1608,10 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(MlAutoscalingNamedWritableProvider.getNamedWriteables());
         namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
         namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
+
+        // map reducers
+        namedWriteables.add(new NamedWriteableRegistry.Entry(MapReducer.class, AprioriMapReducer.NAME, AprioriMapReducer::new));
+
         return namedWriteables;
     }
 

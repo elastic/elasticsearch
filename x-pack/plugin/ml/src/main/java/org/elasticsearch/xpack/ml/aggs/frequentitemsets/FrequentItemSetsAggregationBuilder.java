@@ -15,8 +15,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -28,15 +26,7 @@ import java.util.Map;
 
 public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuilder<FrequentItemSetsAggregationBuilder> {
 
-    @FunctionalInterface
-    interface FrequentItemSetsValuesSupplier {
-        FrequentItemSetsAggregator.TermValuesSource build(ValuesSourceConfig config);
-    }
-
     public static final String NAME = "frequent_items";
-
-    public static final ValuesSourceRegistry.RegistryKey<FrequentItemSetsValuesSupplier> REGISTRY_KEY =
-        new ValuesSourceRegistry.RegistryKey<>(NAME, FrequentItemSetsValuesSupplier.class);
 
     public static final ParseField ALGORITHM_FIELD = new ParseField("algorithm");
     public static final ParseField FIELDS = new ParseField("fields");
@@ -62,13 +52,6 @@ public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuild
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, n) -> metricParser.parse(p, null).build(), FIELDS);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ALGORITHM_FIELD);
     }
-
-    /*public static void registerAggregators(ValuesSourceRegistry.Builder registry) {
-        registry.registerUsage(NAME);
-        //registry.register(REGISTRY_KEY, List.of(CoreValuesSourceType.KEYWORD),
-         * FrequentItemSetsAggregator.StringTermValuesSource::new, false);
-
-    };*/
 
     private final String algorithm;
     private final List<MultiValuesSourceFieldConfig> fields;

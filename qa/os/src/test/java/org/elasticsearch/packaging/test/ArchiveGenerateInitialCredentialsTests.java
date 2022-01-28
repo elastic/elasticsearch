@@ -8,6 +8,7 @@
 
 package org.elasticsearch.packaging.test;
 
+import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -82,6 +83,9 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         Shell.Result result = awaitElasticsearchStartupWithResult(runElasticsearchStartCommand(null, false, true));
         logger.info("OUTPUT WAS: ");
         logger.info(result.stdout());
+        String output = Archives.waitForAutoConfigurationOutput(result);
+        logger.info("POSSIBLY DELAYED OUTPUT WAS: ");
+        logger.info(output);
         assertThat(parseElasticPassword(result.stdout()), notNullValue());
         assertThat(parseKibanaToken(result.stdout()), notNullValue());
         assertThat(parseFingerprint(result.stdout()), notNullValue());

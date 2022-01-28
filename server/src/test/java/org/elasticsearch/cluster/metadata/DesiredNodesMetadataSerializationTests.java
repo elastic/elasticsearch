@@ -68,7 +68,11 @@ public class DesiredNodesMetadataSerializationTests extends AbstractDiffableSeri
         }
         DesiredNodes latestDesiredNodes = base.getLatestDesiredNodes();
         return new DesiredNodesMetadata(
-            new DesiredNodes(latestDesiredNodes.historyID(), latestDesiredNodes.version() + 1, latestDesiredNodes.nodes())
+            new DesiredNodes(
+                latestDesiredNodes.historyID(),
+                latestDesiredNodes.version() + 1,
+                randomList(1, 10, DesiredNodesTestCase::randomDesiredNodeWithRandomSettings)
+            )
         );
     }
 }

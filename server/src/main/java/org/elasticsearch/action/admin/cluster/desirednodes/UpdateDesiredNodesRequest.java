@@ -24,7 +24,7 @@ import java.util.Objects;
 
 public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesiredNodesRequest> {
     private final String historyID;
-    private final int version;
+    private final long version;
     private final List<DesiredNode> nodes;
 
     private static final ParseField NODES_FIELD = new ParseField("nodes");
@@ -40,7 +40,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> DesiredNode.fromXContent(p), NODES_FIELD);
     }
 
-    public UpdateDesiredNodesRequest(String historyID, int version, List<DesiredNode> nodes) {
+    public UpdateDesiredNodesRequest(String historyID, long version, List<DesiredNode> nodes) {
         assert historyID != null;
         assert nodes != null;
         this.historyID = historyID;
@@ -51,7 +51,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
     public UpdateDesiredNodesRequest(StreamInput in) throws IOException {
         super(in);
         this.historyID = in.readString();
-        this.version = in.readInt();
+        this.version = in.readLong();
         this.nodes = in.readList(DesiredNode::new);
     }
 
@@ -59,11 +59,11 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(historyID);
-        out.writeInt(version);
+        out.writeLong(version);
         out.writeList(nodes);
     }
 
-    public static UpdateDesiredNodesRequest fromXContent(String historyID, int version, XContentParser parser) throws IOException {
+    public static UpdateDesiredNodesRequest fromXContent(String historyID, long version, XContentParser parser) throws IOException {
         List<DesiredNode> nodes = PARSER.parse(parser, null);
         return new UpdateDesiredNodesRequest(historyID, version, nodes);
     }
@@ -72,7 +72,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         return historyID;
     }
 
-    public int getVersion() {
+    public long getVersion() {
         return version;
     }
 

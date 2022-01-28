@@ -33,7 +33,7 @@ public class RestUpdateDesiredNodesAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String historyId = request.param("history_id");
-        final int version = request.paramAsInt("version", -1);
+        final long version = request.paramAsLong("version", Long.MIN_VALUE);
 
         final UpdateDesiredNodesRequest updateDesiredNodesRequest;
         try (XContentParser parser = request.contentParser()) {

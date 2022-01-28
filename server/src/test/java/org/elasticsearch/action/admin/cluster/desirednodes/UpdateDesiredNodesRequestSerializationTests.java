@@ -40,7 +40,7 @@ public class UpdateDesiredNodesRequestSerializationTests extends AbstractWireSer
     public static UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest(Version nodesVersion) {
         return new UpdateDesiredNodesRequest(
             UUIDs.randomBase64UUID(),
-            randomIntBetween(0, 1000),
+            randomLongBetween(0, Long.MAX_VALUE - 1000),
             randomList(0, 100, () -> randomDesiredNodeWithRandomSettings(nodesVersion))
         );
     }

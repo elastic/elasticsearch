@@ -26,7 +26,7 @@ import java.util.Set;
 import static java.lang.String.format;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 
-public record DesiredNodes(String historyID, int version, List<DesiredNode> nodes) implements Writeable, ToXContentObject {
+public record DesiredNodes(String historyID, long version, List<DesiredNode> nodes) implements Writeable, ToXContentObject {
 
     private static final ParseField HISTORY_ID_FIELD = new ParseField("history_id");
     private static final ParseField VERSION_FIELD = new ParseField("version");
@@ -36,29 +36,29 @@ public record DesiredNodes(String historyID, int version, List<DesiredNode> node
     public static final ConstructingObjectParser<DesiredNodes, Void> PARSER = new ConstructingObjectParser<>(
         "desired_nodes",
         false,
-        (args, unused) -> new DesiredNodes((String) args[0], (int) args[1], (List<DesiredNode>) args[2])
+        (args, unused) -> new DesiredNodes((String) args[0], (long) args[1], (List<DesiredNode>) args[2])
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), HISTORY_ID_FIELD);
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), VERSION_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), VERSION_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> DesiredNode.fromXContent(p), NODES_FIELD);
     }
 
     public DesiredNodes {
         assert historyID != null && historyID.isBlank() == false;
-        assert version >= 0;
+        assert version != Long.MIN_VALUE;
         checkForDuplicatedExternalIDs(nodes);
     }
 
     public DesiredNodes(StreamInput in) throws IOException {
-        this(in.readString(), in.readInt(), in.readList(DesiredNode::new));
+        this(in.readString(), in.readLong(), in.readList(DesiredNode::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(historyID);
-        out.writeInt(version);
+        out.writeLong(version);
         out.writeList(nodes);
     }
 

@@ -8,11 +8,12 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
-import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
+
+import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 
 public class GetDesiredNodesResponseSerializationTests extends AbstractWireSerializingTestCase<GetDesiredNodesAction.Response> {
     @Override
@@ -22,11 +23,11 @@ public class GetDesiredNodesResponseSerializationTests extends AbstractWireSeria
 
     @Override
     protected GetDesiredNodesAction.Response createTestInstance() {
-        return new GetDesiredNodesAction.Response((DesiredNodes) null);
+        return new GetDesiredNodesAction.Response(randomBoolean() ? null : randomDesiredNodes());
     }
 
     @Override
     protected GetDesiredNodesAction.Response mutateInstance(GetDesiredNodesAction.Response instance) throws IOException {
-        return super.mutateInstance(instance);
+        return new GetDesiredNodesAction.Response(randomDesiredNodes());
     }
 }

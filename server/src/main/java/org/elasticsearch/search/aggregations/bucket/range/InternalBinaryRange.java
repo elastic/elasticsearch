@@ -84,7 +84,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
             if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
                 out.writeOptionalString(key);
             } else {
-                out.writeString(key);
+                out.writeString(getKeyAsString());
             }
             out.writeBoolean(from != null);
             if (from != null) {

@@ -8,9 +8,9 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,7 +41,7 @@ import java.util.Objects;
  * {@link StoredScriptSource} represents user-defined parameters for a script
  * saved in the {@link ClusterState}.
  */
-public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> implements Writeable, ToXContentObject {
+public class StoredScriptSource implements SimpleDiffable<StoredScriptSource>, Writeable, ToXContentObject {
     /**
      * Standard {@link ParseField} for outer level of stored script source.
      */
@@ -259,7 +259,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * constructor.
      */
     public static Diff<StoredScriptSource> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(StoredScriptSource::new, in);
+        return SimpleDiffable.readDiffFrom(StoredScriptSource::new, in);
     }
 
     private final String lang;

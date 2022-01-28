@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.IndexSettings;
@@ -131,6 +133,8 @@ import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregati
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.UnmappedSampler;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.InternalRandomSampler;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongRareTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
@@ -282,6 +286,21 @@ public class SearchModule {
         Integer.MAX_VALUE,
         Setting.Property.NodeScope
     );
+
+    private static final Boolean RANDOM_SAMPLER_AGGREGATION_FLAG_REGISTERED;
+
+    static {
+        final String property = System.getProperty("es.random_sampler_feature_flag_registered");
+        if (Build.CURRENT.isSnapshot() && property != null) {
+            throw new IllegalArgumentException("es.random_sampler_feature_flag_registered is only supported in non-snapshot builds");
+        }
+        RANDOM_SAMPLER_AGGREGATION_FLAG_REGISTERED = Booleans.parseBoolean(property, null);
+    }
+
+    public static boolean randomSamplerAggEnabled() {
+        return Build.CURRENT.isSnapshot()
+            || (RANDOM_SAMPLER_AGGREGATION_FLAG_REGISTERED != null && RANDOM_SAMPLER_AGGREGATION_FLAG_REGISTERED);
+    }
 
     private final Map<String, Highlighter> highlighters;
 
@@ -463,6 +482,17 @@ public class SearchModule {
             ).addResultReader(InternalAdjacencyMatrix::new),
             builder
         );
+        if (randomSamplerAggEnabled()) {
+            registerAggregation(
+                new AggregationSpec(
+                    RandomSamplerAggregationBuilder.NAME,
+                    RandomSamplerAggregationBuilder::new,
+                    RandomSamplerAggregationBuilder.PARSER
+                ).addResultReader(InternalRandomSampler.NAME, InternalRandomSampler::new)
+                    .setAggregatorRegistrar(s -> s.registerUsage(RandomSamplerAggregationBuilder.NAME)),
+                builder
+            );
+        }
         registerAggregation(
             new AggregationSpec(SamplerAggregationBuilder.NAME, SamplerAggregationBuilder::new, SamplerAggregationBuilder::parse)
                 .addResultReader(InternalSampler.NAME, InternalSampler::new)

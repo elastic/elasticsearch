@@ -991,21 +991,18 @@ Previously, the default value for `compress` was `false`. The default has been c
 This change will affect both newly created repositories and existing repositories where `compress=false` has not been
 explicitly specified.
 
-For more information on the compress option, see
-{ref}/snapshots-register-repository.html[Register a snapshot repository].
-
 *Impact* +
 Update your workflow and applications to assume a default value of `true` for
 the `compress` parameter.
 ====
 
-.The S3 repository plugin now uses a DNS-style access pattern by default.
+.S3 snapshot repositories now use a DNS-style access pattern by default.
 [%collapsible]
 ====
 *Details* +
-Starting in version 7.4 the `repository-s3` plugin does not use the
+Starting in version 7.4, `s3` snapshot repositories no longer use the
 now-deprecated path-style access pattern by default. In versions 7.0, 7.1, 7.2
-and 7.3 the `repository-s3` plugin always used the path-style access pattern.
+and 7.3 `s3` snapshot repositories always used the path-style access pattern.
 This is a breaking change for deployments that only support path-style access
 but which are recognized as supporting DNS-style access by the AWS SDK. This
 breaking change was made necessary by

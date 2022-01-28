@@ -244,7 +244,7 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
     }
 
     public void testManyDotsInIncludedFieldName() throws IOException {
-        String name = IntStream.rangeClosed(1, 40000).mapToObj(i -> "a").collect(joining("."));
+        String name = IntStream.rangeClosed(1, 100).mapToObj(i -> "a").collect(joining("."));
         testFilter(
             builder -> builder.startObject().field(name, "test").endObject(),
             builder -> builder.startObject().field(name, "test").endObject(),

@@ -1,6 +1,6 @@
 name: Test Failure
 description: A test failure in CI
-labels: [">test-failure"]
+labels: [">test-failure","needs:triage"]
 body:
   - type: markdown
     attributes:

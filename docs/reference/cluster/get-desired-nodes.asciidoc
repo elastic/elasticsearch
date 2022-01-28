@@ -91,4 +91,4 @@ The API returns the following result:
 // TEST[s/<node_processors>/$body.nodes.0.processors/]
 // TEST[s/<node_memory>/$body.nodes.0.memory/]
 // TEST[s/<node_storage>/$body.nodes.0.storage/]
-// TEST[s/<node_version>/$body.nodes.0.version/]
+// TEST[s/<node_version>/$body.nodes.0.node_version/]

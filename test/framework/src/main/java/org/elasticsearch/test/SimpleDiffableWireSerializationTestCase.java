@@ -20,7 +20,7 @@ import java.io.IOException;
  * This class can be used as a based class for tests of ClusterState.Custom classes and other classes that support,
  * Writable serialization and is diffable.
  */
-public abstract class AbstractDiffableWireSerializationTestCase<T extends Diffable<T>> extends AbstractWireSerializingTestCase<T> {
+public abstract class SimpleDiffableWireSerializationTestCase<T extends Diffable<T>> extends AbstractWireSerializingTestCase<T> {
     /**
      *  Introduces random changes into the test object
      */

@@ -10,9 +10,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeAction;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -23,6 +28,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -100,6 +106,11 @@ public class Querier {
     }
 
     public void query(List<Attribute> output, QueryContainer query, String index, ActionListener<Page> listener) {
+        if (cfg.task() != null && cfg.task().isCancelled()) {
+            listener.onFailure(new TaskCancelledException("cancelled"));
+            return;
+        }
+
         // prepare the request
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, cfg.filter(), cfg.pageSize());
 
@@ -122,23 +133,52 @@ public class Querier {
         List<Tuple<Integer, Comparator>> sortingColumns = query.sortingColumns();
         listener = sortingColumns.isEmpty() ? listener : new LocalAggregationSorterListener(listener, sortingColumns, query.limit());
 
-        ActionListener<SearchResponse> l = null;
         if (query.isAggsOnly()) {
+            ActionListener<SearchResponse> l;
             if (query.aggs().useImplicitGroupBy()) {
                 l = new ImplicitGroupActionListener(listener, client, cfg, output, query, search);
             } else {
                 l = new CompositeActionListener(listener, client, cfg, output, query, search);
             }
+            client.search(search, l);
         } else {
-            search.scroll(cfg.pageTimeout());
-            l = new ScrollActionListener(listener, client, cfg, output, query);
+            searchWithPointInTime(search, new SearchHitActionListener(listener, client, cfg, output, query, sourceBuilder));
         }
+    }
 
-        if (cfg.task() != null && cfg.task().isCancelled()) {
-            listener.onFailure(new TaskCancelledException("cancelled"));
-            return;
+    private void searchWithPointInTime(SearchRequest search, ActionListener<SearchResponse> listener) {
+        final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(search.indices()).indicesOptions(
+            indicesOptions(cfg.includeFrozen())
+        ).keepAlive(cfg.pageTimeout());
+
+        client.execute(OpenPointInTimeAction.INSTANCE, openPitRequest, wrap((openPointInTimeResponse) -> {
+            String pitId = openPointInTimeResponse.getPointInTimeId();
+            search.indices(Strings.EMPTY_ARRAY);
+            search.source().pointInTimeBuilder(new PointInTimeBuilder(pitId));
+            ActionListener<SearchResponse> closePitOnErrorListener = wrap(listener::onResponse, (searchError) -> {
+                closePointInTime(client, pitId, wrap((r) -> listener.onFailure(searchError), (closeError) -> {
+                    searchError.addSuppressed(closeError);
+                    listener.onFailure(searchError);
+                }));
+            });
+            client.search(search, closePitOnErrorListener);
+        }, listener::onFailure));
+    }
+
+    public static void closePointInTime(Client client, String pointInTimeId, ActionListener<Boolean> listener) {
+        if (pointInTimeId != null) {
+            client.execute(
+                ClosePointInTimeAction.INSTANCE,
+                new ClosePointInTimeRequest(pointInTimeId),
+                wrap(clearPointInTimeResponse -> listener.onResponse(clearPointInTimeResponse.isSucceeded()), listener::onFailure)
+            );
+        } else {
+            listener.onResponse(false);
         }
-        client.search(search, l);
+    }
+
+    private static IndicesOptions indicesOptions(boolean includeFrozen) {
+        return includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS;
     }
 
     public static SearchRequest prepareRequest(SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen, String... indices) {
@@ -148,9 +188,7 @@ public class Querier {
         searchRequest.indices(indices);
         searchRequest.source(source);
         searchRequest.allowPartialSearchResults(false);
-        searchRequest.indicesOptions(
-            includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
-        );
+        searchRequest.indicesOptions(indicesOptions(includeFrozen));
 
         return searchRequest;
     }
@@ -506,22 +544,25 @@ public class Querier {
     /**
      * Dedicated listener for column retrieval/non-grouped queries (scrolls).
      */
-    static class ScrollActionListener extends BaseActionListener {
+    static class SearchHitActionListener extends BaseActionListener {
         private final QueryContainer query;
         private final BitSet mask;
         private final boolean multiValueFieldLeniency;
+        private final SearchSourceBuilder source;
 
-        ScrollActionListener(
+        SearchHitActionListener(
             ActionListener<Page> listener,
             Client client,
             SqlConfiguration cfg,
             List<Attribute> output,
-            QueryContainer query
+            QueryContainer query,
+            SearchSourceBuilder source
         ) {
             super(listener, client, cfg, output);
             this.query = query;
             this.mask = query.columnMask(output);
             this.multiValueFieldLeniency = cfg.multiValueFieldLeniency();
+            this.source = source;
         }
 
         @Override
@@ -534,12 +575,13 @@ public class Querier {
                 exts.add(createExtractor(ref.extraction()));
             }
 
-            ScrollCursor.handle(
+            SearchHitCursor.handle(
+                client,
                 response,
-                () -> new SchemaSearchHitRowSet(schema, exts, mask, query.limit(), response),
-                p -> listener.onResponse(p),
-                p -> clear(response.getScrollId(), wrap(success -> listener.onResponse(p), listener::onFailure)),
-                schema
+                source,
+                () -> new SchemaSearchHitRowSet(schema, exts, mask, source.size(), query.limit(), response),
+                listener,
+                query.shouldIncludeFrozen()
             );
         }
 
@@ -603,7 +645,7 @@ public class Querier {
                 if (CollectionUtils.isEmpty(failure) == false) {
                     cleanup(response, new SqlIllegalArgumentException(failure[0].reason(), failure[0].getCause()));
                 } else {
-                    handleResponse(response, ActionListener.wrap(delegate::onResponse, e -> cleanup(response, e)));
+                    handleResponse(response, wrap(delegate::onResponse, e -> cleanup(response, e)));
                 }
             } catch (Exception ex) {
                 cleanup(response, ex);
@@ -618,7 +660,7 @@ public class Querier {
                 client.prepareClearScroll()
                     .addScrollId(response.getScrollId())
                     // in case of failure, report the initial exception instead of the one resulting from cleaning the scroll
-                    .execute(ActionListener.wrap(r -> delegate.onFailure(ex), e -> {
+                    .execute(wrap(r -> delegate.onFailure(ex), e -> {
                         ex.addSuppressed(e);
                         delegate.onFailure(ex);
                     }));
@@ -631,12 +673,7 @@ public class Querier {
             if (scrollId != null) {
                 client.prepareClearScroll()
                     .addScrollId(scrollId)
-                    .execute(
-                        ActionListener.wrap(
-                            clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()),
-                            listener::onFailure
-                        )
-                    );
+                    .execute(wrap(clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()), listener::onFailure));
             } else {
                 listener.onResponse(false);
             }

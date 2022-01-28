@@ -22,8 +22,8 @@ import java.util.List;
 class SchemaSearchHitRowSet extends SearchHitRowSet implements SchemaRowSet {
     private final Schema schema;
 
-    SchemaSearchHitRowSet(Schema schema, List<HitExtractor> exts, BitSet mask, int limitHits, SearchResponse response) {
-        super(exts, mask, limitHits, response);
+    SchemaSearchHitRowSet(Schema schema, List<HitExtractor> exts, BitSet mask, int sizeRequested, int limitHits, SearchResponse response) {
+        super(exts, mask, sizeRequested, limitHits, response);
         this.schema = schema;
     }
 

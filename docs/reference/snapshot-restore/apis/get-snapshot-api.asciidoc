@@ -17,6 +17,8 @@ PUT /_snapshot/my_repository
   }
 }
 
+PUT someindex
+
 PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
 
 PUT /_snapshot/my_repository/snapshot_1?wait_for_completion=true

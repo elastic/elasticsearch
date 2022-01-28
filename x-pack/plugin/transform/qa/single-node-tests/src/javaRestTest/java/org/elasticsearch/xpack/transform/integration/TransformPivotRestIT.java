@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -1011,6 +1012,18 @@ public class TransformPivotRestIT extends TransformRestTestCase {
      * This test case makes sure that deprecation warnings from _search API are propagated to _preview API.
      */
     public void testPreviewTransformWithScriptedMetricUsingDeprecatedSyntax() throws Exception {
+        testTransformUsingScriptsUsingDeprecatedSyntax("POST", getTransformEndpoint() + "_preview");
+    }
+
+    /**
+     * This test case makes sure that deprecation warnings from _search API are propagated to PUT API.
+     */
+    public void testCreateTransformWithScriptedMetricUsingDeprecatedSyntax() throws Exception {
+        testTransformUsingScriptsUsingDeprecatedSyntax("PUT", getTransformEndpoint() + "script_deprecated_syntax");
+    }
+
+    private void testTransformUsingScriptsUsingDeprecatedSyntax(String method, String endpoint) throws Exception {
+        String transformIndex = "script_deprecated_syntax";
         String config = "{"
             + "  \"source\": {"
             + "    \"index\": \""
@@ -1025,6 +1038,11 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + "        }"
             + "      }"
             + "    }"
+            + "  },"
+            + "  \"dest\": {"
+            + "    \"index\": \""
+            + transformIndex
+            + "\""
             + "  },"
             + "  \"pivot\": {"
             + "    \"group_by\": {"
@@ -1052,19 +1070,22 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             + "    }"
             + "  }"
             + "}";
-        final Request previewRequest = new Request("POST", getTransformEndpoint() + "_preview");
-        previewRequest.setJsonEntity(config);
-        previewRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
 
-        Response previewResponse = client().performRequest(previewRequest);
-        assertThat(
-            "Warnings were: " + previewResponse.getWarnings(),
-            previewResponse.getWarnings(),
-            hasItems(
-                "Use of the joda time method [getMillis()] is deprecated. Use [toInstant().toEpochMilli()] instead.",
-                "Use of the joda time method [getEra()] is deprecated. Use [get(ChronoField.ERA)] instead."
-            )
-        );
+        final Request request = new Request(method, endpoint);
+        request.setJsonEntity(config);
+        try {
+            client().performRequest(request);
+        } catch (WarningFailureException e) {
+            Response response = e.getResponse();
+            assertThat(
+                "Warnings were: " + response.getWarnings(),
+                response.getWarnings(),
+                hasItems(
+                    "Use of the joda time method [getMillis()] is deprecated. Use [toInstant().toEpochMilli()] instead.",
+                    "Use of the joda time method [getEra()] is deprecated. Use [get(ChronoField.ERA)] instead."
+                )
+            );
+        }
     }
 
     public void testPivotWithMaxOnDateField() throws Exception {

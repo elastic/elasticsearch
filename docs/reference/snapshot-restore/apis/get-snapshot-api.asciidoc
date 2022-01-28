@@ -17,8 +17,6 @@ PUT /_snapshot/my_repository
   }
 }
 
-PUT someindex
-
 PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
 {
   "indices":"-*"

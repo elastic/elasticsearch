@@ -85,6 +85,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.checkVersionedNamedWritable = true;
         out.writeStringArray(fields);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
@@ -97,6 +98,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
             out.writeStringArray(filters);
             out.writeStringArray(allowedTypes);
         }
+        out.checkVersionedNamedWritable = false;
     }
 
     @Override

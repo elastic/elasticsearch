@@ -294,6 +294,35 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         );
     }
 
+    public void testDotsAndDoubleWildcardInIncludedFieldName() throws IOException {
+        testFilter(
+            builder -> builder.startObject().field("foo.bar.baz", "test").endObject(),
+            builder -> builder.startObject().field("foo.bar.baz", "test").endObject(),
+            singleton("**.baz"),
+            emptySet(),
+            true
+        );
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
+    public void testDotsAndDoubleWildcardInExcludedFieldName() throws IOException {
+        testFilter(
+            builder -> builder.startObject().endObject(),
+            builder -> builder.startObject().field("foo.bar.baz", "test").endObject(),
+            emptySet(),
+            singleton("**.baz"),
+            true
+        );
+        // bug of double wildcard in excludes report in https://github.com/FasterXML/jackson-core/issues/700
+        testFilter(
+            builder -> builder.startObject().startObject("foo").field("baz", "test").endObject().endObject(),
+            builder -> builder.startObject().startObject("foo").field("bar", "test").field("baz", "test").endObject().endObject(),
+            emptySet(),
+            singleton("**.bar"),
+            true
+        );
+    }
+
     @Override
     protected final void testFilter(Builder expected, Builder sample, Set<String> includes, Set<String> excludes) throws IOException {
         testFilter(expected, sample, includes, excludes, false);

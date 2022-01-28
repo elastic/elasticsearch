@@ -21,7 +21,7 @@ h| JSON data type h| `"dynamic":"true"` h| `"dynamic":"runtime"`
  |`null` 2*| No field added
  |`true` or `false` 2*| `boolean`
  |`double` | `float` | `double`
- |`integer` 2*| `long`
+ |`long` 2*| `long`
  |`object` | `object` | No field added
  |`array` 2*|  Depends on the first non-`null` value in the array
  |`string` that passes <<date-detection,date detection>> 2*| `date`

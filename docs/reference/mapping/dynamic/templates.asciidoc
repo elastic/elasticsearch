@@ -123,6 +123,11 @@ JSON doesn't distinguish a `long` from an `integer` or a `double` from
 a `float`, it always chooses the wider data type such as `long` for integers
 and `double` for floating-point numbers.
 
+NOTE: With dynamic mappings, {es} will always choose the wider data type. The
+one exception is `float`, which requires less storage space than `double` and
+is precise enough for most applications. Runtime fields do not support `float`,
+which is why `"dynamic":"runtime"` uses `double`.
+
 {es} automatically detects the following data types:
 
 include::field-mapping.asciidoc[tag=dynamic-field-mapping-types-tag]

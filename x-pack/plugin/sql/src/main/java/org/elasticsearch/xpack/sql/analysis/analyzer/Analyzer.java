@@ -894,7 +894,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         && (qualified
                             ? Objects.equals(alias.qualifiedName(), u.qualifiedName())
                             : Objects.equals(alias.name(), u.name()))) {
-                        return alias;
+                        return alias.child().equals(u) ? u : alias;
                     }
                 }
                 return u;

@@ -58,6 +58,15 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(gt.left().toString(), is("emp_no + 1"));
     }
 
+    public void testResolveRecursiveFilterRefsWhenFieldNotExists() {
+        try {
+            LogicalPlan plan = analyze("SELECT not_exists_field AS not_exists_field FROM test WHERE not_exists_field > 0");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(VerificationException.class));
+        }
+
+    }
+
     public void testResolveAlternatingRecursiveFilterRefs() {
         // Queries like the following used to cause a StackOverflowError in ResolveFilterRefs.
         // see https://github.com/elastic/elasticsearch/issues/81577

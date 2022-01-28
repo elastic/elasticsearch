@@ -33,6 +33,7 @@ import java.time.chrono.ChronoZonedDateTime;
 import java.time.chrono.Chronology;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
+import java.time.temporal.IsoFields;
 import java.time.temporal.Temporal;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjuster;
@@ -470,14 +471,14 @@ public class JodaCompatibleZonedDateTime
 
     @Deprecated
     public int getWeekOfWeekyear() {
-        logDeprecatedMethod("getWeekOfWeekyear()", "get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear())");
-        return dt.get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear());
+        logDeprecatedMethod("getWeekOfWeekyear()", "get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)");
+        return dt.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR);
     }
 
     @Deprecated
     public int getWeekyear() {
-        logDeprecatedMethod("getWeekyear()", "get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear())");
-        return dt.get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear());
+        logDeprecatedMethod("getWeekyear()", "get(IsoFields.WEEK_BASED_YEAR)");
+        return dt.get(IsoFields.WEEK_BASED_YEAR);
     }
 
     @Deprecated

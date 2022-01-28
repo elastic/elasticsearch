@@ -25,7 +25,8 @@ benchmarks using application logs, this translated into a 14.4% reduction of
 the size of the index of the `message` field (mapped as `match_only_text`) and
 an overall 3.5% reduction of the on-disk footprint.
 
-This change will be picked up automatically by both new indices, and existing indices for every new segment.
+This change will be picked up automatically by both new indices, and existing
+indices for every new segment.
 
 [discrete]
 === Faster indexing of `geo_point`, `geo_shape`, and range fields

@@ -45,7 +45,8 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             logger.info("Running against leader cluster");
             String mapping = "";
             if (randomBoolean()) { // randomly do source filtering on indexing
-                mapping = "\"_source\": {" + "  \"includes\": [\"field\"]," + "  \"excludes\": [\"filtered_field\"]" + "}";
+                mapping = """
+                    "_source": {  "includes": ["field"],  "excludes": ["filtered_field"]}""";
             }
             createIndex(leaderIndexName, Settings.EMPTY, mapping);
             for (int i = 0; i < numDocs; i++) {
@@ -255,7 +256,8 @@ public class FollowIndexIT extends ESCCRRestTestCase {
                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
                     .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                     .build(),
-                "\"properties\": {\"@timestamp\": {\"type\": \"date\"}, \"dim\": {\"type\": \"keyword\", \"time_series_dimension\": true}}"
+                """
+                    "properties": {"@timestamp": {"type": "date"}, "dim": {"type": "keyword", "time_series_dimension": true}}"""
             );
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);

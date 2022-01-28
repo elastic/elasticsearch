@@ -170,20 +170,21 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     public void testBothValuesAndLookupSet() throws IOException {
-        String query = "{\n"
-            + "  \"terms\": {\n"
-            + "    \"field\": [\n"
-            + "      \"blue\",\n"
-            + "      \"pill\"\n"
-            + "    ],\n"
-            + "    \"field_lookup\": {\n"
-            + "      \"index\": \"pills\",\n"
-            + "      \"type\": \"red\",\n"
-            + "      \"id\": \"3\",\n"
-            + "      \"path\": \"white rabbit\"\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String query = """
+            {
+              "terms": {
+                "field": [
+                  "blue",
+                  "pill"
+                ],
+                "field_lookup": {
+                  "index": "pills",
+                  "type": "red",
+                  "id": "3",
+                  "path": "white rabbit"
+                }
+              }
+            }""";
 
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(query));
         assertThat(e.getMessage(), containsString("[" + TermsQueryBuilder.NAME + "] query does not support more than one field."));
@@ -240,12 +241,13 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"terms\" : {\n"
-            + "    \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "terms" : {
+                "user" : [ "kimchy", "elasticsearch" ],
+                "boost" : 1.0
+              }
+            }""";
 
         TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

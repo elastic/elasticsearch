@@ -123,7 +123,10 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         Map<String, BoolQueryBuilder> alternateVersions = new HashMap<>();
         BoolQueryBuilder tempQueryBuilder = createTestQueryBuilder();
         BoolQueryBuilder expectedQuery = new BoolQueryBuilder();
-        String contentString = "{\n" + "    \"bool\" : {\n";
+        String contentString = """
+            {
+                "bool" : {
+            """;
         if (tempQueryBuilder.must().size() > 0) {
             QueryBuilder must = tempQueryBuilder.must().get(0);
             contentString += "\"must\": " + must.toString() + ",";
@@ -264,13 +267,15 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     }
 
     public void testMinimumShouldMatchNumber() throws IOException {
-        String query = "{\"bool\" : {\"must\" : { \"term\" : { \"field\" : \"value\" } }, \"minimum_should_match\" : 1 } }";
+        String query = """
+            {"bool" : {"must" : { "term" : { "field" : "value" } }, "minimum_should_match" : 1 } }""";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertEquals("1", builder.minimumShouldMatch());
     }
 
     public void testMinimumShouldMatchNull() throws IOException {
-        String query = "{\"bool\" : {\"must\" : { \"term\" : { \"field\" : \"value\" } }, \"minimum_should_match\" : null } }";
+        String query = """
+            {"bool" : {"must" : { "term" : { "field" : "value" } }, "minimum_should_match" : null } }""";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertEquals(null, builder.minimumShouldMatch());
     }

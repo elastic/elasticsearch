@@ -49,39 +49,17 @@ public class SearchAfterBuilderTests extends ESTestCase {
         for (int i = 0; i < numSearchFrom; i++) {
             int branch = randomInt(10);
             switch (branch) {
-                case 0:
-                    values[i] = randomInt();
-                    break;
-                case 1:
-                    values[i] = randomFloat();
-                    break;
-                case 2:
-                    values[i] = randomLong();
-                    break;
-                case 3:
-                    values[i] = randomDouble();
-                    break;
-                case 4:
-                    values[i] = randomAlphaOfLengthBetween(5, 20);
-                    break;
-                case 5:
-                    values[i] = randomBoolean();
-                    break;
-                case 6:
-                    values[i] = randomByte();
-                    break;
-                case 7:
-                    values[i] = randomShort();
-                    break;
-                case 8:
-                    values[i] = new Text(randomAlphaOfLengthBetween(5, 20));
-                    break;
-                case 9:
-                    values[i] = null;
-                    break;
-                case 10:
-                    values[i] = randomBigInteger();
-                    break;
+                case 0 -> values[i] = randomInt();
+                case 1 -> values[i] = randomFloat();
+                case 2 -> values[i] = randomLong();
+                case 3 -> values[i] = randomDouble();
+                case 4 -> values[i] = randomAlphaOfLengthBetween(5, 20);
+                case 5 -> values[i] = randomBoolean();
+                case 6 -> values[i] = randomByte();
+                case 7 -> values[i] = randomShort();
+                case 8 -> values[i] = new Text(randomAlphaOfLengthBetween(5, 20));
+                case 9 -> values[i] = null;
+                case 10 -> values[i] = randomBigInteger();
             }
         }
         searchAfterBuilder.setSortValues(values);
@@ -100,36 +78,16 @@ public class SearchAfterBuilderTests extends ESTestCase {
         for (int i = 0; i < numSearchAfter; i++) {
             int branch = randomInt(9);
             switch (branch) {
-                case 0:
-                    jsonBuilder.value(randomInt());
-                    break;
-                case 1:
-                    jsonBuilder.value(randomFloat());
-                    break;
-                case 2:
-                    jsonBuilder.value(randomLong());
-                    break;
-                case 3:
-                    jsonBuilder.value(randomDouble());
-                    break;
-                case 4:
-                    jsonBuilder.value(randomAlphaOfLengthBetween(5, 20));
-                    break;
-                case 5:
-                    jsonBuilder.value(randomBoolean());
-                    break;
-                case 6:
-                    jsonBuilder.value(randomByte());
-                    break;
-                case 7:
-                    jsonBuilder.value(randomShort());
-                    break;
-                case 8:
-                    jsonBuilder.value(new Text(randomAlphaOfLengthBetween(5, 20)));
-                    break;
-                case 9:
-                    jsonBuilder.nullValue();
-                    break;
+                case 0 -> jsonBuilder.value(randomInt());
+                case 1 -> jsonBuilder.value(randomFloat());
+                case 2 -> jsonBuilder.value(randomLong());
+                case 3 -> jsonBuilder.value(randomDouble());
+                case 4 -> jsonBuilder.value(randomAlphaOfLengthBetween(5, 20));
+                case 5 -> jsonBuilder.value(randomBoolean());
+                case 6 -> jsonBuilder.value(randomByte());
+                case 7 -> jsonBuilder.value(randomShort());
+                case 8 -> jsonBuilder.value(new Text(randomAlphaOfLengthBetween(5, 20)));
+                case 9 -> jsonBuilder.nullValue();
             }
         }
         jsonBuilder.endArray();

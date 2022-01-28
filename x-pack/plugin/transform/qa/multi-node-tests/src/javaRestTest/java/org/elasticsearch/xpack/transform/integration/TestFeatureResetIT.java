@@ -38,11 +38,13 @@ public class TestFeatureResetIT extends TransformIntegTestCase {
     @Before
     public void setLogging() throws IOException {
         Request settingsRequest = new Request("PUT", "/_cluster/settings");
-        settingsRequest.setJsonEntity(
-            "{\"persistent\": {"
-                + "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"debug\","
-                + "\"logger.org.elasticsearch.xpack.transform\": \"trace\"}}"
-        );
+        settingsRequest.setJsonEntity("""
+            {
+              "persistent": {
+                "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "debug",
+                "logger.org.elasticsearch.xpack.transform": "trace"
+              }
+            }""");
         client().performRequest(settingsRequest);
     }
 

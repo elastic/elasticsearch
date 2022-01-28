@@ -16,8 +16,9 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -63,6 +64,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -101,26 +103,35 @@ public class DeploymentManager {
     }
 
     public Optional<ModelStats> getStats(TrainedModelDeploymentTask task) {
-        return Optional.ofNullable(processContextByAllocation.get(task.getId()))
-            .map(
-                processContext -> new ModelStats(
-                    processContext.startTime,
-                    processContext.getResultProcessor().getTimingStats(),
-                    processContext.getResultProcessor().getLastUsed(),
-                    processContext.executorService.queueSize() + processContext.getResultProcessor().numberOfPendingResults(),
-                    processContext.inferenceThreads,
-                    processContext.modelThreads
-                )
+        return Optional.ofNullable(processContextByAllocation.get(task.getId())).map(processContext -> {
+            var stats = processContext.getResultProcessor().getResultStats();
+            return new ModelStats(
+                processContext.startTime,
+                stats.timingStats(),
+                stats.lastUsed(),
+                processContext.executorService.queueSize() + stats.numberOfPendingResults(),
+                stats.errorCount(),
+                processContext.rejectedExecutionCount.intValue(),
+                processContext.timeoutCount.intValue(),
+                processContext.inferenceThreads,
+                processContext.modelThreads
             );
+        });
+    }
+
+    // function exposed for testing
+    ProcessContext addProcessContext(Long id, ProcessContext processContext) {
+        return processContextByAllocation.putIfAbsent(id, processContext);
     }
 
     private void doStartDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> finalListener) {
-        logger.debug("[{}] Starting model deployment", task.getModelId());
+        logger.info("[{}] Starting model deployment", task.getModelId());
 
         ProcessContext processContext = new ProcessContext(task, executorServiceForProcess);
-
-        if (processContextByAllocation.putIfAbsent(task.getId(), processContext) != null) {
-            finalListener.onFailure(ExceptionsHelper.serverError("[{}] Could not create process as one already exists", task.getModelId()));
+        if (addProcessContext(task.getId(), processContext) != null) {
+            finalListener.onFailure(
+                ExceptionsHelper.serverError("[{}] Could not create inference process as one already exists", task.getModelId())
+            );
             return;
         }
 
@@ -194,7 +205,7 @@ public class DeploymentManager {
         ) {
             return Vocabulary.createParser(true).apply(parser, null);
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("failed to parse vocabulary [{}]", hit.getId()), e);
+            logger.error(new ParameterizedMessage("failed to parse trained model vocabulary [{}]", hit.getId()), e);
             throw e;
         }
     }
@@ -217,7 +228,7 @@ public class DeploymentManager {
             logger.info("[{}] Stopping deployment", task.getModelId());
             processContext.stopProcess();
         } else {
-            logger.debug("[{}] No process context to stop", task.getModelId());
+            logger.warn("[{}] No process context to stop", task.getModelId());
         }
     }
 
@@ -257,7 +268,10 @@ public class DeploymentManager {
             listener
         );
         try {
-            processContext.executorService.execute(inferenceAction);
+            processContext.getExecutorService().execute(inferenceAction);
+        } catch (EsRejectedExecutionException e) {
+            processContext.getRejectedExecutionCount().incrementAndGet();
+            inferenceAction.onFailure(e);
         } catch (Exception e) {
             inferenceAction.onFailure(e);
         }
@@ -300,6 +314,7 @@ public class DeploymentManager {
 
         void onTimeout() {
             if (notified.compareAndSet(false, true)) {
+                processContext.getTimeoutCount().incrementAndGet();
                 processContext.getResultProcessor().ignoreResponseWithoutNotifying(String.valueOf(requestId));
                 listener.onFailure(
                     new ElasticsearchStatusException("timeout [{}] waiting for inference result", RestStatus.REQUEST_TIMEOUT, timeout)
@@ -379,8 +394,8 @@ public class DeploymentManager {
                     );
                 processContext.process.get().writeInferenceRequest(request.processInput);
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.task.getModelId()), e);
-                onFailure(ExceptionsHelper.serverError("error writing to process", e));
+                logger.error(new ParameterizedMessage("[{}] error writing to inference process", processContext.task.getModelId()), e);
+                onFailure(ExceptionsHelper.serverError("Error writing to inference process", e));
             } catch (Exception e) {
                 onFailure(e);
             }
@@ -394,7 +409,12 @@ public class DeploymentManager {
             ActionListener<InferenceResults> resultsListener
         ) {
             if (inferenceResult.isError()) {
-                resultsListener.onFailure(new ElasticsearchStatusException(inferenceResult.getError(), RestStatus.INTERNAL_SERVER_ERROR));
+                resultsListener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Error in inference process: [" + inferenceResult.getError() + "]",
+                        RestStatus.INTERNAL_SERVER_ERROR
+                    )
+                );
                 return;
             }
 
@@ -428,6 +448,8 @@ public class DeploymentManager {
         private volatile Instant startTime;
         private volatile Integer inferenceThreads;
         private volatile Integer modelThreads;
+        private AtomicInteger rejectedExecutionCount = new AtomicInteger();
+        private AtomicInteger timeoutCount = new AtomicInteger();
 
         ProcessContext(TrainedModelDeploymentTask task, ExecutorService executorService) {
             this.task = Objects.requireNonNull(task);
@@ -438,7 +460,7 @@ public class DeploymentManager {
             this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
             this.executorService = new ProcessWorkerExecutorService(
                 threadPool.getThreadContext(),
-                "pytorch_inference",
+                "inference process",
                 task.getParams().getQueueCapacity()
             );
         }
@@ -470,11 +492,11 @@ public class DeploymentManager {
 
         private Consumer<String> onProcessCrash() {
             return reason -> {
-                logger.error("[{}] process crashed due to reason [{}]", task.getModelId(), reason);
+                logger.error("[{}] inference process crashed due to reason [{}]", task.getModelId(), reason);
                 resultProcessor.stop();
                 executorService.shutdownWithError(new IllegalStateException(reason));
                 processContextByAllocation.remove(task.getId());
-                task.setFailed("process crashed due to reason [" + reason + "]");
+                task.setFailed("inference process crashed due to reason [" + reason + "]");
             };
         }
 
@@ -484,6 +506,21 @@ public class DeploymentManager {
             } else {
                 throw new IllegalStateException("unsupported trained model location [" + modelLocation.getClass().getSimpleName() + "]");
             }
+        }
+
+        // accessor used for mocking in tests
+        AtomicInteger getTimeoutCount() {
+            return timeoutCount;
+        }
+
+        // accessor used for mocking in tests
+        ExecutorService getExecutorService() {
+            return executorService;
+        }
+
+        // accessor used for mocking in tests
+        AtomicInteger getRejectedExecutionCount() {
+            return rejectedExecutionCount;
         }
     }
 }

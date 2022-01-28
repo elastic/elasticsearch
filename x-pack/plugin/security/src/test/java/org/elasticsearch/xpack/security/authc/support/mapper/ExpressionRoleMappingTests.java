@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -69,15 +70,27 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     }
 
     public void testValidExpressionWithFixedRoleNames() throws Exception {
-        String json = "{"
-            + "\"roles\": [  \"kibana_user\", \"sales\" ], "
-            + "\"enabled\": true, "
-            + "\"rules\": { "
-            + "  \"all\": [ "
-            + "    { \"field\": { \"dn\" : \"*,ou=sales,dc=example,dc=com\" } }, "
-            + "    { \"except\": { \"field\": { \"metadata.active\" : false } } }"
-            + "  ]}"
-            + "}";
+        String json = """
+            {
+              "roles": [ "kibana_user", "sales" ],
+              "enabled": true,
+              "rules": {
+                "all": [
+                  {
+                    "field": {
+                      "dn": "*,ou=sales,dc=example,dc=com"
+                    }
+                  },
+                  {
+                    "except": {
+                      "field": {
+                        "metadata.active": false
+                      }
+                    }
+                  }
+                ]
+              }
+            }""";
         ExpressionRoleMapping mapping = parse(json, "ldap_sales");
         assertThat(mapping.getRoles(), Matchers.containsInAnyOrder("kibana_user", "sales"));
         assertThat(mapping.getExpression(), instanceOf(AllExpression.class));
@@ -137,15 +150,25 @@ public class ExpressionRoleMappingTests extends ESTestCase {
         assertThat(mapping.getExpression().match(user4.asModel()), equalTo(false)); // dn == null
 
         // expression without dn
-        json = "{"
-            + "\"roles\": [  \"superuser\", \"system_admin\", \"admin\" ], "
-            + "\"enabled\": true, "
-            + "\"rules\": { "
-            + "  \"any\": [ "
-            + "    { \"field\": { \"username\" : \"tony.stark\" } }, "
-            + "    { \"field\": { \"groups\": \"cn=admins,dc=stark-enterprises,dc=com\" } }"
-            + "  ]}"
-            + "}";
+        json = """
+            {
+              "roles": [ "superuser", "system_admin", "admin" ],
+              "enabled": true,
+              "rules": {
+                "any": [
+                  {
+                    "field": {
+                      "username": "tony.stark"
+                    }
+                  },
+                  {
+                    "field": {
+                      "groups": "cn=admins,dc=stark-enterprises,dc=com"
+                    }
+                  }
+                ]
+              }
+            }""";
         mapping = parse(json, "stark_admin");
         assertThat(mapping.getRoles(), Matchers.containsInAnyOrder("superuser", "system_admin", "admin"));
         assertThat(mapping.getExpression(), instanceOf(AnyExpression.class));
@@ -177,19 +200,44 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     }
 
     public void testParseValidJsonWithTemplatedRoleNames() throws Exception {
-        String json = "{"
-            + "\"role_templates\": [  "
-            + "   { \"template\" : { \"source\":\"kibana_user\"} },"
-            + "   { \"template\" : { \"source\":\"sales\"} },"
-            + "   { \"template\" : { \"source\":\"_user_{{username}}\" }, \"format\":\"string\" }"
-            + " ], "
-            + "\"enabled\": true, "
-            + "\"rules\": { "
-            + "  \"all\": [ "
-            + "    { \"field\": { \"dn\" : \"*,ou=sales,dc=example,dc=com\" } }, "
-            + "    { \"except\": { \"field\": { \"metadata.active\" : false } } }"
-            + "  ]}"
-            + "}";
+        String json = """
+            {
+              "role_templates": [
+                {
+                  "template": {
+                    "source": "kibana_user"
+                  }
+                },
+                {
+                  "template": {
+                    "source": "sales"
+                  }
+                },
+                {
+                  "template": {
+                    "source": "_user_{{username}}"
+                  },
+                  "format": "string"
+                }
+              ],
+              "enabled": true,
+              "rules": {
+                "all": [
+                  {
+                    "field": {
+                      "dn": "*,ou=sales,dc=example,dc=com"
+                    }
+                  },
+                  {
+                    "except": {
+                      "field": {
+                        "metadata.active": false
+                      }
+                    }
+                  }
+                ]
+              }
+            }""";
         final ExpressionRoleMapping mapping = parse(json, "ldap_sales");
         assertThat(mapping.getRoleTemplates(), iterableWithSize(3));
         assertThat(mapping.getRoleTemplates().get(0).getTemplate().utf8ToString(), equalTo("{\"source\":\"kibana_user\"}"));
@@ -201,56 +249,74 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     }
 
     public void testParsingFailsIfRulesAreMissing() throws Exception {
-        String json = "{" + "\"roles\": [  \"kibana_user\", \"sales\" ], " + "\"enabled\": true " + "}";
+        String json = """
+            {
+              "roles": [ "kibana_user", "sales" ],
+              "enabled": true
+            }""";
         ParsingException ex = expectThrows(ParsingException.class, () -> parse(json, "bad_json"));
         assertThat(ex.getMessage(), containsString("rules"));
     }
 
     public void testParsingFailsIfRolesMissing() throws Exception {
-        String json = "{"
-            + "\"enabled\": true, "
-            + "\"rules\": "
-            + "    { \"field\": { \"dn\" : \"*,ou=sales,dc=example,dc=com\" } } "
-            + "}";
+        String json = """
+            {
+              "enabled": true,
+              "rules": {
+                "field": {
+                  "dn": "*,ou=sales,dc=example,dc=com"
+                }
+              }
+            }""";
         ParsingException ex = expectThrows(ParsingException.class, () -> parse(json, "bad_json"));
         assertThat(ex.getMessage(), containsString("role"));
     }
 
     public void testParsingFailsIfThereAreUnrecognisedFields() throws Exception {
-        String json = "{"
-            + "\"disabled\": false, "
-            + "\"roles\": [  \"kibana_user\", \"sales\" ], "
-            + "\"rules\": "
-            + "    { \"field\": { \"dn\" : \"*,ou=sales,dc=example,dc=com\" } } "
-            + "}";
+        String json = """
+            {
+              "disabled": false,
+              "roles": [ "kibana_user", "sales" ],
+              "rules": {
+                "field": {
+                  "dn": "*,ou=sales,dc=example,dc=com"
+                }
+              }
+            }""";
         ParsingException ex = expectThrows(ParsingException.class, () -> parse(json, "bad_json"));
         assertThat(ex.getMessage(), containsString("disabled"));
     }
 
     public void testParsingIgnoresTypeFields() throws Exception {
-        String json = "{"
-            + "\"enabled\": true, "
-            + "\"roles\": [  \"kibana_user\", \"sales\" ], "
-            + "\"rules\": "
-            + "    { \"field\": { \"dn\" : \"*,ou=sales,dc=example,dc=com\" } }, "
-            + "\"doc_type\": \"role-mapping\", "
-            + "\"type\": \"doc\""
-            + "}";
+        String json = """
+            {
+              "enabled": true,
+              "roles": [ "kibana_user", "sales" ],
+              "rules": {
+                "field": {
+                  "dn": "*,ou=sales,dc=example,dc=com"
+                }
+              },
+              "doc_type": "role-mapping",
+              "type": "doc"
+            }""";
         final ExpressionRoleMapping mapping = parse(json, "from_index", true);
         assertThat(mapping.isEnabled(), equalTo(true));
         assertThat(mapping.getRoles(), Matchers.containsInAnyOrder("kibana_user", "sales"));
     }
 
     public void testParsingOfBothRoleNamesAndTemplates() throws Exception {
-        String json = "{"
-            + "\"enabled\": true, "
-            + "\"roles\": [  \"kibana_user\", \"sales\" ], "
-            + "\"role_templates\": ["
-            + "    { \"template\" : \"{ \\\"source\\\":\\\"_user_{{username}}\\\" }\", \"format\":\"string\" }"
-            + "],"
-            + "\"rules\": "
-            + "    { \"field\": { \"dn\" : \"*,ou=sales,dc=example,dc=com\" } }"
-            + "}";
+        String json = """
+            {
+              "enabled": true,
+              "roles": [ "kibana_user", "sales" ],
+              "role_templates": [ { "template": "{ \\"source\\":\\"_user_{{username}}\\" }", "format": "string" } ],
+              "rules": {
+                "field": {
+                  "dn": "*,ou=sales,dc=example,dc=com"
+                }
+              }
+            }""";
 
         // This is rejected when validating a request, but is valid when parsing the mapping
         final ExpressionRoleMapping mapping = parse(json, "from_api", false);
@@ -259,63 +325,78 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     }
 
     public void testToXContentWithRoleNames() throws Exception {
-        String source = "{"
-            + "\"roles\": [  "
-            + "   \"kibana_user\","
-            + "   \"sales\""
-            + " ], "
-            + "\"enabled\": true, "
-            + "\"rules\": { \"field\": { \"realm.name\" : \"saml1\" } }"
-            + "}";
+        String source = """
+            {
+              "roles": [ "kibana_user", "sales" ],
+              "enabled": true,
+              "rules": {
+                "field": {
+                  "realm.name": "saml1"
+                }
+              }
+            }""";
         final ExpressionRoleMapping mapping = parse(source, getTestName());
         assertThat(mapping.getRoles(), iterableWithSize(2));
 
         final String xcontent = Strings.toString(mapping);
-        assertThat(
-            xcontent,
-            equalTo(
-                "{"
-                    + "\"enabled\":true,"
-                    + "\"roles\":["
-                    + "\"kibana_user\","
-                    + "\"sales\""
-                    + "],"
-                    + "\"rules\":{\"field\":{\"realm.name\":\"saml1\"}},"
-                    + "\"metadata\":{}"
-                    + "}"
-            )
-        );
+        assertThat(xcontent, equalTo("""
+            {"enabled":true,"roles":["kibana_user","sales"],"rules":{"field":{"realm.name":"saml1"}},"metadata":{}}"""));
     }
 
     public void testToXContentWithTemplates() throws Exception {
-        String source = "{"
-            + "\"metadata\" : { \"answer\":42 },"
-            + "\"role_templates\": [  "
-            + "   { \"template\" : { \"source\":\"_user_{{username}}\" }, \"format\":\"string\" },"
-            + "   { \"template\" : { \"source\":\"{{#tojson}}groups{{/tojson}}\" }, \"format\":\"json\" }"
-            + " ], "
-            + "\"enabled\": false, "
-            + "\"rules\": { \"field\": { \"realm.name\" : \"saml1\" } }"
-            + "}";
+        String source = """
+            {
+              "metadata": {
+                "answer": 42
+              },
+              "role_templates": [
+                {
+                  "template": {
+                    "source": "_user_{{username}}"
+                  },
+                  "format": "string"
+                },
+                {
+                  "template": {
+                    "source": "{{#tojson}}groups{{/tojson}}"
+                  },
+                  "format": "json"
+                }
+              ],
+              "enabled": false,
+              "rules": {
+                "field": {
+                  "realm.name": "saml1"
+                }
+              }
+            }""";
         final ExpressionRoleMapping mapping = parse(source, getTestName());
         assertThat(mapping.getRoleTemplates(), iterableWithSize(2));
 
         final String xcontent = Strings.toString(mapping.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS, true));
-        assertThat(
-            xcontent,
-            equalTo(
-                "{"
-                    + "\"enabled\":false,"
-                    + "\"role_templates\":["
-                    + "{\"template\":\"{\\\"source\\\":\\\"_user_{{username}}\\\"}\",\"format\":\"string\"},"
-                    + "{\"template\":\"{\\\"source\\\":\\\"{{#tojson}}groups{{/tojson}}\\\"}\",\"format\":\"json\"}"
-                    + "],"
-                    + "\"rules\":{\"field\":{\"realm.name\":\"saml1\"}},"
-                    + "\"metadata\":{\"answer\":42},"
-                    + "\"doc_type\":\"role-mapping\""
-                    + "}"
-            )
-        );
+        assertThat(xcontent, equalTo(XContentHelper.stripWhitespace("""
+            {
+              "enabled": false,
+              "role_templates": [
+                {
+                  "template": "{\\"source\\":\\"_user_{{username}}\\"}",
+                  "format": "string"
+                },
+                {
+                  "template": "{\\"source\\":\\"{{#tojson}}groups{{/tojson}}\\"}",
+                  "format": "json"
+                }
+              ],
+              "rules": {
+                "field": {
+                  "realm.name": "saml1"
+                }
+              },
+              "metadata": {
+                "answer": 42
+              },
+              "doc_type": "role-mapping"
+            }""")));
 
         final ExpressionRoleMapping parsed = parse(xcontent, getTestName(), true);
         assertThat(parsed.getRoles(), iterableWithSize(0));

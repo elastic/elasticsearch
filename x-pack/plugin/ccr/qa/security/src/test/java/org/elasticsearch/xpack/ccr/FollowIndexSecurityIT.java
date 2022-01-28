@@ -147,18 +147,21 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
         {
             Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
-            request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"], \"remote_cluster\": \"leader_cluster\"}");
+            request.setJsonEntity("""
+                {"leader_index_patterns": ["logs-*"], "remote_cluster": "leader_cluster"}""");
             Exception e = expectThrows(ResponseException.class, () -> assertOK(client().performRequest(request)));
             assertThat(e.getMessage(), containsString("insufficient privileges to follow index [logs-*]"));
         }
 
         Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
-        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-eu*\"], \"remote_cluster\": \"leader_cluster\"}");
+        request.setJsonEntity("""
+            {"leader_index_patterns": ["logs-eu*"], "remote_cluster": "leader_cluster"}""");
         assertOK(client().performRequest(request));
 
         try (RestClient leaderClient = buildLeaderClient()) {
             for (String index : new String[] { allowedIndex, disallowedIndex }) {
-                String requestBody = "{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}";
+                String requestBody = """
+                    {"mappings": {"properties": {"field": {"type": "keyword"}}}}""";
                 request = new Request("PUT", "/" + index);
                 request.setJsonEntity(requestBody);
                 assertOK(leaderClient.performRequest(request));
@@ -204,16 +207,13 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
             try (RestClient leaderClient = buildLeaderClient(restAdminSettings())) {
                 final Request request = new Request("POST", "/" + forgetLeader + "/_ccr/forget_follower");
-                final String requestBody = "{"
-                    + "\"follower_cluster\":\"follow-cluster\","
-                    + "\"follower_index\":\""
-                    + forgetFollower
-                    + "\","
-                    + "\"follower_index_uuid\":\""
-                    + followerIndexUUID
-                    + "\","
-                    + "\"leader_remote_cluster\":\"leader_cluster\""
-                    + "}";
+                final String requestBody = """
+                    {
+                      "follower_cluster": "follow-cluster",
+                      "follower_index": "%s",
+                      "follower_index_uuid": "%s",
+                      "leader_remote_cluster": "leader_cluster"
+                    }""".formatted(forgetFollower, followerIndexUUID);
                 request.setJsonEntity(requestBody);
                 final Response forgetFollowerResponse = leaderClient.performRequest(request);
                 assertOK(forgetFollowerResponse);
@@ -286,7 +286,9 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 for (var i = 0; i < numDocs; i++) {
                     var indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                     indexRequest.addParameter("refresh", "true");
-                    indexRequest.setJsonEntity("{\"@timestamp\": \"" + dateFormat.format(new Date()) + "\",\"message\":\"abc\"}");
+                    indexRequest.setJsonEntity("""
+                        {"@timestamp": "%s","message":"abc"}
+                        """.formatted(dateFormat.format(new Date())));
                     assertOK(leaderClient.performRequest(indexRequest));
                 }
                 verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));

@@ -60,9 +60,6 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
 
                 java.target("src/**/*.java");
 
-                // Use `@formatter:off` and `@formatter:on` to toggle formatting - ONLY IF STRICTLY NECESSARY
-                java.toggleOffOn("@formatter:off", "@formatter:on");
-
                 java.removeUnusedImports();
 
                 // We enforce a standard order for imports

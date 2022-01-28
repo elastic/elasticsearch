@@ -124,8 +124,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
     public boolean equals(Object other) {
         if (other == null) {
             return false;
-        } else if (other instanceof GetPipelineResponse) {
-            GetPipelineResponse otherResponse = (GetPipelineResponse) other;
+        } else if (other instanceof GetPipelineResponse otherResponse) {
             if (pipelines == null) {
                 return otherResponse.pipelines == null;
             } else {

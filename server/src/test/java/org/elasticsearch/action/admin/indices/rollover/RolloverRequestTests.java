@@ -227,10 +227,8 @@ public class RolloverRequestTests extends ESTestCase {
             request.fromXContent(true, parser);
             Map<String, Condition<?>> conditions = request.getConditions();
             assertThat(conditions.size(), equalTo(2));
-            assertThat(
-                request.getCreateIndexRequest().mappings(),
-                equalTo("{\"_doc\":{\"properties\":{\"field1\":{\"index\":\"not_analyzed\",\"type\":\"string\"}}}}")
-            );
+            assertThat(request.getCreateIndexRequest().mappings(), equalTo("""
+                {"_doc":{"properties":{"field1":{"index":"not_analyzed","type":"string"}}}}"""));
         }
     }
 

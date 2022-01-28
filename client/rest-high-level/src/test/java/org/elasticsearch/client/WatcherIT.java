@@ -73,11 +73,12 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         assertThat(putWatchResponse.getVersion(), is(1L));
     }
 
-    private static final String WATCH_JSON = "{ \n"
-        + "  \"trigger\": { \"schedule\": { \"interval\": \"10h\" } },\n"
-        + "  \"input\": { \"none\": {} },\n"
-        + "  \"actions\": { \"logme\": { \"logging\": { \"text\": \"{{ctx.payload}}\" } } }\n"
-        + "}";
+    private static final String WATCH_JSON = """
+        {
+          "trigger": { "schedule": { "interval": "10h" } },
+          "input": { "none": {} },
+          "actions": { "logme": { "logging": { "text": "{{ctx.payload}}" } } }
+        }""";
 
     private PutWatchResponse createWatch(String watchId) throws Exception {
         BytesReference bytesReference = new BytesArray(WATCH_JSON);

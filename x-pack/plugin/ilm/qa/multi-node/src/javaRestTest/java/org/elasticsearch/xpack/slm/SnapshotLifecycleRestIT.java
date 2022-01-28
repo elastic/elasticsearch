@@ -498,13 +498,14 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         String repoId = "ds-repo";
         String policyName = "ds-policy";
 
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"date\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+                  "properties": {
+                    "@timestamp": {
+                      "type": "date"
+                    }
+                  }
+                }""";
         Template template = new Template(null, new CompressedXContent(mapping), null);
         createComposableTemplate(client(), "ds-template", dataStreamName, template);
 
@@ -668,44 +669,35 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     private void assertHistoryIsPresent(String policyName, boolean success, String repository, String operation) throws IOException {
         final Request historySearchRequest = new Request("GET", ".slm-history*/_search");
-        historySearchRequest.setJsonEntity(
-            "{\n"
-                + "  \"query\": {\n"
-                + "    \"bool\": {\n"
-                + "      \"must\": [\n"
-                + "        {\n"
-                + "          \"term\": {\n"
-                + "            \"policy\": \""
-                + policyName
-                + "\"\n"
-                + "          }\n"
-                + "        },\n"
-                + "        {\n"
-                + "          \"term\": {\n"
-                + "            \"success\": "
-                + success
-                + "\n"
-                + "          }\n"
-                + "        },\n"
-                + "        {\n"
-                + "          \"term\": {\n"
-                + "            \"repository\": \""
-                + repository
-                + "\"\n"
-                + "          }\n"
-                + "        },\n"
-                + "        {\n"
-                + "          \"term\": {\n"
-                + "            \"operation\": \""
-                + operation
-                + "\"\n"
-                + "          }\n"
-                + "        }\n"
-                + "      ]\n"
-                + "    }\n"
-                + "  }\n"
-                + "}"
-        );
+        historySearchRequest.setJsonEntity("""
+            {
+              "query": {
+                "bool": {
+                  "must": [
+                    {
+                      "term": {
+                        "policy": "%s"
+                      }
+                    },
+                    {
+                      "term": {
+                        "success": %s
+                      }
+                    },
+                    {
+                      "term": {
+                        "repository": "%s"
+                      }
+                    },
+                    {
+                      "term": {
+                        "operation": "%s"
+                      }
+                    }
+                  ]
+                }
+              }
+            }""".formatted(policyName, success, repository, operation));
         Response historyResponse;
         try {
             historyResponse = client().performRequest(historySearchRequest);

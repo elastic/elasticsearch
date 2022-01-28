@@ -692,18 +692,31 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             builder.endObject();
             return builder;
         };
-        assertResult(
-            "{'root':{"
-                + "'field':'value',"
-                + "'array':['1','2','3'],"
-                + "'foo':{'bar':'baz'}"
-                + "},"
-                + "'childs':["
-                + "{'field':'value','array':['1','2','3'],'foo':{'bar':'baz'}},"
-                + "{'field':'value','foo':{'bar':'baz'}}"
-                + "]}",
-            () -> builder().value(xcontent2)
-        );
+        assertResult(XContentHelper.stripWhitespace("""
+            {
+               "root": {
+                 "field": "value",
+                 "array": [ "1", "2", "3" ],
+                 "foo": {
+                   "bar": "baz"
+                 }
+               },
+               "childs": [
+                 {
+                   "field": "value",
+                   "array": [ "1", "2", "3" ],
+                   "foo": {
+                     "bar": "baz"
+                   }
+                 },
+                 {
+                   "field": "value",
+                   "foo": {
+                     "bar": "baz"
+                   }
+                 }
+               ]
+             }"""), () -> builder().value(xcontent2));
     }
 
     public void testMap() throws Exception {

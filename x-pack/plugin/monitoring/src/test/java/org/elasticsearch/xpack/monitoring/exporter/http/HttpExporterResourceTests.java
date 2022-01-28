@@ -66,7 +66,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     private final boolean validLicense = randomBoolean();
 
     /**
-     * kibana, logstash, and beats
+     * kibana, logstash, beats and enterprise search
      */
     private final int EXPECTED_TEMPLATES = TEMPLATE_NAMES.length;
     private final int EXPECTED_WATCHES = ClusterAlertsUtil.WATCH_IDS.length;
@@ -649,8 +649,10 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         final Response response;
         if (randomBoolean()) {
             final HttpEntity entity = randomFrom(
-                new StringEntity("{\"features\":{\"watcher\":{\"enabled\":false,\"available\":true}}}", ContentType.APPLICATION_JSON),
-                new StringEntity("{\"features\":{\"watcher\":{\"enabled\":true,\"available\":false}}}", ContentType.APPLICATION_JSON),
+                new StringEntity("""
+                    {"features":{"watcher":{"enabled":false,"available":true}}}""", ContentType.APPLICATION_JSON),
+                new StringEntity("""
+                    {"features":{"watcher":{"enabled":true,"available":false}}}""", ContentType.APPLICATION_JSON),
                 new StringEntity("{}", ContentType.APPLICATION_JSON)
             );
 

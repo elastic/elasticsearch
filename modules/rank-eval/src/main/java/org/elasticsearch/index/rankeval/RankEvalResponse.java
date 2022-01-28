@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -53,14 +54,14 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
         super(in);
         this.metricScore = in.readDouble();
         int partialResultSize = in.readVInt();
-        this.details = new HashMap<>(partialResultSize);
+        this.details = Maps.newMapWithExpectedSize(partialResultSize);
         for (int i = 0; i < partialResultSize; i++) {
             String queryId = in.readString();
             EvalQueryQuality partial = new EvalQueryQuality(in);
             this.details.put(queryId, partial);
         }
         int failuresSize = in.readVInt();
-        this.failures = new HashMap<>(failuresSize);
+        this.failures = Maps.newMapWithExpectedSize(failuresSize);
         for (int i = 0; i < failuresSize; i++) {
             String queryId = in.readString();
             this.failures.put(queryId, in.readException());

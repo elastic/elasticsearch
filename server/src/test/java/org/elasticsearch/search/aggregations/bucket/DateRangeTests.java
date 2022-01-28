@@ -62,13 +62,14 @@ public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregation
     }
 
     public void testParsingRangeStrict() throws IOException {
-        final String rangeAggregation = "{\n"
-            + "\"field\" : \"date\",\n"
-            + "\"format\" : \"yyyy-MM-dd\",\n"
-            + "\"ranges\" : [\n"
-            + "    { \"from\" : \"2017-01-01\", \"to\" : \"2017-01-02\", \"badField\" : \"abcd\" }\n"
-            + "]\n"
-            + "}";
+        final String rangeAggregation = """
+            {
+            "field" : "date",
+            "format" : "yyyy-MM-dd",
+            "ranges" : [
+                { "from" : "2017-01-01", "to" : "2017-01-02", "badField" : "abcd" }
+            ]
+            }""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, rangeAggregation);
         XContentParseException ex = expectThrows(
             XContentParseException.class,

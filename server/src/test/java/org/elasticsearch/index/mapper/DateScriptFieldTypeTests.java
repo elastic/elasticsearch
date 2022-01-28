@@ -464,38 +464,46 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     private static DateFieldScript.Factory factory(Script script) {
-        switch (script.getIdOrCode()) {
-            case "read_timestamp":
-                return (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(fieldName, params, lookup, formatter, ctx) {
-                    @Override
-                    public void execute() {
-                        for (Object timestamp : (List<?>) lookup.source().get("timestamp")) {
-                            DateFieldScript.Parse parse = new DateFieldScript.Parse(this);
-                            emit(parse.parse(timestamp));
-                        }
+        return switch (script.getIdOrCode()) {
+            case "read_timestamp" -> (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
+                fieldName,
+                params,
+                lookup,
+                formatter,
+                ctx
+            ) {
+                @Override
+                public void execute() {
+                    for (Object timestamp : (List<?>) lookup.source().get("timestamp")) {
+                        Parse parse = new Parse(this);
+                        emit(parse.parse(timestamp));
                     }
-                };
-            case "add_days":
-                return (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(fieldName, params, lookup, formatter, ctx) {
-                    @Override
-                    public void execute() {
-                        for (Object timestamp : (List<?>) lookup.source().get("timestamp")) {
-                            long epoch = (Long) timestamp;
-                            ZonedDateTime dt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epoch), ZoneId.of("UTC"));
-                            dt = dt.plus(((Number) params.get("days")).longValue(), ChronoUnit.DAYS);
-                            emit(dt.toInstant().toEpochMilli());
-                        }
+                }
+            };
+            case "add_days" -> (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
+                fieldName,
+                params,
+                lookup,
+                formatter,
+                ctx
+            ) {
+                @Override
+                public void execute() {
+                    for (Object timestamp : (List<?>) lookup.source().get("timestamp")) {
+                        long epoch = (Long) timestamp;
+                        ZonedDateTime dt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epoch), ZoneId.of("UTC"));
+                        dt = dt.plus(((Number) params.get("days")).longValue(), ChronoUnit.DAYS);
+                        emit(dt.toInstant().toEpochMilli());
                     }
-                };
-            case "loop":
-                return (fieldName, params, lookup, formatter) -> {
-                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                    lookup.forkAndTrackFieldReferences("test");
-                    throw new IllegalStateException("shoud have thrown on the line above");
-                };
-            default:
-                throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
-        }
+                }
+            };
+            case "loop" -> (fieldName, params, lookup, formatter) -> {
+                // Indicate that this script wants the field call "test", which *is* the name of this field
+                lookup.forkAndTrackFieldReferences("test");
+                throw new IllegalStateException("shoud have thrown on the line above");
+            };
+            default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
+        };
     }
 
     private static DateScriptFieldType build(Script script, DateFormatter dateTimeFormatter) {

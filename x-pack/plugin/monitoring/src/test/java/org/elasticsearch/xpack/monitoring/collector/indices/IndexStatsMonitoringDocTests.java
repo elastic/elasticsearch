@@ -155,146 +155,145 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             xContent = BytesReference.bytes(builder);
         }
 
+        // indexStatsSummary()
         final String expected = stripWhitespace(
-            String.format(
-                Locale.ROOT,
-                "{"
-                    + "  \"cluster_uuid\": \"_cluster\","
-                    + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","
-                    + "  \"interval_ms\": 1506593717631,"
-                    + "  \"type\": \"index_stats\","
-                    + "  \"source_node\": {"
-                    + "    \"uuid\": \"_uuid\","
-                    + "    \"host\": \"_host\","
-                    + "    \"transport_address\": \"_addr\","
-                    + "    \"ip\": \"_ip\","
-                    + "    \"name\": \"_name\","
-                    + "    \"timestamp\": \"2017-08-31T08:46:30.855Z\""
-                    + "  },"
-                    + "  \"index_stats\": {"
-                    + "    %s," // indexStatsSummary()
-                    + "    \"total\": {"
-                    + "      \"docs\": {"
-                    + "        \"count\": 1"
-                    + "      },"
-                    + "      \"store\": {"
-                    + "        \"size_in_bytes\": 13"
-                    + "      },"
-                    + "      \"indexing\": {"
-                    + "        \"index_total\": 16,"
-                    + "        \"index_time_in_millis\": 17,"
-                    + "        \"throttle_time_in_millis\": 18"
-                    + "      },"
-                    + "      \"search\": {"
-                    + "        \"query_total\": 19,"
-                    + "        \"query_time_in_millis\": 20"
-                    + "      },"
-                    + "      \"merges\": {"
-                    + "        \"total_size_in_bytes\": 4"
-                    + "      },"
-                    + "      \"refresh\": {"
-                    + "        \"total_time_in_millis\": 14,"
-                    + "        \"external_total_time_in_millis\": 15"
-                    + "      },"
-                    + "      \"query_cache\": {"
-                    + "        \"memory_size_in_bytes\": 5,"
-                    + "        \"hit_count\": 6,"
-                    + "        \"miss_count\": 7,"
-                    + "        \"evictions\": 9"
-                    + "      },"
-                    + "      \"fielddata\": {"
-                    + "        \"memory_size_in_bytes\": 2,"
-                    + "        \"evictions\": 3"
-                    + "      },"
-                    + "      \"segments\": {"
-                    + "        \"count\": 21,"
-                    + "        \"memory_in_bytes\": 0,"
-                    + "        \"terms_memory_in_bytes\": 0,"
-                    + "        \"stored_fields_memory_in_bytes\": 0,"
-                    + "        \"term_vectors_memory_in_bytes\": 0,"
-                    + "        \"norms_memory_in_bytes\": 0,"
-                    + "        \"points_memory_in_bytes\": 0,"
-                    + "        \"doc_values_memory_in_bytes\": 0,"
-                    + "        \"index_writer_memory_in_bytes\": 22,"
-                    + "        \"version_map_memory_in_bytes\": 23,"
-                    + "        \"fixed_bit_set_memory_in_bytes\": 24"
-                    + "      },"
-                    + "      \"request_cache\": {"
-                    + "        \"memory_size_in_bytes\": 9,"
-                    + "        \"evictions\": 10,"
-                    + "        \"hit_count\": 11,"
-                    + "        \"miss_count\": 12"
-                    + "      },"
-                    + "      \"bulk\": {"
-                    + "        \"total_operations\": 0,"
-                    + "        \"total_time_in_millis\": 0,"
-                    + "        \"total_size_in_bytes\": 0,"
-                    + "        \"avg_time_in_millis\": 0,"
-                    + "        \"avg_size_in_bytes\": 0"
-                    + "      }"
-                    + "    },"
-                    + "    \"primaries\": {"
-                    + "      \"docs\": {"
-                    + "        \"count\": 1"
-                    + "      },"
-                    + "      \"store\": {"
-                    + "        \"size_in_bytes\": 13"
-                    + "      },"
-                    + "      \"indexing\": {"
-                    + "        \"index_total\": 16,"
-                    + "        \"index_time_in_millis\": 17,"
-                    + "        \"throttle_time_in_millis\": 18"
-                    + "      },"
-                    + "      \"search\": {"
-                    + "        \"query_total\": 19,"
-                    + "        \"query_time_in_millis\": 20"
-                    + "      },"
-                    + "      \"merges\": {"
-                    + "        \"total_size_in_bytes\": 4"
-                    + "      },"
-                    + "      \"refresh\": {"
-                    + "        \"total_time_in_millis\": 14,"
-                    + "        \"external_total_time_in_millis\": 15"
-                    + "      },"
-                    + "      \"query_cache\": {"
-                    + "        \"memory_size_in_bytes\": 5,"
-                    + "        \"hit_count\": 6,"
-                    + "        \"miss_count\": 7,"
-                    + "        \"evictions\": 9"
-                    + "      },"
-                    + "      \"fielddata\": {"
-                    + "        \"memory_size_in_bytes\": 2,"
-                    + "        \"evictions\": 3"
-                    + "      },"
-                    + "      \"segments\": {"
-                    + "        \"count\": 21,"
-                    + "        \"memory_in_bytes\": 0,"
-                    + "        \"terms_memory_in_bytes\": 0,"
-                    + "        \"stored_fields_memory_in_bytes\": 0,"
-                    + "        \"term_vectors_memory_in_bytes\": 0,"
-                    + "        \"norms_memory_in_bytes\": 0,"
-                    + "        \"points_memory_in_bytes\": 0,"
-                    + "        \"doc_values_memory_in_bytes\": 0,"
-                    + "        \"index_writer_memory_in_bytes\": 22,"
-                    + "        \"version_map_memory_in_bytes\": 23,"
-                    + "        \"fixed_bit_set_memory_in_bytes\": 24"
-                    + "      },"
-                    + "      \"request_cache\": {"
-                    + "        \"memory_size_in_bytes\": 9,"
-                    + "        \"evictions\": 10,"
-                    + "        \"hit_count\": 11,"
-                    + "        \"miss_count\": 12"
-                    + "      },"
-                    + "      \"bulk\": {"
-                    + "        \"total_operations\": 0,"
-                    + "        \"total_time_in_millis\": 0,"
-                    + "        \"total_size_in_bytes\": 0,"
-                    + "        \"avg_time_in_millis\": 0,"
-                    + "        \"avg_size_in_bytes\": 0"
-                    + "      }"
-                    + "    }"
-                    + "  }"
-                    + "}",
+            """
+                {
+                  "cluster_uuid": "_cluster",
+                  "timestamp": "2017-08-09T08:18:59.402Z",
+                  "interval_ms": 1506593717631,
+                  "type": "index_stats",
+                  "source_node": {
+                    "uuid": "_uuid",
+                    "host": "_host",
+                    "transport_address": "_addr",
+                    "ip": "_ip",
+                    "name": "_name",
+                    "timestamp": "2017-08-31T08:46:30.855Z"
+                  },
+                  "index_stats": {
+                  %s,
+                  "total": {
+                    "docs": {
+                      "count": 1
+                    },
+                    "store": {
+                      "size_in_bytes": 13
+                    },
+                    "indexing": {
+                      "index_total": 16,
+                      "index_time_in_millis": 17,
+                      "throttle_time_in_millis": 18
+                    },
+                    "search": {
+                      "query_total": 19,
+                      "query_time_in_millis": 20
+                    },
+                    "merges": {
+                      "total_size_in_bytes": 4
+                    },
+                    "refresh": {
+                      "total_time_in_millis": 14,
+                      "external_total_time_in_millis": 15
+                    },
+                    "query_cache": {
+                      "memory_size_in_bytes": 5,
+                      "hit_count": 6,
+                      "miss_count": 7,
+                      "evictions": 9
+                    },
+                    "fielddata": {
+                      "memory_size_in_bytes": 2,
+                      "evictions": 3
+                    },
+                    "segments": {
+                      "count": 21,
+                      "memory_in_bytes": 0,
+                      "terms_memory_in_bytes": 0,
+                      "stored_fields_memory_in_bytes": 0,
+                      "term_vectors_memory_in_bytes": 0,
+                      "norms_memory_in_bytes": 0,
+                      "points_memory_in_bytes": 0,
+                      "doc_values_memory_in_bytes": 0,
+                      "index_writer_memory_in_bytes": 22,
+                      "version_map_memory_in_bytes": 23,
+                      "fixed_bit_set_memory_in_bytes": 24
+                    },
+                    "request_cache": {
+                      "memory_size_in_bytes": 9,
+                      "evictions": 10,
+                      "hit_count": 11,
+                      "miss_count": 12
+                    },
+                    "bulk": {
+                      "total_operations": 0,
+                      "total_time_in_millis": 0,
+                      "total_size_in_bytes": 0,
+                      "avg_time_in_millis": 0,
+                      "avg_size_in_bytes": 0
+                    }
+                  },
+                  "primaries": {
+                    "docs": {
+                      "count": 1
+                    },
+                    "store": {
+                      "size_in_bytes": 13
+                    },
+                    "indexing": {
+                      "index_total": 16,
+                      "index_time_in_millis": 17,
+                      "throttle_time_in_millis": 18
+                    },
+                    "search": {
+                      "query_total": 19,
+                      "query_time_in_millis": 20
+                    },
+                    "merges": {
+                      "total_size_in_bytes": 4
+                    },
+                    "refresh": {
+                      "total_time_in_millis": 14,
+                      "external_total_time_in_millis": 15
+                    },
+                    "query_cache": {
+                      "memory_size_in_bytes": 5,
+                      "hit_count": 6,
+                      "miss_count": 7,
+                      "evictions": 9
+                    },
+                    "fielddata": {
+                      "memory_size_in_bytes": 2,
+                      "evictions": 3
+                    },
+                    "segments": {
+                      "count": 21,
+                      "memory_in_bytes": 0,
+                      "terms_memory_in_bytes": 0,
+                      "stored_fields_memory_in_bytes": 0,
+                      "term_vectors_memory_in_bytes": 0,
+                      "norms_memory_in_bytes": 0,
+                      "points_memory_in_bytes": 0,
+                      "doc_values_memory_in_bytes": 0,
+                      "index_writer_memory_in_bytes": 22,
+                      "version_map_memory_in_bytes": 23,
+                      "fixed_bit_set_memory_in_bytes": 24
+                    },
+                    "request_cache": {
+                      "memory_size_in_bytes": 9,
+                      "evictions": 10,
+                      "hit_count": 11,
+                      "miss_count": 12
+                    },
+                    "bulk": {
+                      "total_operations": 0,
+                      "total_time_in_millis": 0,
+                      "total_size_in_bytes": 0,
+                      "avg_time_in_millis": 0,
+                      "avg_size_in_bytes": 0
+                    }
+                  }
+                }}""".formatted(
                 // Since the summary is being merged with other data, remove the enclosing braces.
                 indexStatsSummary().replaceAll("(^\\{|}$)", "")
             )
@@ -326,27 +325,22 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         );
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        final String expected = stripWhitespace(
-            String.format(
-                Locale.ROOT,
-                "{"
-                    + "  \"cluster_uuid\": \"_cluster\","
-                    + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","
-                    + "  \"interval_ms\": 1506593717631,"
-                    + "  \"type\": \"index_stats\","
-                    + "  \"source_node\": {"
-                    + "    \"uuid\": \"_uuid\","
-                    + "    \"host\": \"_host\","
-                    + "    \"transport_address\": \"_addr\","
-                    + "    \"ip\": \"_ip\","
-                    + "    \"name\": \"_name\","
-                    + "    \"timestamp\": \"2017-08-31T08:46:30.855Z\""
-                    + "  },"
-                    + "  \"index_stats\": %s"
-                    + "}",
-                indexStatsSummary()
-            )
-        );
+        final String expected = stripWhitespace("""
+            {
+              "cluster_uuid": "_cluster",
+              "timestamp": "2017-08-09T08:18:59.402Z",
+              "interval_ms": 1506593717631,
+              "type": "index_stats",
+              "source_node": {
+                "uuid": "_uuid",
+                "host": "_host",
+                "transport_address": "_addr",
+                "ip": "_ip",
+                "name": "_name",
+                "timestamp": "2017-08-31T08:46:30.855Z"
+              },
+              "index_stats": %s
+            }""".formatted(indexStatsSummary()));
         assertEquals(expected, xContent.utf8ToString());
     }
 

@@ -96,7 +96,7 @@ query a metric:
 ---
 "query tsid fails":
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -170,7 +170,7 @@ fetch a tag:
 ---
 "fetch the tsid":
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -265,7 +265,7 @@ aggregate a tag:
 ---
 "aggregate the tsid":
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -289,7 +289,7 @@ aggregate a tag:
 ---
 "aggregate filter the tsid fails":
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -307,7 +307,7 @@ aggregate a tag:
 ---
 field capabilities:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:

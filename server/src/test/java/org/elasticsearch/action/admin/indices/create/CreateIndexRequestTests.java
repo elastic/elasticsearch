@@ -50,20 +50,21 @@ public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<Cre
     }
 
     public void testTopLevelKeys() {
-        String createIndex = "{\n"
-            + "  \"FOO_SHOULD_BE_ILLEGAL_HERE\": {\n"
-            + "    \"BAR_IS_THE_SAME\": 42\n"
-            + "  },\n"
-            + "  \"mappings\": {\n"
-            + "    \"test\": {\n"
-            + "      \"properties\": {\n"
-            + "        \"field1\": {\n"
-            + "          \"type\": \"text\"\n"
-            + "       }\n"
-            + "     }\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String createIndex = """
+            {
+              "FOO_SHOULD_BE_ILLEGAL_HERE": {
+                "BAR_IS_THE_SAME": 42
+              },
+              "mappings": {
+                "test": {
+                  "properties": {
+                    "field1": {
+                      "type": "text"
+                   }
+                 }
+                }
+              }
+            }""";
 
         CreateIndexRequest request = new CreateIndexRequest();
         ElasticsearchParseException e = expectThrows(

@@ -161,40 +161,40 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
-    private static final String MULTIPLE_AGG_DEF_DATAFEED = "{\n"
-        + "    \"datafeed_id\": \"farequote-datafeed\",\n"
-        + "    \"job_id\": \"farequote\",\n"
-        + "    \"frequency\": \"1h\",\n"
-        + "    \"indices\": [\"farequote1\", \"farequote2\"],\n"
-        + "    \"aggregations\": {\n"
-        + "    \"buckets\": {\n"
-        + "      \"date_histogram\": {\n"
-        + "        \"field\": \"time\",\n"
-        + "        \"fixed_interval\": \"360s\",\n"
-        + "        \"time_zone\": \"UTC\"\n"
-        + "      },\n"
-        + "      \"aggregations\": {\n"
-        + "        \"time\": {\n"
-        + "          \"max\": {\"field\": \"time\"}\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  },"
-        + "    \"aggs\": {\n"
-        + "    \"buckets2\": {\n"
-        + "      \"date_histogram\": {\n"
-        + "        \"field\": \"time\",\n"
-        + "        \"fixed_interval\": \"360s\",\n"
-        + "        \"time_zone\": \"UTC\"\n"
-        + "      },\n"
-        + "      \"aggregations\": {\n"
-        + "        \"time\": {\n"
-        + "          \"max\": {\"field\": \"time\"}\n"
-        + "        }\n"
-        + "      }\n"
-        + "    }\n"
-        + "  }\n"
-        + "}";
+    private static final String MULTIPLE_AGG_DEF_DATAFEED = """
+        {
+            "datafeed_id": "farequote-datafeed",
+            "job_id": "farequote",
+            "frequency": "1h",
+            "indices": ["farequote1", "farequote2"],
+            "aggregations": {
+            "buckets": {
+              "date_histogram": {
+                "field": "time",
+                "fixed_interval": "360s",
+                "time_zone": "UTC"
+              },
+              "aggregations": {
+                "time": {
+                  "max": {"field": "time"}
+                }
+              }
+            }
+          },    "aggs": {
+            "buckets2": {
+              "date_histogram": {
+                "field": "time",
+                "fixed_interval": "360s",
+                "time_zone": "UTC"
+              },
+              "aggregations": {
+                "time": {
+                  "max": {"field": "time"}
+                }
+              }
+            }
+          }
+        }""";
 
     public void testMultipleDefinedAggParse() throws IOException {
         try (

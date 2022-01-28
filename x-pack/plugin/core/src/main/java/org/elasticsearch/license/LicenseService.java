@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -175,15 +176,11 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     static CharSequence buildExpirationMessage(long expirationMillis, boolean expired) {
         String expiredMsg = expired ? "expired" : "will expire";
-        String general = LoggerMessageFormat.format(
-            null,
-            "License [{}] on [{}].\n"
-                + "# If you have a new license, please update it. Otherwise, please reach out to\n"
-                + "# your support contact.\n"
-                + "# ",
-            expiredMsg,
-            DATE_FORMATTER.formatMillis(expirationMillis)
-        );
+        String general = LoggerMessageFormat.format(null, """
+            License [{}] on [{}].
+            # If you have a new license, please update it. Otherwise, please reach out to
+            # your support contact.
+            #\s""", expiredMsg, DATE_FORMATTER.formatMillis(expirationMillis));
         if (expired) {
             general = general.toUpperCase(Locale.ROOT);
         }
@@ -305,7 +302,8 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                         mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(newLicense, trialVersion));
                         return ClusterState.builder(currentState).metadata(mdBuilder).build();
                     }
-                }
+                },
+                ClusterStateTaskExecutor.unbatched()
             );
         }
     }
@@ -364,10 +362,15 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      */
     public void removeLicense(final ActionListener<PostStartBasicResponse> listener) {
         final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest().acknowledge(true);
-        clusterService.submitStateUpdateTask(
+        final StartBasicClusterTask task = new StartBasicClusterTask(
+            logger,
+            clusterService.getClusterName().value(),
+            clock,
+            startBasicRequest,
             "delete license",
-            new StartBasicClusterTask(logger, clusterService.getClusterName().value(), clock, startBasicRequest, listener)
+            listener
         );
+        clusterService.submitStateUpdateTask(task.getDescription(), task, ClusterStateTaskExecutor.unbatched());
     }
 
     public License getLicense() {
@@ -391,12 +394,19 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             );
         }
         StartTrialClusterTask task = new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener);
-        clusterService.submitStateUpdateTask("started trial license", task);
+        clusterService.submitStateUpdateTask(StartTrialClusterTask.TASK_SOURCE, task, ClusterStateTaskExecutor.unbatched());
     }
 
     void startBasicLicense(PostStartBasicRequest request, final ActionListener<PostStartBasicResponse> listener) {
-        StartBasicClusterTask task = new StartBasicClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener);
-        clusterService.submitStateUpdateTask("start basic license", task);
+        StartBasicClusterTask task = new StartBasicClusterTask(
+            logger,
+            clusterService.getClusterName().value(),
+            clock,
+            request,
+            "start basic license",
+            listener
+        );
+        clusterService.submitStateUpdateTask(task.getDescription(), task, ClusterStateTaskExecutor.unbatched());
     }
 
     /**
@@ -407,8 +417,9 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      */
     private void registerOrUpdateSelfGeneratedLicense() {
         clusterService.submitStateUpdateTask(
-            "maybe generate license for cluster",
-            new StartupSelfGeneratedLicenseTask(settings, clock, clusterService)
+            StartupSelfGeneratedLicenseTask.TASK_SOURCE,
+            new StartupSelfGeneratedLicenseTask(settings, clock, clusterService),
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

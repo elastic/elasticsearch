@@ -457,15 +457,13 @@ public class BucketSelectorIT extends ESIntegTestCase {
                 .preparePutStoredScript()
                 .setId("my_script")
                 // Source is not interpreted but my_script is defined in CustomScriptPlugin
-                .setContent(
-                    new BytesArray(
-                        "{ \"script\": { \"lang\": \""
-                            + CustomScriptPlugin.NAME
-                            + "\", "
-                            + "\"source\": \"Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)\" } }"
-                    ),
-                    XContentType.JSON
-                )
+                .setContent(new BytesArray("""
+                    {
+                      "script": {
+                        "lang": "%s",
+                        "source": "Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)"
+                      }
+                    }""".formatted(CustomScriptPlugin.NAME)), XContentType.JSON)
         );
 
         Script script = new Script(ScriptType.STORED, null, "my_script", Collections.emptyMap());

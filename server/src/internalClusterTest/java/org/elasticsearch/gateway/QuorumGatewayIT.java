@@ -9,7 +9,7 @@
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -18,7 +18,7 @@ import org.elasticsearch.test.InternalTestCluster.RestartCallback;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.client.Requests.clusterHealthRequest;
+import static org.elasticsearch.client.internal.Requests.clusterHealthRequest;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;

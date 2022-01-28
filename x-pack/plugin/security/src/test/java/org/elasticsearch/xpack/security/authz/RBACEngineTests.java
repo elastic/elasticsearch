@@ -17,7 +17,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -32,8 +32,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequestBuilder;
@@ -329,6 +329,8 @@ public class RBACEngineTests extends ESTestCase {
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
         when(authentication.getMetadata()).thenReturn(Map.of(AuthenticationField.API_KEY_ID_KEY, apiKeyId));
+        when(authentication.isAuthenticatedWithApiKey()).thenCallRealMethod();
+        when(authentication.isApiKey()).thenCallRealMethod();
 
         assertTrue(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
@@ -343,6 +345,8 @@ public class RBACEngineTests extends ESTestCase {
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authenticatedBy.getType()).thenReturn(AuthenticationField.API_KEY_REALM_TYPE);
         when(authentication.getMetadata()).thenReturn(Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
+        when(authentication.isAuthenticatedWithApiKey()).thenCallRealMethod();
+        when(authentication.isApiKey()).thenCallRealMethod();
 
         assertFalse(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
@@ -359,13 +363,10 @@ public class RBACEngineTests extends ESTestCase {
         when(authentication.getLookedUpBy()).thenReturn(lookedupBy);
         when(authentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
         when(authentication.getMetadata()).thenReturn(Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
+        when(authentication.isAuthenticatedWithApiKey()).thenCallRealMethod();
+        when(authentication.isApiKey()).thenCallRealMethod();
 
-        final AssertionError assertionError = expectThrows(
-            AssertionError.class,
-            () -> engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication)
-        );
-        assertNotNull(assertionError);
-        assertThat(assertionError.getLocalizedMessage(), is("runAs not supported for api key authentication"));
+        assertFalse(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
 
     /**
@@ -1320,7 +1321,8 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testBuildUserPrivilegeResponse() {
         final ManageApplicationPrivileges manageApplicationPrivileges = new ManageApplicationPrivileges(Sets.newHashSet("app01", "app02"));
-        final BytesArray query = new BytesArray("{\"term\":{\"public\":true}}");
+        final BytesArray query = new BytesArray("""
+            {"term":{"public":true}}""");
         final Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "test", "role")
             .cluster(Sets.newHashSet("monitor", "manage_watcher"), Collections.singleton(manageApplicationPrivileges))
             .add(IndexPrivilege.get(Sets.newHashSet("read", "write")), "index-1")
@@ -1388,7 +1390,7 @@ public class RBACEngineTests extends ESTestCase {
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices.add(DataStreamTestHelper.createBackingIndex(dataStreamName, k + 1).build());
         }
-        DataStream ds = new DataStream(
+        DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
             null,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
@@ -1429,7 +1431,7 @@ public class RBACEngineTests extends ESTestCase {
         for (int k = 0; k < numBackingIndices; k++) {
             backingIndices.add(DataStreamTestHelper.createBackingIndex(dataStreamName, k + 1).build());
         }
-        DataStream ds = new DataStream(
+        DataStream ds = DataStreamTestHelper.newInstance(
             dataStreamName,
             null,
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())

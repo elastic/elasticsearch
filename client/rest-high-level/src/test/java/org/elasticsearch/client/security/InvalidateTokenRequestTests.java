@@ -60,7 +60,8 @@ public class InvalidateTokenRequestTests extends ESTestCase {
         assertThat(request.getRefreshToken(), nullValue());
         assertThat(request.getRealmName(), equalTo(realmName));
         assertThat(request.getUsername(), equalTo(username));
-        assertThat(Strings.toString(request), equalTo("{\"realm_name\":\"native\",\"username\":\"user\"}"));
+        assertThat(Strings.toString(request), equalTo("""
+            {"realm_name":"native","username":"user"}"""));
     }
 
     public void testEqualsAndHashCode() {
@@ -71,18 +72,13 @@ public class InvalidateTokenRequestTests extends ESTestCase {
             : InvalidateTokenRequest.refreshToken(token);
         final EqualsHashCodeTestUtils.MutateFunction<InvalidateTokenRequest> mutate = r -> {
             int randomCase = randomIntBetween(1, 4);
-            switch (randomCase) {
-                case 1:
-                    return InvalidateTokenRequest.refreshToken(randomAlphaOfLength(5));
-                case 2:
-                    return InvalidateTokenRequest.accessToken(randomAlphaOfLength(5));
-                case 3:
-                    return InvalidateTokenRequest.realmTokens(randomAlphaOfLength(5));
-                case 4:
-                    return InvalidateTokenRequest.userTokens(randomAlphaOfLength(5));
-                default:
-                    return new InvalidateTokenRequest(null, null, randomAlphaOfLength(5), randomAlphaOfLength(5));
-            }
+            return switch (randomCase) {
+                case 1 -> InvalidateTokenRequest.refreshToken(randomAlphaOfLength(5));
+                case 2 -> InvalidateTokenRequest.accessToken(randomAlphaOfLength(5));
+                case 3 -> InvalidateTokenRequest.realmTokens(randomAlphaOfLength(5));
+                case 4 -> InvalidateTokenRequest.userTokens(randomAlphaOfLength(5));
+                default -> new InvalidateTokenRequest(null, null, randomAlphaOfLength(5), randomAlphaOfLength(5));
+            };
         };
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             request,

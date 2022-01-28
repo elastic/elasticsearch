@@ -30,8 +30,13 @@ import static org.hamcrest.Matchers.nullValue;
 public class UpdateDatabasesIT extends ESRestTestCase {
 
     public void test() throws Exception {
-        String body = "{\"pipeline\":{\"processors\":[{\"geoip\":{\"field\":\"ip\"}}]},"
-            + "\"docs\":[{\"_index\":\"index\",\"_id\":\"id\",\"_source\":{\"ip\":\"89.160.20.128\"}}]}";
+        String body = """
+            {
+              "pipeline": {
+                "processors": [ { "geoip": { "field": "ip" } } ]
+              },
+              "docs": [ { "_index": "index", "_id": "id", "_source": { "ip": "89.160.20.128" } } ]
+            }""";
         Request simulatePipelineRequest = new Request("POST", "/_ingest/pipeline/_simulate");
         simulatePipelineRequest.setJsonEntity(body);
         {

@@ -278,14 +278,11 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
                 phaseExecutionInfo
             );
         } else {
-            switch (between(0, 1)) {
-                case 0:
-                    return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index + randomAlphaOfLengthBetween(1, 5));
-                case 1:
-                    return randomManagedIndexExplainResponse();
-                default:
-                    throw new AssertionError("Illegal randomisation branch");
-            }
+            return switch (between(0, 1)) {
+                case 0 -> IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index + randomAlphaOfLengthBetween(1, 5));
+                case 1 -> randomManagedIndexExplainResponse();
+                default -> throw new AssertionError("Illegal randomisation branch");
+            };
         }
     }
 

@@ -65,7 +65,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin implements Int
             SourceSet sourceSet = sourceSets.getByName(sourceSetName);
             t.setClasspath(project.files(sourceSet.getRuntimeClasspath()).plus(sourceSet.getCompileClasspath()));
 
-            t.setTargetCompatibility(BuildParams.getRuntimeJavaVersion().getMajorVersion());
+            t.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion().getMajorVersion());
             t.setBundledSignatures(Set.of("jdk-unsafe", "jdk-non-portable", "jdk-system-out"));
             t.setSignaturesFiles(
                 project.files(

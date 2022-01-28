@@ -18,27 +18,30 @@ public class MultiGroupMappingIT extends AbstractAdLdapRealmTestCase {
 
     @BeforeClass
     public static void setRoleMappingType() {
-        final String extraContent = "MarvelCharacters:\n"
-            + "  - \"CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\"\n"
-            + "  - \"CN=Avengers,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\"\n"
-            + "  - \"CN=Gods,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\"\n"
-            + "  - \"CN=Philanthropists,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com\"\n"
-            + "  - \"cn=SHIELD,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\"\n"
-            + "  - \"cn=Avengers,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\"\n"
-            + "  - \"cn=Gods,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\"\n"
-            + "  - \"cn=Philanthropists,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com\"\n";
+        final String extraContent = """
+            MarvelCharacters:
+              - "CN=SHIELD,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"
+              - "CN=Avengers,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"
+              - "CN=Gods,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"
+              - "CN=Philanthropists,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"
+              - "cn=SHIELD,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com"
+              - "cn=Avengers,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com"
+              - "cn=Gods,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com"
+              - "cn=Philanthropists,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com"
+            """;
         roleMappings = CollectionUtils.appendToCopy(roleMappings, new RoleMappingEntry(extraContent, null));
     }
 
     @Override
     protected String configRoles() {
-        return super.configRoles()
-            + "\n"
-            + "MarvelCharacters:\n"
-            + "  cluster: [ NONE ]\n"
-            + "  indices:\n"
-            + "    - names: 'marvel_comics'\n"
-            + "      privileges: [ all ]\n";
+        return """
+            %s
+            MarvelCharacters:
+              cluster: [ NONE ]
+              indices:
+                - names: 'marvel_comics'
+                  privileges: [ all ]
+            """.formatted(super.configRoles());
     }
 
     public void testGroupMapping() throws IOException {

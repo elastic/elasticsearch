@@ -533,23 +533,14 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             for (MetricConfig metricConfig : config.getMetricsConfig()) {
                 for (String metricName : metricConfig.getMetrics()) {
                     switch (metricName) {
-                        case "min":
-                            composite.subAggregation(new MinAggregationBuilder(metricName).field(metricConfig.getField()));
-                            break;
-                        case "max":
-                            composite.subAggregation(new MaxAggregationBuilder(metricName).field(metricConfig.getField()));
-                            break;
-                        case "sum":
-                            composite.subAggregation(new SumAggregationBuilder(metricName).field(metricConfig.getField()));
-                            break;
-                        case "value_count":
-                            composite.subAggregation(new ValueCountAggregationBuilder(metricName).field(metricConfig.getField()));
-                            break;
-                        case "avg":
-                            composite.subAggregation(new AvgAggregationBuilder(metricName).field(metricConfig.getField()));
-                            break;
-                        default:
-                            throw new IllegalArgumentException("Unsupported metric type [" + metricName + "]");
+                        case "min" -> composite.subAggregation(new MinAggregationBuilder(metricName).field(metricConfig.getField()));
+                        case "max" -> composite.subAggregation(new MaxAggregationBuilder(metricName).field(metricConfig.getField()));
+                        case "sum" -> composite.subAggregation(new SumAggregationBuilder(metricName).field(metricConfig.getField()));
+                        case "value_count" -> composite.subAggregation(
+                            new ValueCountAggregationBuilder(metricName).field(metricConfig.getField())
+                        );
+                        case "avg" -> composite.subAggregation(new AvgAggregationBuilder(metricName).field(metricConfig.getField()));
+                        default -> throw new IllegalArgumentException("Unsupported metric type [" + metricName + "]");
                     }
                 }
             }
@@ -564,11 +555,9 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private String createDataStream() throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
-        Template idxTemplate = new Template(
-            null,
-            new CompressedXContent("{\"properties\":{\"" + timestampFieldName + "\":{\"type\":\"date\"},\"data\":{\"type\":\"keyword\"}}}"),
-            null
-        );
+        Template idxTemplate = new Template(null, new CompressedXContent("""
+            {"properties":{"%s":{"type":"date"},"data":{"type":"keyword"}}}
+            """.formatted(timestampFieldName)), null);
         ComposableIndexTemplate template = new ComposableIndexTemplate(
             List.of(dataStreamName + "*"),
             idxTemplate,

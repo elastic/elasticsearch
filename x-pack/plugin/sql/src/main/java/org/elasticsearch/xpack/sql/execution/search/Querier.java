@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
@@ -221,8 +221,8 @@ public class Querier {
             // schema is set on the first page (as the rest don't hold the schema anymore)
             if (schema == null) {
                 RowSet rowSet = page.rowSet();
-                if (rowSet instanceof SchemaRowSet) {
-                    schema = ((SchemaRowSet) rowSet).schema();
+                if (rowSet instanceof SchemaRowSet schemaRowSet) {
+                    schema = schemaRowSet.schema();
                 } else {
                     onFailure(new SqlIllegalArgumentException("No schema found inside {}", rowSet.getClass()));
                     return;
@@ -325,8 +325,8 @@ public class Querier {
             Aggregations aggs = response.getAggregations();
             if (aggs != null) {
                 Aggregation agg = aggs.get(Aggs.ROOT_GROUP_NAME);
-                if (agg instanceof Filters) {
-                    handleBuckets(((Filters) agg).getBuckets(), response);
+                if (agg instanceof Filters filters) {
+                    handleBuckets(filters.getBuckets(), response);
                 } else {
                     throw new SqlIllegalArgumentException("Unrecognized root group found; {}", agg.getClass());
                 }
@@ -487,8 +487,8 @@ public class Querier {
                 return totalCount;
             }
 
-            if (ref instanceof ComputedRef) {
-                Pipe proc = ((ComputedRef) ref).processor();
+            if (ref instanceof ComputedRef computedRef) {
+                Pipe proc = computedRef.processor();
 
                 // wrap only agg inputs
                 proc = proc.transformDown(AggPathInput.class, l -> {
@@ -552,8 +552,8 @@ public class Querier {
                 return new FieldHitExtractor(f.name(), null, cfg.zoneId(), multiValueFieldLeniency);
             }
 
-            if (ref instanceof ComputedRef) {
-                Pipe proc = ((ComputedRef) ref).processor();
+            if (ref instanceof ComputedRef computedRef) {
+                Pipe proc = computedRef.processor();
                 // collect hitNames
                 Set<String> hitNames = new LinkedHashSet<>();
                 proc = proc.transformDown(ReferenceInput.class, l -> {

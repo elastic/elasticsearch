@@ -78,74 +78,61 @@ public class QueryApiKeyRequestTests extends ESTestCase {
     }
 
     private QueryApiKeyRequest mutateInstance(QueryApiKeyRequest request) {
-        switch (randomIntBetween(0, 5)) {
-            case 0:
-                return new QueryApiKeyRequest(
-                    randomValueOtherThan(request.getQueryBuilder(), QueryApiKeyRequestTests::randomQueryBuilder),
-                    request.getFrom(),
-                    request.getSize(),
-                    request.getFieldSortBuilders(),
-                    request.getSearchAfterBuilder()
-                );
-            case 1:
-                return new QueryApiKeyRequest(
-                    request.getQueryBuilder(),
-                    request.getFrom() + 1,
-                    request.getSize(),
-                    request.getFieldSortBuilders(),
-                    request.getSearchAfterBuilder()
-                );
-            case 2:
-                return new QueryApiKeyRequest(
-                    request.getQueryBuilder(),
-                    request.getFrom(),
-                    request.getSize() + 1,
-                    request.getFieldSortBuilders(),
-                    request.getSearchAfterBuilder()
-                );
-            case 3:
-                return new QueryApiKeyRequest(
-                    request.getQueryBuilder(),
-                    request.getFrom(),
-                    request.getSize(),
-                    randomValueOtherThan(request.getFieldSortBuilders(), QueryApiKeyRequestTests::randomFieldSortBuilders),
-                    request.getSearchAfterBuilder()
-                );
-            default:
-                return new QueryApiKeyRequest(
-                    request.getQueryBuilder(),
-                    request.getFrom(),
-                    request.getSize(),
-                    request.getFieldSortBuilders(),
-                    randomValueOtherThan(request.getSearchAfterBuilder(), QueryApiKeyRequestTests::randomSearchAfterBuilder)
-                );
-
-        }
+        return switch (randomIntBetween(0, 5)) {
+            case 0 -> new QueryApiKeyRequest(
+                randomValueOtherThan(request.getQueryBuilder(), QueryApiKeyRequestTests::randomQueryBuilder),
+                request.getFrom(),
+                request.getSize(),
+                request.getFieldSortBuilders(),
+                request.getSearchAfterBuilder()
+            );
+            case 1 -> new QueryApiKeyRequest(
+                request.getQueryBuilder(),
+                request.getFrom() + 1,
+                request.getSize(),
+                request.getFieldSortBuilders(),
+                request.getSearchAfterBuilder()
+            );
+            case 2 -> new QueryApiKeyRequest(
+                request.getQueryBuilder(),
+                request.getFrom(),
+                request.getSize() + 1,
+                request.getFieldSortBuilders(),
+                request.getSearchAfterBuilder()
+            );
+            case 3 -> new QueryApiKeyRequest(
+                request.getQueryBuilder(),
+                request.getFrom(),
+                request.getSize(),
+                randomValueOtherThan(request.getFieldSortBuilders(), QueryApiKeyRequestTests::randomFieldSortBuilders),
+                request.getSearchAfterBuilder()
+            );
+            default -> new QueryApiKeyRequest(
+                request.getQueryBuilder(),
+                request.getFrom(),
+                request.getSize(),
+                request.getFieldSortBuilders(),
+                randomValueOtherThan(request.getSearchAfterBuilder(), QueryApiKeyRequestTests::randomSearchAfterBuilder)
+            );
+        };
     }
 
     public static QueryBuilder randomQueryBuilder() {
-        switch (randomIntBetween(0, 5)) {
-            case 0:
-                return QueryBuilders.matchAllQuery();
-            case 1:
-                return QueryBuilders.termQuery(
-                    randomAlphaOfLengthBetween(3, 8),
-                    randomFrom(randomAlphaOfLength(8), randomInt(), randomLong(), randomDouble(), randomFloat())
-                );
-            case 2:
-                return QueryBuilders.idsQuery().addIds(randomArray(1, 5, String[]::new, () -> randomAlphaOfLength(20)));
-            case 3:
-                return QueryBuilders.prefixQuery(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
-            case 4:
-                return QueryBuilders.wildcardQuery(
-                    randomAlphaOfLengthBetween(3, 8),
-                    randomAlphaOfLengthBetween(0, 3) + "*" + randomAlphaOfLengthBetween(0, 3)
-                );
-            case 5:
-                return QueryBuilders.rangeQuery(randomAlphaOfLengthBetween(3, 8)).from(randomNonNegativeLong()).to(randomNonNegativeLong());
-            default:
-                return null;
-        }
+        return switch (randomIntBetween(0, 5)) {
+            case 0 -> QueryBuilders.matchAllQuery();
+            case 1 -> QueryBuilders.termQuery(
+                randomAlphaOfLengthBetween(3, 8),
+                randomFrom(randomAlphaOfLength(8), randomInt(), randomLong(), randomDouble(), randomFloat())
+            );
+            case 2 -> QueryBuilders.idsQuery().addIds(randomArray(1, 5, String[]::new, () -> randomAlphaOfLength(20)));
+            case 3 -> QueryBuilders.prefixQuery(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+            case 4 -> QueryBuilders.wildcardQuery(
+                randomAlphaOfLengthBetween(3, 8),
+                randomAlphaOfLengthBetween(0, 3) + "*" + randomAlphaOfLengthBetween(0, 3)
+            );
+            case 5 -> QueryBuilders.rangeQuery(randomAlphaOfLengthBetween(3, 8)).from(randomNonNegativeLong()).to(randomNonNegativeLong());
+            default -> null;
+        };
     }
 
     public static List<FieldSortBuilder> randomFieldSortBuilders() {

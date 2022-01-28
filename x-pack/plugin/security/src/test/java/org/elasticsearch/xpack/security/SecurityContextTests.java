@@ -208,11 +208,13 @@ public class SecurityContextTests extends ESTestCase {
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
             assertEquals(
-                "{\"a role\":{\"cluster\":[\"all\"]}}",
+                """
+                    {"a role":{"cluster":["all"]}}""",
                 ((BytesReference) authentication.getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)).utf8ToString()
             );
             assertEquals(
-                "{\"limitedBy role\":{\"cluster\":[\"all\"]}}",
+                """
+                    {"limitedBy role":{"cluster":["all"]}}""",
                 ((BytesReference) authentication.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)).utf8ToString()
             );
         }, VersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, Version.CURRENT));

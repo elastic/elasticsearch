@@ -407,26 +407,38 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         String transformSrc = "reviews_cont_pivot_test";
         createReviewsIndex(transformSrc);
         final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
-        String config = "{ \"dest\": {\"index\":\""
-            + transformDest
-            + "\"},"
-            + " \"source\": {\"index\":\""
-            + transformSrc
-            + "\"},"
-            + " \"frequency\": \"1s\","
-            + " \"sync\": {\"time\":{\"field\": \"timestamp\", \"delay\": \"1s\"}},"
-            + " \"pivot\": {"
-            + "   \"group_by\": {"
-            + "     \"reviewer\": {"
-            + "       \"terms\": {"
-            + "         \"field\": \"user_id\""
-            + " } } },"
-            + "   \"aggregations\": {"
-            + "     \"avg_rating\": {"
-            + "       \"avg\": {"
-            + "         \"field\": \"stars\""
-            + " } } } }"
-            + "}";
+        String config = """
+            {
+              "dest": {
+                "index": "%s"
+              },
+              "source": {
+                "index": "%s"
+              },
+              "frequency": "1s",
+              "sync": {
+                "time": {
+                  "field": "timestamp",
+                  "delay": "1s"
+                }
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""".formatted(transformDest, transformSrc);
 
         createTransformRequest.setJsonEntity(config);
 
@@ -464,19 +476,11 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         final StringBuilder bulk = new StringBuilder();
         long now = Instant.now().toEpochMilli() - 1_000;
         for (int i = 0; i < numDocs; i++) {
-            bulk.append("{\"index\":{\"_index\":\"" + transformSrc + "\"}}\n")
-                .append("{\"user_id\":\"")
-                .append("user_")
-                // Doing only new users so that there is a deterministic number of docs for progress
-                .append(randomFrom(42, 47, 113))
-                .append("\",\"business_id\":\"")
-                .append("business_")
-                .append(10)
-                .append("\",\"stars\":")
-                .append(5)
-                .append(",\"timestamp\":")
-                .append(now)
-                .append("}\n");
+            // Doing only new users so that there is a deterministic number of docs for progress
+            bulk.append("""
+                {"index":{"_index":"%s"}}
+                {"user_id":"user_%s","business_id":"business_%s","stars":%s,"timestamp":%s}
+                """.formatted(transformSrc, randomFrom(42, 47, 113), 10, 5, now));
         }
         bulk.append("\r\n");
         final Request bulkRequest = new Request("POST", "/_bulk");

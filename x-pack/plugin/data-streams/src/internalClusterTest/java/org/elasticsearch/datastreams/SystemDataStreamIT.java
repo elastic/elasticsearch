@@ -15,12 +15,12 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureSta
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.Option;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.elasticsearch.cluster.metadata.Template;
@@ -76,7 +76,6 @@ public class SystemDataStreamIT extends ESIntegTestCase {
         plugins.add(NioTransportPlugin.class);
         plugins.add(DataStreamsPlugin.class);
         plugins.add(TestSystemDataStreamPlugin.class);
-        plugins.add(Netty4Plugin.class);
         return plugins;
     }
 
@@ -371,10 +370,10 @@ public class SystemDataStreamIT extends ESIntegTestCase {
                     .collect(Collectors.toList())
                     .toArray(Strings.EMPTY_ARRAY)
             );
-            EnumSet<Option> options = request.indicesOptions().getOptions();
+            EnumSet<Option> options = request.indicesOptions().options();
             options.add(Option.IGNORE_UNAVAILABLE);
             options.add(Option.ALLOW_NO_INDICES);
-            request.indicesOptions(new IndicesOptions(options, request.indicesOptions().getExpandWildcards()));
+            request.indicesOptions(new IndicesOptions(options, request.indicesOptions().expandWildcards()));
             try {
                 client.execute(
                     DeleteDataStreamAction.INSTANCE,

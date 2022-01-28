@@ -12,7 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -24,8 +24,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.MediaType;
-import org.elasticsearch.xcontent.MediaTypeRegistry;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
@@ -185,7 +183,7 @@ public class SecurityRestFilter implements RestHandler {
     }
 
     @Override
-    public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
-        return restHandler.validAcceptMediaTypes();
+    public boolean mediaTypesValid(RestRequest request) {
+        return restHandler.mediaTypesValid(request);
     }
 }

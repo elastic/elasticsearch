@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,7 +22,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -117,7 +117,7 @@ public class PreviewTransformResponseTests extends ESTestCase {
 
         Map<String, Object> mappings = null;
         if (randomBoolean()) {
-            mappings = new HashMap<>(size);
+            mappings = Maps.newMapWithExpectedSize(size);
 
             for (int i = 0; i < size; i++) {
                 mappings.put(randomAlphaOfLength(10), Map.of("type", randomAlphaOfLength(10)));

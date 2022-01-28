@@ -20,6 +20,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.sandbox.search.DocValuesTermsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -50,8 +51,10 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -296,8 +299,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.isDimension = builder.dimension.getValue();
         }
 
-        public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
-            super(name, isSearchable, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public KeywordFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
+            super(name, isIndexed, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
@@ -335,6 +338,54 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return isIndexed() || hasDocValues();
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return super.termQuery(value, context);
+            } else {
+                return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+            }
+        }
+
+        @Override
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return super.termsQuery(values, context);
+            } else {
+                BytesRef[] bytesRefs = values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new);
+                return new DocValuesTermsQuery(name(), bytesRefs);
+            }
+        }
+
+        @Override
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return super.rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
+            } else {
+                return SortedSetDocValuesField.newSlowRangeQuery(
+                    name(),
+                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                    includeLower,
+                    includeUpper
+                );
+            }
         }
 
         @Override
@@ -636,25 +687,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             if (ts.incrementToken() == false) {
-                throw new IllegalStateException(
-                    "The normalization token stream is "
-                        + "expected to produce exactly 1 token, but got 0 for analyzer "
-                        + normalizer
-                        + " and input \""
-                        + value
-                        + "\""
-                );
+                throw new IllegalStateException(String.format(Locale.ROOT, """
+                    The normalization token stream is expected to produce exactly 1 token, \
+                    but got 0 for analyzer %s and input "%s"
+                    """, normalizer, value));
             }
             final String newValue = termAtt.toString();
             if (ts.incrementToken()) {
-                throw new IllegalStateException(
-                    "The normalization token stream is "
-                        + "expected to produce exactly 1 token, but got 2+ for analyzer "
-                        + normalizer
-                        + " and input \""
-                        + value
-                        + "\""
-                );
+                throw new IllegalStateException(String.format(Locale.ROOT, """
+                    The normalization token stream is expected to produce exactly 1 token, \
+                    but got 2+ for analyzer %s and input "%s"
+                    """, normalizer, value));
             }
             ts.end();
             return newValue;

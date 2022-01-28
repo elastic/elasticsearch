@@ -15,6 +15,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -408,24 +409,16 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public static ShardState fromValue(byte value) {
-            switch (value) {
-                case 0:
-                    return INIT;
-                case 2:
-                    return SUCCESS;
-                case 3:
-                    return FAILED;
-                case 4:
-                    return ABORTED;
-                case 5:
-                    return MISSING;
-                case 6:
-                    return WAITING;
-                case 7:
-                    return QUEUED;
-                default:
-                    throw new IllegalArgumentException("No shard snapshot state for value [" + value + "]");
-            }
+            return switch (value) {
+                case 0 -> INIT;
+                case 2 -> SUCCESS;
+                case 3 -> FAILED;
+                case 4 -> ABORTED;
+                case 5 -> MISSING;
+                case 6 -> WAITING;
+                case 7 -> QUEUED;
+                default -> throw new IllegalArgumentException("No shard snapshot state for value [" + value + "]");
+            };
         }
     }
 
@@ -454,20 +447,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         }
 
         public static State fromValue(byte value) {
-            switch (value) {
-                case 0:
-                    return INIT;
-                case 1:
-                    return STARTED;
-                case 2:
-                    return SUCCESS;
-                case 3:
-                    return FAILED;
-                case 4:
-                    return ABORTED;
-                default:
-                    throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
-            }
+            return switch (value) {
+                case 0 -> INIT;
+                case 1 -> STARTED;
+                case 2 -> SUCCESS;
+                case 3 -> FAILED;
+                case 4 -> ABORTED;
+                default -> throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
+            };
         }
     }
 
@@ -767,7 +754,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (source == null) {
                 assert shardStatusByRepoShardId == null || shardStatusByRepoShardId.isEmpty()
                     : "Provided explict repo shard id statuses [" + shardStatusByRepoShardId + "] but no source";
-                final Map<String, Index> res = new HashMap<>(indices.size());
+                final Map<String, Index> res = Maps.newMapWithExpectedSize(indices.size());
                 final ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> byRepoShardIdBuilder = ImmutableOpenMap.builder(
                     shards.size()
                 );
@@ -799,7 +786,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (indexCount == 0) {
                 indices = Collections.emptyMap();
             } else {
-                final Map<String, IndexId> idx = new HashMap<>(indexCount);
+                final Map<String, IndexId> idx = Maps.newMapWithExpectedSize(indexCount);
                 for (int i = 0; i < indexCount; i++) {
                     final IndexId indexId = new IndexId(in);
                     idx.put(indexId.getName(), indexId);
@@ -900,6 +887,56 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 source,
                 source == null ? ImmutableOpenMap.of() : shardStatusByRepoShardId
             );
+        }
+
+        /**
+         * Reassigns all {@link IndexId} in a snapshot that can be found as keys in the given {@code updates} to the {@link IndexId} value
+         * that they map to.
+         * This method is used in an edge case of removing a {@link SnapshotDeletionsInProgress.Entry} from the cluster state at the
+         * end of a delete. If the delete removed the last use of a certain {@link IndexId} from the repository then we do not want to
+         * reuse that {@link IndexId} because the implementation of {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository}
+         * assumes that a given {@link IndexId} will never be reused if it went from referenced to unreferenced in the
+         * {@link org.elasticsearch.repositories.RepositoryData} in a delete.
+         *
+         * @param updates map of existing {@link IndexId} to updated {@link IndexId}
+         * @return a new instance with updated index ids or this instance if unchanged
+         */
+        public Entry withUpdatedIndexIds(Map<IndexId, IndexId> updates) {
+            if (isClone()) {
+                assert indices.values().stream().noneMatch(updates::containsKey)
+                    : "clone index ids can not be updated but saw tried to update " + updates + " on " + this;
+                return this;
+            }
+            Map<String, IndexId> updatedIndices = null;
+            for (IndexId existingIndexId : indices.values()) {
+                final IndexId updatedIndexId = updates.get(existingIndexId);
+                if (updatedIndexId != null) {
+                    if (updatedIndices == null) {
+                        updatedIndices = new HashMap<>(indices);
+                    }
+                    updatedIndices.put(updatedIndexId.getName(), updatedIndexId);
+                }
+            }
+            if (updatedIndices != null) {
+                return new Entry(
+                    snapshot,
+                    includeGlobalState,
+                    partial,
+                    state,
+                    updatedIndices,
+                    dataStreams,
+                    featureStates,
+                    startTime,
+                    repositoryStateId,
+                    shards,
+                    failure,
+                    userMetadata,
+                    version,
+                    source,
+                    ImmutableOpenMap.of()
+                );
+            }
+            return this;
         }
 
         public Entry withClones(ImmutableOpenMap<RepositoryShardId, ShardSnapshotStatus> updatedClones) {

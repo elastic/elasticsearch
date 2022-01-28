@@ -402,40 +402,47 @@ public final class GeoJson {
             throw new ElasticsearchParseException("coordinates not included");
         }
 
-        switch (shapeType) {
-            case CIRCLE:
+        return switch (shapeType) {
+            case CIRCLE -> {
                 if (radius == null) {
                     throw new ElasticsearchParseException("radius is not specified");
                 }
                 verifyNulls(type, geometries, orientation, null);
                 Point point = coordinates.asPoint();
-                return new Circle(point.getX(), point.getY(), point.getZ(), radius.convert(DistanceUnit.METERS).value);
-            case POINT:
+                yield new Circle(point.getX(), point.getY(), point.getZ(), radius.convert(DistanceUnit.METERS).value);
+            }
+            case POINT -> {
                 verifyNulls(type, geometries, orientation, radius);
-                return coordinates.asPoint();
-            case MULTIPOINT:
+                yield coordinates.asPoint();
+            }
+            case MULTIPOINT -> {
                 verifyNulls(type, geometries, orientation, radius);
-                return coordinates.asMultiPoint();
-            case LINESTRING:
+                yield coordinates.asMultiPoint();
+            }
+            case LINESTRING -> {
                 verifyNulls(type, geometries, orientation, radius);
-                return coordinates.asLineString(coerce);
-            case MULTILINESTRING:
+                yield coordinates.asLineString(coerce);
+            }
+            case MULTILINESTRING -> {
                 verifyNulls(type, geometries, orientation, radius);
-                return coordinates.asMultiLineString(coerce);
-            case POLYGON:
+                yield coordinates.asMultiLineString(coerce);
+            }
+            case POLYGON -> {
                 verifyNulls(type, geometries, null, radius);
                 // handle possible null in orientation
-                return coordinates.asPolygon(orientation != null ? orientation : defaultOrientation, coerce);
-            case MULTIPOLYGON:
+                yield coordinates.asPolygon(orientation != null ? orientation : defaultOrientation, coerce);
+            }
+            case MULTIPOLYGON -> {
                 verifyNulls(type, geometries, null, radius);
                 // handle possible null in orientation
-                return coordinates.asMultiPolygon(orientation != null ? orientation : defaultOrientation, coerce);
-            case ENVELOPE:
+                yield coordinates.asMultiPolygon(orientation != null ? orientation : defaultOrientation, coerce);
+            }
+            case ENVELOPE -> {
                 verifyNulls(type, geometries, orientation, radius);
-                return coordinates.asRectangle();
-            default:
-                throw new ElasticsearchParseException("unsupported shape type " + type);
-        }
+                yield coordinates.asRectangle();
+            }
+            default -> throw new ElasticsearchParseException("unsupported shape type " + type);
+        };
     }
 
     /**
@@ -516,18 +523,11 @@ public final class GeoJson {
             return null;
         }
         orientation = orientation.toLowerCase(Locale.ROOT);
-        switch (orientation) {
-            case "right":
-            case "counterclockwise":
-            case "ccw":
-                return true;
-            case "left":
-            case "clockwise":
-            case "cw":
-                return false;
-            default:
-                throw new IllegalArgumentException("Unknown orientation [" + orientation + "]");
-        }
+        return switch (orientation) {
+            case "right", "counterclockwise", "ccw" -> true;
+            case "left", "clockwise", "cw" -> false;
+            default -> throw new IllegalArgumentException("Unknown orientation [" + orientation + "]");
+        };
     }
 
     public static String getGeoJsonName(Geometry geometry) {

@@ -48,7 +48,13 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
-    private static final String CONTROLLER_SOURCE = "#!/bin/bash\n" + "\n" + "echo I am alive\n" + "\n" + "read SOMETHING\n";
+    private static final String CONTROLLER_SOURCE = """
+        #!/bin/bash
+
+        echo I am alive
+
+        read SOMETHING
+        """;
 
     /**
      * Simplest case: a module with no controller daemon.

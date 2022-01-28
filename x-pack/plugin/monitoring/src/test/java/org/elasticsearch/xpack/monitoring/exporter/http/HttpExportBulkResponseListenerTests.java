@@ -78,21 +78,43 @@ public class HttpExportBulkResponseListenerTests extends ESTestCase {
         final String[] expectedErrors = new String[] { randomAlphaOfLengthBetween(4, 10), randomAlphaOfLengthBetween(5, 9) };
         final AtomicInteger counter = new AtomicInteger(0);
         final Response response = mock(Response.class);
-        final StringEntity entity = new StringEntity(
-            "{\"took\":4,\"errors\":true,\"items\":["
-                + "{\"index\":{\"_index\":\".monitoring-data-2\",\"_type\":\"node\",\"_id\":\"123\"}},"
-                + "{\"index\":{\"_index\":\".monitoring-data-2\",\"_type\":\"node\",\"_id\":\"456\","
-                + "\"error\":\""
-                + expectedErrors[0]
-                + "\"}},"
-                + "{\"index\":{\"_index\":\".monitoring-data-2\",\"_type\":\"node\",\"_id\":\"789\"}},"
-                + "{\"index\":{\"_index\":\".monitoring-data-2\",\"_type\":\"node\",\"_id\":\"012\","
-                + "\"error\":\""
-                + expectedErrors[1]
-                + "\"}}"
-                + "]}",
-            ContentType.APPLICATION_JSON
-        );
+        final StringEntity entity = new StringEntity("""
+            {
+              "took": 4,
+              "errors": true,
+              "items": [
+                {
+                  "index": {
+                    "_index": ".monitoring-data-2",
+                    "_type": "node",
+                    "_id": "123"
+                  }
+                },
+                {
+                  "index": {
+                    "_index": ".monitoring-data-2",
+                    "_type": "node",
+                    "_id": "456",
+                    "error": "%s"
+                  }
+                },
+                {
+                  "index": {
+                    "_index": ".monitoring-data-2",
+                    "_type": "node",
+                    "_id": "789"
+                  }
+                },
+                {
+                  "index": {
+                    "_index": ".monitoring-data-2",
+                    "_type": "node",
+                    "_id": "012",
+                    "error": "%s"
+                  }
+                }
+              ]
+            }""".formatted(expectedErrors[0], expectedErrors[1]), ContentType.APPLICATION_JSON);
 
         when(response.getEntity()).thenReturn(entity);
 

@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -18,7 +17,6 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -67,7 +65,7 @@ public class BwcVersions {
     private static final Pattern LINE_PATTERN = Pattern.compile(
         "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)? .*?LUCENE_(\\d+)_(\\d+)_(\\d+)\\);"
     );
-    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.16.0");
+    private static final Version MINIMUM_WIRE_COMPATIBLE_VERSION = Version.fromString("7.17.0");
 
     private final VersionPair currentVersion;
     private final List<VersionPair> versions;
@@ -236,11 +234,11 @@ public class BwcVersions {
         );
     }
 
-    public void withIndexCompatiple(BiConsumer<Version, String> versionAction) {
+    public void withIndexCompatible(BiConsumer<Version, String> versionAction) {
         getIndexCompatible().forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
-    public void withIndexCompatiple(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
+    public void withIndexCompatible(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
         getIndexCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
@@ -250,11 +248,11 @@ public class BwcVersions {
         );
     }
 
-    public void withWireCompatiple(BiConsumer<Version, String> versionAction) {
+    public void withWireCompatible(BiConsumer<Version, String> versionAction) {
         getWireCompatible().forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
-    public void withWireCompatiple(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
+    public void withWireCompatible(Predicate<Version> filter, BiConsumer<Version, String> versionAction) {
         getWireCompatible().stream().filter(filter).forEach(v -> versionAction.accept(v, "v" + v.toString()));
     }
 
@@ -276,42 +274,16 @@ public class BwcVersions {
         return unmodifiableList(unreleasedWireCompatible);
     }
 
-    public static class UnreleasedVersionInfo {
-        public final Version version;
-        public final String branch;
-        public final String gradleProjectPath;
-
-        public UnreleasedVersionInfo(Version version, String branch, String gradleProjectPath) {
-            this.version = version;
-            this.branch = branch;
-            this.gradleProjectPath = gradleProjectPath;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            UnreleasedVersionInfo that = (UnreleasedVersionInfo) o;
-            return version.equals(that.version) && branch.equals(that.branch) && gradleProjectPath.equals(that.gradleProjectPath);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(version, branch, gradleProjectPath);
-        }
+    public Version getMinimumWireCompatibleVersion() {
+        return MINIMUM_WIRE_COMPATIBLE_VERSION;
     }
 
-    public static class VersionPair implements Comparable<VersionPair> {
-        public final Version elasticsearch;
-        public final Version lucene;
+    public record UnreleasedVersionInfo(Version version, String branch, String gradleProjectPath) {}
 
-        public VersionPair(Version elasticsearch, Version lucene) {
-            this.elasticsearch = elasticsearch;
-            this.lucene = lucene;
-        }
+    public record VersionPair(Version elasticsearch, Version lucene) implements Comparable<VersionPair> {
 
         @Override
-        public int compareTo(@NotNull VersionPair o) {
+        public int compareTo(VersionPair o) {
             // For ordering purposes, sort by Elasticsearch version
             return this.elasticsearch.compareTo(o.elasticsearch);
         }

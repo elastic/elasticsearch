@@ -29,64 +29,65 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class WildcardServiceProviderResolverTests extends IdpSamlTestCase {
 
-    private static final String SERVICES_JSON = "{"
-        + "\"services\": {"
-        + "  \"service1a\": {"
-        + "      \"entity_id\": \"https://(?<service>\\\\w+)\\\\.example\\\\.com/\","
-        + "      \"acs\": \"https://(?<service>\\\\w+)\\\\.service\\\\.example\\\\.com/saml2/acs\","
-        + "      \"tokens\": [ \"service\" ],"
-        + "      \"template\": { "
-        + "         \"name\": \"{{service}} at example.com (A)\","
-        + "         \"privileges\": {"
-        + "           \"resource\": \"service1:example:{{service}}\","
-        + "           \"roles\": [ \"sso:(.*)\" ]"
-        + "         },"
-        + "         \"attributes\": {"
-        + "           \"principal\": \"http://cloud.elastic.co/saml/principal\","
-        + "           \"name\": \"http://cloud.elastic.co/saml/name\","
-        + "           \"email\": \"http://cloud.elastic.co/saml/email\","
-        + "           \"roles\": \"http://cloud.elastic.co/saml/roles\""
-        + "         }"
-        + "      }"
-        + "   },"
-        + "  \"service1b\": {"
-        + "      \"entity_id\": \"https://(?<service>\\\\w+)\\\\.example\\\\.com/\","
-        + "      \"acs\": \"https://services\\\\.example\\\\.com/(?<service>\\\\w+)/saml2/acs\","
-        + "      \"tokens\": [ \"service\" ],"
-        + "      \"template\": { "
-        + "         \"name\": \"{{service}} at example.com (B)\","
-        + "         \"privileges\": {"
-        + "           \"resource\": \"service1:example:{{service}}\","
-        + "           \"roles\": [ \"sso:(.*)\" ]"
-        + "         },"
-        + "         \"attributes\": {"
-        + "           \"principal\": \"http://cloud.elastic.co/saml/principal\","
-        + "           \"name\": \"http://cloud.elastic.co/saml/name\","
-        + "           \"email\": \"http://cloud.elastic.co/saml/email\","
-        + "           \"roles\": \"http://cloud.elastic.co/saml/roles\""
-        + "         }"
-        + "      }"
-        + "   },"
-        + "   \"service2\": {"
-        + "      \"entity_id\": \"https://service-(?<id>\\\\d+)\\\\.example\\\\.net/\","
-        + "      \"acs\": \"https://saml\\\\.example\\\\.net/(?<id>\\\\d+)/acs\","
-        + "      \"tokens\": [ \"id\" ],"
-        + "      \"template\": { "
-        + "         \"name\": \"{{id}} at example.net\","
-        + "         \"privileges\": {"
-        + "           \"resource\": \"service2:example:{{id}}\","
-        + "           \"roles\": [ \"sso:(.*)\" ]"
-        + "         },"
-        + "         \"attributes\": {"
-        + "           \"principal\": \"http://cloud.elastic.co/saml/principal\","
-        + "           \"name\": \"http://cloud.elastic.co/saml/name\","
-        + "           \"email\": \"http://cloud.elastic.co/saml/email\","
-        + "           \"roles\": \"http://cloud.elastic.co/saml/roles\""
-        + "         }" // attributes
-        + "      }" // template
-        + "    }" // service2
-        + "  }" // services
-        + "}"; // root object
+    private static final String SERVICES_JSON = """
+        {
+          "services": {
+            "service1a": {
+              "entity_id": "https://(?<service>\\\\w+)\\\\.example\\\\.com/",
+              "acs": "https://(?<service>\\\\w+)\\\\.service\\\\.example\\\\.com/saml2/acs",
+              "tokens": [ "service" ],
+              "template": {
+                "name": "{{service}} at example.com (A)",
+                "privileges": {
+                  "resource": "service1:example:{{service}}",
+                  "roles": [ "sso:(.*)" ]
+                },
+                "attributes": {
+                  "principal": "http://cloud.elastic.co/saml/principal",
+                  "name": "http://cloud.elastic.co/saml/name",
+                  "email": "http://cloud.elastic.co/saml/email",
+                  "roles": "http://cloud.elastic.co/saml/roles"
+                }
+              }
+            },
+            "service1b": {
+              "entity_id": "https://(?<service>\\\\w+)\\\\.example\\\\.com/",
+              "acs": "https://services\\\\.example\\\\.com/(?<service>\\\\w+)/saml2/acs",
+              "tokens": [ "service" ],
+              "template": {
+                "name": "{{service}} at example.com (B)",
+                "privileges": {
+                  "resource": "service1:example:{{service}}",
+                  "roles": [ "sso:(.*)" ]
+                },
+                "attributes": {
+                  "principal": "http://cloud.elastic.co/saml/principal",
+                  "name": "http://cloud.elastic.co/saml/name",
+                  "email": "http://cloud.elastic.co/saml/email",
+                  "roles": "http://cloud.elastic.co/saml/roles"
+                }
+              }
+            },
+            "service2": {
+              "entity_id": "https://service-(?<id>\\\\d+)\\\\.example\\\\.net/",
+              "acs": "https://saml\\\\.example\\\\.net/(?<id>\\\\d+)/acs",
+              "tokens": [ "id" ],
+              "template": {
+                "name": "{{id}} at example.net",
+                "privileges": {
+                  "resource": "service2:example:{{id}}",
+                  "roles": [ "sso:(.*)" ]
+                },
+                "attributes": {
+                  "principal": "http://cloud.elastic.co/saml/principal",
+                  "name": "http://cloud.elastic.co/saml/name",
+                  "email": "http://cloud.elastic.co/saml/email",
+                  "roles": "http://cloud.elastic.co/saml/roles"
+                }
+              }
+            }
+          }
+        }"""; // root object
     private WildcardServiceProviderResolver resolver;
 
     @Before

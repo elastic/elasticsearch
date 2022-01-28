@@ -9,7 +9,7 @@
 package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.BaseRestHandler;

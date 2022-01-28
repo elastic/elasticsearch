@@ -27,8 +27,10 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -78,7 +80,6 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -151,7 +152,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
-        Map<String, Object> metadata = new HashMap<>(1);
+        Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);
@@ -254,7 +255,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
-        Map<String, Object> metadata = new HashMap<>(1);
+        Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);
@@ -381,7 +382,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
-        Map<String, Object> metadata = new HashMap<>(1);
+        Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
         InternalSum sum = mock(InternalSum.class);
         when(sum.getValue()).thenReturn(10.0);
@@ -633,15 +634,36 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         );
 
         InternalAggregation reduced = ((InternalDateHistogram) unrolled).reduce(Collections.singletonList(unrolled), context);
-        assertThat(
-            reduced.toString(),
-            equalTo(
-                "{\"histo\":{\"buckets\":[{\"key_as_string\":\"1970-01-01T00:00:00.100Z\",\"key\":100,"
-                    + "\"doc_count\":1},{\"key_as_string\":\"1970-01-01T00:00:00.200Z\",\"key\":200,\"doc_count\":1},"
-                    + "{\"key_as_string\":\"1970-01-01T00:00:00.300Z\",\"key\":300,\"doc_count\":0,\"histo._count\":{\"value\":0.0}},"
-                    + "{\"key_as_string\":\"1970-01-01T00:00:00.400Z\",\"key\":400,\"doc_count\":1}]}}"
-            )
-        );
+        assertThat(reduced.toString(), equalTo(XContentHelper.stripWhitespace("""
+            {
+              "histo": {
+                "buckets": [
+                  {
+                    "key_as_string": "1970-01-01T00:00:00.100Z",
+                    "key": 100,
+                    "doc_count": 1
+                  },
+                  {
+                    "key_as_string": "1970-01-01T00:00:00.200Z",
+                    "key": 200,
+                    "doc_count": 1
+                  },
+                  {
+                    "key_as_string": "1970-01-01T00:00:00.300Z",
+                    "key": 300,
+                    "doc_count": 0,
+                    "histo._count": {
+                      "value": 0.0
+                    }
+                  },
+                  {
+                    "key_as_string": "1970-01-01T00:00:00.400Z",
+                    "key": 400,
+                    "doc_count": 1
+                  }
+                ]
+              }
+            }""")));
     }
 
     public void testNonMatchingPartition() throws IOException {
@@ -738,13 +760,23 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         assertThat(((InternalDateHistogram) unrolled).getBuckets().get(0).getDocCount(), equalTo(2L)); // two "a" at 100
         assertThat(((InternalDateHistogram) unrolled).getBuckets().get(1).getDocCount(), equalTo(1L)); // one "a" at 200
         assertThat(((InternalDateHistogram) unrolled).getBuckets().get(0).getKeyAsString(), equalTo("1970-01-01T00:00:00.100Z"));
-        assertThat(
-            unrolled.toString(),
-            equalTo(
-                "{\"histo\":{\"buckets\":[{\"key_as_string\":\"1970-01-01T00:00:00.100Z\","
-                    + "\"key\":100,\"doc_count\":2},{\"key_as_string\":\"1970-01-01T00:00:00.200Z\",\"key\":200,\"doc_count\":1}]}}"
-            )
-        );
+        assertThat(unrolled.toString(), equalTo(XContentHelper.stripWhitespace("""
+            {
+              "histo": {
+                "buckets": [
+                  {
+                    "key_as_string": "1970-01-01T00:00:00.100Z",
+                    "key": 100,
+                    "doc_count": 2
+                  },
+                  {
+                    "key_as_string": "1970-01-01T00:00:00.200Z",
+                    "key": 200,
+                    "doc_count": 1
+                  }
+                ]
+              }
+            }""")));
         assertThat(unrolled.toString(), not(equalTo(results.get(1).toString())));
     }
 
@@ -1191,10 +1223,8 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         assertThat(((InternalDateHistogram) unrolled).getBuckets().size(), equalTo(1));
         assertThat(((InternalDateHistogram) unrolled).getBuckets().get(0).getDocCount(), equalTo(1L));
         assertThat(((InternalDateHistogram) unrolled).getBuckets().get(0).getKeyAsString(), equalTo("1970-01-01T00:00:00.400Z"));
-        assertThat(
-            unrolled.toString(),
-            equalTo("{\"histo\":{\"buckets\":[{\"key_as_string\":\"1970-01-01T00:00:00.400Z\"," + "\"key\":400,\"doc_count\":1}]}}")
-        );
+        assertThat(unrolled.toString(), equalTo("""
+            {"histo":{"buckets":[{"key_as_string":"1970-01-01T00:00:00.400Z","key":400,"doc_count":1}]}}"""));
         assertThat(unrolled.toString(), not(equalTo(responses.get(1).toString())));
     }
 

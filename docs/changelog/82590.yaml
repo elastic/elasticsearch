@@ -1,0 +1,5 @@
+pr: 82590
+summary: "Script: fields API for flattened mapped type"
+area: Infra/Scripting
+type: enhancement
+issues: []

@@ -35,7 +35,10 @@ public class RestMultiSearchTemplateActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        String content = "{ \"index\": \"some_index\" } \n" + "{\"source\": {\"query\" : {\"match_all\" :{}}}} \n";
+        String content = """
+            { "index": "some_index" }
+            {"source": {"query" : {"match_all" :{}}}}
+            """;
         BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
@@ -47,7 +50,10 @@ public class RestMultiSearchTemplateActionTests extends RestActionTestCase {
     }
 
     public void testTypeInBody() {
-        String content = "{ \"index\": \"some_index\", \"type\": \"some_type\" } \n" + "{\"source\": {\"query\" : {\"match_all\" :{}}}} \n";
+        String content = """
+            { "index": "some_index", "type": "some_type" }\s
+            {"source": {"query" : {"match_all" :{}}}}\s
+            """;
         BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(

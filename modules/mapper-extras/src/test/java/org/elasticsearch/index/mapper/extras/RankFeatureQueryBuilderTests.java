@@ -101,13 +101,23 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     }
 
     public void testDefaultScoreFunction() throws IOException {
-        String query = "{\n" + "    \"rank_feature\" : {\n" + "        \"field\": \"my_feature_field\"\n" + "    }\n" + "}";
+        String query = """
+            {
+                "rank_feature" : {
+                    "field": "my_feature_field"
+                }
+            }""";
         Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertEquals(FeatureField.newSaturationQuery("_feature", "my_feature_field"), parsedQuery);
     }
 
     public void testIllegalField() {
-        String query = "{\n" + "    \"rank_feature\" : {\n" + "        \"field\": \"" + TEXT_FIELD_NAME + "\"\n" + "    }\n" + "}";
+        String query = """
+            {
+                "rank_feature" : {
+                    "field": "%s"
+                }
+            }""".formatted(TEXT_FIELD_NAME);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> parseQuery(query).toQuery(createSearchExecutionContext())
@@ -119,14 +129,15 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     }
 
     public void testIllegalCombination() {
-        String query = "{\n"
-            + "    \"rank_feature\" : {\n"
-            + "        \"field\": \"my_negative_feature_field\",\n"
-            + "        \"log\" : {\n"
-            + "            \"scaling_factor\": 4.5\n"
-            + "        }\n"
-            + "    }\n"
-            + "}";
+        String query = """
+            {
+                "rank_feature" : {
+                    "field": "my_negative_feature_field",
+                    "log" : {
+                        "scaling_factor": 4.5
+                    }
+                }
+            }""";
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> parseQuery(query).toQuery(createSearchExecutionContext())

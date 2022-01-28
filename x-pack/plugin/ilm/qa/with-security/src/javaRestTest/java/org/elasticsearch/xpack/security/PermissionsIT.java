@@ -70,7 +70,8 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 @SuppressWarnings("removal")
 public class PermissionsIT extends ESRestTestCase {
 
-    private static final String jsonDoc = "{ \"name\" : \"elasticsearch\", \"body\": \"foo bar\" }";
+    private static final String jsonDoc = """
+        {"name" : "elasticsearch", "body": "foo bar" }""";
 
     private String deletePolicy = "deletePolicy";
     private Settings indexSettingsWithPolicy;
@@ -170,13 +171,20 @@ public class PermissionsIT extends ESRestTestCase {
 
         // Set up two roles and users, one for reading SLM, another for managing SLM
         Request roleRequest = new Request("PUT", "/_security/role/slm-read");
-        roleRequest.setJsonEntity("{ \"cluster\": [\"read_slm\"] }");
+        roleRequest.setJsonEntity("""
+            { "cluster": ["read_slm"] }""");
         assertOK(adminClient().performRequest(roleRequest));
         roleRequest = new Request("PUT", "/_security/role/slm-manage");
-        roleRequest.setJsonEntity(
-            "{ \"cluster\": [\"manage_slm\", \"cluster:admin/repository/*\", \"cluster:admin/snapshot/*\"],"
-                + "\"indices\": [{ \"names\": [\".slm-history*\"],\"privileges\": [\"all\"] }] }"
-        );
+        roleRequest.setJsonEntity("""
+            {
+              "cluster": [ "manage_slm", "cluster:admin/repository/*", "cluster:admin/snapshot/*" ],
+              "indices": [
+                {
+                  "names": [ ".slm-history*" ],
+                  "privileges": [ "all" ]
+                }
+              ]
+            }""");
         assertOK(adminClient().performRequest(roleRequest));
 
         createUser("slm_admin", "slm-admin-password", "slm-manage");
@@ -353,7 +361,10 @@ public class PermissionsIT extends ESRestTestCase {
 
     private void createIndexAsAdmin(String name, Settings settings, String mapping) throws IOException {
         Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings) + ", \"mappings\" : {" + mapping + "} }");
+        request.setJsonEntity("""
+            {
+             "settings": %s, "mappings" : {%s}
+            }""".formatted(Strings.toString(settings), mapping));
         assertOK(adminClient().performRequest(request));
     }
 
@@ -365,23 +376,18 @@ public class PermissionsIT extends ESRestTestCase {
 
     private void createIndexTemplate(String name, String pattern, String alias, String policy) throws IOException {
         Request request = new Request("PUT", "/_template/" + name);
-        request.setJsonEntity(
-            "{\n"
-                + "                \"index_patterns\": [\""
-                + pattern
-                + "\"],\n"
-                + "                \"settings\": {\n"
-                + "                   \"number_of_shards\": 1,\n"
-                + "                   \"number_of_replicas\": 0,\n"
-                + "                   \"index.lifecycle.name\": \""
-                + policy
-                + "\",\n"
-                + "                   \"index.lifecycle.rollover_alias\": \""
-                + alias
-                + "\"\n"
-                + "                 }\n"
-                + "              }"
-        );
+        request.setJsonEntity("""
+            {
+              "index_patterns": [
+                "%s"
+              ],
+              "settings": {
+                "number_of_shards": 1,
+                "number_of_replicas": 0,
+                "index.lifecycle.name": "%s",
+                "index.lifecycle.rollover_alias": "%s"
+              }
+            }""".formatted(pattern, policy, alias));
         request.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         assertOK(adminClient().performRequest(request));
     }

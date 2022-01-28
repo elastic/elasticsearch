@@ -10,8 +10,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -36,7 +35,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
-import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -56,7 +54,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -74,10 +71,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -143,45 +138,6 @@ public class JobManagerTests extends ESTestCase {
 
         assertNotNull(exceptionHolder.get());
         assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testPutJob_AddsCreateTime() throws IOException {
-        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
-        JobManager jobManager = createJobManager(mockClientBuilder.build());
-
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(createJob());
-
-        doAnswer(invocation -> {
-            ((AckedClusterStateUpdateTask) invocation.getArguments()[1]).onAllNodesAcked(null);
-            return null;
-        }).when(clusterService).submitStateUpdateTask(ArgumentMatchers.eq("put-job-foo"), any(AckedClusterStateUpdateTask.class));
-
-        ArgumentCaptor<Job> requestCaptor = ArgumentCaptor.forClass(Job.class);
-        doAnswer(invocation -> {
-            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
-            listener.onResponse(true);
-            return null;
-        }).when(jobResultsProvider).createJobResultIndex(requestCaptor.capture(), any(ClusterState.class), any(ActionListener.class));
-
-        ClusterState clusterState = createClusterState();
-
-        jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<>() {
-            @Override
-            public void onResponse(PutJobAction.Response response) {
-                Job job = requestCaptor.getValue();
-                assertNotNull(job.getCreateTime());
-                Date now = new Date();
-                // job create time should be within the last second
-                assertThat(now.getTime(), greaterThanOrEqualTo(job.getCreateTime().getTime()));
-                assertThat(now.getTime() - 1000, lessThanOrEqualTo(job.getCreateTime().getTime()));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail(e.toString());
-            }
-        });
     }
 
     public void testNotifyFilterChangedGivenNoop() {

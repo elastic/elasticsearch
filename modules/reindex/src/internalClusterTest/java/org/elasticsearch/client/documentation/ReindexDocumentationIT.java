@@ -11,7 +11,7 @@ package org.elasticsearch.client.documentation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -193,18 +193,18 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
             ListTasksResponse tasksList = client.admin().cluster().prepareListTasks()
                 .setActions(UpdateByQueryAction.NAME).setDetailed(true).get();
             for (TaskInfo info: tasksList.getTasks()) {
-                TaskId taskId = info.getTaskId();
+                TaskId taskId = info.taskId();
                 BulkByScrollTask.Status status =
-                    (BulkByScrollTask.Status) info.getStatus();
+                    (BulkByScrollTask.Status) info.status();
                 // do stuff
             }
             // end::update-by-query-list-tasks
         }
 
         TaskInfo mainTask = CancelTests.findTaskToCancel(ReindexAction.NAME, builder.request().getSlices());
-        BulkByScrollTask.Status status = (BulkByScrollTask.Status) mainTask.getStatus();
+        BulkByScrollTask.Status status = (BulkByScrollTask.Status) mainTask.status();
         assertNull(status.getReasonCancelled());
-        TaskId taskId = mainTask.getTaskId();
+        TaskId taskId = mainTask.taskId();
         {
             // tag::update-by-query-get-task
             GetTaskResponse get = client.admin().cluster().prepareGetTask(taskId).get();

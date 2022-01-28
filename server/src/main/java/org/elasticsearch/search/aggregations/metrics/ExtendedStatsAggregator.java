@@ -149,71 +149,43 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
     @Override
     public double metric(String name, long owningBucketOrd) {
         if (valuesSource == null || owningBucketOrd >= counts.size()) {
-            switch (InternalExtendedStats.Metrics.resolve(name)) {
-                case count:
-                    return 0;
-                case sum:
-                    return 0;
-                case min:
-                    return Double.POSITIVE_INFINITY;
-                case max:
-                    return Double.NEGATIVE_INFINITY;
-                case avg:
-                    return Double.NaN;
-                case sum_of_squares:
-                    return 0;
-                case variance:
-                    return Double.NaN;
-                case variance_population:
-                    return Double.NaN;
-                case variance_sampling:
-                    return Double.NaN;
-                case std_deviation:
-                    return Double.NaN;
-                case std_deviation_population:
-                    return Double.NaN;
-                case std_deviation_sampling:
-                    return Double.NaN;
-                case std_upper:
-                    return Double.NaN;
-                case std_lower:
-                    return Double.NaN;
-                default:
-                    throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
-            }
+            return switch (InternalExtendedStats.Metrics.resolve(name)) {
+                case count -> 0;
+                case sum -> 0;
+                case min -> Double.POSITIVE_INFINITY;
+                case max -> Double.NEGATIVE_INFINITY;
+                case avg -> Double.NaN;
+                case sum_of_squares -> 0;
+                case variance -> Double.NaN;
+                case variance_population -> Double.NaN;
+                case variance_sampling -> Double.NaN;
+                case std_deviation -> Double.NaN;
+                case std_deviation_population -> Double.NaN;
+                case std_deviation_sampling -> Double.NaN;
+                case std_upper -> Double.NaN;
+                case std_lower -> Double.NaN;
+                default -> throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
+            };
         }
-        switch (InternalExtendedStats.Metrics.resolve(name)) {
-            case count:
-                return counts.get(owningBucketOrd);
-            case sum:
-                return sums.get(owningBucketOrd);
-            case min:
-                return mins.get(owningBucketOrd);
-            case max:
-                return maxes.get(owningBucketOrd);
-            case avg:
-                return sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
-            case sum_of_squares:
-                return sumOfSqrs.get(owningBucketOrd);
-            case variance:
-                return variance(owningBucketOrd);
-            case variance_population:
-                return variancePopulation(owningBucketOrd);
-            case variance_sampling:
-                return varianceSampling(owningBucketOrd);
-            case std_deviation:
-                return Math.sqrt(variance(owningBucketOrd));
-            case std_deviation_population:
-                return Math.sqrt(variance(owningBucketOrd));
-            case std_deviation_sampling:
-                return Math.sqrt(varianceSampling(owningBucketOrd));
-            case std_upper:
-                return (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) + (Math.sqrt(variance(owningBucketOrd)) * this.sigma);
-            case std_lower:
-                return (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) - (Math.sqrt(variance(owningBucketOrd)) * this.sigma);
-            default:
-                throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
-        }
+        return switch (InternalExtendedStats.Metrics.resolve(name)) {
+            case count -> counts.get(owningBucketOrd);
+            case sum -> sums.get(owningBucketOrd);
+            case min -> mins.get(owningBucketOrd);
+            case max -> maxes.get(owningBucketOrd);
+            case avg -> sums.get(owningBucketOrd) / counts.get(owningBucketOrd);
+            case sum_of_squares -> sumOfSqrs.get(owningBucketOrd);
+            case variance -> variance(owningBucketOrd);
+            case variance_population -> variancePopulation(owningBucketOrd);
+            case variance_sampling -> varianceSampling(owningBucketOrd);
+            case std_deviation -> Math.sqrt(variance(owningBucketOrd));
+            case std_deviation_population -> Math.sqrt(variance(owningBucketOrd));
+            case std_deviation_sampling -> Math.sqrt(varianceSampling(owningBucketOrd));
+            case std_upper -> (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) + (Math.sqrt(variance(owningBucketOrd))
+                * this.sigma);
+            case std_lower -> (sums.get(owningBucketOrd) / counts.get(owningBucketOrd)) - (Math.sqrt(variance(owningBucketOrd))
+                * this.sigma);
+            default -> throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
+        };
     }
 
     private double variance(long owningBucketOrd) {

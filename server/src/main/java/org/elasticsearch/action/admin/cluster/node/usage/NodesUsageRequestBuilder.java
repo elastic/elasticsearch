@@ -10,7 +10,7 @@ package org.elasticsearch.action.admin.cluster.node.usage;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class NodesUsageRequestBuilder extends NodesOperationRequestBuilder<
     NodesUsageRequest,

@@ -123,7 +123,7 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
 
                 ArrayList<Object> plainTextForHighlighter = new ArrayList<>(annotations.length);
                 for (int i = 0; i < annotations.length; i++) {
-                    plainTextForHighlighter.add(annotations[i].textMinusMarkup);
+                    plainTextForHighlighter.add(annotations[i].textMinusMarkup());
                 }
 
                 TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);

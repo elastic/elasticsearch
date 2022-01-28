@@ -186,6 +186,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         result.add(IndexMetadata.INDEX_ROUTING_PATH);
         result.add(IndexSettings.TIME_SERIES_START_TIME);
         result.add(IndexSettings.TIME_SERIES_END_TIME);
+        result.add(IndexSettings.LOOK_AHEAD_TIME);
         return Set.copyOf(result);
     }
 

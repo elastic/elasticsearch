@@ -11,6 +11,7 @@ package org.elasticsearch.common.collect;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
@@ -138,7 +139,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
         ImmutableOpenMap.Builder<Long, String> builder2 = ImmutableOpenMap.builder(map.size());
         map.entrySet().stream().forEach(entry -> builder2.put(entry.getKey(), entry.getValue()));
 
-        Map<Long, String> hMap = new HashMap<>(map.size());
+        Map<Long, String> hMap = Maps.newMapWithExpectedSize(map.size());
         map.entrySet().forEach(entry -> hMap.put(entry.getKey(), entry.getValue()));
 
         ImmutableOpenMap.Builder<Long, String> builder3 = ImmutableOpenMap.builder(map.size());
@@ -240,7 +241,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
     }
 
     private static <KType, VType> Map.Entry<KType, VType> entry(KType key, VType value) {
-        Map<KType, VType> map = new HashMap<>(1);
+        Map<KType, VType> map = Maps.newMapWithExpectedSize(1);
         map.put(key, value);
         return map.entrySet().iterator().next();
     }

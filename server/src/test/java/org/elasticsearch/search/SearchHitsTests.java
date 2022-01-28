@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.LuceneTests;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -237,12 +238,17 @@ public class SearchHitsTests extends AbstractSerializingTestCase<SearchHits> {
         builder.startObject();
         searchHits.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals(
-            "{\"hits\":{\"total\":{\"value\":1000,\"relation\":\"eq\"},\"max_score\":1.5,"
-                + "\"hits\":[{\"_id\":\"id1\",\"_score\":null},"
-                + "{\"_id\":\"id2\",\"_score\":null}]}}",
-            Strings.toString(builder)
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "hits": {
+                "total": {
+                  "value": 1000,
+                  "relation": "eq"
+                },
+                "max_score": 1.5,
+                "hits": [ { "_id": "id1", "_score": null }, { "_id": "id2", "_score": null } ]
+              }
+            }"""), Strings.toString(builder));
     }
 
     public void testFromXContentWithShards() throws IOException {

@@ -139,30 +139,26 @@ public class SuggestTests extends ESTestCase {
         suggestion.addTerm(entry);
         Suggest suggest = new Suggest(Collections.singletonList(suggestion));
         BytesReference xContent = toXContent(suggest, XContentType.JSON, randomBoolean());
-        assertEquals(
-            stripWhitespace(
-                "{"
-                    + "  \"suggest\": {"
-                    + "    \"suggestionName\": ["
-                    + "      {"
-                    + "        \"text\": \"entryText\","
-                    + "        \"offset\": 42,"
-                    + "        \"length\": 313,"
-                    + "        \"options\": ["
-                    + "          {"
-                    + "            \"text\": \"someText\","
-                    + "            \"highlighted\": \"somethingHighlighted\","
-                    + "            \"score\": 1.3,"
-                    + "            \"collate_match\": true"
-                    + "          }"
-                    + "        ]"
-                    + "      }"
-                    + "    ]"
-                    + "  }"
-                    + "}"
-            ),
-            xContent.utf8ToString()
-        );
+        assertEquals(stripWhitespace("""
+            {
+              "suggest": {
+                "suggestionName": [
+                  {
+                    "text": "entryText",
+                    "offset": 42,
+                    "length": 313,
+                    "options": [
+                      {
+                        "text": "someText",
+                        "highlighted": "somethingHighlighted",
+                        "score": 1.3,
+                        "collate_match": true
+                      }
+                    ]
+                  }
+                ]
+              }
+            }"""), xContent.utf8ToString());
     }
 
     public void testFilter() throws Exception {

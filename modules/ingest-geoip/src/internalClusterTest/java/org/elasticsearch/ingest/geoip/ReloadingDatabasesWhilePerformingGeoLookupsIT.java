@@ -9,7 +9,7 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.InetAddresses;

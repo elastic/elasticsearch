@@ -396,9 +396,9 @@ public final class Verifier {
         AttributeMap<Expression> attributeRefs
     ) {
         if (p instanceof Having h) {
-            // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (h.child() instanceof Aggregate a) {
-                // @formatter:on
+                // end::noformat
                 Set<Expression> missing = new LinkedHashSet<>();
                 Set<Expression> unsupported = new LinkedHashSet<>();
                 Expression condition = h.condition();

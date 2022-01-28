@@ -30,17 +30,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class ApplicationPrivilegeTests extends ESTestCase {
 
     public void testFromXContentAndToXContent() throws IOException {
-        String json = "{\n"
-            + "  \"application\" : \"myapp\",\n"
-            + "  \"name\" : \"read\",\n"
-            + "  \"actions\" : [\n"
-            + "    \"data:read/*\",\n"
-            + "    \"action:login\"\n"
-            + "  ],\n"
-            + "  \"metadata\" : {\n"
-            + "    \"description\" : \"Read access to myapp\"\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "application" : "myapp",
+              "name" : "read",
+              "actions" : [
+                "data:read/*",
+                "action:login"
+              ],
+              "metadata" : {
+                "description" : "Read access to myapp"
+              }
+            }""";
         final ApplicationPrivilege privilege = ApplicationPrivilege.fromXContent(
             XContentType.JSON.xContent()
                 .createParser(new NamedXContentRegistry(Collections.emptyList()), DeprecationHandler.IGNORE_DEPRECATIONS, json)

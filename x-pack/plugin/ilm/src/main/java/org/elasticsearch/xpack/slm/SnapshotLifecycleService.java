@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -97,7 +98,8 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
                 if (slmStopping(state)) {
                     clusterService.submitStateUpdateTask(
                         "slm_operation_mode_update[stopped]",
-                        OperationModeUpdateTask.slmMode(OperationMode.STOPPED)
+                        OperationModeUpdateTask.slmMode(OperationMode.STOPPED),
+                        ClusterStateTaskExecutor.unbatched()
                     );
                 }
                 return;

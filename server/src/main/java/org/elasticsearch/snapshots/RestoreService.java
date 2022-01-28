@@ -1285,9 +1285,7 @@ public class RestoreService implements ClusterStateApplier {
 
             final ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = ImmutableOpenMap.builder();
 
-            final Version minIndexCompatibilityVersion = skipVersionChecks(repositoryMetadata)
-                ? Version.fromString("1.0.0")
-                : currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion();
+            final Version minIndexCompatibilityVersion = currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion();
             final String localNodeId = clusterService.state().nodes().getLocalNodeId();
             for (Map.Entry<String, IndexId> indexEntry : indicesToRestore.entrySet()) {
                 final IndexId index = indexEntry.getValue();
@@ -1297,8 +1295,7 @@ public class RestoreService implements ClusterStateApplier {
                     request.indexSettings(),
                     request.ignoreIndexSettings()
                 );
-                if (snapshotIndexMetadata.getCurrentVersion()
-                    .before(currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion())) {
+                if (snapshotIndexMetadata.getCurrentVersion().before(minIndexCompatibilityVersion)) {
                     // adapt index metadata so that it can be understood by current version
                     snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata, currentState);
                 }
@@ -1591,6 +1588,9 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     private IndexMetadata convertLegacyIndex(IndexMetadata snapshotIndexMetadata, ClusterState clusterState) {
+        if (snapshotIndexMetadata.getCreationVersion().before(Version.fromString("5.0.0"))) {
+            throw new IllegalArgumentException("can't restore an index created before version 5.0.0");
+        }
         MappingMetadata mappingMetadata = snapshotIndexMetadata.mapping();
         Map<String, Object> loadedMappingSource = mappingMetadata.rawSourceAsMap();
 
@@ -1619,7 +1619,6 @@ public class RestoreService implements ClusterStateApplier {
                 Settings.builder()
                     .put(snapshotIndexMetadata.getSettings())
                     .put(IndexMetadata.SETTING_INDEX_VERSION_CURRENT.getKey(), clusterState.getNodes().getSmallestNonClientNodeVersion())
-                    .build()
             )
             .build();
     }

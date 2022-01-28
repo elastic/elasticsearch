@@ -710,7 +710,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * information is typically useful for backward compatibility.
      */
     public Version getCurrentVersion() {
-        return indexCreatedVersion;
+        return indexCurrentVersion;
     }
 
     public long getCreationDate() {

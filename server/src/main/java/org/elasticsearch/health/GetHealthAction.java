@@ -47,6 +47,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private final ClusterName clusterName;
+        private final ClusterHealthStatus status;
         private final int numberOfNodes;
         private final int numberOfDataNodes;
         private final String masterNodeId;
@@ -68,6 +69,40 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             this.numberOfDataNodes = numberOfDataNodes;
             this.masterNodeId = masterNodeId;
             this.components = components;
+            ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
+            for (Component component : components) {
+                if (component.status().equals(ClusterHealthStatus.RED)) {
+                    computeStatus = ClusterHealthStatus.RED;
+                    break;
+                } else if (component.status().equals(ClusterHealthStatus.YELLOW)) {
+                    computeStatus = ClusterHealthStatus.YELLOW;
+                }
+            }
+            this.status = computeStatus;
+        }
+
+        public ClusterName getClusterName() {
+            return clusterName;
+        }
+
+        public ClusterHealthStatus getStatus() {
+            return status;
+        }
+
+        public int getNumberOfNodes() {
+            return numberOfNodes;
+        }
+
+        public int getNumberOfDataNodes() {
+            return numberOfDataNodes;
+        }
+
+        public String getMasterNodeId() {
+            return masterNodeId;
+        }
+
+        public List<Component> getComponents() {
+            return components;
         }
 
         @Override
@@ -78,7 +113,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field("status", "green");
+            builder.field("status", status);
             builder.field("cluster_name", clusterName.value());
             builder.field("number_of_nodes", numberOfNodes);
             builder.field("number_of_data_nodes", numberOfDataNodes);

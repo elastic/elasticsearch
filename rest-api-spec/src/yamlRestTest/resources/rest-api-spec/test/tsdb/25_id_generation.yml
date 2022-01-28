@@ -178,6 +178,106 @@ index a new document on top of an old one over bulk:
   - match: {aggregations.max_rx.value: 4.30605511E8}
 
 ---
+index a new document with routing on top of an old one:
+  - skip:
+      version: " - 8.0.99"
+      reason: indexing on top of another document support added in 8.1
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            max_tx:
+              max:
+                field: k8s.pod.network.tx
+            max_rx:
+              min:
+                field: k8s.pod.network.rx
+  - match: {aggregations.max_tx.value: 2.012916202E9}
+  - match: {aggregations.max_rx.value: 5.30575198E8}
+
+  - do:
+      index:
+        refresh: true
+        index: test
+        op_type: index
+        routing: qH6B6Q
+        body:
+          "@timestamp": "2021-04-28T18:51:03.142Z"
+          metricset: pod
+          k8s:
+            pod:
+              name: dog
+              uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9
+              ip: 10.10.55.3
+              network:
+                tx: 111434595272
+                rx: 430605511
+  - match: {_id: M5S3HK24uRBm_tEZeQEAAA}
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            max_tx:
+              max:
+                field: k8s.pod.network.tx
+            max_rx:
+              min:
+                field: k8s.pod.network.rx
+  - match: {aggregations.max_tx.value: 1.11434595272E11}
+  - match: {aggregations.max_rx.value: 4.30605511E8}
+
+---
+index a new document with routing on top of an old one over bulk:
+  - skip:
+      version: " - 8.0.99"
+      reason: indexing on top of another document support added in 8.1
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            max_tx:
+              max:
+                field: k8s.pod.network.tx
+            max_rx:
+              min:
+                field: k8s.pod.network.rx
+  - match: {aggregations.max_tx.value: 2.012916202E9}
+  - match: {aggregations.max_rx.value: 5.30575198E8}
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {"routing": "qH6B6Q"}}'
+          - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
+  - match: {items.0.index._id: M5S3HK24uRBm_tEZeQEAAA}
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            max_tx:
+              max:
+                field: k8s.pod.network.tx
+            max_rx:
+              min:
+                field: k8s.pod.network.rx
+  - match: {aggregations.max_tx.value: 1.11434595272E11}
+  - match: {aggregations.max_rx.value: 4.30605511E8}
+
+---
 ids query:
   - skip:
       version: " - 8.0.99"

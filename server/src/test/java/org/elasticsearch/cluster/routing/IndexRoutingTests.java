@@ -478,7 +478,10 @@ public class IndexRoutingTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> indexRouting.indexShard(randomAlphaOfLength(5), docRouting + "garbage", XContentType.JSON, source)
         );
-        assertThat(e.getMessage(), equalTo("routing must not be supplied or must be [" + docRouting + "]"));
+        assertThat(
+            e.getMessage(),
+            equalTo("routing must not be supplied or must be [" + docRouting + "] but was [" + docRouting + "garbage]")
+        );
     }
 
     public void testRoutingPathRead() throws IOException {

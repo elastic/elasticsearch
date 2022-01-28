@@ -237,7 +237,7 @@ public abstract class IndexRouting {
             if (routing != null) {
                 String expectedRouting = hashToRouting(hash);
                 if (false == expectedRouting.equals(routing)) {
-                    throw new IllegalArgumentException("routing must not be supplied or must be [" + expectedRouting + "]");
+                    throw new IllegalArgumentException("routing must not be supplied or must be [" + expectedRouting + "] but was [" + routing + "]");
                 }
             }
             return hashToShardId(hash);

@@ -32,6 +32,7 @@ import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
@@ -109,15 +110,18 @@ public class FetchPhase {
         // make sure that we iterate in doc id order
         Arrays.sort(docs);
 
+        BiFunction<XContentType, BytesReference, String> calculateRouting = IndexRouting.fromIndexMetadata(
+            context.indexShard().indexSettings().getIndexMetadata()
+        ).calculateRouting();
         Map<String, Set<String>> storedToRequestedFields = new HashMap<>();
-        FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, storedToRequestedFields);
+        FieldsVisitor fieldsVisitor = createStoredFieldsVisitor(context, calculateRouting != null, storedToRequestedFields);
         profiler.visitor(fieldsVisitor);
 
         FetchContext fetchContext = new FetchContext(context);
 
         SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
 
-        List<FetchSubPhaseProcessor> processors = getProcessors(context, fetchContext, profiler);
+        List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), calculateRouting, fetchContext, profiler);
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         int currentReaderIndex = -1;
@@ -137,7 +141,7 @@ public class FetchPhase {
                     try {
                         currentReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
                         currentReaderIndex = readerIndex;
-                        if (currentReaderContext.reader()instanceof SequentialStoredFieldsLeafReader lf
+                        if (currentReaderContext.reader() instanceof SequentialStoredFieldsLeafReader lf
                             && hasSequentialDocs
                             && docs.length >= 10) {
                             // All the docs to fetch are adjacent but Lucene stored fields are optimized
@@ -183,7 +187,12 @@ public class FetchPhase {
         return new SearchHits(hits, totalHits, context.queryResult().getMaxScore());
     }
 
-    List<FetchSubPhaseProcessor> getProcessors(SearchContext target, FetchContext context, Profiler profiler) {
+    List<FetchSubPhaseProcessor> getProcessors(
+        SearchShardTarget target,
+        BiFunction<XContentType, BytesReference, String> calculateRouting,
+        FetchContext context,
+        Profiler profiler
+    ) {
         try {
             List<FetchSubPhaseProcessor> processors = new ArrayList<>();
             for (FetchSubPhase fsp : fetchSubPhases) {
@@ -192,9 +201,6 @@ public class FetchPhase {
                     processors.add(profiler.profile(fsp.getClass().getSimpleName(), "", processor));
                 }
             }
-            BiFunction<XContentType, BytesReference, String> calculateRouting = IndexRouting.fromIndexMetadata(
-                target.indexShard().indexSettings().getIndexMetadata()
-            ).calculateRouting();
             if (calculateRouting != null) {
                 processors.add(profiler.profile("IndexRouting", "", new FetchSubPhaseProcessor() {
                     @Override
@@ -211,7 +217,7 @@ public class FetchPhase {
             }
             return processors;
         } catch (Exception e) {
-            throw new FetchPhaseExecutionException(target.shardTarget(), "Error building fetch sub-phases", e);
+            throw new FetchPhaseExecutionException(target, "Error building fetch sub-phases", e);
         }
     }
 
@@ -230,7 +236,11 @@ public class FetchPhase {
         }
     }
 
-    private FieldsVisitor createStoredFieldsVisitor(SearchContext context, Map<String, Set<String>> storedToRequestedFields) {
+    private FieldsVisitor createStoredFieldsVisitor(
+        SearchContext context,
+        boolean routingRequiresSource,
+        Map<String, Set<String>> storedToRequestedFields
+    ) {
         StoredFieldsContext storedFieldsContext = context.storedFieldsContext();
 
         if (storedFieldsContext == null) {
@@ -238,7 +248,7 @@ public class FetchPhase {
             if (context.hasScriptFields() == false && context.hasFetchSourceContext() == false) {
                 context.fetchSourceContext(new FetchSourceContext(true));
             }
-            boolean loadSource = sourceRequired(context);
+            boolean loadSource = routingRequiresSource || sourceRequired(context);
             return new FieldsVisitor(loadSource);
         } else if (storedFieldsContext.fetchFields() == false) {
             // disable stored fields entirely
@@ -261,7 +271,7 @@ public class FetchPhase {
                     requestedFields.add(fieldName);
                 }
             }
-            boolean loadSource = sourceRequired(context);
+            boolean loadSource = routingRequiresSource || sourceRequired(context);
             if (storedToRequestedFields.isEmpty()) {
                 // empty list specified, default to disable _source if no explicit indication
                 return new FieldsVisitor(loadSource);

@@ -76,7 +76,9 @@ update tag field:
 ---
 update dimension field:
   - do:
-      catch: conflict
+      # Changing the dimension field changes the routing that we'd have to pass into ES but update_by_query has no idea.
+      # So it just passes the previous routing. Which will fail. Which is fine - we expect a failure.
+      catch: bad_request
       update_by_query:
         index: tsdb
         body:
@@ -85,9 +87,10 @@ update dimension field:
             source: ctx._source.k8s.pod.uid = "12342134"
 
   - match: {updated: 0}
-  - match: {version_conflicts: 1}
+  - match: {version_conflicts: 0}
   - match: {batches: 1}
   - match: {throttled_millis: 0}
+  - match: {failures.0.cause.reason: "routing must not be supplied or must be [dPzdrQ] but was [aKQJtQ]"}
   - gte: { took: 0 }
 
 ---

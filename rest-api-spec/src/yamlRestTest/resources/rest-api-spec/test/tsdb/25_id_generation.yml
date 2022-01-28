@@ -296,9 +296,33 @@ ids query:
 
   - match: {hits.total.value: 2}
   - match: {hits.hits.0._id: "M5S3HK24uRBm_tEZeQEAAA"}
+  - match: {hits.hits.0._routing: "qH6B6Q"}
   - match: {hits.hits.0.fields.k8s\.pod\.network\.tx: [1434595272]}
   - match: {hits.hits.1._id: "g11Xnx49I8iTA9IZeQEAAA"}
+  - match: {hits.hits.1._routing: "AY0BPQ"}
   - match: {hits.hits.1.fields.k8s\.pod\.network\.tx: [2012916202]}
+
+---
+search with _source disabled:
+  - skip:
+      version: " - 8.0.99"
+      reason: ids generation changed in 8.1
+
+  - do:
+      search:
+        index: test
+        body:
+          _source: false
+          query:
+            ids:
+              values: ["M5S3HK24uRBm_tEZeQEAAA", "g11Xnx49I8iTA9IZeQEAAA"]
+          sort: ["@timestamp"]
+
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._id: "M5S3HK24uRBm_tEZeQEAAA"}
+  - match: {hits.hits.0._routing: "qH6B6Q"}
+  - match: {hits.hits.1._id: "g11Xnx49I8iTA9IZeQEAAA"}
+  - match: {hits.hits.1._routing: "AY0BPQ"}
 
 ---
 get:

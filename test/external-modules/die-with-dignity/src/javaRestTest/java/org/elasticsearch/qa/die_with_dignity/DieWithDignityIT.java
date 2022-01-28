@@ -110,7 +110,7 @@ public class DieWithDignityIT extends ESRestTestCase {
                 String jvmArgs = null;
                 String line;
                 while ((line = in.readLine()) != null) {
-                    if (line.equals("java_command: org.elasticsearch.bootstrap.Elasticsearch")) {
+                    if (line.equals("java_command: org.elasticsearch.boot/org.elasticsearch.boot.BootESLauncher")) {
                         isElasticsearch = true;
                     }
                     if (line.startsWith("jvm_args")) {

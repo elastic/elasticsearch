@@ -37,7 +37,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -600,8 +599,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         )
                     );
                 } else {
-                    final Settings leaderIndexSettings = remoteMetadata.getIndexSafe(indexToFollow).getSettings();
-                    if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexSettings) == false) {
+                    final IndexMetadata leaderIndexMetadata = remoteMetadata.getIndexSafe(indexToFollow);
+                    if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetadata.getSettings()) == false) {
                         String message = String.format(
                             Locale.ROOT,
                             "index [%s] cannot be followed, because soft deletes are not enabled",
@@ -615,7 +614,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                             }
                             groupedListener.onResponse(new Tuple<>(indexToFollow, failure));
                         });
-                    } else if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndexSettings)) {
+                    } else if (leaderIndexMetadata.isSearchableSnapshot()) {
                         String message = String.format(
                             Locale.ROOT,
                             "index to follow [%s] is a searchable snapshot index and cannot be used for cross-cluster replication purpose",

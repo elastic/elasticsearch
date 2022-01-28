@@ -62,6 +62,7 @@ public class FilterContentBenchmark {
     private XContentParserConfiguration parserConfig;
     private XContentParserConfiguration parserConfigMatchDotsInFieldNames;
     private Set<String> filters;
+    private XContentParserConfiguration parserConfigMatchDotsInFieldNames;
 
     @Setup
     public void setup() throws IOException {

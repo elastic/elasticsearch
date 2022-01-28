@@ -556,7 +556,7 @@ version 5.3.2 run:
 ./gradlew v5.3.2#bwcTest
 -------------------------------------------------
 
-Use -Dtest.class and -Dtests.method to run a specific bwcTest test.
+Use -Dtests.class and -Dtests.method to run a specific bwcTest test.
 For example to run a specific tests from the x-pack rolling upgrade from 7.7.0:
 -------------------------------------------------
 ./gradlew :x-pack:qa:rolling-upgrade:v7.7.0#bwcTest \

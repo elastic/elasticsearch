@@ -709,6 +709,11 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return NAME;
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
+
     /**
      * Creates a new {@link FieldSortBuilder} from the query held by the {@link XContentParser} in
      * {@link org.elasticsearch.xcontent.XContent} format.

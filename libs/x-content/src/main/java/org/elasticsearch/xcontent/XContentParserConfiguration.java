@@ -142,12 +142,20 @@ public class XContentParserConfiguration {
                     throw new UnsupportedOperationException("double wildcards are not supported in filtered excludes");
                 }
             }
-            FilterPathBasedFilter filter = new FilterPathBasedFilter(excludes, false, filtersMatchFieldNamesWithDots);
-            filtered = new FilteringParserDelegate(filtered, filter, true, true);
+            filtered = new FilteringParserDelegate(
+                filtered,
+                new FilterPathBasedFilter(excludes, false, filtersMatchFieldNamesWithDots),
+                true,
+                true
+            );
         }
         if (includes != null) {
-            FilterPathBasedFilter filter = new FilterPathBasedFilter(includes, true, filtersMatchFieldNamesWithDots);
-            filtered = new FilteringParserDelegate(filtered, filter, true, true);
+            filtered = new FilteringParserDelegate(
+                filtered,
+                new FilterPathBasedFilter(includes, true, filtersMatchFieldNamesWithDots),
+                true,
+                true
+            );
         }
         return filtered;
     }

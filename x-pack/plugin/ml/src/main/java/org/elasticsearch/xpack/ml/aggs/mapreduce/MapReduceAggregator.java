@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -93,14 +94,12 @@ public abstract class MapReduceAggregator extends AggregatorBase {
 
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
-                context.getMapReducer().map(context.getExtractors().stream().map(e -> {
+                context.getMapReducer().map(context.getExtractors().stream().map(extractor -> {
                     try {
-                        return e.collectValues(ctx, doc);
-                    } catch (IOException e1) {
-                        // TODO better handling of this case
-                        e1.printStackTrace();
+                        return extractor.collectValues(ctx, doc);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
                     }
-                    return Collections.emptyList();
                 }));
             }
         };

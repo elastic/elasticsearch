@@ -218,8 +218,12 @@ import static org.elasticsearch.core.Types.forciblyCast;
 public class Node implements Closeable {
     public static final Setting<Boolean> WRITE_PORTS_FILE_SETTING = Setting.boolSetting("node.portsfile", false, Property.NodeScope);
 
-    public static final Setting<String> NODE_EXTERNAL_ID_SETTING = Setting.simpleString("node.external_id", Property.NodeScope);
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
+    public static final Setting<String> NODE_EXTERNAL_ID_SETTING = Setting.simpleString(
+        "node.external_id",
+        NODE_NAME_SETTING,
+        Property.NodeScope
+    );
     public static final Setting.AffixSetting<String> NODE_ATTRIBUTES = Setting.prefixKeySetting(
         "node.attr.",
         (key) -> new Setting<>(key, "", (value) -> {

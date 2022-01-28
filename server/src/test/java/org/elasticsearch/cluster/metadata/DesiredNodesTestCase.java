@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 
 public abstract class DesiredNodesTestCase extends ESTestCase {
     public static DesiredNodes randomDesiredNodesWithRandomSettings() {
@@ -73,7 +74,11 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     public static Settings randomSettings(Consumer<Settings.Builder> settingsProvider) {
         int numSettings = randomIntBetween(1, 20);
         Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(NODE_EXTERNAL_ID_SETTING.getKey(), UUIDs.randomBase64UUID());
+        if (randomBoolean()) {
+            settingsBuilder.put(NODE_EXTERNAL_ID_SETTING.getKey(), UUIDs.randomBase64UUID());
+        } else {
+            settingsBuilder.put(NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID());
+        }
 
         for (int i = 0; i < numSettings; i++) {
             settingsProvider.accept(settingsBuilder);

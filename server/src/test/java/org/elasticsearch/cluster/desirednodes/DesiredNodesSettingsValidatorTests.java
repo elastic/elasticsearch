@@ -26,6 +26,7 @@ import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesi
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodesWithRandomSettings;
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomSettings;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -36,7 +37,8 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
         final Set<Setting<?>> availableSettings = Set.of(
             Setting.intSetting("test.invalid_value", 1, Setting.Property.NodeScope),
             Setting.intSetting("test.invalid_range", 1, 1, 100, Setting.Property.NodeScope),
-            NODE_EXTERNAL_ID_SETTING
+            NODE_EXTERNAL_ID_SETTING,
+            NODE_NAME_SETTING
         );
         final Consumer<Settings.Builder> settingsProvider = settings -> {
             if (randomBoolean()) {
@@ -81,11 +83,13 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
     public void testExternalIDIsRequired() {
         final Set<Setting<?>> availableSettings = Set.of(
             Setting.intSetting("test.value", 1, Setting.Property.NodeScope),
-            NODE_EXTERNAL_ID_SETTING
+            NODE_EXTERNAL_ID_SETTING,
+            NODE_NAME_SETTING
         );
         final Consumer<Settings.Builder> settingsProvider = settings -> {
             settings.put("test.value", randomInt());
             settings.remove(NODE_EXTERNAL_ID_SETTING.getKey());
+            settings.remove(NODE_NAME_SETTING.getKey());
         };
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, availableSettings);
@@ -97,14 +101,15 @@ public class DesiredNodesSettingsValidatorTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("Nodes in positions"));
         assertThat(exception.getMessage(), containsString("contain invalid settings"));
         assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
-        assertThat(exception.getSuppressed()[0].getMessage(), containsString("[node.external_id] is missing or empty"));
+        assertThat(exception.getSuppressed()[0].getMessage(), containsString("[node.name] or [node.external_id] is missing or empty"));
     }
 
     public void testSettingOverrides() {
         final int masterNodeNumberOfCPUs = 8;
         final Set<Setting<?>> availableSettings = Set.of(
             Setting.intSetting("test.processors", masterNodeNumberOfCPUs, 1, masterNodeNumberOfCPUs, Setting.Property.NodeScope),
-            NODE_EXTERNAL_ID_SETTING
+            NODE_EXTERNAL_ID_SETTING,
+            NODE_NAME_SETTING
         );
 
         final int numberOfDesiredNodesCPUs = 128;

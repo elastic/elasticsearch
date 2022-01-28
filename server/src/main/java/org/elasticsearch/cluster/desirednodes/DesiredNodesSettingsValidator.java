@@ -27,6 +27,7 @@ import static java.lang.String.format;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.createNodeProcessorsSetting;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 
 public class DesiredNodesSettingsValidator {
     private final ClusterSettings clusterSettings;
@@ -64,7 +65,9 @@ public class DesiredNodesSettingsValidator {
 
     private void validate(DesiredNode node) {
         if (node.externalId() == null) {
-            throw new IllegalArgumentException(format(Locale.ROOT, "[%s] is missing or empty", NODE_EXTERNAL_ID_SETTING.getKey()));
+            throw new IllegalArgumentException(
+                format(Locale.ROOT, "[%s] or [%s] is missing or empty", NODE_NAME_SETTING.getKey(), NODE_EXTERNAL_ID_SETTING.getKey())
+            );
         }
 
         final Settings settings = node.settings();

@@ -11,7 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -19,7 +19,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 
-public class DesiredNodesMetadataSerializationTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
+public class DesiredNodesMetadataSerializationTests extends SimpleDiffableSerializationTestCase<Metadata.Custom> {
     @Override
     protected Metadata.Custom makeTestChanges(Metadata.Custom testInstance) {
         if (randomBoolean()) {

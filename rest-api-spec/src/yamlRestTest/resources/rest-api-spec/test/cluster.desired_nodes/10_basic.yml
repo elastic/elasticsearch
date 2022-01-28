@@ -25,7 +25,7 @@ teardown:
         version: 1
         body:
             nodes:
-              - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+              - { settings: { "node.name": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
   - match: { acknowledged: true }
   - match: { new_history_id: "test" }
 
@@ -36,7 +36,7 @@ teardown:
         history_id: "test"
         version: 1
         nodes:
-          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+          - { settings: { node: { name: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
 
   - do:
       desired_nodes.update_desired_nodes:
@@ -44,8 +44,8 @@ teardown:
         version: 2
         body:
           nodes:
-            - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
-            - { settings: { "node.external_id": "instance-000188" }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+            - { settings: { "node.name": "instance-000188" }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version }
   - match: { acknowledged: true }
   - match: { new_history_id: null }
 
@@ -56,8 +56,8 @@ teardown:
         history_id: "test"
         version: 2
         nodes:
-          - { settings: { node: { external_id: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
-          - { settings: { node: { external_id: "instance-000188" } }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version }
+          - { settings: { node: { name: "instance-000187" } }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+          - { settings: { node: { name: "instance-000188" } }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version }
 ---
 "Test update move to a new history id":
   - do:
@@ -353,7 +353,7 @@ teardown:
   - match: { acknowledged: true }
   - match: { new_history_id: "test" }
 ---
-"Test external_id is required":
+"Test external_id or node.name is required":
   - do:
       cluster.state: {}
 
@@ -374,7 +374,7 @@ teardown:
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
   - match: { error.reason: "Nodes in positions [0] contain invalid settings" }
-  - match: { error.suppressed.0.reason: "[node.external_id] is missing or empty" }
+  - match: { error.suppressed.0.reason: "[node.name] or [node.external_id] is missing or empty" }
 ---
 "Test external_id must have content":
   - do:
@@ -397,7 +397,7 @@ teardown:
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
   - match: { error.reason: "Nodes in positions [0] contain invalid settings" }
-  - match: { error.suppressed.0.reason: "[node.external_id] is missing or empty" }
+  - match: { error.suppressed.0.reason: "[node.name] or [node.external_id] is missing or empty" }
 ---
 "Test duplicated external ids are not allowed":
   - do:

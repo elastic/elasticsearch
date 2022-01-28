@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -242,5 +243,15 @@ public class JwtUtilTests extends JwtTestCase {
         assertThat(JwtUtil.parseHttpsUriNoException("https://example.com:443/"), is(notNullValue()));
         assertThat(JwtUtil.parseHttpsUriNoException("https://example.com:8443/"), is(notNullValue()));
         assertThat(JwtUtil.parseHttpsUriNoException("https://example.com:8443/jwkset.json"), is(notNullValue()));
+    }
+
+    public void testComputeBitLengthRsa() throws Exception {
+        for (int i=0; i<5; i++) {
+            for (final String signatureAlgorithmRsa : JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA) {
+                final JWK jwk = JwtTestCase.randomJwk(JWSAlgorithm.parse(signatureAlgorithmRsa));
+                final int minLength = JwtUtil.computeBitLengthRsa(jwk.toRSAKey().toPublicKey());
+                assertThat(minLength, is(anyOf(equalTo(2048), equalTo(3072))));
+            }
+        }
     }
 }

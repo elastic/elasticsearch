@@ -72,14 +72,13 @@ import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.security.PublicKey;
+import java.security.interfaces.RSAPublicKey;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import javax.crypto.Cipher;
 
 /**
  * Utilities for JWT JWS create, sign, and verify, as well as generate JWT JWS credential.
@@ -188,9 +187,13 @@ public class JwtUtil {
     }
 
     public static int computeBitLengthRsa(final PublicKey publicKey) throws Exception {
-        final Cipher cipher = Cipher.getInstance("RSA");
-        cipher.init(Cipher.ENCRYPT_MODE, publicKey);
-        return cipher.getOutputSize(0) * Byte.SIZE;
+        if (publicKey instanceof RSAPublicKey rsaPublicKey) {
+            final int modulusBigLength = rsaPublicKey.getModulus().bitLength();
+            return (modulusBigLength + 8 - 1) / 8 * 8;
+        } else if (publicKey == null) {
+            throw new Exception("Expected public key class [RSAPublicKey]. Got [" + "null" + "] instead.");
+        }
+        throw new Exception("Expected public key class [RSAPublicKey]. Got [" + publicKey.getClass().getSimpleName() + "] instead.");
     }
 
     public static int computeMinBitLengthHmac(final List<String> allowedSignatureAlgorithmsHmac) throws SettingsException {
@@ -634,7 +637,7 @@ public class JwtUtil {
         }
     }
 
-    public static List<JWSAlgorithm> toJwsAlgorithms(final List<String> signatureAlgorithms) throws Exception {
+    public static List<JWSAlgorithm> toJwsAlgorithms(final List<String> signatureAlgorithms) throws IllegalArgumentException {
         final List<JWSAlgorithm> list = new ArrayList<>(signatureAlgorithms.size());
         for (final String signatureAlgorithm : signatureAlgorithms) {
             list.add(JWSAlgorithm.parse(signatureAlgorithm));
@@ -670,7 +673,7 @@ public class JwtUtil {
                 }
                 break;
         }
-        return false;
+        return true;
     }
 
     public static boolean validateSignedJwt(
@@ -785,6 +788,7 @@ public class JwtUtil {
      * @param sslService Realm config for SSL.
      * @return Initialized HTTPS client.
      */
+    @SuppressWarnings({"removal"})
     public static CloseableHttpAsyncClient createHttpClient(final RealmConfig realmConfig, final SSLService sslService) {
         try {
             SpecialPermission.check();
@@ -844,6 +848,7 @@ public class JwtUtil {
      * @return Byte array of the URI contents up to N max bytes.
      * @throws Exception Security exception or HTTP/HTTPS failure exception.
      */
+    @SuppressWarnings({"removal","unusedThrown"})
     public static byte[] readBytes(final CloseableHttpAsyncClient httpClient, final URI uri, final int maxBytes) throws Exception {
         final PlainActionFuture<byte[]> plainActionFuture = PlainActionFuture.newFuture();
         try {

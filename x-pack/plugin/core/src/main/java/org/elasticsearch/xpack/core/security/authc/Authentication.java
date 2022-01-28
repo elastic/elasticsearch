@@ -147,6 +147,20 @@ public class Authentication implements ToXContentObject {
         );
     }
 
+    public Authentication runAs(User runAs, Realm lookupRealm) {
+        Objects.requireNonNull(runAs);
+        assert false == runAs.isRunAs();
+        assert false == getUser().isRunAs();
+        return new Authentication(
+            new User(runAs, getUser()),
+            getAuthenticatedBy(),
+            lookupRealm.realmRef(),
+            getVersion(),
+            getAuthenticationType(),
+            getMetadata()
+        );
+    }
+
     /**
      * Returns {@code true} if the effective user comes from a realm under a domain.
      * The same username can be authenticated by different realms (eg with different credential types),

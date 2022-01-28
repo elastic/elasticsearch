@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPriv
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -211,42 +212,19 @@ class AuthenticatorChain {
             return;
         }
 
-        final User user = authentication.getUser();
-        if (runAsUsername.isEmpty()) {
-            logger.debug("user [{}] attempted to runAs with an empty username", user.principal());
-            listener.onFailure(
-                context.getRequest()
-                    .runAsDenied(
-                        new Authentication(new User(runAsUsername, null, user), authentication.getAuthenticatedBy(), null),
-                        context.getMostRecentAuthenticationToken()
-                    )
-            );
-            return;
-        }
-
         // Now we have a valid runAsUsername
         realmsAuthenticator.lookupRunAsUser(context, authentication, ActionListener.wrap(tuple -> {
             final Authentication finalAuth;
             if (tuple == null) {
-                logger.debug("Cannot find run-as user [{}] for authenticated user [{}]", runAsUsername, user.principal());
+                logger.debug(
+                    "Cannot find run-as user [{}] for authenticated user [{}]",
+                    runAsUsername,
+                    authentication.getUser().principal()
+                );
                 // the user does not exist, but we still create a User object, which will later be rejected by authz
-                finalAuth = new Authentication(
-                    new User(runAsUsername, null, user),
-                    authentication.getAuthenticatedBy(),
-                    null,
-                    authentication.getVersion(),
-                    authentication.getAuthenticationType(),
-                    authentication.getMetadata()
-                );
+                finalAuth = authentication.runAs(new User(runAsUsername, null, null, null, Map.of(), true), null);
             } else {
-                finalAuth = new Authentication(
-                    new User(tuple.v1(), user),
-                    authentication.getAuthenticatedBy(),
-                    tuple.v2().realmRef(),
-                    authentication.getVersion(),
-                    authentication.getAuthenticationType(),
-                    authentication.getMetadata()
-                );
+                finalAuth = authentication.runAs(tuple.v1(), tuple.v2());
             }
             finishAuthentication(context, finalAuth, listener);
         }, listener::onFailure));

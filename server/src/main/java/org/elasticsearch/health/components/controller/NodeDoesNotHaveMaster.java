@@ -30,24 +30,20 @@ public class NodeDoesNotHaveMaster extends GetHealthAction.Indicator {
 
     @Override
     public void writeMeta(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.field("node-id", coordinatingNode.getId());
-        builder.field("name-name", coordinatingNode.getName());
+        builder.field("node_id", coordinatingNode.getId());
+        builder.field("name_name", coordinatingNode.getName());
         if (masterNode != null) {
-            builder.field("master-node-id", masterNode.getId());
-            builder.field("master-node-name", masterNode.getName());
+            builder.field("master_node_id", masterNode.getId());
+            builder.field("master_node_name", masterNode.getName());
         } else {
-            builder.nullField("master-node-id");
-            builder.nullField("master-node-name");
+            builder.nullField("master_node_id");
+            builder.nullField("master_node_name");
         }
     }
 
     @Override
     public String getExplain() {
-        if (masterNode == null) {
-            return RED_EXPLAIN;
-        } else {
-            return GREEN_EXPLAIN;
-        }
+        return masterNode == null ? RED_EXPLAIN : GREEN_EXPLAIN;
     }
 
     @Override

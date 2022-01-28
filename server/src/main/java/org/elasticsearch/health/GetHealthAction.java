@@ -17,11 +17,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.health.components.backups.Backups;
 import org.elasticsearch.health.components.controller.Controller;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -31,13 +31,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
     public static final GetHealthAction INSTANCE = new GetHealthAction();
     // TODO: Decide on name
-    public static final String NAME = "cluster:internal/health";
+    public static final String NAME = "cluster:monitor/health/get";
 
     private GetHealthAction() {
         super(NAME, GetHealthAction.Response::new);
@@ -46,15 +47,27 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private final ClusterName clusterName;
+        private final int numberOfNodes;
+        private final int numberOfDataNodes;
+        private final String masterNodeId;
         private final List<Component> components;
-
-        public Response(ClusterName clusterName, List<Component> components) {
-            this.clusterName = clusterName;
-            this.components = components;
-        }
 
         public Response(StreamInput in) {
             throw new AssertionError("GetHealthAction should not be sent over the wire.");
+        }
+
+        public Response(
+            final ClusterName clusterName,
+            final int numberOfNodes,
+            final int numberOfDataNodes,
+            final String masterNodeId,
+            final List<Component> components
+        ) {
+            this.clusterName = clusterName;
+            this.numberOfNodes = numberOfNodes;
+            this.numberOfDataNodes = numberOfDataNodes;
+            this.masterNodeId = masterNodeId;
+            this.components = components;
         }
 
         @Override
@@ -67,10 +80,13 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             builder.startObject();
             builder.field("status", "green");
             builder.field("cluster_name", clusterName.value());
+            builder.field("number_of_nodes", numberOfNodes);
+            builder.field("number_of_data_nodes", numberOfDataNodes);
+            builder.field("master_node_id", masterNodeId);
             builder.array("impacts");
             builder.startObject("components");
             for (Component component : components) {
-                builder.field(component.getName());
+                builder.field(component.name());
                 component.toXContent(builder, params);
             }
             builder.endObject();
@@ -103,25 +119,26 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             final ClusterState clusterState = clusterService.state();
-            final Controller component = new Controller(clusterService.localNode(), clusterState);
-            listener.onResponse(new Response(clusterService.getClusterName(), Arrays.asList(component, new Backups())));
+            final Component controller = Controller.createControllerComponent(clusterService.localNode(), clusterState);
+            final Component snapshots = new Component("snapshots", ClusterHealthStatus.GREEN, Collections.emptyList());
+            final ClusterName clusterName = clusterService.getClusterName();
+            final int numberOfNodes = clusterState.nodes().getSize();
+            final int numberOfDataNodes = clusterState.nodes().getDataNodes().size();
+            final DiscoveryNode masterNode = clusterState.nodes().getMasterNode();
+            final String masterNodeId = masterNode == null ? null : masterNode.getId();
+            listener.onResponse(
+                new Response(clusterName, numberOfNodes, numberOfDataNodes, masterNodeId, Arrays.asList(controller, snapshots))
+            );
         }
     }
 
-    public abstract static class Component implements ToXContentObject {
-
-        public abstract String getName();
-
-        public abstract ClusterHealthStatus getStatus();
-
-        public abstract List<Indicator> getIndicators();
+    public record Component(String name, ClusterHealthStatus status, List<Indicator> indicators) implements ToXContentObject {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("status", getStatus());
+            builder.field("status", status);
             builder.startArray("indicators");
-            List<Indicator> indicators = getIndicators();
             for (Indicator indicator : indicators) {
                 indicator.toXContent(builder, params);
             }

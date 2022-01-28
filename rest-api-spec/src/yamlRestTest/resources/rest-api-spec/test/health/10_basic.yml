@@ -9,9 +9,12 @@
 
   - is_true:   cluster_name
   - match:     { status: "green" }
+  - match:     { number_of_nodes: 1 }
+  - match:     { number_of_data_nodes: 1 }
+  - is_true:   master_node_id
   - match:     { impacts: [] }
   - match:     { components.controller.status: "GREEN" }
   - match:     { components.controller.indicators.0.status: "GREEN" }
   - match:     { components.controller.indicators.0.name: "instance has master" }
   - match:     { components.controller.indicators.0.explain: "health coordinating instance has a master node" }
-  - match:     { components.backups.status: "GREEN" }
+  - match:     { components.snapshots.status: "GREEN" }

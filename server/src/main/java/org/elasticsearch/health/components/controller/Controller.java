@@ -14,36 +14,18 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.health.GetHealthAction;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collections;
 
-public class Controller extends GetHealthAction.Component {
+public final class Controller {
 
-    private final ClusterHealthStatus status;
-    private final List<GetHealthAction.Indicator> indicators = new ArrayList<>(2);
+    private Controller() {}
 
-    public Controller(final DiscoveryNode node, final ClusterState clusterState) {
+    public static GetHealthAction.Component createControllerComponent(final DiscoveryNode node, final ClusterState clusterState) {
         final DiscoveryNodes nodes = clusterState.nodes();
         final DiscoveryNode masterNode = nodes.getMasterNode();
         NodeDoesNotHaveMaster nodeDoesNotHaveMaster = new NodeDoesNotHaveMaster(node, masterNode);
-        indicators.add(nodeDoesNotHaveMaster);
         // Only a single indicator currently so it determines the status
-        status = nodeDoesNotHaveMaster.getStatus();
-
-    }
-
-    @Override
-    public String getName() {
-        return "controller";
-    }
-
-    @Override
-    public ClusterHealthStatus getStatus() {
-        return status;
-    }
-
-    @Override
-    public List<GetHealthAction.Indicator> getIndicators() {
-        return indicators;
+        final ClusterHealthStatus status = nodeDoesNotHaveMaster.getStatus();
+        return new GetHealthAction.Component("controller", status, Collections.singletonList(nodeDoesNotHaveMaster));
     }
 }

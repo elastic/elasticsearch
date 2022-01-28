@@ -103,7 +103,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
 
     @Override
     public SecureString credentials() {
-        return this.endUserSignedJwt;
+        return null;
     }
 
     public SecureString getEndUserSignedJwt() {
@@ -158,5 +158,10 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         this.audiencesClaim = null;
         this.subjectClaim = null;
         this.principal = null;
+    }
+
+    @Override
+    public String toString() {
+        return JwtAuthenticationToken.class.getSimpleName() + "=" + this.principal;
     }
 }

@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -58,10 +59,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.mockito.ArgumentMatchers.any;
@@ -259,18 +263,17 @@ public abstract class JwtTestCase extends ESTestCase {
         };
     }
 
-    protected UserRoleMapper buildRoleMapper(final String principal, final Set<String> roles) {
+    protected UserRoleMapper buildRoleMapper(final Map<String, User> registeredUsers) {
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         Mockito.doAnswer(invocation -> {
             final UserRoleMapper.UserData userData = (UserRoleMapper.UserData) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             final ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[1];
-            if (userData.getUsername().equals(principal)) {
-                listener.onResponse(roles);
+            final User registeredUser = registeredUsers.get(userData.getUsername());
+            if (registeredUser == null) {
+                listener.onFailure(new IllegalArgumentException("Expected principal '" + userData.getUsername() + "' not found."));
             } else {
-                listener.onFailure(
-                    new IllegalArgumentException("Expected principal '" + principal + "' but was '" + userData.getUsername() + "'")
-                );
+                listener.onResponse(Set.of(registeredUser.roles()));
             }
             return null;
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
@@ -329,7 +332,7 @@ public abstract class JwtTestCase extends ESTestCase {
             "Unsupported signature algorithm ["
                 + jwsAlgorithm
                 + "]. Supported signature algorithms are "
-                + JwtUtil.SUPPORTED_JWS_ALGORITHMS
+                + JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS
                 + "."
         );
     }
@@ -418,32 +421,21 @@ public abstract class JwtTestCase extends ESTestCase {
         final String emailClaimName,
         final String emailClaimValue
     ) {
-        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
-        final JWSHeader jwtHeader = new JWSHeader.Builder(jwsAlgorithm).build();
-        // final Calendar calendar = Calendar.getInstance();
-        // calendar.set(Calendar.MILLISECOND, 0);
-        // final Date now = calendar.getTime();
         final Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
-        final String jwtID = randomFrom((String) null, randomAlphaOfLengthBetween(1, 20));
-        final String sub = randomFrom("sub" + randomAlphaOfLength(8), principalClaimValue);
-        final Date iat = Date.from(now);
-        final Date nbf = randomFrom((Date) null, Date.from(now.plusNanos(randomLongBetween(5, 10))));
-        final Date exp = Date.from(now.plusSeconds(randomLongBetween(3600, 7200)));
-        final Date authTime = randomFrom((Date) null, Date.from(now.minusSeconds(randomLongBetween(5, 10))));
-        final Nonce nonce = randomFrom((Nonce) null, new Nonce());
-        final JWTClaimsSet.Builder jwtClaimsSetBuilder = new JWTClaimsSet.Builder().jwtID(jwtID)
+        final JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.parse(signatureAlgorithm)).build();
+        final JWTClaimsSet.Builder jwtClaimsSetBuilder = new JWTClaimsSet.Builder().jwtID(
+            randomFrom((String) null, randomAlphaOfLengthBetween(1, 20))
+        )
             .issuer(issuer)
-            .subject(sub)
+            .subject(randomAlphaOfLength(8))
+            .claim(principalClaimName, principalClaimValue) // If "sub", overwrite random from previous line.
             .audience(audiences)
-            .claim("auth_time", authTime)
-            .issueTime(iat)
-            .notBeforeTime(nbf)
-            .expirationTime(exp)
-            .claim("nonce", nonce);
+            .claim("auth_time", randomFrom((Date) null, Date.from(now.minusSeconds(randomLongBetween(10, 20)))))
+            .notBeforeTime(randomFrom((Date) null, Date.from(now.minusSeconds(randomLongBetween(5, 10)))))
+            .issueTime(Date.from(now))
+            .expirationTime(Date.from(now.plusSeconds(randomLongBetween(3600, 7200))))
+            .claim("nonce", randomFrom((Nonce) null, new Nonce()));
         // Custom extra claims. Principal claim name could be "sub" or something else
-        if ((Strings.hasText(principalClaimName)) && (principalClaimValue != null)) {
-            jwtClaimsSetBuilder.claim(principalClaimName, principalClaimValue);
-        }
         if ((Strings.hasText(groupsClaimName)) && (groupsClaimValue != null)) {
             jwtClaimsSetBuilder.claim(groupsClaimName, groupsClaimValue.toString());
         }
@@ -458,30 +450,55 @@ public abstract class JwtTestCase extends ESTestCase {
         }
         final JWTClaimsSet jwtClaimsSet = jwtClaimsSetBuilder.build();
         LOGGER.info(
-            "Created JWT now=["
-                + now
-                + "], jwtID=["
-                + jwtID
-                + "], alg=["
-                + jwsAlgorithm
+            "CLAIMS: iat=["
+                + jwtClaimsSet.getIssueTime()
                 + "], iss=["
-                + issuer
-                + "], aud=["
-                + audiences
-                + "], sub=["
-                + sub
-                + "], iat=["
-                + iat
-                + "], nbf=["
-                + nbf
+                + jwtClaimsSet.getIssuer()
+                + "], aud="
+                + jwtClaimsSet.getAudience()
+                + ", sub=["
+                + jwtClaimsSet.getSubject()
+                + "], principalClaim=["
+                + principalClaimName
+                + "="
+                + jwtClaimsSet.getClaim(principalClaimName)
+                + "], groupsClaim=["
+                + groupsClaimName
+                + "="
+                + jwtClaimsSet.getClaim(groupsClaimName)
+                + "], alg=["
+                + jwtHeader.getAlgorithm().getName()
                 + "], exp=["
-                + exp
+                + jwtClaimsSet.getExpirationTime()
+                + "], nbf=["
+                + jwtClaimsSet.getNotBeforeTime()
                 + "], auth_time=["
-                + authTime
+                + jwtClaimsSet.getClaim("auth_time")
+                + "], jti=["
+                + jwtClaimsSet.getJWTID()
                 + "], nonce=["
-                + nonce
+                + jwtClaimsSet.getClaim("nonce")
                 + "]"
         );
         return new Tuple<>(jwtHeader, jwtClaimsSet);
+    }
+
+    public static Map<String, User> generateTestUsersWithRoles(final int numUsers, final int numRolesPerUser) {
+        final Map<String, User> testUsers = new LinkedHashMap<>();
+        for (int i = 0; i < numUsers; i++) {
+            final String principal = "principal" + i;
+            testUsers.put(
+                principal,
+                new User(
+                    principal,
+                    IntStream.range(0, numRolesPerUser).mapToObj(j -> "role" + j).toArray(String[]::new),
+                    null,
+                    null,
+                    Collections.singletonMap("metadata", i),
+                    true
+                )
+            );
+        }
+        return testUsers;
     }
 }

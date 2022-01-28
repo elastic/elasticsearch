@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSSigner;
@@ -24,28 +25,53 @@ import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.proc.DefaultJOSEObjectTypeVerifier;
+import com.nimbusds.jose.proc.JOSEObjectTypeVerifier;
+import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jose.util.ArrayUtils;
 import com.nimbusds.jose.util.JSONObjectUtils;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.config.RegistryBuilder;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClients;
+import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
+import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
+import org.apache.http.nio.conn.SchemeIOSessionStrategy;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.security.PublicKey;
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
@@ -59,6 +85,12 @@ import javax.crypto.Cipher;
  * Utilities for JWT JWS create, sign, and verify, as well as generate JWT JWS credential.
  */
 public class JwtUtil {
+    private static final Logger LOGGER = LogManager.getLogger(JwtUtil.class);
+
+    private static final JOSEObjectTypeVerifier<SecurityContext> JWT_HEADER_TYPE_VERIFIER = new DefaultJOSEObjectTypeVerifier<>(
+        JOSEObjectType.JWT,
+        null
+    );
 
     // Expect all JWSAlgorithm values to work in Family.HMAC_SHA, Family.RSA, and Family.EC (except ES256K)
     // Non-FIPS: Expect ES256K to fail because it is deprecated and disabled by default in Java 11.0.9/11.0.10 and 17
@@ -132,39 +164,8 @@ public class JwtUtil {
         );
     }
 
-    public static Tuple<JWSSigner, JWSVerifier> createJwsSignerJwsVerifierForRsa(final RSAKey jwk) throws JOSEException {
-        return new Tuple<>(new RSASSASigner(jwk), new RSASSAVerifier(jwk));
-    }
-
-    public static Tuple<JWSSigner, JWSVerifier> createJwsSignerJwsVerifierForEc(final ECKey jwk) throws JOSEException {
-        return new Tuple<>(new ECDSASigner(jwk), new ECDSAVerifier(jwk));
-    }
-
-    public static Tuple<JWSSigner, JWSVerifier> createJwsSignerJwsVerifierForHmac(final OctetSequenceKey jwk) throws JOSEException {
-        return new Tuple<>(new MACSigner(jwk), new MACVerifier(jwk));
-    }
-
-    public static JWKSet createJwk(final JWK... jwk) {
-        return new JWKSet(List.of(jwk));
-    }
-
-    public static void saveJwkSet(final Path path, final JWKSet jwkSet, final boolean publicKeysOnly) throws IOException {
-        Files.writeString(path, JwtUtil.serializeJwkSet(jwkSet, publicKeysOnly));
-    }
-
     public static String serializeJwkSet(final JWKSet jwkSet, final boolean publicKeysOnly) {
         return JSONObjectUtils.toJSONString(jwkSet.toJSONObject(publicKeysOnly));
-    }
-
-    public static JWKSet loadJwkSet(final Path path) throws IOException, ParseException {
-        try (InputStream is = Files.newInputStream(path)) {
-            return JWKSet.load(is);
-        }
-    }
-
-    public static JWKSet loadJwkSet(final URL url, int connectTimeoutMillis, int readTimeoutMillis, int sizeLimitBytes) throws IOException,
-        ParseException {
-        return JWKSet.load(url, connectTimeoutMillis, readTimeoutMillis, sizeLimitBytes);
     }
 
     public static SecureString getHeaderSchemeParameters(
@@ -348,7 +349,7 @@ public class JwtUtil {
             if (jwkSetPathPkcUri.getScheme().equalsIgnoreCase("https") == false) {
                 throw new SettingsException("URI [" + jwkSetPathPkcUri + "] not allowed. Only HTTPS is supported.");
             }
-            return JwtRealm.readBytes(httpClient, jwkSetPathPkcUri, Integer.MAX_VALUE);
+            return JwtUtil.readBytes(httpClient, jwkSetPathPkcUri, Integer.MAX_VALUE);
         } catch (SettingsException e) {
             throw e; // rethrow
         } catch (Exception e) {
@@ -522,8 +523,7 @@ public class JwtUtil {
 
     public static Path resolvePath(final Environment environment, final String jwkSetPath) {
         final Path directoryPath = environment.configFile();
-        final Path filePath = directoryPath.resolve(jwkSetPath);
-        return filePath;
+        return directoryPath.resolve(jwkSetPath);
     }
 
     public static void validateJwtAuthTime(final long allowedClockSkewSeconds, final Date now, final Date auth_time) throws Exception {
@@ -631,7 +631,7 @@ public class JwtUtil {
         }
     }
 
-    public static List<JWSAlgorithm> toJwsAlgorithms(final List<String> signatureAlgorithms) throws JOSEException {
+    public static List<JWSAlgorithm> toJwsAlgorithms(final List<String> signatureAlgorithms) throws Exception {
         final List<JWSAlgorithm> list = new ArrayList<>(signatureAlgorithms.size());
         for (final String signatureAlgorithm : signatureAlgorithms) {
             list.add(JWSAlgorithm.parse(signatureAlgorithm));
@@ -648,5 +648,229 @@ public class JwtUtil {
             sb.append(secureStrings[i]);
         }
         return new SecureString(sb.toString().toCharArray());
+    }
+
+    public static boolean validateClientAuthorization(final String type, final SecureString expectedSecret, final SecureString actualSecret)
+        throws Exception {
+        switch (type) {
+            case JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET:
+                if (Strings.hasText(actualSecret) == false) {
+                    throw new Exception("Rejected client authentication for type [" + type + "] due to no secret.");
+                } else if (expectedSecret.equals(actualSecret) == false) {
+                    throw new Exception("Rejected client authentication for type [" + type + "] due to secret mismatch.");
+                }
+                break;
+            case JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_NONE:
+            default:
+                if (Strings.hasText(actualSecret)) {
+                    throw new Exception("Rejected client authentication for type [" + type + "] due to present secret.");
+                }
+                break;
+        }
+        return false;
+    }
+
+    public static boolean validateSignedJwt(
+        final SignedJWT signedJwt,
+        final JWKSet jwkSet,
+        final String allowedIssuer,
+        final List<String> allowedAudiences,
+        final List<String> allowedSignatureAlgorithms,
+        final long allowedClockSkewSeconds
+    ) throws Exception {
+        final JWSHeader jwsHeader = signedJwt.getHeader();
+        final JWSAlgorithm jwtHeaderAlgorithm = jwsHeader.getAlgorithm();
+        final JOSEObjectType jwtHeaderType = jwsHeader.getType();
+        final String jwsHeaderKeyID = jwsHeader.getKeyID();
+        // Validate claims
+        final JWTClaimsSet jwtClaimsSet = signedJwt.getJWTClaimsSet();
+        final Date now = new Date();
+        final Date iat = jwtClaimsSet.getIssueTime();
+        final Date exp = jwtClaimsSet.getExpirationTime();
+        final Date nbf = jwtClaimsSet.getIssueTime();
+        final Date auth_time = jwtClaimsSet.getDateClaim("auth_time");
+        final String issuer = jwtClaimsSet.getIssuer();
+        final List<String> audiences = jwtClaimsSet.getAudience();
+        LOGGER.debug(
+            "Doing JWT validation, now=["
+                + now
+                + "], typ=["
+                + jwtHeaderType
+                + "], alg=["
+                + jwtHeaderAlgorithm
+                + "], kid=["
+                + jwsHeaderKeyID
+                + "], auth_time=["
+                + auth_time
+                + "], iat=["
+                + iat
+                + "], nbf=["
+                + nbf
+                + "], exp=["
+                + exp
+                + "], issuer=["
+                + issuer
+                + "], audiences=["
+                + audiences
+        );
+
+        // Header "typ" must be "jwt" or null
+        try {
+            JWT_HEADER_TYPE_VERIFIER.verify(jwtHeaderType, null);
+        } catch (Exception e) {
+            throw new Exception("Invalid JWT type [" + jwtHeaderType + "].", e);
+        }
+
+        // Header "alg" must be in the allowed list
+        if ((jwtHeaderAlgorithm == null) || (allowedSignatureAlgorithms.contains(jwtHeaderAlgorithm.getName()) == false)) {
+            throw new Exception(
+                "Rejected signature algorithm ["
+                    + jwtHeaderAlgorithm
+                    + "]. Allowed signature algorithms are ["
+                    + String.join(",", allowedSignatureAlgorithms)
+                    + "]"
+            );
+        }
+
+        // Probable sequence of time claims: auth_time (opt), iat (req), nbf (opt), exp (req)
+        JwtUtil.validateJwtAuthTime(allowedClockSkewSeconds, now, auth_time);
+        JwtUtil.validateJwtIssuedAtTime(allowedClockSkewSeconds, now, iat);
+        JwtUtil.validateJwtNotBeforeTime(allowedClockSkewSeconds, now, nbf);
+        JwtUtil.validateJwtExpiredTime(allowedClockSkewSeconds, now, exp);
+
+        if ((issuer == null) || (allowedIssuer.equals(issuer) == false)) {
+            throw new Exception("Rejected issuer [" + issuer + "]. Allowed issuer is [" + allowedIssuer + "]");
+        } else if ((audiences == null) || (allowedAudiences.stream().anyMatch(audiences::contains) == false)) {
+            throw new Exception("Rejected audiences [" + audiences + "]. Allowed audiences are [" + allowedAudiences + "]");
+        }
+
+        final List<JWK> jwks = jwkSet.getKeys();
+        if (jwks.isEmpty()) {
+            throw new Exception("Header did not match any JWKs.");
+        }
+
+        // Try each JWK to see if it can validate the SignedJWT signature
+        boolean verifiedSignature = false;
+        final Exception allFailedException = new Exception("JWT signature validation failed.");
+        final boolean isJwtKidSet = Strings.hasText(jwsHeaderKeyID);
+        for (final JWK jwk : jwks) {
+            final boolean areBothKidsSet = isJwtKidSet && Strings.hasText(jwk.getKeyID());
+            if ((areBothKidsSet) && (jwsHeaderKeyID.equals(jwk.getKeyID()) == false)) {
+                final Exception e = new Exception("No match between JWT kid=[" + jwsHeaderKeyID + "] vs JWK kid=[" + jwk.getKeyID() + "].");
+                allFailedException.addSuppressed(e);
+                continue;
+            }
+            try {
+                final JWSVerifier jwsVerifier = JwtUtil.createJwsVerifier(jwk);
+                verifiedSignature = signedJwt.verify(jwsVerifier);
+                if (areBothKidsSet || verifiedSignature) {
+                    break;
+                }
+            } catch (Exception e) {
+                allFailedException.addSuppressed(new Exception("Verify failed", e));
+            }
+        }
+        if (verifiedSignature) {
+            return true;
+        }
+        throw allFailedException;
+    }
+
+    /**
+     * Creates a {@link CloseableHttpAsyncClient} that uses a {@link PoolingNHttpClientConnectionManager}
+     * @param realmConfig Realm config for a JWT realm.
+     * @param sslService Realm config for SSL.
+     * @return Initialized HTTPS client.
+     */
+    public static CloseableHttpAsyncClient createHttpClient(final RealmConfig realmConfig, final SSLService sslService) {
+        try {
+            SpecialPermission.check();
+            return AccessController.doPrivileged((PrivilegedExceptionAction<CloseableHttpAsyncClient>) () -> {
+                final String realmConfigPrefixSslSettings = RealmSettings.realmSslPrefix(realmConfig.identifier());
+                final SslConfiguration elasticsearchSslConfig = sslService.getSSLConfiguration(realmConfigPrefixSslSettings);
+
+                final int tcpConnectTimeoutMillis = (int) realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECT_TIMEOUT).getMillis();
+                final int tcpConnectionReadTimeoutSec = (int) realmConfig.getSetting(JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT)
+                    .getSeconds();
+                final int tcpSocketTimeout = (int) realmConfig.getSetting(JwtRealmSettings.HTTP_SOCKET_TIMEOUT).getMillis();
+                final int httpMaxEndpointConnections = realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS);
+                final int httpMaxConnections = realmConfig.getSetting(JwtRealmSettings.HTTP_MAX_CONNECTIONS);
+                final String proxyScheme = realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_SCHEME);
+                final String proxyAddress = realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_HOST);
+                final int proxyPort = realmConfig.getSetting(JwtRealmSettings.HTTP_PROXY_PORT);
+
+                final RequestConfig.Builder requestConfigBuilder = RequestConfig.custom();
+                requestConfigBuilder.setConnectTimeout(tcpConnectTimeoutMillis)
+                    .setConnectionRequestTimeout(tcpConnectionReadTimeoutSec)
+                    .setSocketTimeout(tcpSocketTimeout);
+                if (Strings.hasText(proxyAddress) && Strings.hasText(proxyScheme)) {
+                    requestConfigBuilder.setProxy(new HttpHost(proxyAddress, proxyPort, proxyScheme));
+                }
+                final RegistryBuilder<SchemeIOSessionStrategy> sessionStrategyBuilder = RegistryBuilder.<SchemeIOSessionStrategy>create();
+                //// final String realmConfigPrefixSslSettings = RealmSettings.realmSslPrefix(realmIdentifier);
+                // final SSLContext sslContext = sslService.sslContext(elasticsearchSslConfig);
+                // final HostnameVerifier hostnameVerifier = SSLService.getHostnameVerifier(elasticsearchSslConfig);
+                // final SSLIOSessionStrategy sslIOSessionStrategy = new SSLIOSessionStrategy(sslContext, hostnameVerifier);
+                final SSLIOSessionStrategy sslIOSessionStrategy = sslService.sslIOSessionStrategy(elasticsearchSslConfig);
+                sessionStrategyBuilder.register("https", sslIOSessionStrategy);
+
+                final PoolingNHttpClientConnectionManager httpClientConnectionManager = new PoolingNHttpClientConnectionManager(
+                    new DefaultConnectingIOReactor(),
+                    sessionStrategyBuilder.build()
+                );
+                httpClientConnectionManager.setDefaultMaxPerRoute(httpMaxEndpointConnections);
+                httpClientConnectionManager.setMaxTotal(httpMaxConnections);
+
+                final CloseableHttpAsyncClient httpAsyncClient = HttpAsyncClients.custom()
+                    .setConnectionManager(httpClientConnectionManager)
+                    .setDefaultRequestConfig(requestConfigBuilder.build())
+                    .build();
+                httpAsyncClient.start();
+                return httpAsyncClient;
+            });
+        } catch (PrivilegedActionException e) {
+            throw new IllegalStateException("Unable to create a HttpAsyncClient instance", e);
+        }
+    }
+
+    /**
+     * Use the HTTP Client to get URL content bytes up to N max bytes.
+     * @param httpClient Configured HTTP/HTTPS client.
+     * @param uri URI to download.
+     * @param maxBytes Max bytes to read for the URI. Use Integer.MAX_VALUE to read all.
+     * @return Byte array of the URI contents up to N max bytes.
+     * @throws Exception Security exception or HTTP/HTTPS failure exception.
+     */
+    public static byte[] readBytes(final CloseableHttpAsyncClient httpClient, final URI uri, final int maxBytes) throws Exception {
+        final PlainActionFuture<byte[]> plainActionFuture = PlainActionFuture.newFuture();
+        try {
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                httpClient.execute(new HttpGet(uri), new FutureCallback<>() {
+                    @Override
+                    public void completed(final HttpResponse result) {
+                        final HttpEntity entity = result.getEntity();
+                        try (InputStream inputStream = entity.getContent()) {
+                            plainActionFuture.onResponse(inputStream.readNBytes(maxBytes));
+                        } catch (Exception e) {
+                            plainActionFuture.onFailure(e);
+                        }
+                    }
+
+                    @Override
+                    public void failed(Exception e) {
+                        plainActionFuture.onFailure(new ElasticsearchSecurityException("Get [" + uri + "] failed.", e));
+                    }
+
+                    @Override
+                    public void cancelled() {
+                        plainActionFuture.onFailure(new ElasticsearchSecurityException("Get [" + uri + "] was cancelled."));
+                    }
+                });
+                return null;
+            });
+        } catch (Exception e) {
+            throw new ElasticsearchSecurityException("Get [" + uri + "] failed.", e);
+        }
+        return plainActionFuture.actionGet();
     }
 }

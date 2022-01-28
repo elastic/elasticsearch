@@ -152,7 +152,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     @VisibleForTesting
     static Set<QualifiedVersion> getVersions(GitWrapper gitWrapper, String currentVersion) {
         QualifiedVersion v = QualifiedVersion.of(currentVersion);
-        Set<QualifiedVersion> versions = gitWrapper.listVersions("v" + v.getMajor() + '.' + v.getMinor() + ".*").collect(toSet());
+        Set<QualifiedVersion> versions = gitWrapper.listVersions("v" + v.major() + '.' + v.minor() + ".*").collect(toSet());
         versions.add(v);
         return versions;
     }
@@ -183,7 +183,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         QualifiedVersion currentVersion = QualifiedVersion.of(versionString);
 
         // Find all tags for this minor series, using a wildcard tag pattern.
-        String tagWildcard = "v%d.%d*".formatted(currentVersion.getMajor(), currentVersion.getMinor());
+        String tagWildcard = "v%d.%d*".formatted(currentVersion.major(), currentVersion.minor());
 
         final List<QualifiedVersion> earlierVersions = gitWrapper.listVersions(tagWildcard)
             // Only keep earlier versions, and if `currentVersion` is a prerelease, then only prereleases too.

@@ -733,10 +733,10 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 await.await();
             }
             if (testFailureNextTime.compareAndSet(true, false)) {
-                task.onFailure("testing failure", new RuntimeException("foo"));
+                task.onFailure(new RuntimeException("foo"));
             } else {
                 state.set(after);
-                task.clusterStateProcessed("test", before, after);
+                task.clusterStateProcessed(before, after);
             }
             return null;
         }).when(recheckTestClusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());

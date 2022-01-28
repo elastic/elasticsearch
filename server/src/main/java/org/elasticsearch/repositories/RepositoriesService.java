@@ -63,7 +63,6 @@ import java.util.stream.Stream;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
@@ -237,10 +236,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", request.name()), e);
                     publicationStep.onFailure(e);
-                    super.onFailure(source, e);
+                    super.onFailure(e);
                 }
 
                 @Override
@@ -250,7 +249,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     if (changed) {
                         if (found) {
                             logger.info("updated repository [{}]", request.name());
@@ -314,12 +313,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(null);
                 }
             },
@@ -373,7 +372,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     if (deletedRepositories.isEmpty() == false) {
                         logger.info("deleted repositories [{}]", deletedRepositories);
                     }
@@ -734,7 +733,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         long count = 0L;
         List<Index> indices = null;
         for (IndexMetadata indexMetadata : clusterState.metadata()) {
-            if (indexSettingsMatchRepositoryMetadata(indexMetadata.getSettings(), repositoryMetadata)) {
+            if (indexSettingsMatchRepositoryMetadata(indexMetadata, repositoryMetadata)) {
                 if (indices == null) {
                     indices = new ArrayList<>();
                 }
@@ -756,8 +755,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private static boolean indexSettingsMatchRepositoryMetadata(Settings indexSettings, RepositoryMetadata repositoryMetadata) {
-        if (isSearchableSnapshotStore(indexSettings)) {
+    private static boolean indexSettingsMatchRepositoryMetadata(IndexMetadata indexMetadata, RepositoryMetadata repositoryMetadata) {
+        if (indexMetadata.isSearchableSnapshot()) {
+            final Settings indexSettings = indexMetadata.getSettings();
             final String indexRepositoryUuid = indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);
             if (Strings.hasLength(indexRepositoryUuid)) {
                 return Objects.equals(repositoryMetadata.uuid(), indexRepositoryUuid);

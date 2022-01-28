@@ -61,4 +61,4 @@ The following example output provides information about the "rdeniro" user:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"rdeniro"/"$body.username"/]
-// TESTRESPONSE[s/"admin"/"superuser"/]
+// TESTRESPONSE[s/"admin"/"_es_test_root"/]

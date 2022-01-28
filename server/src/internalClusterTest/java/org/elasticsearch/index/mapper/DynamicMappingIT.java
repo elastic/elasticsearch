@@ -156,7 +156,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     throw new AssertionError("unexpected", e);
                 }
             }, ClusterStateTaskExecutor.unbatched());
@@ -193,7 +193,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     throw new AssertionError("unexpected", e);
                 }
             }, ClusterStateTaskExecutor.unbatched());

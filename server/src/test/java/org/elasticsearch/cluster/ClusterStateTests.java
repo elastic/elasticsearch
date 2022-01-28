@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -34,7 +35,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TestCustomMetadata;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -54,6 +54,8 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ClusterStateTests extends ESTestCase {
 
@@ -103,6 +105,26 @@ public class ClusterStateTests extends ESTestCase {
         mapBuilder.put(key, null);
         final ImmutableOpenMap<String, ClusterState.Custom> map = mapBuilder.build();
         assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
+    }
+
+    public void testCopyAndUpdate() throws IOException {
+        var state = buildClusterState();
+        var newStateUuid = UUIDs.base64UUID();
+
+        var copy = state.copyAndUpdate(builder -> builder.stateUUID(newStateUuid));
+
+        assertThat(copy, not(sameInstance(state)));
+        assertThat(copy.stateUUID(), equalTo(newStateUuid));
+    }
+
+    public void testCopyAndUpdateMetadata() throws IOException {
+        var state = buildClusterState();
+        var newClusterUuid = UUIDs.base64UUID();
+
+        var copy = state.copyAndUpdateMetadata(metadata -> metadata.clusterUUID(newClusterUuid));
+
+        assertThat(copy, not(sameInstance(state)));
+        assertThat(copy.metadata().clusterUUID(), equalTo(newClusterUuid));
     }
 
     public void testToXContent() throws IOException {
@@ -929,28 +951,5 @@ public class ClusterStateTests extends ESTestCase {
                     .build()
             )
             .build();
-    }
-
-    public static class CustomMetadata extends TestCustomMetadata {
-        public static final String TYPE = "custom_md";
-
-        CustomMetadata(String data) {
-            super(data);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return TYPE;
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        @Override
-        public EnumSet<Metadata.XContentContext> context() {
-            return EnumSet.of(Metadata.XContentContext.GATEWAY, Metadata.XContentContext.SNAPSHOT);
-        }
     }
 }

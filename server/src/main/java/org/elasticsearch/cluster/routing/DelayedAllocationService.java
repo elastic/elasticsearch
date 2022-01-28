@@ -108,7 +108,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         }
 
         @Override
-        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             if (oldState == newState) {
                 // no state changed, check when we should remove the delay flag from the shards the next time.
                 // if cluster state changed, we can leave the scheduling of the next delay up to the clusterChangedEvent
@@ -118,7 +118,7 @@ public class DelayedAllocationService extends AbstractLifecycleComponent impleme
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
+        public void onFailure(Exception e) {
             removeIfSameTask(this);
             logger.warn("failed to schedule/execute reroute post unassigned shard", e);
         }

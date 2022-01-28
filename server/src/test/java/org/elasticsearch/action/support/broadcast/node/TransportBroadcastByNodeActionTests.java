@@ -498,7 +498,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         int totalFailedShards = 0;
         for (Map.Entry<String, List<CapturingTransport.CapturedRequest>> entry : capturedRequests.entrySet()) {
             List<BroadcastShardOperationFailedException> exceptions = new ArrayList<>();
-            long requestId = entry.getValue().get(0).requestId;
+            long requestId = entry.getValue().get(0).requestId();
             if (rarely()) {
                 // simulate node failure
                 totalShards += map.get(entry.getKey()).size();
@@ -541,7 +541,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
 
         for (Map.Entry<String, List<CapturingTransport.CapturedRequest>> entry : capturedRequests.entrySet()) {
-            transport.handleRemoteError(entry.getValue().get(0).requestId, new ElasticsearchException("simulated"));
+            transport.handleRemoteError(entry.getValue().get(0).requestId(), new ElasticsearchException("simulated"));
         }
 
         assertTrue(listener.isDone());

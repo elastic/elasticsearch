@@ -1082,8 +1082,7 @@ public abstract class EngineTestCase extends ESTestCase {
     ) throws IOException {
         final Engine.Operation lastOp = ops.get(ops.size() - 1);
         final String lastFieldValue;
-        if (lastOp instanceof Engine.Index) {
-            Engine.Index index = (Engine.Index) lastOp;
+        if (lastOp instanceof Engine.Index index) {
             lastFieldValue = index.docs().get(0).get("value");
         } else {
             // delete
@@ -1243,9 +1242,9 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             }
             docs.sort(
-                Comparator.comparingLong(DocIdSeqNoAndSource::getSeqNo)
-                    .thenComparingLong(DocIdSeqNoAndSource::getPrimaryTerm)
-                    .thenComparing((DocIdSeqNoAndSource::getId))
+                Comparator.comparingLong(DocIdSeqNoAndSource::seqNo)
+                    .thenComparingLong(DocIdSeqNoAndSource::primaryTerm)
+                    .thenComparing((DocIdSeqNoAndSource::id))
             );
             return docs;
         }
@@ -1582,11 +1581,9 @@ public abstract class EngineTestCase extends ESTestCase {
             return ((LazySoftDeletesDirectoryReaderWrapper.LazySoftDeletesFilterLeafReader) reader).getLiveDocs();
         } else if (reader instanceof LazySoftDeletesDirectoryReaderWrapper.LazySoftDeletesFilterCodecReader) {
             return ((LazySoftDeletesDirectoryReaderWrapper.LazySoftDeletesFilterCodecReader) reader).getLiveDocs();
-        } else if (reader instanceof FilterLeafReader) {
-            final FilterLeafReader fReader = (FilterLeafReader) reader;
+        } else if (reader instanceof final FilterLeafReader fReader) {
             return lazyBits(FilterLeafReader.unwrap(fReader));
-        } else if (reader instanceof FilterCodecReader) {
-            final FilterCodecReader fReader = (FilterCodecReader) reader;
+        } else if (reader instanceof final FilterCodecReader fReader) {
             return lazyBits(FilterCodecReader.unwrap(fReader));
         } else if (reader instanceof SegmentReader) {
             return null;

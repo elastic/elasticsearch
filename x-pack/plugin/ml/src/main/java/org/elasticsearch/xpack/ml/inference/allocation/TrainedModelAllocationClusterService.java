@@ -106,12 +106,12 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     logger.warn("failed to allocate models", e);
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     logger.trace(
                         () -> new ParameterizedMessage(
                             "updated model allocations based on node changes in the cluster; new metadata [{}]",
@@ -134,12 +134,12 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -156,12 +156,12 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(TrainedModelAllocationMetadata.fromState(newState).getModelAllocation(params.getModelId()));
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -175,12 +175,12 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -194,12 +194,12 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -214,12 +214,12 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             }
         }, ClusterStateTaskExecutor.unbatched());

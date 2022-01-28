@@ -21,11 +21,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -95,8 +93,7 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
         for (String concreteIndex : concreteIndices) {
             IndexMetadata indexMetaData = state.metadata().index(concreteIndex);
             if (indexMetaData != null) {
-                Settings indexSettings = indexMetaData.getSettings();
-                if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
+                if (indexMetaData.isSearchableSnapshot()) {
                     searchableSnapshotIndices.add(concreteIndex);
                 }
             }

@@ -170,6 +170,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic
     );
 
+    public static final Setting<Boolean> CCS_VERSION_CHECK_SETTING = Setting.boolSetting(
+        "search.check_ccs_compatibility",
+        false,
+        Property.NodeScope
+    );
+
     /**
      * Enables low-level, frequent search cancellation checks. Enabling low-level checks will make long running searches to react
      * to the cancellation request faster. It will produce more cancellation checks but benchmarking has shown these did not
@@ -1215,7 +1221,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context::getRelativeTimeInMillis,
                 context::isCancelled,
                 context::buildFilteredQuery,
-                enableRewriteAggsToFilterByFilter
+                enableRewriteAggsToFilterByFilter,
+                IndexSettings.isTimeSeriesModeEnabled() && source.aggregations().isInSortOrderExecutionRequired()
             );
             context.addReleasable(aggContext);
             try {

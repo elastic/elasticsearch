@@ -37,6 +37,7 @@ testClusters.configureEach {
   module ':modules:mapper-extras'
   if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
+    systemProperty 'es.random_sampler_feature_flag_registered', 'true'
   }
 }
 

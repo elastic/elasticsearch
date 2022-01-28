@@ -30,6 +30,7 @@ import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
@@ -64,7 +65,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -493,7 +493,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
     }
 
     private Map<String, String> buildSubstitutions(Environment env, Map<String, String> entries) {
-        final Map<String, String> map = new HashMap<>(entries.size() + 4);
+        final Map<String, String> map = Maps.newMapWithExpectedSize(entries.size() + 4);
         ZonedDateTime now = ZonedDateTime.now().withNano(0);
         map.put("DATE", now.format(DateTimeFormatter.ISO_LOCAL_DATE));
         map.put("TIME", now.format(DateTimeFormatter.ISO_OFFSET_TIME));

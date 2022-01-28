@@ -434,7 +434,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             Collections.singletonMap(
                 "Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue(
-                    SecuritySettingsSource.TEST_SUPERUSER,
+                    SecuritySettingsSource.ES_TEST_ROOT_USER,
                     SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
                 )
             )

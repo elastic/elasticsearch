@@ -10,6 +10,7 @@ package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.NodesResponseHeader;
 import org.elasticsearch.client.NodesResponseHeaderTestUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -19,7 +20,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -171,7 +171,7 @@ public class WatcherStatsResponseTests extends ESTestCase {
             Map<String, Object> stats = null;
             if (randomBoolean()) {
                 int statsCount = randomInt(10);
-                stats = new HashMap<>(statsCount);
+                stats = Maps.newMapWithExpectedSize(statsCount);
                 for (int j = 0; j < statsCount; j++) {
                     stats.put(randomAlphaOfLength(10), randomNonNegativeLong());
                 }

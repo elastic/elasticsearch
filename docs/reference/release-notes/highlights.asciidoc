@@ -24,9 +24,9 @@ security features and then configure password protection and Transport Layer
 Security (TLS).
 
 Starting in {es} 8.0, security is
-<<configuring-stack-security,enabled and configured by default>> when you start
-{es} for the first time. We also generate an enrollment token at startup for
-{kib} so that you can quickly and easily connect a {kib} instance to your
+{ref}/configuring-stack-security.html[enabled and configured by default] when
+you start {es} for the first time. We also generate an enrollment token at
+startup for {kib} so that you can quickly and easily connect a {kib} instance to your
 secured {es} cluster without having to generate security certificates or update
 `yml` configuration files. Just by starting {es}, you’ll have password
 protection, internode communication secured with TLS, and encrypted connections

@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionCheckingStreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -112,6 +113,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.finalReduce = true;
         this.minCompatibleShardNode = minCompatibleShardNode;
         this.ccsMinimizeRoundtrips = minCompatibleShardNode == null;
+        try {
+            this.writeTo(new VersionCheckingStreamOutput(Version.CURRENT));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -212,6 +218,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.minCompatibleShardNode = searchRequest.minCompatibleShardNode;
         this.waitForCheckpoints = searchRequest.waitForCheckpoints;
         this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
+        try {
+            this.writeTo(new VersionCheckingStreamOutput(Version.CURRENT));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**

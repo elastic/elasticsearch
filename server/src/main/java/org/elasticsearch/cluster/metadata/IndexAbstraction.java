@@ -405,7 +405,8 @@ public interface IndexAbstraction {
 
         public static final XContentParserConfiguration TS_EXTRACT_CONFIG = XContentParserConfiguration.EMPTY.withFiltering(
             Set.of("@timestamp"),
-            null
+            null,
+            false
         );
 
         private final org.elasticsearch.cluster.metadata.DataStream dataStream;

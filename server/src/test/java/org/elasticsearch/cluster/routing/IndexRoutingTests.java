@@ -458,6 +458,29 @@ public class IndexRoutingTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("update is not supported because the destination index [test] is in time series mode"));
     }
 
+    public void testRoutingIndexWithRouting() throws IOException {
+        IndexRouting indexRouting = indexRoutingForPath(5, "foo");
+        String value = randomAlphaOfLength(5);
+        BytesReference source = source(Map.of("foo", value));
+        String docRouting = indexRouting.calculateRouting().apply(XContentType.JSON, source);
+        assertThat(
+            indexRouting.indexShard(randomAlphaOfLength(5), docRouting, XContentType.JSON, source),
+            equalTo(indexRouting.indexShard(randomAlphaOfLength(5), null, XContentType.JSON, source))
+        );
+    }
+
+    public void testRoutingIndWithWrongRouting() throws IOException {
+        IndexRouting indexRouting = indexRoutingForPath(5, "foo");
+        String value = randomAlphaOfLength(5);
+        BytesReference source = source(Map.of("foo", value));
+        String docRouting = indexRouting.calculateRouting().apply(XContentType.JSON, source);
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> indexRouting.indexShard(randomAlphaOfLength(5), docRouting + "garbage", XContentType.JSON, source)
+        );
+        assertThat(e.getMessage(), equalTo("routing must not be supplied or must be [" + docRouting + "]"));
+    }
+
     public void testRoutingPathRead() throws IOException {
         IndexRouting indexRouting = indexRoutingForPath(5, "foo");
         String value = randomAlphaOfLength(5);

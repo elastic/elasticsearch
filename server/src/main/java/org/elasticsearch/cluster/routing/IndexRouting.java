@@ -231,12 +231,16 @@ public abstract class IndexRouting {
 
         @Override
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
-            if (routing != null) {
-                throw new IllegalArgumentException(error("specifying routing while indexing"));
-            }
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
 
-            return hashToShardId(hashSource(sourceType, source));
+            int hash = hashSource(sourceType, source);
+            if (routing != null) {
+                String expectedRouting = hashToRouting(hash);
+                if (false == expectedRouting.equals(routing)) {
+                    throw new IllegalArgumentException("routing must not be supplied or must be [" + expectedRouting + "]");
+                }
+            }
+            return hashToShardId(hash);
         }
 
         private int hashSource(XContentType sourceType, BytesReference source) {
@@ -309,15 +313,15 @@ public abstract class IndexRouting {
 
         @Override
         public int deleteShard(String id, @Nullable String routing) {
-            return readShard(routing);
+            return routingToHash(routing);
         }
 
         @Override
         public int getShard(String id, @Nullable String routing) {
-            return readShard(routing);
+            return routingToHash(routing);
         }
 
-        private int readShard(String routing) {
+        private int routingToHash(String routing) {
             if (routing == null) {
                 throw new ResourceNotFoundException("routing is required because [{}] is in time series mode", indexName);
             }
@@ -333,14 +337,15 @@ public abstract class IndexRouting {
             return hashToShardId(ByteUtils.readIntLE(routingBytes, 0));
         }
 
+        private String hashToRouting(int hash) {
+            byte[] routingBytes = new byte[4];
+            ByteUtils.writeIntLE(hash, routingBytes, 0);
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(routingBytes);
+        }
+
         @Override
         public BiFunction<XContentType, BytesReference, String> calculateRouting() {
-            return (contentType, source) -> {
-                int routingInt = hashSource(contentType, source);
-                byte[] routingBytes = new byte[4];
-                ByteUtils.writeIntLE(routingInt, routingBytes, 0);
-                return Base64.getUrlEncoder().withoutPadding().encodeToString(routingBytes);
-            };
+            return (contentType, source) -> hashToRouting(hashSource(contentType, source));
         }
 
         @Override

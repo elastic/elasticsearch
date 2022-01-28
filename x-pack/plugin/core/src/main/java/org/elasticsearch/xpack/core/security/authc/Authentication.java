@@ -512,8 +512,13 @@ public class Authentication implements ToXContentObject {
         }
 
         static RealmRef newServiceAccountRealmRef(String nodeName) {
-            // service account tokens
+            // no domain for service account tokens
             return new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName, null);
+        }
+
+        static RealmRef newApiKeyRealmRef(String nodeName) {
+            // no domain for API Key tokens
+            return new RealmRef(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, nodeName, null);
         }
     }
 
@@ -569,6 +574,26 @@ public class Authentication implements ToXContentObject {
         assert false == authentication.isApiKey();
         assert false == authentication.isAuthenticatedInternally();
         assert false == authentication.isAuthenticatedAnonymously();
+        return authentication;
+    }
+
+    public static Authentication createApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
+        if (false == authResult.isAuthenticated()) {
+            throw new IllegalArgumentException("API Key authn result must be successful");
+        }
+        final User apiKeyUser = authResult.getValue();
+        assert false == apiKeyUser.isRunAs();
+        final Authentication.RealmRef authenticatedBy = Authentication.RealmRef.newApiKeyRealmRef(nodeName);
+        Authentication authentication = new Authentication(
+            apiKeyUser,
+            authenticatedBy,
+            null,
+            Version.CURRENT,
+            AuthenticationType.API_KEY,
+            authResult.getMetadata()
+        );
+        assert authentication.isApiKey();
+        assert false == authentication.isAssignedToDomain();
         return authentication;
     }
 

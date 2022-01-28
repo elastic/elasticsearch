@@ -137,8 +137,14 @@ public class Authentication implements ToXContentObject {
     }
 
     public Authentication maybeRewriteForVersion(Version version) {
-        return new Authentication(getUser(), maybeRewriteRealmRef(version, getAuthenticatedBy()), maybeRewriteRealmRef(version,
-            getLookedUpBy()), version, getAuthenticationType(), maybeRewriteMetadataForApiKeyRoleDescriptors(version, this));
+        return new Authentication(
+            getUser(),
+            maybeRewriteRealmRef(version, getAuthenticatedBy()),
+            maybeRewriteRealmRef(version, getLookedUpBy()),
+            version,
+            getAuthenticationType(),
+            maybeRewriteMetadataForApiKeyRoleDescriptors(version, this)
+        );
     }
 
     /**
@@ -312,7 +318,7 @@ public class Authentication implements ToXContentObject {
         // domain name is generally ambiguous, because it can change during the lifetime of the authentication,
         // but it is good enough for display purposes (including auditing)
         if (getAuthenticatedBy().getDomain() != null) {
-            builder.field(User.Fields.REALM_DOMAIN.getPreferredName(),getAuthenticatedBy().getDomain().name());
+            builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatedBy().getDomain().name());
         }
         builder.endObject();
         builder.startObject(User.Fields.LOOKUP_REALM.getPreferredName());

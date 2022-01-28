@@ -61,7 +61,8 @@ able to take better decisions.
 [[update-desired-nodes-examples]]
 ==== {api-examples-title}
 
-In this example, desired nodes
+In this example, a new version for the desired nodes with history `Ywkh3INLQcuPT49f6kcppA` is created.
+This API only accepts monotonically increasing versions.
 
 [source,console]
 --------------------------------------------------

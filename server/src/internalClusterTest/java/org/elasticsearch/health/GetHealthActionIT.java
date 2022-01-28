@@ -66,8 +66,10 @@ public class GetHealthActionIT extends ESIntegTestCase {
             .findAny()
             .orElseThrow();
         assertEquals(1, controller.indicators().size());
-        NodeDoesNotHaveMaster nodeDoesNotHaveMaster = (NodeDoesNotHaveMaster) controller.indicators().get(0);
+        GetHealthAction.Indicator nodeDoesNotHaveMaster = controller.indicators().get(0);
+        assertEquals(NodeDoesNotHaveMaster.NAME, nodeDoesNotHaveMaster.getName());
         assertEquals(ClusterHealthStatus.GREEN, nodeDoesNotHaveMaster.getStatus());
+        assertEquals(NodeDoesNotHaveMaster.GREEN_EXPLAIN, nodeDoesNotHaveMaster.getExplain());
     }
 
     public void testGetHealthInstanceNoMaster() throws Exception {
@@ -96,7 +98,9 @@ public class GetHealthActionIT extends ESIntegTestCase {
                 .orElseThrow();
             assertEquals(1, controller.indicators().size());
             NodeDoesNotHaveMaster nodeDoesNotHaveMaster = (NodeDoesNotHaveMaster) controller.indicators().get(0);
+            assertEquals(NodeDoesNotHaveMaster.NAME, nodeDoesNotHaveMaster.getName());
             assertEquals(ClusterHealthStatus.RED, nodeDoesNotHaveMaster.getStatus());
+            assertEquals(NodeDoesNotHaveMaster.RED_EXPLAIN, nodeDoesNotHaveMaster.getExplain());
         });
 
         internalCluster().clearDisruptionScheme(true);

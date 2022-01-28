@@ -18,12 +18,19 @@ import java.io.IOException;
 
 public class NodeDoesNotHaveMaster extends GetHealthAction.Indicator {
 
+    public static final String NAME = "instance_has_master";
     public static final String GREEN_EXPLAIN = "Health coordinating instance has a master node.";
     public static final String RED_EXPLAIN = "Health coordinating instance does not have a master node.";
+
     private final DiscoveryNode coordinatingNode;
     private final DiscoveryNode masterNode;
 
     public NodeDoesNotHaveMaster(DiscoveryNode coordinatingNode, DiscoveryNode masterNode) {
+        super(
+            NAME,
+            masterNode == null ? ClusterHealthStatus.RED : ClusterHealthStatus.GREEN,
+            masterNode == null ? RED_EXPLAIN : GREEN_EXPLAIN
+        );
         this.coordinatingNode = coordinatingNode;
         this.masterNode = masterNode;
     }
@@ -38,25 +45,6 @@ public class NodeDoesNotHaveMaster extends GetHealthAction.Indicator {
         } else {
             builder.nullField("master_node_id");
             builder.nullField("master_node_name");
-        }
-    }
-
-    @Override
-    public String getExplain() {
-        return masterNode == null ? RED_EXPLAIN : GREEN_EXPLAIN;
-    }
-
-    @Override
-    public String getName() {
-        return "instance_has_master";
-    }
-
-    @Override
-    public ClusterHealthStatus getStatus() {
-        if (masterNode == null) {
-            return ClusterHealthStatus.RED;
-        } else {
-            return ClusterHealthStatus.GREEN;
         }
     }
 }

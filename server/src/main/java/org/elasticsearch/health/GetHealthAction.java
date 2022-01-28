@@ -185,20 +185,36 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
     public abstract static class Indicator implements ToXContentObject {
 
-        public abstract String getName();
+        private final String name;
+        private final ClusterHealthStatus status;
+        private final String explain;
 
-        public abstract ClusterHealthStatus getStatus();
+        public Indicator(String name, ClusterHealthStatus status, String explain) {
+            this.name = name;
+            this.status = status;
+            this.explain = explain;
+        }
 
-        public abstract String getExplain();
+        public String getName() {
+            return name;
+        }
+
+        public ClusterHealthStatus getStatus() {
+            return status;
+        }
+
+        public String getExplain() {
+            return explain;
+        }
 
         public abstract void writeMeta(XContentBuilder builder, Params params) throws IOException;
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("name", getName());
-            builder.field("status", getStatus());
-            builder.field("explain", getExplain());
+            builder.field("name", name);
+            builder.field("status", status);
+            builder.field("explain", explain);
             builder.object("meta", xContentBuilder -> writeMeta(builder, params));
             // TODO: Add detail / documentation
             return builder.endObject();

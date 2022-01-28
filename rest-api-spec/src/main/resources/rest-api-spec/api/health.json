@@ -5,7 +5,7 @@
       "description":"Returns the health of the cluster."
     },
     "stability":"experimental",
-    "visibility":"public",
+    "visibility":"private",
     "headers":{
       "accept": [ "application/json"]
     },

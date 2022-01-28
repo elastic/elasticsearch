@@ -60,7 +60,6 @@ public class FilterContentBenchmark {
 
     private BytesReference source;
     private XContentParserConfiguration parserConfig;
-    private XContentParserConfiguration parserConfigMatchDotsInFieldNames;
     private Set<String> filters;
     private XContentParserConfiguration parserConfigMatchDotsInFieldNames;
 

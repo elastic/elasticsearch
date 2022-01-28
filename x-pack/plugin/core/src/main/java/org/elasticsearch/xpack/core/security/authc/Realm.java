@@ -154,7 +154,7 @@ public abstract class Realm implements Comparable<Realm> {
         listener.onResponse(stats);
     }
 
-    public RealmRef getRealmRef() {
+    public RealmRef realmRef() {
         RealmRef realmRef = this.realmRef.get();
         if (realmRef == null) {
             throw new IllegalStateException("Realm not initialized");

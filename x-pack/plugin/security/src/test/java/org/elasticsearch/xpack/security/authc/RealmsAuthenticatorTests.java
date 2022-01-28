@@ -69,17 +69,17 @@ public class RealmsAuthenticatorTests extends ESTestCase {
         when(realm1.name()).thenReturn("realm1");
         when(realm1.type()).thenReturn("realm1");
         when(realm1.toString()).thenReturn("realm1/realm1");
-        when(realm1.getRealmRef()).thenReturn(new Authentication.RealmRef("realm1", "realm1", nodeName, null));
+        when(realm1.realmRef()).thenReturn(new Authentication.RealmRef("realm1", "realm1", nodeName, null));
         realm2 = mock(Realm.class);
         when(realm2.name()).thenReturn("realm2");
         when(realm2.type()).thenReturn("realm2");
         when(realm2.toString()).thenReturn("realm2/realm2");
-        when(realm2.getRealmRef()).thenReturn(new Authentication.RealmRef("realm2", "realm2", nodeName, null));
+        when(realm2.realmRef()).thenReturn(new Authentication.RealmRef("realm2", "realm2", nodeName, null));
         realm3 = mock(Realm.class);
         when(realm3.toString()).thenReturn("realm3/realm3");
         when(realms.getActiveRealms()).thenReturn(List.of(realm1, realm2));
         when(realms.getUnlicensedRealms()).thenReturn(List.of(realm3));
-        when(realm3.getRealmRef()).thenReturn(new Authentication.RealmRef("realm3", "realm3", nodeName, null));
+        when(realm3.realmRef()).thenReturn(new Authentication.RealmRef("realm3", "realm3", nodeName, null));
 
         request = randomBoolean()
             ? mock(AuthenticationService.AuditableRestRequest.class)

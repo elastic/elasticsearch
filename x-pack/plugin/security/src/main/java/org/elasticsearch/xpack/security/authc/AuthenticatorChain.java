@@ -242,7 +242,7 @@ class AuthenticatorChain {
                 finalAuth = new Authentication(
                     new User(tuple.v1(), user),
                     authentication.getAuthenticatedBy(),
-                    tuple.v2().getRealmRef(),
+                    tuple.v2().realmRef(),
                     authentication.getVersion(),
                     authentication.getAuthenticationType(),
                     authentication.getMetadata()

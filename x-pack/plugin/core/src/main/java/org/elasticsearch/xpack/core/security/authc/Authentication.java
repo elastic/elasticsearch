@@ -63,17 +63,6 @@ public class Authentication implements ToXContentObject {
         this(user, authenticatedBy, lookedUpBy, version, AuthenticationType.REALM, metadata);
     }
 
-    public Authentication(Authentication copy, Version version) {
-        this(
-            copy.getUser(),
-            maybeRewriteRealmRef(version, copy.getAuthenticatedBy()),
-            maybeRewriteRealmRef(version, copy.getLookedUpBy()),
-            version,
-            copy.getAuthenticationType(),
-            maybeRewriteMetadataForApiKeyRoleDescriptors(version, copy)
-        );
-    }
-
     public Authentication(
         User user,
         RealmRef authenticatedBy,
@@ -128,7 +117,9 @@ public class Authentication implements ToXContentObject {
     }
 
     /**
-     * Returns the version of the node that performed the authentication.
+     * Returns the authentication version.
+     * Nodes can only interpret authentications from current or older versions as the node's.
+     *
      * Authentication is serialized and travels across the cluster nodes as the sub-requests are handled,
      * and can also be cached by long-running jobs that continue to act on behalf of the user, beyond
      * the lifetime of the original request.
@@ -143,6 +134,11 @@ public class Authentication implements ToXContentObject {
 
     public Map<String, Object> getMetadata() {
         return metadata;
+    }
+
+    public Authentication maybeRewriteForVersion(Version version) {
+        return new Authentication(getUser(), maybeRewriteRealmRef(version, getAuthenticatedBy()), maybeRewriteRealmRef(version,
+            getLookedUpBy()), version, getAuthenticationType(), maybeRewriteMetadataForApiKeyRoleDescriptors(version, this));
     }
 
     /**
@@ -315,17 +311,23 @@ public class Authentication implements ToXContentObject {
         builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
         // domain name is generally ambiguous, because it can change during the lifetime of the authentication,
         // but it is good enough for display purposes (including auditing)
-        builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatedBy().getDomain().name());
+        if (getAuthenticatedBy().getDomain() != null) {
+            builder.field(User.Fields.REALM_DOMAIN.getPreferredName(),getAuthenticatedBy().getDomain().name());
+        }
         builder.endObject();
         builder.startObject(User.Fields.LOOKUP_REALM.getPreferredName());
         if (getLookedUpBy() != null) {
             builder.field(User.Fields.REALM_NAME.getPreferredName(), getLookedUpBy().getName());
             builder.field(User.Fields.REALM_TYPE.getPreferredName(), getLookedUpBy().getType());
-            builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getLookedUpBy().getDomain().name());
+            if (getLookedUpBy().getDomain() != null) {
+                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getLookedUpBy().getDomain().name());
+            }
         } else {
             builder.field(User.Fields.REALM_NAME.getPreferredName(), getAuthenticatedBy().getName());
             builder.field(User.Fields.REALM_TYPE.getPreferredName(), getAuthenticatedBy().getType());
-            builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatedBy().getDomain().name());
+            if (getAuthenticatedBy().getDomain() != null) {
+                builder.field(User.Fields.REALM_DOMAIN.getPreferredName(), getAuthenticatedBy().getDomain().name());
+            }
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
@@ -537,7 +539,7 @@ public class Authentication implements ToXContentObject {
         }
         Authentication authentication = new Authentication(
             user,
-            realm.getRealmRef(),
+            realm.realmRef(),
             null,
             Version.CURRENT,
             AuthenticationType.REALM,

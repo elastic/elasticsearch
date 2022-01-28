@@ -143,7 +143,7 @@ public class SecurityContext {
         final StoredContext original = threadContext.newStoredContext(true);
         final Authentication authentication = getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            setAuthentication(new Authentication(authentication, version));
+            setAuthentication(authentication.maybeRewriteForVersion(version));
             existingRequestHeaders.forEach((k, v) -> {
                 if (threadContext.getHeader(k) == null) {
                     threadContext.putHeader(k, v);

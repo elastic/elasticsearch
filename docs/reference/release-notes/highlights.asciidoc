@@ -16,6 +16,32 @@ For detailed information about this release, see the <<es-release-notes>> and
 
 // tag::notable-highlights[] 
 [discrete]
+=== Security is enabled and configured by default
+
+Running {es} without security leaves your cluster exposed to anyone who can send
+network traffic to {es}. In previous versions, you had to enable the {es}
+security features and then configure password protection and Transport Layer
+Security (TLS).
+
+Starting in {es} 8.0, security is
+<<configuring-stack-security,enabled and configured by default>> when you start
+{es} for the first time. We also generate an enrollment token at startup for
+{kib} so that you can quickly and easily connect a {kib} instance to your
+secured {es} cluster without having to generate security certificates or update
+`yml` configuration files. Just by starting {es}, you’ll have password
+protection, internode communication secured with TLS, and encrypted connections
+between {es} and {kib}.
+
+We're also shipping the
+<<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool, which
+you can use to generate enrollment tokens to enroll new {es} nodes with an
+existing cluster, or configure {kib} instances to communicate with an existing
+{es} cluster that has security features enabled. Just pass the enrollment token
+when starting new nodes and {es} handles all of the security configuration for
+you.
+
+
+[discrete]
 === Storage savings for `keyword`, `match_only_text`, and `text` fields
 
 We've updated inverted indices, an internal data structure, to use a more

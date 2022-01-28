@@ -116,7 +116,7 @@ Comma-separated list of data streams and indices to include in the snapshot.
 Supports <<multi-index,multi-index syntax>>. Defaults to an empty array (`[]`),
 which includes all data streams and indices, including system indices.
 +
-To exclude all data streams and indices, use `-*` or `none`.
+To exclude all data streams and indices, use `-*`.
 
 [id="{page-id}-feature-states"]
 `feature_states`::

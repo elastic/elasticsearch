@@ -152,7 +152,7 @@ public class MasterService extends AbstractLifecycleComponent {
             threadPool.generic()
                 .execute(
                     () -> tasks.forEach(
-                        task -> ((UpdateTask) task).listener.onFailure(new ProcessClusterEventTimeoutException(timeout, task.source))
+                        task -> ((UpdateTask) task).onFailure(new ProcessClusterEventTimeoutException(timeout, task.source))
                     )
                 );
         }
@@ -165,7 +165,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         class UpdateTask extends BatchedTask {
-            final SafeClusterStateTaskListener listener;
+            private final SafeClusterStateTaskListener listener;
 
             UpdateTask(
                 Priority priority,
@@ -183,6 +183,36 @@ public class MasterService extends AbstractLifecycleComponent {
                 return ((ClusterStateTaskExecutor<ClusterStateTaskListener>) batchingKey).describeTasks(
                     tasks.stream().map(task -> (ClusterStateTaskListener) task.task).toList()
                 );
+            }
+
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                listener.clusterStateProcessed(oldState, newState);
+            }
+
+            public void onNoLongerMaster() {
+                listener.onNoLongerMaster();
+            }
+
+            @Nullable
+            public AckCountDownListener createAckCountDownListener(long clusterStateVersion, DiscoveryNodes nodes) {
+                if (listener instanceof SafeAckedClusterStateTaskListener ackedListener) {
+                    return new AckCountDownListener(ackedListener, clusterStateVersion, nodes, threadPool);
+                } else {
+                    return null;
+                }
+            }
+
+            public void clusterStateUnchanged(ClusterState clusterState) {
+                if (listener instanceof SafeAckedClusterStateTaskListener ackedListener) {
+                    // no need to wait for ack if nothing changed, the update can be counted as acknowledged
+                    ackedListener.onAllNodesAcked(null);
+                }
+                listener.clusterStateProcessed(clusterState, clusterState);
+
             }
 
             @Override
@@ -299,7 +329,7 @@ public class MasterService extends AbstractLifecycleComponent {
         clusterStatePublisher.publish(
             clusterStatePublicationEvent,
             fut,
-            taskOutputs.createAckListener(threadPool, clusterStatePublicationEvent.getNewState())
+            taskOutputs.createAckListener(clusterStatePublicationEvent.getNewState())
         );
 
         // indefinitely wait for publication to complete
@@ -496,29 +526,22 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         void publishingFailed(FailedToCommitClusterStateException t) {
-            nonFailedTasks.forEach(task -> task.listener.onFailure(t));
+            nonFailedTasks.forEach(task -> task.onFailure(t));
         }
 
         void processedDifferentClusterState(ClusterState previousClusterState, ClusterState newClusterState) {
-            nonFailedTasks.forEach(task -> task.listener.clusterStateProcessed(previousClusterState, newClusterState));
+            nonFailedTasks.forEach(task -> task.clusterStateProcessed(previousClusterState, newClusterState));
         }
 
         void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
             taskInputs.executor.clusterStatePublished(clusterStatePublicationEvent);
         }
 
-        ClusterStatePublisher.AckListener createAckListener(ThreadPool threadPool, ClusterState newClusterState) {
+        ClusterStatePublisher.AckListener createAckListener(ClusterState newClusterState) {
             return new DelegatingAckListener(
                 nonFailedTasks.stream()
-                    .filter(task -> task.listener instanceof SafeAckedClusterStateTaskListener)
-                    .map(
-                        task -> new AckCountDownListener(
-                            (SafeAckedClusterStateTaskListener) task.listener,
-                            newClusterState.version(),
-                            newClusterState.nodes(),
-                            threadPool
-                        )
-                    )
+                    .map(task -> task.createAckCountDownListener(newClusterState.version(), newClusterState.nodes()))
+                    .filter(Objects::nonNull)
                     .collect(Collectors.toList())
             );
         }
@@ -533,19 +556,13 @@ public class MasterService extends AbstractLifecycleComponent {
                 assert executionResults.containsKey(updateTask.task) : "missing " + updateTask;
                 final ClusterStateTaskExecutor.TaskResult taskResult = executionResults.get(updateTask.task);
                 if (taskResult.isSuccess() == false) {
-                    updateTask.listener.onFailure(taskResult.getFailure());
+                    updateTask.onFailure(taskResult.getFailure());
                 }
             }
         }
 
         void notifySuccessfulTasksOnUnchangedClusterState() {
-            nonFailedTasks.forEach(task -> {
-                if (task.listener instanceof SafeAckedClusterStateTaskListener ackedListener) {
-                    // no need to wait for ack if nothing changed, the update can be counted as acknowledged
-                    ackedListener.onAllNodesAcked(null);
-                }
-                task.listener.clusterStateProcessed(newClusterState, newClusterState);
-            });
+            nonFailedTasks.forEach(task -> { task.clusterStateUnchanged(newClusterState); });
         }
     }
 
@@ -873,7 +890,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         void onNoLongerMaster() {
-            updateTasks.forEach(task -> task.listener.onNoLongerMaster());
+            updateTasks.forEach(task -> task.onNoLongerMaster());
         }
     }
 

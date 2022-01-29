@@ -1,0 +1,5 @@
+pr: 83294
+summary: "Fix: cast the double to long before getting the string representation"
+area: Aggregations
+type: bug
+issues: []

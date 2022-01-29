@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
-public interface AckedClusterStateTaskListener extends ClusterStateTaskListener {
+public interface AckedClusterStateTaskListener {
 
     /**
      * Called to determine which nodes the acknowledgement is expected from.

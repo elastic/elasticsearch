@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.AckedClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -56,7 +57,7 @@ public class MetadataMappingService {
         this.indicesService = indicesService;
     }
 
-    static class PutMappingClusterStateUpdateTask implements AckedClusterStateTaskListener {
+    static class PutMappingClusterStateUpdateTask implements ClusterStateTaskListener, AckedClusterStateTaskListener {
 
         private final PutMappingClusterStateUpdateRequest request;
         private final ActionListener<AcknowledgedResponse> listener;

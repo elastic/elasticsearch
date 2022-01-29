@@ -168,7 +168,7 @@ public class Authentication implements ToXContentObject {
         return new Authentication(
             new User(runAs, getUser()),
             getAuthenticatedBy(),
-            lookupRealm.realmRef(),
+            lookupRealm != null ? lookupRealm.realmRef() : null,
             getVersion(),
             getAuthenticationType(),
             getMetadata()

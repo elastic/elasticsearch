@@ -308,11 +308,7 @@ class RealmsAuthenticator implements Authenticator {
             listener.onFailure(
                 context.getRequest()
                     .runAsDenied(
-                        new Authentication(
-                            new User(runAsUsername, null, authentication.getUser()),
-                            authentication.getAuthenticatedBy(),
-                            null
-                        ),
+                        authentication.runAs(new User(runAsUsername, null, null, null, Map.of(), true), null),
                         context.getMostRecentAuthenticationToken()
                     )
             );

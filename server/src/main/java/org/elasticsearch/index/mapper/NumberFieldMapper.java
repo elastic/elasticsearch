@@ -1097,7 +1097,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             // longs need special handling so we don't lose precision while parsing
-            String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+            String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : String.valueOf((long) doubleValue);
             return Numbers.toLong(stringValue, coerce);
         }
 

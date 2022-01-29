@@ -121,6 +121,29 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testMinAndMaxLong() throws IOException {
+        final String fieldName = "long_field";
+        MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.LONG);
+        double from = Long.valueOf(Long.MIN_VALUE).doubleValue();
+        double to = Long.valueOf(Long.MAX_VALUE).doubleValue();
+        testCase(
+            new RangeAggregationBuilder("0").field(fieldName).addRange(Long.MIN_VALUE, Long.MAX_VALUE),
+            new MatchAllDocsQuery(),
+            iw -> {
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, Long.MIN_VALUE)));
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, Long.MIN_VALUE + 1)));
+            },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(1, ranges.size());
+                assertEquals(from + "-" + to, ranges.get(0).getKeyAsString());
+                assertEquals(2, ranges.get(0).getDocCount());
+            },
+            field
+        );
+    }
+
     public void testFloatRangeKeys() throws IOException {
         final String fieldName = "test";
         MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.FLOAT);

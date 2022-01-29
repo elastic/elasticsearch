@@ -29,6 +29,17 @@ setup:
                 format: strict_date_time||strict_date
 
   - do:
+      indices.create:
+        index: long_value_test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              long:
+                type: long
+
+  - do:
       cluster.health:
         wait_for_status: yellow
 
@@ -46,6 +57,13 @@ setup:
 # For testing missing values
          - {"index": {}}
          - {}
+  - do:
+      bulk:
+        index: long_value_test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "long": -9223372036854775808 }
 
   - do:
       bulk:
@@ -409,3 +427,27 @@ setup:
   - match: { aggregations.date_range.buckets.0.from_as_string: "2021-05-01T00:00:00.000Z" }
   - match: { aggregations.date_range.buckets.0.to: 1620172800000 }
   - match: { aggregations.date_range.buckets.0.to_as_string: "2021-05-05T00:00:00.000Z" }
+
+---
+"Min long value":
+  - skip:
+      version: " - 8.0.99"
+      reason: Bug fixed in 8.1.0
+  - do:
+      search:
+        index: long_value_test
+        body:
+          size: 0
+          aggs:
+            long_range:
+              range:
+                field: "long"
+                ranges:
+                  { from: -9223372036854775808, to: 9223372036854775807 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 1 }
+  - length: { aggregations.long_range.buckets: 1 }
+  - match: { aggregations.long_range.buckets.0.key: "-9.223372036854776E18-9.223372036854776E18" }
+  - match: { aggregations.long_range.buckets.0.from: -9.223372036854776E18 }
+  - match: { aggregations.long_range.buckets.0.to: 9.223372036854776E18 }
+  - match: { aggregations.long_range.buckets.0.doc_count: 1 }

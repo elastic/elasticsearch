@@ -73,7 +73,8 @@ public interface XContentFieldFilter {
         } else {
             final XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withFiltering(
                 Set.of(includes),
-                Set.of(excludes)
+                Set.of(excludes),
+                true
             );
             return (originalSource, contentType) -> {
                 if (originalSource == null || originalSource.length() <= 0) {

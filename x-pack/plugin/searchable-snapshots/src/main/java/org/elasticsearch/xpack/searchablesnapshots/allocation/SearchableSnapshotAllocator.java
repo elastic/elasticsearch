@@ -44,7 +44,6 @@ import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.ReplicaShardAllocator;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction;
@@ -109,8 +108,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     public void beforeAllocation(RoutingAllocation allocation) {
         boolean hasPartialIndices = false;
         for (IndexMetadata indexMetadata : allocation.metadata()) {
-            final Settings indexSettings = indexMetadata.getSettings();
-            if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(indexSettings)) {
+            if (indexMetadata.isPartialSearchableSnapshot()) {
                 hasPartialIndices = true;
                 break;
             }
@@ -371,7 +369,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
     @Override
     public void applyFailedShards(List<FailedShard> failedShards, RoutingAllocation allocation) {
         for (FailedShard failedShard : failedShards) {
-            asyncFetchStore.remove(failedShard.getRoutingEntry().shardId());
+            asyncFetchStore.remove(failedShard.routingEntry().shardId());
         }
     }
 

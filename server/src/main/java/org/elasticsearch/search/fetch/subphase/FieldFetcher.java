@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedValueFetcher;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -24,7 +23,6 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -45,9 +43,7 @@ public class FieldFetcher {
     private static final int AUTOMATON_MAX_DETERMINIZED_STATES = 100000;
 
     public static FieldFetcher create(SearchExecutionContext context, Collection<FieldAndFormat> fieldAndFormats) {
-        Set<String> nestedMappingPaths = context.hasNested()
-            ? context.nestedMappings().stream().map(ObjectMapper::name).collect(Collectors.toSet())
-            : Collections.emptySet();
+        Set<String> nestedMappingPaths = context.nestedLookup().getNestedMappers().keySet();
         return create(context, fieldAndFormats, nestedMappingPaths, "");
     }
 
@@ -87,7 +83,9 @@ public class FieldFetcher {
                 if (nestedParentPaths.isEmpty() == false) {
                     // try to find the shortest nested parent path for this field
                     for (String nestedFieldPath : nestedParentPaths) {
-                        if (field.startsWith(nestedFieldPath)) {
+                        if (field.startsWith(nestedFieldPath)
+                            && field.length() > nestedFieldPath.length()
+                            && field.charAt(nestedFieldPath.length()) == '.') {
                             nestedParentPath = nestedFieldPath;
                             break;
                         }
@@ -266,7 +264,7 @@ public class FieldFetcher {
     private static Set<String> getParentPaths(Set<String> nestedPathsInScope, SearchExecutionContext context) {
         Set<String> parentPaths = new HashSet<>();
         for (String candidate : nestedPathsInScope) {
-            String nestedParent = context.getNestedParent(candidate);
+            String nestedParent = context.nestedLookup().getNestedParent(candidate);
             // if the candidate has no nested parent itself, its a minimal parent path
             // if the candidate has a parent which is out of scope this means it minimal itself
             if (nestedParent == null || nestedPathsInScope.contains(nestedParent) == false) {

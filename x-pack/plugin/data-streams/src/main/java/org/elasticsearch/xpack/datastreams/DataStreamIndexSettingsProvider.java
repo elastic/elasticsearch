@@ -20,7 +20,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.time.Instant;
 import java.util.Locale;
-import java.util.Optional;
 
 public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
 
@@ -30,41 +29,46 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     public Settings getAdditionalIndexSettings(
         String indexName,
         String dataStreamName,
+        IndexMode templateIndexMode,
         Metadata metadata,
         long resolvedAt,
         Settings allSettings
     ) {
         if (dataStreamName != null) {
-            IndexMode indexMode = Optional.ofNullable(allSettings.get(IndexSettings.MODE.getKey()))
-                .map(value -> IndexMode.valueOf(value.toUpperCase(Locale.ROOT)))
-                .orElse(IndexMode.STANDARD);
-            if (indexMode == IndexMode.TIME_SERIES) {
-                TimeValue lookAheadTime = allSettings.getAsTime(
-                    IndexSettings.LOOK_AHEAD_TIME.getKey(),
-                    IndexSettings.LOOK_AHEAD_TIME.getDefault(allSettings)
-                );
+            DataStream dataStream = metadata.dataStreams().get(dataStreamName);
+            IndexMode indexMode;
+            if (dataStream != null) {
+                indexMode = dataStream.getIndexMode();
+            } else {
+                indexMode = templateIndexMode;
+            }
+            if (indexMode != null) {
                 Settings.Builder builder = Settings.builder();
-                DataStream dataStream = metadata.dataStreams().get(dataStreamName);
-                Instant start;
-                if (dataStream == null) {
-                    start = Instant.ofEpochMilli(resolvedAt).minusMillis(lookAheadTime.getMillis());
-                } else {
-                    IndexMetadata currentLatestBackingIndex = metadata.index(dataStream.getWriteIndex());
-                    if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
-                        throw new IllegalStateException(
-                            String.format(
-                                Locale.ROOT,
-                                "backing index [%s] in tsdb mode doesn't have the [%s] index setting",
-                                currentLatestBackingIndex.getIndex().getName(),
-                                IndexSettings.TIME_SERIES_START_TIME.getKey()
-                            )
-                        );
+                builder.put(IndexSettings.MODE.getKey(), indexMode);
+
+                if (indexMode == IndexMode.TIME_SERIES) {
+                    TimeValue lookAheadTime = IndexSettings.LOOK_AHEAD_TIME.get(allSettings);
+                    Instant start;
+                    if (dataStream == null) {
+                        start = Instant.ofEpochMilli(resolvedAt).minusMillis(lookAheadTime.getMillis());
+                    } else {
+                        IndexMetadata currentLatestBackingIndex = metadata.index(dataStream.getWriteIndex());
+                        if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
+                            throw new IllegalStateException(
+                                String.format(
+                                    Locale.ROOT,
+                                    "backing index [%s] in tsdb mode doesn't have the [%s] index setting",
+                                    currentLatestBackingIndex.getIndex().getName(),
+                                    IndexSettings.TIME_SERIES_END_TIME.getKey()
+                                )
+                            );
+                        }
+                        start = IndexSettings.TIME_SERIES_END_TIME.get(currentLatestBackingIndex.getSettings());
                     }
-                    start = IndexSettings.TIME_SERIES_END_TIME.get(currentLatestBackingIndex.getSettings());
+                    builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
+                    Instant end = Instant.ofEpochMilli(resolvedAt).plusMillis(lookAheadTime.getMillis());
+                    builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
                 }
-                builder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(start));
-                Instant end = Instant.ofEpochMilli(resolvedAt).plusMillis(lookAheadTime.getMillis());
-                builder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(end));
                 return builder.build();
             }
         }

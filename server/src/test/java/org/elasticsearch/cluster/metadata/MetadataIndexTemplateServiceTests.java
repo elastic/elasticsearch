@@ -1923,7 +1923,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             clusterService,
             null,
             null,
-            null,
             createTestShardLimitService(randomIntBetween(1, 1000)),
             new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
@@ -1936,7 +1935,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(
             null,
             createIndexService,
-            new AliasValidator(),
             null,
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
             xContentRegistry,
@@ -1988,7 +1986,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             clusterService,
             indicesService,
             null,
-            null,
             createTestShardLimitService(randomIntBetween(1, 1000)),
             new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
@@ -2001,7 +1998,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         return new MetadataIndexTemplateService(
             clusterService,
             createIndexService,
-            new AliasValidator(),
             indicesService,
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
             xContentRegistry(),

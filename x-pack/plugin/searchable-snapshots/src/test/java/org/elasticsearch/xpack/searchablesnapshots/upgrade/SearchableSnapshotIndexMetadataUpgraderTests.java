@@ -74,13 +74,13 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
         assertTrue(StreamSupport.stream(upgradedState.metadata().spliterator(), false).anyMatch(upgraded -> {
             IndexMetadata original = originalState.metadata().index(upgraded.getIndex());
             assertThat(original, notNullValue());
-            if (isPartial(upgraded) == false
+            if (upgraded.isPartialSearchableSnapshot() == false
                 || ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.get(original.getSettings())
                     .equals(ShardLimitValidator.FROZEN_GROUP)) {
                 assertThat(upgraded, sameInstance(original));
                 return false;
             } else {
-                assertThat(isPartial(upgraded), is(isPartial(original)));
+                assertThat(upgraded.isPartialSearchableSnapshot(), is(original.isPartialSearchableSnapshot()));
                 assertThat(upgraded.getNumberOfShards(), equalTo(original.getNumberOfShards()));
                 assertThat(upgraded.getNumberOfReplicas(), equalTo(original.getNumberOfReplicas()));
                 assertThat(
@@ -189,7 +189,4 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
         return ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
     }
 
-    private boolean isPartial(IndexMetadata upgraded) {
-        return SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(upgraded.getSettings());
-    }
 }

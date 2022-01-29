@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -47,7 +45,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SameShardRoutingTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(SameShardRoutingTests.class);
 
     public void testSameHost() {
         AllocationService strategy = createAllocationService(
@@ -213,9 +210,13 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                 .findFirst()
                 .orElseThrow(AssertionError::new);
 
+            final RoutingNode otherNode = StreamSupport.stream(clusterState.getRoutingNodes().spliterator(), false)
+                .filter(node -> node != emptyNode)
+                .findFirst()
+                .orElseThrow(AssertionError::new);
+
             final RoutingAllocation routingAllocation = new RoutingAllocation(
                 new AllocationDeciders(singletonList(decider)),
-                clusterState.getRoutingNodes(),
                 clusterState,
                 null,
                 null,
@@ -230,11 +231,11 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                 decision.getExplanation(),
                 equalTo(
                     """
-                        can not allocate to this node [%s], a copy of this shard is already allocated to another node at \
-                        the same host address [%s], and [%s] is [true] which forbids more than one node on this host from \
-                        holding a copy of this shard\
+                        cannot allocate to node [%s] because a copy of this shard is already allocated to node [%s] with the same host \
+                        address [%s] and [%s] is [true] which forbids more than one node on each host from holding a copy of this shard\
                         """.formatted(
                         emptyNode.nodeId(),
+                        otherNode.nodeId(),
                         host1,
                         SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey()
                     )

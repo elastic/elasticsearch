@@ -253,8 +253,7 @@ public class MetadataMappingService {
             "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
             task,
             ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
-            putMappingExecutor,
-            task
+            putMappingExecutor
         );
     }
 }

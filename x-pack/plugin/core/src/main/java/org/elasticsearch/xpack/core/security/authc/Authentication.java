@@ -23,7 +23,9 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
+import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -36,6 +38,18 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newApiKeyRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalFallbackRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newServiceAccountRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ATTACH_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
@@ -504,8 +518,29 @@ public class Authentication implements ToXContentObject {
         static RealmRef newInternalRealmRef(String nodeName) {
             // the "attach" internal realm is not part of any realm domain
             return new Authentication.RealmRef(
-                AuthenticationField.ATTACH_REALM_NAME,
-                AuthenticationField.ATTACH_REALM_TYPE,
+                ATTACH_REALM_NAME,
+                ATTACH_REALM_TYPE,
+                nodeName,
+                null
+            );
+        }
+
+        static RealmRef newInternalFallbackRealmRef(String nodeName) {
+            // the "fallback" internal realm is not part of any realm domain
+            RealmRef realmRef = new RealmRef(
+                FALLBACK_REALM_NAME,
+                FALLBACK_REALM_TYPE,
+                nodeName,
+                null
+            );
+            return realmRef;
+        }
+
+        static RealmRef newAnonymousRealmRef(String nodeName) {
+            // the "anonymous" internal realm is not part of any realm domain
+            return new Authentication.RealmRef(
+                ANONYMOUS_REALM_NAME,
+                ANONYMOUS_REALM_TYPE,
                 nodeName,
                 null
             );
@@ -526,7 +561,7 @@ public class Authentication implements ToXContentObject {
         if (false == User.isInternal(internalUser)) {
             throw new IllegalArgumentException("Expected internal user, but provided [" + internalUser + "]");
         }
-        final Authentication.RealmRef authenticatedBy = Authentication.RealmRef.newInternalRealmRef(nodeName);
+        final Authentication.RealmRef authenticatedBy = newInternalRealmRef(nodeName);
         Authentication authentication = new Authentication(
             internalUser,
             authenticatedBy,
@@ -540,11 +575,42 @@ public class Authentication implements ToXContentObject {
         return authentication;
     }
 
+    public static Authentication newInternalFallbackAuthentication(User fallbackUser, String nodeName) {
+        assert SystemUser.is(fallbackUser);
+        final Authentication.RealmRef authenticatedBy = newInternalFallbackRealmRef(nodeName);
+        Authentication authentication = new Authentication(
+            fallbackUser,
+            authenticatedBy,
+            null,
+            Version.CURRENT,
+            Authentication.AuthenticationType.INTERNAL,
+            Collections.emptyMap()
+        );
+        assert authentication.isAuthenticatedInternally();
+        assert false == authentication.isAssignedToDomain();
+        return authentication;
+    }
+
+    public static Authentication newAnonymousAuthentication(AnonymousUser anonymousUser, String nodeName) {
+        final Authentication.RealmRef authenticatedBy = newAnonymousRealmRef(nodeName);
+        Authentication authentication = new Authentication(
+            anonymousUser,
+            authenticatedBy,
+            null,
+            Version.CURRENT,
+            Authentication.AuthenticationType.ANONYMOUS,
+            Collections.emptyMap()
+        );
+        assert authentication.isAuthenticatedAnonymously();
+        assert false == authentication.isAssignedToDomain();
+        return authentication;
+    }
+
     public static Authentication newServiceAccountAuthentication(User serviceAccountUser, String nodeName, Map<String, Object> metadata) {
         if (serviceAccountUser.isRunAs()) {
             throw new IllegalArgumentException("Service account user [" + serviceAccountUser + "] cannot be run-as");
         }
-        final Authentication.RealmRef authenticatedBy = Authentication.RealmRef.newServiceAccountRealmRef(nodeName);
+        final Authentication.RealmRef authenticatedBy = newServiceAccountRealmRef(nodeName);
         Authentication authentication = new Authentication(
             serviceAccountUser,
             authenticatedBy,
@@ -583,7 +649,7 @@ public class Authentication implements ToXContentObject {
         }
         final User apiKeyUser = authResult.getValue();
         assert false == apiKeyUser.isRunAs();
-        final Authentication.RealmRef authenticatedBy = Authentication.RealmRef.newApiKeyRealmRef(nodeName);
+        final Authentication.RealmRef authenticatedBy = newApiKeyRealmRef(nodeName);
         Authentication authentication = new Authentication(
             apiKeyUser,
             authenticatedBy,

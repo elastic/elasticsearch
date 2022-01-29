@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -29,17 +28,11 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
-
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 
 class AuthenticatorChain {
 
@@ -280,30 +273,14 @@ class AuthenticatorChain {
                 context.getRequest(),
                 context.getFallbackUser().principal()
             );
-            Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(FALLBACK_REALM_NAME, FALLBACK_REALM_TYPE, nodeName);
-            authentication = new Authentication(
-                context.getFallbackUser(),
-                authenticatedBy,
-                null,
-                Version.CURRENT,
-                Authentication.AuthenticationType.INTERNAL,
-                Collections.emptyMap()
-            );
+            authentication = Authentication.newInternalFallbackAuthentication(context.getFallbackUser(), nodeName);
         } else if (shouldFallbackToAnonymous(context)) {
             logger.trace(
                 "No valid credentials found in request [{}], using anonymous [{}]",
                 context.getRequest(),
                 anonymousUser.principal()
             );
-            Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(ANONYMOUS_REALM_NAME, ANONYMOUS_REALM_TYPE, nodeName);
-            authentication = new Authentication(
-                anonymousUser,
-                authenticatedBy,
-                null,
-                Version.CURRENT,
-                Authentication.AuthenticationType.ANONYMOUS,
-                Collections.emptyMap()
-            );
+            authentication = Authentication.newAnonymousAuthentication(anonymousUser, nodeName);
         } else {
             authentication = null;
         }

@@ -445,14 +445,14 @@ public class Authentication implements ToXContentObject {
             this(name, type, nodeName, null);
         }
 
-        RealmRef(String name, String type, String nodeName, @Nullable Domain domain) {
+        public RealmRef(String name, String type, String nodeName, @Nullable Domain domain) {
             this.nodeName = Objects.requireNonNull(nodeName, "node name cannot be null");
             this.name = Objects.requireNonNull(name, "realm name cannot be null");
             this.type = Objects.requireNonNull(type, "realm type cannot be null");
             this.domain = domain;
         }
 
-        RealmRef(StreamInput in) throws IOException {
+        public RealmRef(StreamInput in) throws IOException {
             this.nodeName = in.readString();
             this.name = in.readString();
             this.type = in.readString();

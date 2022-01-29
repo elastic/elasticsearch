@@ -13,9 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.AckedClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Builder;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
@@ -181,8 +181,8 @@ public class MasterService extends AbstractLifecycleComponent {
                 super(priority, source, executor, task);
                 this.threadContextSupplier = threadContextSupplier;
                 this.listener = task;
-                if (task instanceof AckedClusterStateTaskListener ackedListener) {
-                    this.contextPreservingAckListener = new ContextPreservingAckListener(ackedListener, threadContextSupplier);
+                if (task instanceof ClusterStateAckListener clusterStateAckListener) {
+                    this.contextPreservingAckListener = new ContextPreservingAckListener(clusterStateAckListener, threadContextSupplier);
                 } else {
                     this.contextPreservingAckListener = null;
                 }
@@ -487,8 +487,9 @@ public class MasterService extends AbstractLifecycleComponent {
     /**
      * Submits a cluster state update task
      * @param source     the source of the cluster state update task
-     * @param updateTask the full context for the cluster state update
-     * @param executor
+     * @param updateTask the full context for the cluster state update, which implements {@link ClusterStateTaskListener} so that it is
+     *                   notified when it is executed; tasks that also implement {@link ClusterStateAckListener} are notified on acks too.
+     * @param executor   the executor for the task; tasks that share the same executor instance may be batched together
      *
      */
     public <T extends ClusterStateTaskConfig & ClusterStateTaskListener> void submitStateUpdateTask(
@@ -508,7 +509,8 @@ public class MasterService extends AbstractLifecycleComponent {
      * tasks will all be executed on the executor in a single batch
      *
      * @param source   the source of the cluster state update task
-     * @param task     the state and the callback needed for the cluster state update task
+     * @param task     the state needed for the cluster state update task, which implements {@link ClusterStateTaskListener} so that it is
+     *                 notified when it is executed; tasks that also implement {@link ClusterStateAckListener} are notified on acks too.
      * @param config   the cluster state update task configuration
      * @param executor the cluster state update task executor; tasks
      *                 that share the same executor will be executed
@@ -625,7 +627,7 @@ public class MasterService extends AbstractLifecycleComponent {
         return threadPoolExecutor.getMaxTaskWaitTime();
     }
 
-    private record ContextPreservingAckListener(AckedClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> context) {
+    private record ContextPreservingAckListener(ClusterStateAckListener listener, Supplier<ThreadContext.StoredContext> context) {
 
         public boolean mustAck(DiscoveryNode discoveryNode) {
             return listener.mustAck(discoveryNode);
@@ -864,7 +866,8 @@ public class MasterService extends AbstractLifecycleComponent {
      * potentially with more tasks of the same executor.
      *
      * @param source   the source of the cluster state update task
-     * @param tasks    a collection of update tasks and their corresponding listeners
+     * @param tasks    a collection of update tasks, which implement {@link ClusterStateTaskListener} so that they are notified when they
+     *                 are executed; tasks that also implement {@link ClusterStateAckListener} are notified on acks too.
      * @param config   the cluster state update task configuration
      * @param executor the cluster state update task executor; tasks
      *                 that share the same executor will be executed

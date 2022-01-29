@@ -167,15 +167,23 @@ public class MasterService extends AbstractLifecycleComponent {
         class UpdateTask extends BatchedTask {
             private final SafeClusterStateTaskListener listener;
 
+            @Nullable
+            private final SafeAckedClusterStateTaskListener ackedListener;
+
             UpdateTask(
                 Priority priority,
                 String source,
-                Object task,
-                SafeClusterStateTaskListener listener,
+                ClusterStateTaskListener task,
+                Supplier<ThreadContext.StoredContext> threadContextSupplier,
                 ClusterStateTaskExecutor<?> executor
             ) {
                 super(priority, source, executor, task);
-                this.listener = listener;
+                this.listener = new SafeClusterStateTaskListener(task, threadContextSupplier);
+                if (task instanceof AckedClusterStateTaskListener ackedListener) {
+                    this.ackedListener = new SafeAckedClusterStateTaskListener(ackedListener, threadContextSupplier);
+                } else {
+                    this.ackedListener = null;
+                }
             }
 
             @Override
@@ -199,15 +207,11 @@ public class MasterService extends AbstractLifecycleComponent {
 
             @Nullable
             public AckCountDownListener createAckCountDownListener(long clusterStateVersion, DiscoveryNodes nodes) {
-                if (listener instanceof SafeAckedClusterStateTaskListener ackedListener) {
-                    return new AckCountDownListener(ackedListener, clusterStateVersion, nodes, threadPool);
-                } else {
-                    return null;
-                }
+                return ackedListener == null ? null : new AckCountDownListener(ackedListener, clusterStateVersion, nodes, threadPool);
             }
 
             public void clusterStateUnchanged(ClusterState clusterState) {
-                if (listener instanceof SafeAckedClusterStateTaskListener ackedListener) {
+                if (ackedListener != null) {
                     // no need to wait for ack if nothing changed, the update can be counted as acknowledged
                     ackedListener.onAllNodesAcked(null);
                 }
@@ -601,14 +605,6 @@ public class MasterService extends AbstractLifecycleComponent {
         return threadPoolExecutor.getMaxTaskWaitTime();
     }
 
-    private SafeClusterStateTaskListener safe(ClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> contextSupplier) {
-        if (listener instanceof AckedClusterStateTaskListener ackedListener) {
-            return new SafeAckedClusterStateTaskListener(ackedListener, contextSupplier);
-        } else {
-            return new SafeClusterStateTaskListener(listener, contextSupplier);
-        }
-    }
-
     private static class SafeClusterStateTaskListener {
         private final ClusterStateTaskListener listener;
         protected final Supplier<ThreadContext.StoredContext> context;
@@ -738,7 +734,7 @@ public class MasterService extends AbstractLifecycleComponent {
             DiscoveryNodes nodes,
             ThreadPool threadPool
         ) {
-            this.ackedTaskListener = ackedTaskListener;
+            this.ackedTaskListener = Objects.requireNonNull(ackedTaskListener);
             this.clusterStateVersion = clusterStateVersion;
             this.threadPool = threadPool;
             this.masterNode = nodes.getMasterNode();
@@ -922,7 +918,7 @@ public class MasterService extends AbstractLifecycleComponent {
             threadContext.markAsSystemContext();
 
             List<Batcher.UpdateTask> safeTasks = tasks.stream()
-                .map(e -> taskBatcher.new UpdateTask(config.priority(), source, e, safe(e, supplier), executor))
+                .map(task -> taskBatcher.new UpdateTask(config.priority(), source, task, supplier, executor))
                 .toList();
             taskBatcher.submitTasks(safeTasks, config.timeout());
         } catch (EsRejectedExecutionException e) {

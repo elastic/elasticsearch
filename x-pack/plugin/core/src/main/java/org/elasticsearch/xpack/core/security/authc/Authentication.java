@@ -175,6 +175,17 @@ public class Authentication implements ToXContentObject {
         );
     }
 
+    public Authentication token() {
+        return new Authentication(
+            getUser(),
+            getAuthenticatedBy(),
+            getLookedUpBy(),
+            Version.CURRENT,
+            AuthenticationType.TOKEN,
+            getMetadata()
+        );
+    }
+
     /**
      * Returns {@code true} if the effective user comes from a realm under a domain.
      * The same username can be authenticated by different realms (eg with different credential types),

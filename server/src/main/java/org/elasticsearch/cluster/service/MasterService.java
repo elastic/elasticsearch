@@ -165,7 +165,8 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         class UpdateTask extends BatchedTask {
-            private final SafeClusterStateTaskListener listener;
+            private final ClusterStateTaskListener listener;
+            private final Supplier<ThreadContext.StoredContext> threadContextSupplier;
 
             @Nullable
             private final SafeAckedClusterStateTaskListener ackedListener;
@@ -178,7 +179,8 @@ public class MasterService extends AbstractLifecycleComponent {
                 ClusterStateTaskExecutor<?> executor
             ) {
                 super(priority, source, executor, task);
-                this.listener = new SafeClusterStateTaskListener(task, threadContextSupplier);
+                this.threadContextSupplier = threadContextSupplier;
+                this.listener = task;
                 if (task instanceof AckedClusterStateTaskListener ackedListener) {
                     this.ackedListener = new SafeAckedClusterStateTaskListener(ackedListener, threadContextSupplier);
                 } else {
@@ -194,15 +196,32 @@ public class MasterService extends AbstractLifecycleComponent {
             }
 
             public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                listener.clusterStateProcessed(oldState, newState);
+                try (ThreadContext.StoredContext ignore = threadContextSupplier.get()) {
+                    listener.onFailure(e);
+                } catch (Exception inner) {
+                    inner.addSuppressed(e);
+                    logger.error("exception thrown by listener notifying of failure", inner);
+                }
             }
 
             public void onNoLongerMaster() {
-                listener.onNoLongerMaster();
+                try (ThreadContext.StoredContext ignore = threadContextSupplier.get()) {
+                    listener.onNoLongerMaster();
+                } catch (Exception e) {
+                    logger.error("exception thrown by listener while notifying no longer master", e);
+                }
+            }
+
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                try (ThreadContext.StoredContext ignore = threadContextSupplier.get()) {
+                    listener.clusterStateProcessed(oldState, newState);
+                } catch (Exception e) {
+                    logger.error(() -> new ParameterizedMessage("""
+                        exception thrown by listener while notifying of cluster state, old cluster state:
+                        {}
+                        new cluster state:
+                        {}""", oldState, newState), e);
+                }
             }
 
             @Nullable
@@ -215,8 +234,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     // no need to wait for ack if nothing changed, the update can be counted as acknowledged
                     ackedListener.onAllNodesAcked(null);
                 }
-                listener.clusterStateProcessed(clusterState, clusterState);
-
+                clusterStateProcessed(clusterState, clusterState);
             }
 
             @Override
@@ -603,45 +621,6 @@ public class MasterService extends AbstractLifecycleComponent {
      */
     public TimeValue getMaxTaskWaitTime() {
         return threadPoolExecutor.getMaxTaskWaitTime();
-    }
-
-    private static class SafeClusterStateTaskListener {
-        private final ClusterStateTaskListener listener;
-        protected final Supplier<ThreadContext.StoredContext> context;
-
-        SafeClusterStateTaskListener(ClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> context) {
-            this.listener = listener;
-            this.context = context;
-        }
-
-        public void onFailure(Exception e) {
-            try (ThreadContext.StoredContext ignore = context.get()) {
-                listener.onFailure(e);
-            } catch (Exception inner) {
-                inner.addSuppressed(e);
-                logger.error("exception thrown by listener notifying of failure", inner);
-            }
-        }
-
-        public void onNoLongerMaster() {
-            try (ThreadContext.StoredContext ignore = context.get()) {
-                listener.onNoLongerMaster();
-            } catch (Exception e) {
-                logger.error("exception thrown by listener while notifying no longer master", e);
-            }
-        }
-
-        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-            try (ThreadContext.StoredContext ignore = context.get()) {
-                listener.clusterStateProcessed(oldState, newState);
-            } catch (Exception e) {
-                logger.error(() -> new ParameterizedMessage("""
-                    exception thrown by listener while notifying of cluster state, old cluster state:
-                    {}
-                    new cluster state:
-                    {}""", oldState, newState), e);
-            }
-        }
     }
 
     private static class SafeAckedClusterStateTaskListener {

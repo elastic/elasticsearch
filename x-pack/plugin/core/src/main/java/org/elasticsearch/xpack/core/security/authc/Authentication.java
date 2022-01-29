@@ -517,33 +517,18 @@ public class Authentication implements ToXContentObject {
 
         static RealmRef newInternalRealmRef(String nodeName) {
             // the "attach" internal realm is not part of any realm domain
-            return new Authentication.RealmRef(
-                ATTACH_REALM_NAME,
-                ATTACH_REALM_TYPE,
-                nodeName,
-                null
-            );
+            return new Authentication.RealmRef(ATTACH_REALM_NAME, ATTACH_REALM_TYPE, nodeName, null);
         }
 
         static RealmRef newInternalFallbackRealmRef(String nodeName) {
             // the "fallback" internal realm is not part of any realm domain
-            RealmRef realmRef = new RealmRef(
-                FALLBACK_REALM_NAME,
-                FALLBACK_REALM_TYPE,
-                nodeName,
-                null
-            );
+            RealmRef realmRef = new RealmRef(FALLBACK_REALM_NAME, FALLBACK_REALM_TYPE, nodeName, null);
             return realmRef;
         }
 
         static RealmRef newAnonymousRealmRef(String nodeName) {
             // the "anonymous" internal realm is not part of any realm domain
-            return new Authentication.RealmRef(
-                ANONYMOUS_REALM_NAME,
-                ANONYMOUS_REALM_TYPE,
-                nodeName,
-                null
-            );
+            return new Authentication.RealmRef(ANONYMOUS_REALM_NAME, ANONYMOUS_REALM_TYPE, nodeName, null);
         }
 
         static RealmRef newServiceAccountRealmRef(String nodeName) {

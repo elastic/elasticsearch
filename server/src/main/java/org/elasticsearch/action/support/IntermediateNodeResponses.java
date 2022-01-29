@@ -13,10 +13,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * This class collects and tracks the intermediate responses that can be used to construct the aggregation response. It also gives the
+ * This class collects and tracks the intermediate responses that can be used to construct the aggregated response. It also gives the
  * possibility to discard the intermediate results when asked, a use case for this call is when a task is cancelled.
  */
 public class IntermediateNodeResponses {
+
+    private static final AlreadyDiscardedException ALREADY_DISCARDED_EXCEPTION = new AlreadyDiscardedException();
+
     private final int expectedResponses;
     private final AtomicInteger counter = new AtomicInteger();
     private volatile AtomicReferenceArray<Object> responses;
@@ -33,7 +36,7 @@ public class IntermediateNodeResponses {
     }
 
     /**
-     * This method marks the responses as discarded and actually discards the results collected so far
+     * This method marks the responses as discarded and discards the results collected to free up the resources
      */
     public void discard() {
         if (discarded == false) {
@@ -74,14 +77,14 @@ public class IntermediateNodeResponses {
     public Object getResponse(int nodeIndex) throws AlreadyDiscardedException {
         AtomicReferenceArray<Object> responses = this.responses;
         if (discarded) {
-            throw new AlreadyDiscardedException();
+            throw ALREADY_DISCARDED_EXCEPTION;
         }
         return responses.get(nodeIndex);
     }
 
     public int size() throws AlreadyDiscardedException {
         if (discarded) {
-            throw new AlreadyDiscardedException();
+            throw ALREADY_DISCARDED_EXCEPTION;
         }
         return expectedResponses;
     }

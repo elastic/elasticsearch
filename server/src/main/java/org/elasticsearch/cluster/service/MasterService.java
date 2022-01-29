@@ -169,7 +169,7 @@ public class MasterService extends AbstractLifecycleComponent {
             private final Supplier<ThreadContext.StoredContext> threadContextSupplier;
 
             @Nullable
-            private final ContextPreservingAckListener ackedListener;
+            private final ContextPreservingAckListener contextPreservingAckListener;
 
             UpdateTask(
                 Priority priority,
@@ -182,9 +182,9 @@ public class MasterService extends AbstractLifecycleComponent {
                 this.threadContextSupplier = threadContextSupplier;
                 this.listener = task;
                 if (task instanceof AckedClusterStateTaskListener ackedListener) {
-                    this.ackedListener = new ContextPreservingAckListener(ackedListener, threadContextSupplier);
+                    this.contextPreservingAckListener = new ContextPreservingAckListener(ackedListener, threadContextSupplier);
                 } else {
-                    this.ackedListener = null;
+                    this.contextPreservingAckListener = null;
                 }
             }
 
@@ -225,14 +225,16 @@ public class MasterService extends AbstractLifecycleComponent {
             }
 
             @Nullable
-            public TaskAckListener createAckCountDownListener(long clusterStateVersion, DiscoveryNodes nodes) {
-                return ackedListener == null ? null : new TaskAckListener(ackedListener, clusterStateVersion, nodes, threadPool);
+            public TaskAckListener createTaskAckListener(long clusterStateVersion, DiscoveryNodes nodes) {
+                return contextPreservingAckListener == null
+                    ? null
+                    : new TaskAckListener(contextPreservingAckListener, clusterStateVersion, nodes, threadPool);
             }
 
             public void clusterStateUnchanged(ClusterState clusterState) {
-                if (ackedListener != null) {
+                if (contextPreservingAckListener != null) {
                     // no need to wait for ack if nothing changed, the update can be counted as acknowledged
-                    ackedListener.onAllNodesAcked(null);
+                    contextPreservingAckListener.onAllNodesAcked(null);
                 }
                 clusterStateProcessed(clusterState, clusterState);
             }
@@ -562,7 +564,7 @@ public class MasterService extends AbstractLifecycleComponent {
         ClusterStatePublisher.AckListener createAckListener(ClusterState newClusterState) {
             return new CompositeTaskAckListener(
                 nonFailedTasks.stream()
-                    .map(task -> task.createAckCountDownListener(newClusterState.version(), newClusterState.nodes()))
+                    .map(task -> task.createTaskAckListener(newClusterState.version(), newClusterState.nodes()))
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList())
             );
@@ -687,7 +689,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         private static final Logger logger = LogManager.getLogger(TaskAckListener.class);
 
-        private final ContextPreservingAckListener ackedTaskListener;
+        private final ContextPreservingAckListener contextPreservingAckListener;
         private final CountDown countDown;
         private final DiscoveryNode masterNode;
         private final ThreadPool threadPool;
@@ -696,19 +698,19 @@ public class MasterService extends AbstractLifecycleComponent {
         private Exception lastFailure;
 
         TaskAckListener(
-            ContextPreservingAckListener ackedTaskListener,
+            ContextPreservingAckListener contextPreservingAckListener,
             long clusterStateVersion,
             DiscoveryNodes nodes,
             ThreadPool threadPool
         ) {
-            this.ackedTaskListener = Objects.requireNonNull(ackedTaskListener);
+            this.contextPreservingAckListener = contextPreservingAckListener;
             this.clusterStateVersion = clusterStateVersion;
             this.threadPool = threadPool;
             this.masterNode = nodes.getMasterNode();
             int countDown = 0;
             for (DiscoveryNode node : nodes) {
                 // we always wait for at least the master node
-                if (node.equals(masterNode) || ackedTaskListener.mustAck(node)) {
+                if (node.equals(masterNode) || contextPreservingAckListener.mustAck(node)) {
                     countDown++;
                 }
             }
@@ -717,7 +719,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         public void onCommit(TimeValue commitTime) {
-            TimeValue ackTimeout = ackedTaskListener.ackTimeout();
+            TimeValue ackTimeout = contextPreservingAckListener.ackTimeout();
             if (ackTimeout == null) {
                 ackTimeout = TimeValue.ZERO;
             }
@@ -736,7 +738,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
-            if (node.equals(masterNode) == false && ackedTaskListener.mustAck(node) == false) {
+            if (node.equals(masterNode) == false && contextPreservingAckListener.mustAck(node) == false) {
                 return;
             }
             if (e == null) {
@@ -763,13 +765,13 @@ public class MasterService extends AbstractLifecycleComponent {
             if (ackTimeoutCallback != null) {
                 ackTimeoutCallback.cancel();
             }
-            ackedTaskListener.onAllNodesAcked(lastFailure);
+            contextPreservingAckListener.onAllNodesAcked(lastFailure);
         }
 
         public void onTimeout() {
             if (countDown.fastForward()) {
                 logger.trace("timeout waiting for acknowledgement for cluster_state update (version: {})", clusterStateVersion);
-                ackedTaskListener.onAckTimeout();
+                contextPreservingAckListener.onAckTimeout();
             }
         }
     }

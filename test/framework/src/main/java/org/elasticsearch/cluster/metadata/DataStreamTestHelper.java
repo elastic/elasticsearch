@@ -279,6 +279,7 @@ public final class DataStreamTestHelper {
     ) {
         return getClusterStateWithDataStreams(dataStreams, indexNames, currentTime, settings, replicas, false);
     }
+
     public static ClusterState getClusterStateWithDataStreams(
         List<Tuple<String, Integer>> dataStreams,
         List<String> indexNames,

@@ -639,7 +639,7 @@ public class Authentication implements ToXContentObject {
         return authentication;
     }
 
-    public static Authentication createApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
+    public static Authentication newApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
         if (false == authResult.isAuthenticated()) {
             throw new IllegalArgumentException("API Key authn result must be successful");
         }

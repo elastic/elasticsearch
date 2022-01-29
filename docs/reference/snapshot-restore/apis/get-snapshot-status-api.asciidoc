@@ -123,7 +123,7 @@ and, when using cloud storage, incur high processing costs.
 `<repository>`::
 (Optional, string)
 Snapshot repository name used to limit the request. Supports wildcards (`*`) if
-the `<snapshot>` isn't specified.
+`<snapshot>` isn't specified.
 
 `<snapshot>`::
 (Optional, string)

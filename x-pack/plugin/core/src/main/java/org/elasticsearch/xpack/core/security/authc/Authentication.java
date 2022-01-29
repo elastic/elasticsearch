@@ -41,7 +41,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newApiKeyRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalFallbackRealmRef;
-import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalRealmRef;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newInternalAttachRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newServiceAccountRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
@@ -445,14 +445,14 @@ public class Authentication implements ToXContentObject {
             this(name, type, nodeName, null);
         }
 
-        public RealmRef(String name, String type, String nodeName, @Nullable Domain domain) {
+        RealmRef(String name, String type, String nodeName, @Nullable Domain domain) {
             this.nodeName = Objects.requireNonNull(nodeName, "node name cannot be null");
             this.name = Objects.requireNonNull(name, "realm name cannot be null");
             this.type = Objects.requireNonNull(type, "realm type cannot be null");
             this.domain = domain;
         }
 
-        public RealmRef(StreamInput in) throws IOException {
+        RealmRef(StreamInput in) throws IOException {
             this.nodeName = in.readString();
             this.name = in.readString();
             this.type = in.readString();
@@ -525,7 +525,7 @@ public class Authentication implements ToXContentObject {
             }
         }
 
-        static RealmRef newInternalRealmRef(String nodeName) {
+        static RealmRef newInternalAttachRealmRef(String nodeName) {
             // the "attach" internal realm is not part of any realm domain
             return new Authentication.RealmRef(ATTACH_REALM_NAME, ATTACH_REALM_TYPE, nodeName, null);
         }
@@ -553,10 +553,9 @@ public class Authentication implements ToXContentObject {
     }
 
     public static Authentication newInternalAuthentication(User internalUser, Version version, String nodeName) {
-        if (false == User.isInternal(internalUser)) {
-            throw new IllegalArgumentException("Expected internal user, but provided [" + internalUser + "]");
-        }
-        final Authentication.RealmRef authenticatedBy = newInternalRealmRef(nodeName);
+        // TODO create a system user class, so that the type system guarantees that this is only invoked for internal users
+        assert User.isInternal(internalUser);
+        final Authentication.RealmRef authenticatedBy = newInternalAttachRealmRef(nodeName);
         Authentication authentication = new Authentication(
             internalUser,
             authenticatedBy,
@@ -565,7 +564,6 @@ public class Authentication implements ToXContentObject {
             AuthenticationType.INTERNAL,
             Collections.emptyMap()
         );
-        assert authentication.isAuthenticatedInternally();
         assert false == authentication.isAssignedToDomain();
         return authentication;
     }
@@ -581,7 +579,6 @@ public class Authentication implements ToXContentObject {
             Authentication.AuthenticationType.INTERNAL,
             Collections.emptyMap()
         );
-        assert authentication.isAuthenticatedInternally();
         assert false == authentication.isAssignedToDomain();
         return authentication;
     }
@@ -596,15 +593,13 @@ public class Authentication implements ToXContentObject {
             Authentication.AuthenticationType.ANONYMOUS,
             Collections.emptyMap()
         );
-        assert authentication.isAuthenticatedAnonymously();
         assert false == authentication.isAssignedToDomain();
         return authentication;
     }
 
     public static Authentication newServiceAccountAuthentication(User serviceAccountUser, String nodeName, Map<String, Object> metadata) {
-        if (serviceAccountUser.isRunAs()) {
-            throw new IllegalArgumentException("Service account user [" + serviceAccountUser + "] cannot be run-as");
-        }
+        // TODO make the service account user a separate class/interface
+        assert false == serviceAccountUser.isRunAs();
         final Authentication.RealmRef authenticatedBy = newServiceAccountRealmRef(nodeName);
         Authentication authentication = new Authentication(
             serviceAccountUser,
@@ -614,15 +609,13 @@ public class Authentication implements ToXContentObject {
             AuthenticationType.TOKEN,
             metadata
         );
-        assert authentication.isServiceAccount();
         assert false == authentication.isAssignedToDomain();
         return authentication;
     }
 
     public static Authentication newRealmAuthentication(User user, Realm realm) {
-        if (user.isRunAs()) {
-            throw new IllegalStateException("Realm authentication user [" + user + "] cannot be run-as");
-        }
+        // TODO make the type system ensure that this is not a run-as user
+        assert false == user.isRunAs();
         Authentication authentication = new Authentication(
             user,
             realm.realmRef(),
@@ -653,7 +646,6 @@ public class Authentication implements ToXContentObject {
             AuthenticationType.API_KEY,
             authResult.getMetadata()
         );
-        assert authentication.isApiKey();
         assert false == authentication.isAssignedToDomain();
         return authentication;
     }

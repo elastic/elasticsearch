@@ -32,7 +32,7 @@ import java.util.function.Function;
  */
 public class SecurityContext {
 
-    private final Logger logger = LogManager.getLogger(SecurityContext.class);
+    private static final Logger logger = LogManager.getLogger(SecurityContext.class);
 
     private final ThreadContext threadContext;
     private final AuthenticationContextSerializer authenticationSerializer;
@@ -144,6 +144,9 @@ public class SecurityContext {
         final Authentication authentication = getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             setAuthentication(authentication.maybeRewriteForVersion(version));
+            if (authentication.isAssignedToDomain() && false == getAuthentication().isAssignedToDomain()) {
+                logger.info("Rewriting authentication [" + authentication + "] without domain");
+            }
             existingRequestHeaders.forEach((k, v) -> {
                 if (threadContext.getHeader(k) == null) {
                     threadContext.putHeader(k, v);

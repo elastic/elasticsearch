@@ -74,17 +74,17 @@ public class SecurityContextTests extends ESTestCase {
         assertThat(e.getCause(), instanceOf(EOFException.class));
     }
 
-    public void testSetUser() {
-        final User user = new User("test");
+    public void testSetInternalUser() {
+        final User internalUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
         assertNull(securityContext.getAuthentication());
         assertNull(securityContext.getUser());
-        securityContext.setInternalUser(user, Version.CURRENT);
-        assertEquals(user, securityContext.getUser());
+        securityContext.setInternalUser(internalUser, Version.CURRENT);
+        assertEquals(internalUser, securityContext.getUser());
         assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> securityContext.setInternalUser(randomFrom(user, SystemUser.INSTANCE), Version.CURRENT)
+            () -> securityContext.setInternalUser(randomFrom(internalUser, SystemUser.INSTANCE), Version.CURRENT)
         );
         assertEquals("authentication ([_xpack_security_authentication]) is already present in the context", e.getMessage());
     }

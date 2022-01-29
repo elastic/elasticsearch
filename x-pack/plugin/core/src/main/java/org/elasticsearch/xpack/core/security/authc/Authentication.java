@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSetting
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -572,7 +571,7 @@ public class Authentication implements ToXContentObject {
     }
 
     public static Authentication newInternalFallbackAuthentication(User fallbackUser, String nodeName) {
-        assert SystemUser.is(fallbackUser);
+        // TODO assert SystemUser.is(fallbackUser);
         final Authentication.RealmRef authenticatedBy = newInternalFallbackRealmRef(nodeName);
         Authentication authentication = new Authentication(
             fallbackUser,

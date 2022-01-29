@@ -311,7 +311,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 remoteDataStream.isHidden(),
                 true,
                 remoteDataStream.isSystem(),
-                remoteDataStream.isAllowCustomRouting()
+                remoteDataStream.isAllowCustomRouting(),
+                remoteDataStream.getIndexMode()
             );
         } else {
             if (localDataStream.isReplicated() == false) {
@@ -342,7 +343,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 localDataStream.isHidden(),
                 localDataStream.isReplicated(),
                 localDataStream.isSystem(),
-                localDataStream.isAllowCustomRouting()
+                localDataStream.isAllowCustomRouting(),
+                localDataStream.getIndexMode()
             );
         }
     }

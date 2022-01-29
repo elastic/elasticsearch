@@ -60,21 +60,6 @@ cluster privileges
 For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 [discrete]
-[[transform-kib-security]]
-=== {kib} security
-
-[discrete]
-[[transform-kib-visibility-spaces]]
-==== Feature visibility in Spaces
-
-{kibana-ref}/xpack-spaces.html[Spaces] enable you to organize your source and 
-destination indices and other saved objects in {kib} and to see only the objects 
-that belong to your space. However, this limited scope does not apply to 
-{transforms}; they are visible in all spaces.
-
-//TBD: Does this likewise mean that transforms have access to data that exists in any space?
-
-[discrete]
 [[transform-kib-security-privileges]]
 ==== {kib} user
 
@@ -99,3 +84,16 @@ Within a {kib} space, for read-only access to {transforms}, you must have:
 * [ ] data views for your source and destination indices
 * [ ] `read`, and `view_index_metadata` index privileges on source indices and
 destination indices
+
+////
+[discrete]
+[[transform-kib-visibility-spaces]]
+==== Feature visibility in Spaces
+
+{kibana-ref}/xpack-spaces.html[Spaces] enable you to organize your source and 
+destination indices and other saved objects in {kib} and to see only the objects 
+that belong to your space. However, this limited scope does not apply to 
+{transforms}; they are visible in all spaces.
+
+//TBD: Does this mean that transforms have access to data that exists in any space or only that users in all spaces can access all transforms?
+////

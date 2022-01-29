@@ -165,13 +165,13 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         class UpdateTask extends BatchedTask {
-            final ClusterStateTaskListener listener;
+            final SafeClusterStateTaskListener listener;
 
             UpdateTask(
                 Priority priority,
                 String source,
                 Object task,
-                ClusterStateTaskListener listener,
+                SafeClusterStateTaskListener listener,
                 ClusterStateTaskExecutor<?> executor
             ) {
                 super(priority, source, executor, task);
@@ -510,10 +510,10 @@ public class MasterService extends AbstractLifecycleComponent {
         ClusterStatePublisher.AckListener createAckListener(ThreadPool threadPool, ClusterState newClusterState) {
             return new DelegatingAckListener(
                 nonFailedTasks.stream()
-                    .filter(task -> task.listener instanceof AckedClusterStateTaskListener)
+                    .filter(task -> task.listener instanceof SafeAckedClusterStateTaskListener)
                     .map(
                         task -> new AckCountDownListener(
-                            (AckedClusterStateTaskListener) task.listener,
+                            (SafeAckedClusterStateTaskListener) task.listener,
                             newClusterState.version(),
                             newClusterState.nodes(),
                             threadPool
@@ -540,9 +540,9 @@ public class MasterService extends AbstractLifecycleComponent {
 
         void notifySuccessfulTasksOnUnchangedClusterState() {
             nonFailedTasks.forEach(task -> {
-                if (task.listener instanceof AckedClusterStateTaskListener) {
+                if (task.listener instanceof SafeAckedClusterStateTaskListener ackedListener) {
                     // no need to wait for ack if nothing changed, the update can be counted as acknowledged
-                    ((AckedClusterStateTaskListener) task.listener).onAllNodesAcked(null);
+                    ackedListener.onAllNodesAcked(null);
                 }
                 task.listener.clusterStateProcessed(newClusterState, newClusterState);
             });
@@ -585,25 +585,22 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     private SafeClusterStateTaskListener safe(ClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> contextSupplier) {
-        if (listener instanceof AckedClusterStateTaskListener) {
-            return new SafeAckedClusterStateTaskListener((AckedClusterStateTaskListener) listener, contextSupplier, logger);
+        if (listener instanceof AckedClusterStateTaskListener ackedListener) {
+            return new SafeAckedClusterStateTaskListener(ackedListener, contextSupplier);
         } else {
-            return new SafeClusterStateTaskListener(listener, contextSupplier, logger);
+            return new SafeClusterStateTaskListener(listener, contextSupplier);
         }
     }
 
-    private static class SafeClusterStateTaskListener implements ClusterStateTaskListener {
+    private static class SafeClusterStateTaskListener {
         private final ClusterStateTaskListener listener;
         protected final Supplier<ThreadContext.StoredContext> context;
-        private final Logger logger;
 
-        SafeClusterStateTaskListener(ClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> context, Logger logger) {
+        SafeClusterStateTaskListener(ClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> context) {
             this.listener = listener;
             this.context = context;
-            this.logger = logger;
         }
 
-        @Override
         public void onFailure(Exception e) {
             try (ThreadContext.StoredContext ignore = context.get()) {
                 listener.onFailure(e);
@@ -613,7 +610,6 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
 
-        @Override
         public void onNoLongerMaster() {
             try (ThreadContext.StoredContext ignore = context.get()) {
                 listener.onNoLongerMaster();
@@ -622,7 +618,6 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
 
-        @Override
         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             try (ThreadContext.StoredContext ignore = context.get()) {
                 listener.clusterStateProcessed(oldState, newState);
@@ -636,26 +631,18 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    private static class SafeAckedClusterStateTaskListener extends SafeClusterStateTaskListener implements AckedClusterStateTaskListener {
+    private static class SafeAckedClusterStateTaskListener extends SafeClusterStateTaskListener {
         private final AckedClusterStateTaskListener listener;
-        private final Logger logger;
 
-        SafeAckedClusterStateTaskListener(
-            AckedClusterStateTaskListener listener,
-            Supplier<ThreadContext.StoredContext> context,
-            Logger logger
-        ) {
-            super(listener, context, logger);
+        SafeAckedClusterStateTaskListener(AckedClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> context) {
+            super(listener, context);
             this.listener = listener;
-            this.logger = logger;
         }
 
-        @Override
         public boolean mustAck(DiscoveryNode discoveryNode) {
             return listener.mustAck(discoveryNode);
         }
 
-        @Override
         public void onAllNodesAcked(@Nullable Exception e) {
             try (ThreadContext.StoredContext ignore = context.get()) {
                 listener.onAllNodesAcked(e);
@@ -665,7 +652,6 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
 
-        @Override
         public void onAckTimeout() {
             try (ThreadContext.StoredContext ignore = context.get()) {
                 listener.onAckTimeout();
@@ -674,7 +660,6 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
 
-        @Override
         public TimeValue ackTimeout() {
             return listener.ackTimeout();
         }
@@ -722,7 +707,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         private static final Logger logger = LogManager.getLogger(AckCountDownListener.class);
 
-        private final AckedClusterStateTaskListener ackedTaskListener;
+        private final SafeAckedClusterStateTaskListener ackedTaskListener;
         private final CountDown countDown;
         private final DiscoveryNode masterNode;
         private final ThreadPool threadPool;
@@ -731,7 +716,7 @@ public class MasterService extends AbstractLifecycleComponent {
         private Exception lastFailure;
 
         AckCountDownListener(
-            AckedClusterStateTaskListener ackedTaskListener,
+            SafeAckedClusterStateTaskListener ackedTaskListener,
             long clusterStateVersion,
             DiscoveryNodes nodes,
             ThreadPool threadPool

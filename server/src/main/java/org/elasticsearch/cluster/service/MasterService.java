@@ -623,14 +623,7 @@ public class MasterService extends AbstractLifecycleComponent {
         return threadPoolExecutor.getMaxTaskWaitTime();
     }
 
-    private static class ContextPreservingAckListener {
-        private final AckedClusterStateTaskListener listener;
-        private final Supplier<ThreadContext.StoredContext> context;
-
-        ContextPreservingAckListener(AckedClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> context) {
-            this.listener = listener;
-            this.context = context;
-        }
+    private record ContextPreservingAckListener(AckedClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> context) {
 
         public boolean mustAck(DiscoveryNode discoveryNode) {
             return listener.mustAck(discoveryNode);
@@ -673,13 +666,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    private static class CompositeTaskAckListener implements ClusterStatePublisher.AckListener {
-
-        private final List<TaskAckListener> listeners;
-
-        private CompositeTaskAckListener(List<TaskAckListener> listeners) {
-            this.listeners = listeners;
-        }
+    private record CompositeTaskAckListener(List<TaskAckListener> listeners) implements ClusterStatePublisher.AckListener {
 
         @Override
         public void onCommit(TimeValue commitTime) {

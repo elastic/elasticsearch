@@ -143,7 +143,7 @@ public class SecurityContext {
         final StoredContext original = threadContext.newStoredContext(true);
         final Authentication authentication = getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            setAuthentication(authentication.maybeRewriteForVersion(version));
+            setAuthentication(authentication.maybeRewriteForOlderVersion(version));
             if (authentication.isAssignedToDomain() && false == getAuthentication().isAssignedToDomain()) {
                 logger.info("Rewriting authentication [" + authentication + "] without domain");
             }

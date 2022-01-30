@@ -367,7 +367,7 @@ public final class TokenService {
                 traceLog("create token", new IllegalArgumentException("originating client authentication must be provided"))
             );
         } else {
-            final Authentication tokenAuth = authentication.token().maybeRewriteForVersion(tokenVersion);
+            final Authentication tokenAuth = authentication.token().maybeRewriteForOlderVersion(tokenVersion);
             if (authentication.isAssignedToDomain() && false == tokenAuth.isAssignedToDomain()) {
                 logger.info("Rewriting authentication [" + authentication + "] for token without domain");
             }

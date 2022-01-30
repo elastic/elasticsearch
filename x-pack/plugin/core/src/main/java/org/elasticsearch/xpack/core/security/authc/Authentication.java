@@ -141,17 +141,26 @@ public class Authentication implements ToXContentObject {
         return metadata;
     }
 
-    public Authentication maybeRewriteForVersion(Version version) {
+    /**
+     * Returns a new {@code Authentication}, like this one, but which is compatible with older version nodes.
+     * This is commonly employed when the {@code Authentication} is serialized across cluster nodes with mixed versions.
+     */
+    public Authentication maybeRewriteForOlderVersion(Version olderVersion) {
+        assert olderVersion.onOrBefore(getVersion());
         return new Authentication(
             getUser(),
-            maybeRewriteRealmRef(version, getAuthenticatedBy()),
-            maybeRewriteRealmRef(version, getLookedUpBy()),
-            version,
+            maybeRewriteRealmRef(olderVersion, getAuthenticatedBy()),
+            maybeRewriteRealmRef(olderVersion, getLookedUpBy()),
+            olderVersion,
             getAuthenticationType(),
-            maybeRewriteMetadataForApiKeyRoleDescriptors(version, this)
+            maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, this)
         );
     }
 
+    /**
+     * Returns a new {@code Authentication} that reflects a "run as another user" action under the current {@code Authentication}.
+     * The security {@code RealmRef#Domain} of the resulting {@code Authentication} is that of the run-as user's realm.
+     */
     public Authentication runAs(User runAs, Realm lookupRealm) {
         Objects.requireNonNull(runAs);
         assert false == runAs.isRunAs();
@@ -166,8 +175,11 @@ public class Authentication implements ToXContentObject {
         );
     }
 
+    /** Returns a new {@code Authentication} for tokens created by the current {@code Authentication}, which is used when
+     * authenticating using the token credential.
+     */
     public Authentication token() {
-        return new Authentication(
+        final Authentication newTokenAuthentication = new Authentication(
             getUser(),
             getAuthenticatedBy(),
             getLookedUpBy(),
@@ -175,15 +187,27 @@ public class Authentication implements ToXContentObject {
             AuthenticationType.TOKEN,
             getMetadata()
         );
+        assert Objects.equals(getDomain(), newTokenAuthentication.getDomain());
+        return newTokenAuthentication;
     }
 
     /**
-     * Returns {@code true} if the effective user comes from a realm under a domain.
-     * The same username can be authenticated by different realms (eg with different credential types),
-     * but resources created across realms cannot be accessed unless the realms are also part of the same domain.
+     * Returns {@code true} if the effective user belongs to a realm under a domain.
+     * See also {@link #getDomain()} and {@link #getSourceRealm()}.
      */
     public boolean isAssignedToDomain() {
-        return getSourceRealm().getDomain() != null;
+        return getDomain() != null;
+    }
+
+    /**
+     * Returns the {@link RealmRef.Domain} that the effective user belongs to.
+     * A user belongs to a realm which in turn belongs to a domain.
+     *
+     * The same username can be authenticated by different realms (e.g. with different credential types),
+     * but resources created across realms cannot be accessed unless the realms are also part of the same domain.
+     */
+    public @Nullable RealmRef.Domain getDomain() {
+        return getSourceRealm().getDomain();
     }
 
     public boolean isAuthenticatedWithServiceAccount() {
@@ -387,8 +411,8 @@ public class Authentication implements ToXContentObject {
     private void assertDomainAssignment() {
         if (Assertions.ENABLED) {
             if (isAssignedToDomain()) {
-                assert false == isAuthenticatedWithApiKey();
-                assert false == isAuthenticatedWithServiceAccount();
+                assert false == isApiKey();
+                assert false == isServiceAccount();
                 assert false == isAuthenticatedAnonymously();
                 assert false == isAuthenticatedInternally();
             }
@@ -431,8 +455,6 @@ public class Authentication implements ToXContentObject {
         private final String type;
         private final @Nullable Domain domain;
 
-        // TODO remove this constructor
-        // Only realm authenticators populate a domain in the RealmRef
         public RealmRef(String name, String type, String nodeName) {
             this(name, type, nodeName, null);
         }

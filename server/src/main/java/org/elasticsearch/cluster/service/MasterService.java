@@ -689,8 +689,6 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private static class TaskAckListener {
 
-        private static final Logger logger = LogManager.getLogger(TaskAckListener.class);
-
         private final ContextPreservingAckListener contextPreservingAckListener;
         private final CountDown countDown;
         private final DiscoveryNode masterNode;

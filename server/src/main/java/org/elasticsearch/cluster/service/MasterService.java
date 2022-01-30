@@ -682,28 +682,28 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private static class DelegatingAckListener implements ClusterStatePublisher.AckListener {
 
-        private final List<ClusterStatePublisher.AckListener> listeners;
+        private final List<AckCountDownListener> listeners;
 
-        private DelegatingAckListener(List<ClusterStatePublisher.AckListener> listeners) {
+        private DelegatingAckListener(List<AckCountDownListener> listeners) {
             this.listeners = listeners;
         }
 
         @Override
         public void onCommit(TimeValue commitTime) {
-            for (ClusterStatePublisher.AckListener listener : listeners) {
+            for (AckCountDownListener listener : listeners) {
                 listener.onCommit(commitTime);
             }
         }
 
         @Override
         public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
-            for (ClusterStatePublisher.AckListener listener : listeners) {
+            for (AckCountDownListener listener : listeners) {
                 listener.onNodeAck(node, e);
             }
         }
     }
 
-    private static class AckCountDownListener implements ClusterStatePublisher.AckListener {
+    private static class AckCountDownListener {
 
         private static final Logger logger = LogManager.getLogger(AckCountDownListener.class);
 
@@ -736,7 +736,6 @@ public class MasterService extends AbstractLifecycleComponent {
             this.countDown = new CountDown(countDown + 1); // we also wait for onCommit to be called
         }
 
-        @Override
         public void onCommit(TimeValue commitTime) {
             TimeValue ackTimeout = ackedTaskListener.ackTimeout();
             if (ackTimeout == null) {
@@ -756,7 +755,6 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
 
-        @Override
         public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
             if (node.equals(masterNode) == false && ackedTaskListener.mustAck(node) == false) {
                 return;

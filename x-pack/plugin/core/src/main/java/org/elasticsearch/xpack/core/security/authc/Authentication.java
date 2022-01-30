@@ -68,14 +68,6 @@ public class Authentication implements ToXContentObject {
         this(user, authenticatedBy, lookedUpBy, Version.CURRENT, AuthenticationType.REALM, Collections.emptyMap());
     }
 
-    public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy, Version version) {
-        this(user, authenticatedBy, lookedUpBy, version, AuthenticationType.REALM, Collections.emptyMap());
-    }
-
-    public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy, Version version, Map<String, Object> metadata) {
-        this(user, authenticatedBy, lookedUpBy, version, AuthenticationType.REALM, metadata);
-    }
-
     public Authentication(
         User user,
         RealmRef authenticatedBy,

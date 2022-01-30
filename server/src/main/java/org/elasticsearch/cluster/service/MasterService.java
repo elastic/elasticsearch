@@ -644,12 +644,13 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    private static class SafeAckedClusterStateTaskListener extends SafeClusterStateTaskListener {
+    private static class SafeAckedClusterStateTaskListener {
         private final AckedClusterStateTaskListener listener;
+        private final Supplier<ThreadContext.StoredContext> context;
 
         SafeAckedClusterStateTaskListener(AckedClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> context) {
-            super(listener, context);
             this.listener = listener;
+            this.context = context;
         }
 
         public boolean mustAck(DiscoveryNode discoveryNode) {

@@ -560,7 +560,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         ClusterStatePublisher.AckListener createAckListener(ClusterState newClusterState) {
-            return new DelegatingAckListener(
+            return new CompositeTaskAckListener(
                 nonFailedTasks.stream()
                     .map(task -> task.createAckCountDownListener(newClusterState.version(), newClusterState.nodes()))
                     .filter(Objects::nonNull)
@@ -673,11 +673,11 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    private static class DelegatingAckListener implements ClusterStatePublisher.AckListener {
+    private static class CompositeTaskAckListener implements ClusterStatePublisher.AckListener {
 
         private final List<TaskAckListener> listeners;
 
-        private DelegatingAckListener(List<TaskAckListener> listeners) {
+        private CompositeTaskAckListener(List<TaskAckListener> listeners) {
             this.listeners = listeners;
         }
 

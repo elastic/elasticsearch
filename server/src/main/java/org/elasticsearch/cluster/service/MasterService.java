@@ -225,8 +225,8 @@ public class MasterService extends AbstractLifecycleComponent {
             }
 
             @Nullable
-            public AckCountDownListener createAckCountDownListener(long clusterStateVersion, DiscoveryNodes nodes) {
-                return ackedListener == null ? null : new AckCountDownListener(ackedListener, clusterStateVersion, nodes, threadPool);
+            public TaskAckListener createAckCountDownListener(long clusterStateVersion, DiscoveryNodes nodes) {
+                return ackedListener == null ? null : new TaskAckListener(ackedListener, clusterStateVersion, nodes, threadPool);
             }
 
             public void clusterStateUnchanged(ClusterState clusterState) {
@@ -675,30 +675,30 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private static class DelegatingAckListener implements ClusterStatePublisher.AckListener {
 
-        private final List<AckCountDownListener> listeners;
+        private final List<TaskAckListener> listeners;
 
-        private DelegatingAckListener(List<AckCountDownListener> listeners) {
+        private DelegatingAckListener(List<TaskAckListener> listeners) {
             this.listeners = listeners;
         }
 
         @Override
         public void onCommit(TimeValue commitTime) {
-            for (AckCountDownListener listener : listeners) {
+            for (TaskAckListener listener : listeners) {
                 listener.onCommit(commitTime);
             }
         }
 
         @Override
         public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
-            for (AckCountDownListener listener : listeners) {
+            for (TaskAckListener listener : listeners) {
                 listener.onNodeAck(node, e);
             }
         }
     }
 
-    private static class AckCountDownListener {
+    private static class TaskAckListener {
 
-        private static final Logger logger = LogManager.getLogger(AckCountDownListener.class);
+        private static final Logger logger = LogManager.getLogger(TaskAckListener.class);
 
         private final ContextPreservingAckListener ackedTaskListener;
         private final CountDown countDown;
@@ -708,7 +708,7 @@ public class MasterService extends AbstractLifecycleComponent {
         private volatile Scheduler.Cancellable ackTimeoutCallback;
         private Exception lastFailure;
 
-        AckCountDownListener(
+        TaskAckListener(
             ContextPreservingAckListener ackedTaskListener,
             long clusterStateVersion,
             DiscoveryNodes nodes,

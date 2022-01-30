@@ -169,7 +169,7 @@ public class MasterService extends AbstractLifecycleComponent {
             private final Supplier<ThreadContext.StoredContext> threadContextSupplier;
 
             @Nullable
-            private final SafeAckedClusterStateTaskListener ackedListener;
+            private final ContextPreservingAckListener ackedListener;
 
             UpdateTask(
                 Priority priority,
@@ -182,7 +182,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 this.threadContextSupplier = threadContextSupplier;
                 this.listener = task;
                 if (task instanceof AckedClusterStateTaskListener ackedListener) {
-                    this.ackedListener = new SafeAckedClusterStateTaskListener(ackedListener, threadContextSupplier);
+                    this.ackedListener = new ContextPreservingAckListener(ackedListener, threadContextSupplier);
                 } else {
                     this.ackedListener = null;
                 }
@@ -623,11 +623,11 @@ public class MasterService extends AbstractLifecycleComponent {
         return threadPoolExecutor.getMaxTaskWaitTime();
     }
 
-    private static class SafeAckedClusterStateTaskListener {
+    private static class ContextPreservingAckListener {
         private final AckedClusterStateTaskListener listener;
         private final Supplier<ThreadContext.StoredContext> context;
 
-        SafeAckedClusterStateTaskListener(AckedClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> context) {
+        ContextPreservingAckListener(AckedClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> context) {
             this.listener = listener;
             this.context = context;
         }
@@ -700,7 +700,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
         private static final Logger logger = LogManager.getLogger(AckCountDownListener.class);
 
-        private final SafeAckedClusterStateTaskListener ackedTaskListener;
+        private final ContextPreservingAckListener ackedTaskListener;
         private final CountDown countDown;
         private final DiscoveryNode masterNode;
         private final ThreadPool threadPool;
@@ -709,7 +709,7 @@ public class MasterService extends AbstractLifecycleComponent {
         private Exception lastFailure;
 
         AckCountDownListener(
-            SafeAckedClusterStateTaskListener ackedTaskListener,
+            ContextPreservingAckListener ackedTaskListener,
             long clusterStateVersion,
             DiscoveryNodes nodes,
             ThreadPool threadPool

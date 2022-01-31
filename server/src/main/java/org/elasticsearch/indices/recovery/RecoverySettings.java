@@ -103,14 +103,14 @@ public class RecoverySettings {
         DEFAULT_FACTOR_VALUE
     );
 
-    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING = operatorFactorSetting(
+    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING = factorSetting(
         "node.bandwidth.recovery.operator.factor.write",
-        1d
+        NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING
     );
 
-    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_READ_SETTING = operatorFactorSetting(
+    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_READ_SETTING = factorSetting(
         "node.bandwidth.recovery.operator.factor.read",
-        1d
+        NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING
     );
 
     public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING = Setting.doubleSetting(
@@ -486,27 +486,29 @@ public class RecoverySettings {
         // available network bandwidth
         final long networkBandwidthBytesPerSec = Math.max(availableNetworkBandwidth.getBytes(), 0L);
 
-        // available disk bandwidth
-        final long diskBandwidthBytesPerSec;
-        if (availableDiskReadBandwidth.getBytes() > 0L && availableDiskWriteBandwidth.getBytes() > 0L) {
-            final long diskReadBandwidth = Math.round(
-                availableDiskReadBandwidth.getBytes() * NODE_BANDWIDTH_RECOVERY_FACTOR_READ_SETTING.get(settings)
-            );
-            final long diskWriteBandwidth = Math.round(
-                availableDiskWriteBandwidth.getBytes() * NODE_BANDWIDTH_RECOVERY_FACTOR_WRITE_SETTING.get(settings)
-            );
-            diskBandwidthBytesPerSec = Math.min(diskReadBandwidth, diskWriteBandwidth);
+        // read bandwidth
+        final long readBytesPerSec;
+        if (availableDiskReadBandwidth.getBytes() > 0L && networkBandwidthBytesPerSec > 0L) {
+            double readFactor = NODE_BANDWIDTH_RECOVERY_FACTOR_READ_SETTING.get(settings);
+            readBytesPerSec = Math.round(Math.min(availableDiskReadBandwidth.getBytes(), networkBandwidthBytesPerSec) * readFactor);
         } else {
-            diskBandwidthBytesPerSec = 0L;
+            readBytesPerSec = 0L;
         }
 
-        final long availableBytesPerSec = Math.round(
-            Math.min(diskBandwidthBytesPerSec, networkBandwidthBytesPerSec) * NODE_BANDWIDTH_RECOVERY_FACTOR_SETTING.get(settings)
-        );
+        // write bandwidth
+        final long writeBytesPerSec;
+        if (availableDiskWriteBandwidth.getBytes() > 0L && networkBandwidthBytesPerSec > 0L) {
+            double writeFactor = NODE_BANDWIDTH_RECOVERY_FACTOR_WRITE_SETTING.get(settings);
+            writeBytesPerSec = Math.round(Math.min(availableDiskWriteBandwidth.getBytes(), networkBandwidthBytesPerSec) * writeFactor);
+        } else {
+            writeBytesPerSec = 0L;
+        }
+
+        final long availableBytesPerSec = Math.min(readBytesPerSec, writeBytesPerSec);
 
         long maxBytesPerSec;
-        if (availableBytesPerSec == 0L                                      // no available bandwidths
-            || INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.exists(settings)  // when set this setting overrides available bandwidths
+        if (availableBytesPerSec == 0L                                      // no node recovery bandwidths
+            || INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.exists(settings)  // when set this setting overrides node recovery bandwidths
             || DiscoveryNode.canContainData(settings) == false) {           // keep previous behavior for non data nodes
             maxBytesPerSec = defaultBytesPerSec;
         } else {
@@ -514,8 +516,7 @@ public class RecoverySettings {
         }
 
         final long maxAllowedBytesPerSec = Math.round(
-            Math.min(diskBandwidthBytesPerSec, networkBandwidthBytesPerSec) * NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING
-                .get(settings)
+            availableBytesPerSec * NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING.get(settings)
         );
 
         long finalMaxBytesPerSec;
@@ -526,11 +527,11 @@ public class RecoverySettings {
         }
         logger.info(
             () -> new ParameterizedMessage(
-                "using rate limit [{}] with [default={}, network_bandwidth={}, disk_bandwidth={}, max_allowed={}]",
+                "using rate limit [{}] with [default={}, read={}, write={}, max={}]",
                 ByteSizeValue.ofBytes(finalMaxBytesPerSec),
                 ByteSizeValue.ofBytes(defaultBytesPerSec),
-                ByteSizeValue.ofBytes(networkBandwidthBytesPerSec),
-                ByteSizeValue.ofBytes(diskBandwidthBytesPerSec),
+                ByteSizeValue.ofBytes(readBytesPerSec),
+                ByteSizeValue.ofBytes(writeBytesPerSec),
                 ByteSizeValue.ofBytes(maxAllowedBytesPerSec)
             )
         );

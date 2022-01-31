@@ -1049,7 +1049,7 @@ public class PersistedClusterStateService {
             }
         }
 
-        static record WriterStats(
+        private record WriterStats(
             boolean isFullWrite,
             boolean globalMetaUpdated,
             int numIndicesUnchanged,

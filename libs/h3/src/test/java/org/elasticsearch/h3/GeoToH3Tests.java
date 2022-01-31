@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 
 public class GeoToH3Tests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83298")
     public void testRandomPoints() {
         for (int i = 0; i < 50; i++) {
             // avoid points close to the poles

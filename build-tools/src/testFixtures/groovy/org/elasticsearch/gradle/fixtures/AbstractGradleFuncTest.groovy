@@ -82,6 +82,12 @@ abstract class AbstractGradleFuncTest extends Specification {
         newFile
     }
 
+    File file(File parent, String path) {
+        File newFile = new File(parent, path)
+        newFile.getParentFile().mkdirs()
+        newFile
+    }
+
     File someJar(String fileName = 'some.jar') {
         File jarFolder = new File(testProjectDir.root, "jars");
         jarFolder.mkdirs()

@@ -69,7 +69,7 @@ import static org.elasticsearch.gradle.internal.vagrant.VagrantMachine.convertWi
  * This class defines gradle tasks for testing our various distribution artifacts.
  */
 public class DistroTestPlugin implements Plugin<Project> {
-    private static final String SYSTEM_JDK_VERSION = "17.0.1+12";
+    private static final String SYSTEM_JDK_VERSION = "17.0.2+8";
     private static final String SYSTEM_JDK_VENDOR = "adoptium";
     private static final String GRADLE_JDK_VERSION = "16.0.2+7";
     private static final String GRADLE_JDK_VENDOR = "adoptium";

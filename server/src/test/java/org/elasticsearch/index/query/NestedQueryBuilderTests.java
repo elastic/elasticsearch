@@ -178,7 +178,34 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             }""";
 
         NestedQueryBuilder parsed = (NestedQueryBuilder) parseQuery(json);
-        checkGeneratedJson(json, parsed);
+        checkGeneratedJson("""
+              {
+              "nested" : {
+                "query" : {
+                  "bool" : {
+                    "must" : [ {
+                      "match" : {
+                        "obj1.name" : {
+                          "query" : "blue"
+                        }
+                      }
+                    }, {
+                      "range" : {
+                        "obj1.count" : {
+                          "gt" : 5,
+                          "boost" : 1.0
+                        }
+                      }
+                    } ],
+                    "boost" : 1.0
+                  }
+                },
+                "path" : "obj1",
+                "ignore_unmapped" : false,
+                "score_mode" : "avg",
+                "boost" : 1.0
+              }
+            }""", parsed);
 
         assertEquals(json, ScoreMode.Avg, parsed.scoreMode());
     }

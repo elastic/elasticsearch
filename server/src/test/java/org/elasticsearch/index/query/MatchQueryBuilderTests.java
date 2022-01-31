@@ -258,10 +258,31 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
               }
             }""";
         MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json);
-        checkGeneratedJson(json, qb);
+        checkGeneratedJson("""
+            {
+              "match": {
+                "message": {
+                  "query": "to be or not to be",
+                  "operator": "AND",
+                  "zero_terms_query": "ALL"
+                }
+              }
+            }""", qb);
 
         assertEquals(json, "to be or not to be", qb.value());
         assertEquals(json, Operator.AND, qb.operator());
+    }
+
+    public void testToXConentWithDefaults() throws IOException {
+        QueryBuilder query = new MatchQueryBuilder("foo", "bar");
+        checkGeneratedJson("""
+            {
+              "match": {
+                "foo": {
+                  "query": "bar"
+                }
+              }
+            }""", query);
     }
 
     public void testFuzzinessOnNonStringField() throws Exception {

@@ -16,12 +16,11 @@ For detailed information about this release, see the <<es-release-notes>> and
 
 // tag::notable-highlights[] 
 [discrete]
-=== Security is enabled and configured by default
+=== Security features are enabled and configured by default
 
 Running {es} without security leaves your cluster exposed to anyone who can send
-network traffic to {es}. In previous versions, you had to enable the {es}
-security features and then configure password protection and Transport Layer
-Security (TLS).
+network traffic to {es}. In previous versions, you had to explicitly enable the {es}
+security features such as authantication, authorization and network encryption (TLS).
 
 Starting in {es} 8.0, security is
 {ref}/configuring-stack-security.html[enabled and configured by default] when

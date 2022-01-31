@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -83,8 +84,12 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
                 l.onResponse(Collections.emptyList());
             }));
         };
+        final ActionListener<List<XPackFeatureSet.Usage>> finalListener = new ContextPreservingActionListener<>(
+            threadPool.getThreadContext().newRestorableContext(true),
+            usageActionListener
+        );
         IteratingActionListener<List<XPackFeatureSet.Usage>, XPackUsageFeatureAction> iteratingActionListener =
-            new IteratingActionListener<>(usageActionListener, consumer, usageActions, threadPool.getThreadContext(), (ignore) -> {
+            new IteratingActionListener<>(finalListener, consumer, usageActions, threadPool.getThreadContext(), (ignore) -> {
                 final List<Usage> usageList = new ArrayList<>(featureSetUsages.length());
                 for (int i = 0; i < featureSetUsages.length(); i++) {
                     usageList.add(featureSetUsages.get(i));

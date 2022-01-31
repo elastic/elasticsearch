@@ -1097,8 +1097,10 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             // longs need special handling so we don't lose precision while parsing
-            String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : String.valueOf((long) doubleValue);
-            return Numbers.toLong(stringValue, coerce);
+            if (value instanceof BytesRef) {
+                return Numbers.toLong(((BytesRef) value).utf8ToString(), coerce);
+            }
+            return Math.round(doubleValue);
         }
 
         public static Query doubleRangeQuery(

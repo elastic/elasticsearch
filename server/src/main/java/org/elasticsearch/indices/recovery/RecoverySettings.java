@@ -397,6 +397,7 @@ public class RecoverySettings {
         this.availableNetworkBandwidth = NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING.get(settings);
         this.availableDiskReadBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING.get(settings);
         this.availableDiskWriteBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING.get(settings);
+        validateNodeBandwidthRecoverySettings(settings);
         computeMaxBytesPerSec(settings);
         if (DiscoveryNode.canContainData(settings)) {
             clusterSettings.addSettingsUpdateConsumer(
@@ -439,8 +440,6 @@ public class RecoverySettings {
     }
 
     private void computeMaxBytesPerSec(Settings settings) {
-        validateBandwidthsSettings(settings);
-
         // limit as computed before 8.1.0
         final long defaultBytesPerSec = Math.max(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings).getBytes(), 0L);
 
@@ -673,7 +672,7 @@ public class RecoverySettings {
         return maxBytesPerSec;
     }
 
-    private static void validateBandwidthsSettings(Settings settings) {
+    private static void validateNodeBandwidthRecoverySettings(Settings settings) {
         final List<String> nonDefaults = NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
             .filter(setting -> setting.get(settings) != ByteSizeValue.MINUS_ONE)
             .map(Setting::getKey)

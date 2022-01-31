@@ -25,16 +25,21 @@ encryption (TLS). Starting in {es} 8.0, security is
 {ref}/configuring-stack-security.html[enabled and configured by default] when
 you start {es} for the first time. 
 
-At startup, we generate enrollment tokens so that you can connect a {kib} 
+At startup, we generate enrollment tokens that you use to connect a {kib} 
 instance or enroll additional nodes in your secured {es} cluster, without having 
-to generate security certificates or update `yml` configuration files. Just use 
+to generate security certificates or update YAML configuration files. Just use 
 the generated enrollment token when starting new nodes or {kib} instances, and 
 the {stack} handles all of the security configuration for you. Out of the box, 
-you'll get authentication, authorization, and network encryption with TLS for 
-internode communications between {es} and {kib}. You can create new enrollment 
-tokens for {es} nodes and {kib} instances using the 
+you'll get:
+
+* User authentication
+* User authorization
+* Encrypted internode communication with TLS
+* Encrypted communication between {es} and {kib} with TLS
+
+Need a new enrollment token? Use the 
 {ref}/create-enrollment-token.html[`elasticsearch-create-enrollment-token`] 
-tool.
+tool to create enrollment tokens for {es} nodes and {kib} instances.
 
 [discrete]
 === Storage savings for `keyword`, `match_only_text`, and `text` fields

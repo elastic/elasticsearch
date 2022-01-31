@@ -192,6 +192,6 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+        return Version.V_7_4_0;
     }
 }

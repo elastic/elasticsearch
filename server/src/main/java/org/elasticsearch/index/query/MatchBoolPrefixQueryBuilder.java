@@ -397,6 +397,6 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+        return Version.V_7_2_0;
     }
 }

@@ -449,6 +449,6 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+        return Version.V_7_13_0;
     }
 }

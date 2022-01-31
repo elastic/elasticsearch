@@ -101,6 +101,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+        return Version.V_8_0_0;
     }
 }

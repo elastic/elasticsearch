@@ -199,6 +199,6 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+        return Version.V_7_2_0;
     }
 }

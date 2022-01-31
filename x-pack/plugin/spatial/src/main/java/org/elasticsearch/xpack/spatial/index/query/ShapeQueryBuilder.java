@@ -175,6 +175,6 @@ public class ShapeQueryBuilder extends AbstractGeometryQueryBuilder<ShapeQueryBu
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+        return Version.V_7_4_0;
     }
 }

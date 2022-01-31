@@ -642,6 +642,11 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
+    /**
+     * A wrapper around a {@link ClusterStateAckListener} which restores the given thread context before delegating to the inner listener's
+     * callbacks, and also logs and swallows any exceptions thrown. One of these is created for each task in the batch that implements
+     * {@link ClusterStateAckListener}.
+     */
     private record ContextPreservingAckListener(ClusterStateAckListener listener, Supplier<ThreadContext.StoredContext> context) {
 
         public boolean mustAck(DiscoveryNode discoveryNode) {
@@ -670,6 +675,11 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
+    /**
+     * A wrapper around a {@link ContextPreservingAckListener} which keeps track of acks received during publication and notifies the inner
+     * listener when sufficiently many have been received. One of these is created for each {@link ContextPreservingAckListener} once the
+     * state for publication has been computed.
+     */
     private static class TaskAckListener {
 
         private final ContextPreservingAckListener contextPreservingAckListener;
@@ -759,6 +769,9 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
+    /**
+     * A wrapper around the collection of {@link TaskAckListener}s for a publication.
+     */
     private record CompositeTaskAckListener(List<TaskAckListener> listeners) implements ClusterStatePublisher.AckListener {
 
         @Override

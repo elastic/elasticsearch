@@ -156,9 +156,9 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (supplier != null) {
-            throw new IllegalStateException("supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
-        }
+        // if (supplier != null) {
+        // throw new IllegalStateException("supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
+        // }
         out.writeString(fieldName);
         boolean hasShape = shape != null;
         out.writeBoolean(hasShape);

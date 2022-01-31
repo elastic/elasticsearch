@@ -160,7 +160,7 @@ public class TransportNodesActionTests extends ESTestCase {
             action.new AsyncAction(cancellableTask, request, listener);
         asyncAction.start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
-        int cancelAt = randomIntBetween(1, capturedRequests.values().size() - 2);
+        int cancelAt = randomIntBetween(0, Math.max(0, capturedRequests.values().size() - 2));
         int requestCount = 0;
         for (List<CapturingTransport.CapturedRequest> requests : capturedRequests.values()) {
             if (requestCount == cancelAt) {

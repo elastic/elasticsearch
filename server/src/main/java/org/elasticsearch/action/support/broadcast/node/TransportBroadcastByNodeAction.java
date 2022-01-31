@@ -426,6 +426,11 @@ public abstract class TransportBroadcastByNodeAction<
             cancelled = (task instanceof CancellableTask t) && t.isCancelled();
             nodeResponseTracker.discardIntermediateResponses();
         }
+
+        // For testing purposes
+        public NodeResponseTracker getNodeResponseTracker() {
+            return nodeResponseTracker;
+        }
     }
 
     class BroadcastByNodeTransportRequestHandler implements TransportRequestHandler<NodeRequest> {

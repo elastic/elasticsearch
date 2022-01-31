@@ -12,7 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 
 public class NodeResponseTrackerTests extends ESTestCase {
 
-    public void testCompletion() throws Exception {
+    public void testAllResponsesReceived() throws Exception {
         int size = randomIntBetween(1, 10);
         NodeResponseTracker intermediateNodeResponses = new NodeResponseTracker(size);
         for (int i = 0; i < size; i++) {
@@ -30,9 +30,9 @@ public class NodeResponseTrackerTests extends ESTestCase {
         }
     }
 
-    public void testCancellation() {
-        int size = randomIntBetween(2, 10);
-        int cancelAt = randomIntBetween(0, size - 2);
+    public void testDiscardingResults() {
+        int size = randomIntBetween(1, 10);
+        int cancelAt = randomIntBetween(0, Math.max(0, size - 2));
         NodeResponseTracker intermediateNodeResponses = new NodeResponseTracker(size);
         for (int i = 0; i < size; i++) {
             if (i == cancelAt) {
@@ -52,7 +52,7 @@ public class NodeResponseTrackerTests extends ESTestCase {
         expectThrows(NodeResponseTracker.DiscardedResponsesException.class, () -> intermediateNodeResponses.getResponse(0));
     }
 
-    public void testResponseIsRegistredOnlyOnce() throws Exception {
+    public void testResponseIsRegisteredOnlyOnce() throws Exception {
         NodeResponseTracker intermediateNodeResponses = new NodeResponseTracker(2);
         assertTrue(intermediateNodeResponses.maybeAddResponse(0, "response1"));
         assertFalse(intermediateNodeResponses.maybeAddResponse(0, "response2"));

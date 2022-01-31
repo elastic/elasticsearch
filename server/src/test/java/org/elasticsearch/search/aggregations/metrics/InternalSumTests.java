@@ -18,19 +18,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
+public class InternalSumTests extends InternalAggregationTestCase<Sum> {
 
     @Override
-    protected InternalSum createTestInstance(String name, Map<String, Object> metadata) {
+    protected Sum createTestInstance(String name, Map<String, Object> metadata) {
         double value = frequently() ? randomDouble() : randomFrom(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN);
         DocValueFormat formatter = randomFrom(new DocValueFormat.Decimal("###.##"), DocValueFormat.RAW);
-        return new InternalSum(name, value, formatter, metadata);
+        return new Sum(name, value, formatter, metadata);
     }
 
     @Override
-    protected void assertReduced(InternalSum reduced, List<InternalSum> inputs) {
-        double expectedSum = inputs.stream().mapToDouble(InternalSum::getValue).sum();
-        assertEquals(expectedSum, reduced.getValue(), 0.0001d);
+    protected void assertReduced(Sum reduced, List<Sum> inputs) {
+        double expectedSum = inputs.stream().mapToDouble(Sum::value).sum();
+        assertEquals(expectedSum, reduced.value(), 0.0001d);
     }
 
     public void testSummationAccuracy() {
@@ -67,24 +67,24 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
     private void verifySummationOfDoubles(double[] values, double expected, double delta) {
         List<InternalAggregation> aggregations = new ArrayList<>(values.length);
         for (double value : values) {
-            aggregations.add(new InternalSum("dummy1", value, null, null));
+            aggregations.add(new Sum("dummy1", value, null, null));
         }
-        InternalSum internalSum = new InternalSum("dummy", 0, null, null);
-        InternalSum reduced = internalSum.reduce(aggregations, null);
+        Sum internalSum = new Sum("dummy", 0, null, null);
+        Sum reduced = internalSum.reduce(aggregations, null);
         assertEquals(expected, reduced.value(), delta);
     }
 
     @Override
-    protected void assertFromXContent(InternalSum sum, ParsedAggregation parsedAggregation) {
+    protected void assertFromXContent(Sum sum, ParsedAggregation parsedAggregation) {
         ParsedSum parsed = ((ParsedSum) parsedAggregation);
-        assertEquals(sum.getValue(), parsed.getValue(), Double.MIN_VALUE);
+        assertEquals(sum.value(), parsed.value(), Double.MIN_VALUE);
         assertEquals(sum.getValueAsString(), parsed.getValueAsString());
     }
 
     @Override
-    protected InternalSum mutateInstance(InternalSum instance) {
+    protected Sum mutateInstance(Sum instance) {
         String name = instance.getName();
-        double value = instance.getValue();
+        double value = instance.value();
         DocValueFormat formatter = instance.format;
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
@@ -109,6 +109,6 @@ public class InternalSumTests extends InternalAggregationTestCase<InternalSum> {
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalSum(name, value, formatter, metadata);
+        return new Sum(name, value, formatter, metadata);
     }
 }

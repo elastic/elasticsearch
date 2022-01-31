@@ -122,14 +122,6 @@ public class RecoverySettings {
         Property.OperatorDynamic
     );
 
-    /**
-     * Default factor as defined by the user.
-     */
-    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_FACTOR_SETTING = factorSetting(
-        "node.bandwidth.recovery.factor",
-        NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING
-    );
-
     public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_FACTOR_WRITE_SETTING = factorSetting(
         "node.bandwidth.recovery.factor.write",
         NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING
@@ -444,7 +436,6 @@ public class RecoverySettings {
                 this::computeMaxBytesPerSec,
                 List.of(
                     INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
-                    NODE_BANDWIDTH_RECOVERY_FACTOR_SETTING,
                     NODE_BANDWIDTH_RECOVERY_FACTOR_READ_SETTING,
                     NODE_BANDWIDTH_RECOVERY_FACTOR_WRITE_SETTING,
                     NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING,

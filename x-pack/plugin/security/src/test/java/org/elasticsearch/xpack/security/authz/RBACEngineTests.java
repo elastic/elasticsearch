@@ -1492,7 +1492,7 @@ public class RBACEngineTests extends ESTestCase {
         // Check with contains or containsAll do not trigger loading
         final String name1 = randomFrom(allNames);
         final String name2 = randomValueOtherThan(name1, () -> randomFrom(allNames));
-        final boolean containsAll = true; // randomBoolean();
+        final boolean containsAll = randomBoolean();
         if (containsAll) {
             assertThat(authorizedIndicesSet.containsAll(Set.of(name1, name2)), equalTo(authorizedNames.containsAll(Set.of(name1, name2))));
         } else {

@@ -47,6 +47,27 @@ public class RecoverySettings {
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);
 
     /**
+     * Undocumented setting, used to override the total physical available memory in tests
+     **/
+    // package private for tests
+    static final Setting<ByteSizeValue> TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING = Setting.byteSizeSetting(
+        "recovery_settings.total_physical_memory_override",
+        settings -> new ByteSizeValue(OsProbe.getInstance().getTotalPhysicalMemorySize()).getStringRep(),
+        Property.NodeScope
+    );
+
+    /**
+     * Undocumented setting, used to override the current JVM version in tests
+     **/
+    // package private for tests
+    static final Setting<JavaVersion> JAVA_VERSION_OVERRIDING_TEST_SETTING = new Setting<>(
+        "recovery_settings.java_version_override",
+        settings -> JavaVersion.current().toString(),
+        JavaVersion::parse,
+        Property.NodeScope
+    );
+
+    /**
      * Disk's write bandwidth allocated for this node. When both this setting and {@link #NODE_NETWORK_AVAILABLE_BANDWIDTH_SETTING}
      * are defined they are used to adjust the default value for {@link #INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING} per node.
      */
@@ -422,7 +443,7 @@ public class RecoverySettings {
         }
     }
 
-    public ByteSizeValue getMaxBytesPerSec() {
+    ByteSizeValue getMaxBytesPerSec() {
         return maxBytesPerSec;
     }
 
@@ -495,7 +516,8 @@ public class RecoverySettings {
             // the node is not a dedicated cold and/or frozen node, use the default
             return DEFAULT_MAX_BYTES_PER_SEC;
         }
-        if (JavaVersion.current().compareTo(JavaVersion.parse("14")) < 0) {
+        final JavaVersion javaVersion = JAVA_VERSION_OVERRIDING_TEST_SETTING.get(settings);
+        if (javaVersion.compareTo(JavaVersion.parse("14")) < 0) {
             // prior to JDK 14, the JDK did not take into consideration container memory limits when reporting total system memory
             return DEFAULT_MAX_BYTES_PER_SEC;
         }
@@ -504,7 +526,7 @@ public class RecoverySettings {
          * a function of the memory size. We are making an assumption here that the size of the instance is correlated with I/O resources.
          * That is we are assuming that the larger the instance, the more disk and networking capacity it has available.
          */
-        final ByteSizeValue totalPhysicalMemory = new ByteSizeValue(OsProbe.getInstance().getTotalPhysicalMemorySize());
+        final ByteSizeValue totalPhysicalMemory = TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING.get(settings);
         final ByteSizeValue maxBytesPerSec;
         if (totalPhysicalMemory.compareTo(new ByteSizeValue(4, ByteSizeUnit.GB)) <= 0) {
             maxBytesPerSec = new ByteSizeValue(40, ByteSizeUnit.MB);

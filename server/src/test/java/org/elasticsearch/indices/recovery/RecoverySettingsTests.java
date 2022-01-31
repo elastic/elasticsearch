@@ -33,12 +33,12 @@ import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVE
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.JAVA_VERSION_OVERRIDING_TEST_SETTING;
-import static org.elasticsearch.indices.recovery.RecoverySettings.MAX_BYTES_PER_SEC_OPERATOR_FACTOR_SETTING;
-import static org.elasticsearch.indices.recovery.RecoverySettings.MAX_BYTES_PER_SEC_OPERATOR_MAX_OVERCOMMIT_SETTING;
-import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_AVAILABLE_BANDWIDTHS_SETTINGS;
-import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_DISK_AVAILABLE_READ_BANDWIDTH_SETTING;
-import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_DISK_AVAILABLE_WRITE_BANDWIDTH_SETTING;
-import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_NETWORK_AVAILABLE_BANDWIDTH_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_SETTINGS;
 import static org.elasticsearch.indices.recovery.RecoverySettings.TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.containsString;
@@ -123,15 +123,15 @@ public class RecoverySettingsTests extends ESTestCase {
         recoverySettings.withRandomMemory();
 
         final List<Setting<?>> randomSettings = randomSubsetOf(
-            randomIntBetween(1, NODE_AVAILABLE_BANDWIDTHS_SETTINGS.size() - 1),
-            NODE_AVAILABLE_BANDWIDTHS_SETTINGS
+            randomIntBetween(1, NODE_BANDWIDTH_RECOVERY_SETTINGS.size() - 1),
+            NODE_BANDWIDTH_RECOVERY_SETTINGS
         );
         for (Setting<?> setting : randomSettings) {
-            if (setting.getKey().equals(NODE_NETWORK_AVAILABLE_BANDWIDTH_SETTING.getKey())) {
+            if (setting.getKey().equals(NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING.getKey())) {
                 recoverySettings.withNetworkBandwidth(randomNonZeroByteSizeValue());
-            } else if (setting.getKey().equals(NODE_DISK_AVAILABLE_READ_BANDWIDTH_SETTING.getKey())) {
+            } else if (setting.getKey().equals(NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING.getKey())) {
                 recoverySettings.withDiskReadBandwidth(randomNonZeroByteSizeValue());
-            } else if (setting.getKey().equals(NODE_DISK_AVAILABLE_WRITE_BANDWIDTH_SETTING.getKey())) {
+            } else if (setting.getKey().equals(NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING.getKey())) {
                 recoverySettings.withDiskWriteBandwidth(randomNonZeroByteSizeValue());
             } else {
                 throw new AssertionError();
@@ -143,9 +143,9 @@ public class RecoverySettingsTests extends ESTestCase {
             exception.getMessage(),
             containsString(
                 "Settings "
-                    + NODE_AVAILABLE_BANDWIDTHS_SETTINGS.stream().map(Setting::getKey).collect(Collectors.toList())
+                    + NODE_BANDWIDTH_RECOVERY_SETTINGS.stream().map(Setting::getKey).collect(Collectors.toList())
                     + " must all be defined or all be undefined; but only settings "
-                    + NODE_AVAILABLE_BANDWIDTHS_SETTINGS.stream()
+                    + NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
                         .filter(randomSettings::contains)
                         .map(Setting::getKey)
                         .collect(Collectors.toList())
@@ -513,19 +513,19 @@ public class RecoverySettingsTests extends ESTestCase {
                 settings.put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), indicesRecoveryMaxBytesPerSec);
             }
             if (networkBandwidth != null) {
-                settings.put(NODE_NETWORK_AVAILABLE_BANDWIDTH_SETTING.getKey(), networkBandwidth);
+                settings.put(NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING.getKey(), networkBandwidth);
             }
             if (diskReadBandwidth != null) {
-                settings.put(NODE_DISK_AVAILABLE_READ_BANDWIDTH_SETTING.getKey(), diskReadBandwidth);
+                settings.put(NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING.getKey(), diskReadBandwidth);
             }
             if (diskWriteBandwidth != null) {
-                settings.put(NODE_DISK_AVAILABLE_WRITE_BANDWIDTH_SETTING.getKey(), diskWriteBandwidth);
+                settings.put(NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING.getKey(), diskWriteBandwidth);
             }
             if (operatorDefaultFactor != null) {
-                settings.put(MAX_BYTES_PER_SEC_OPERATOR_FACTOR_SETTING.getKey(), operatorDefaultFactor);
+                settings.put(NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING.getKey(), operatorDefaultFactor);
             }
             if (maxOvercommitFactor != null) {
-                settings.put(MAX_BYTES_PER_SEC_OPERATOR_MAX_OVERCOMMIT_SETTING.getKey(), maxOvercommitFactor);
+                settings.put(NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING.getKey(), maxOvercommitFactor);
             }
             return new RecoverySettings(settings.build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         }

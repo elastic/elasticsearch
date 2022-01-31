@@ -73,23 +73,23 @@ public class RecoverySettings {
      * Disk's write bandwidth allocated for this node. This bandwidth is expressed for write operations that have the default block size of
      * {@link #DEFAULT_CHUNK_SIZE}.
      */
-    public static final Setting<ByteSizeValue> NODE_DISK_AVAILABLE_WRITE_BANDWIDTH_SETTING = bandwidthSetting(
-        "node.disk.allocated_write_bandwidth.default"
+    public static final Setting<ByteSizeValue> NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING = bandwidthSetting(
+        "node.bandwidth.recovery.disk.write"
     );
 
     /**
      * Disk's read bandwidth allocated for this node. This bandwidth is expressed for read operations that have the default block size of
      * {@link #DEFAULT_CHUNK_SIZE}.
      */
-    public static final Setting<ByteSizeValue> NODE_DISK_AVAILABLE_READ_BANDWIDTH_SETTING = bandwidthSetting(
-        "node.disk.allocated_read_bandwidth.default"
+    public static final Setting<ByteSizeValue> NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING = bandwidthSetting(
+        "node.bandwidth.recovery.disk.read"
     );
 
     /**
      * Network's read bandwidth allocated for this node.
      */
-    public static final Setting<ByteSizeValue> NODE_NETWORK_AVAILABLE_BANDWIDTH_SETTING = bandwidthSetting(
-        "node.network.allocated_bandwidth"
+    public static final Setting<ByteSizeValue> NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING = bandwidthSetting(
+        "node.bandwidth.recovery.network"
     );
 
     static final double DEFAULT_FACTOR_VALUE = 0.8d;
@@ -97,23 +97,23 @@ public class RecoverySettings {
     /**
      * Default factor as defined by the operator.
      */
-    public static final Setting<Double> MAX_BYTES_PER_SEC_OPERATOR_FACTOR_SETTING = operatorFactorSetting(
-        "node.recovery.max_bytes_per_sec.operator_factor.default",
+    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING = operatorFactorSetting(
+        "node.bandwidth.recovery.operator.factor",
         DEFAULT_FACTOR_VALUE
     );
 
-    public static final Setting<Double> MAX_BYTES_PER_SEC_OPERATOR_FACTOR_WRITES_SETTING = operatorFactorSetting(
-        "node.recovery.max_bytes_per_sec.operator_factor.writes",
+    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING = operatorFactorSetting(
+        "node.bandwidth.recovery.operator.factor.write",
         1d
     );
 
-    public static final Setting<Double> MAX_BYTES_PER_SEC_OPERATOR_FACTOR_READS_SETTING = operatorFactorSetting(
-        "node.recovery.max_bytes_per_sec.operator_factor.reads",
+    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_READ_SETTING = operatorFactorSetting(
+        "node.bandwidth.recovery.operator.factor.read",
         1d
     );
 
-    public static final Setting<Double> MAX_BYTES_PER_SEC_OPERATOR_MAX_OVERCOMMIT_SETTING = Setting.doubleSetting(
-        "node.recovery.max_bytes_per_sec.operator_factor.max_overcommit",
+    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING = Setting.doubleSetting(
+        "node.bandwidth.recovery.operator.factor.max_overcommit",
         100d, // high default overcommit
         1d,
         Double.MAX_VALUE,
@@ -124,25 +124,25 @@ public class RecoverySettings {
     /**
      * Default factor as defined by the user.
      */
-    public static final Setting<Double> MAX_BYTES_PER_SEC_USER_FACTOR_SETTING = userFactorSetting(
-        "node.recovery.max_bytes_per_sec.user_factor.default",
-        MAX_BYTES_PER_SEC_OPERATOR_FACTOR_SETTING
+    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_FACTOR_SETTING = factorSetting(
+        "node.bandwidth.recovery.factor",
+        NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING
     );
 
-    public static final Setting<Double> MAX_BYTES_PER_SEC_USER_FACTOR_WRITES_SETTING = userFactorSetting(
-        "node.recovery.max_bytes_per_sec.user_factor.writes",
-        MAX_BYTES_PER_SEC_OPERATOR_FACTOR_WRITES_SETTING
+    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_FACTOR_WRITE_SETTING = factorSetting(
+        "node.bandwidth.recovery.factor.write",
+        NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING
     );
 
-    public static final Setting<Double> MAX_BYTES_PER_SEC_USER_FACTOR_READS_SETTING = userFactorSetting(
-        "node.recovery.max_bytes_per_sec.user_factor.reads",
-        MAX_BYTES_PER_SEC_OPERATOR_FACTOR_READS_SETTING
+    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_FACTOR_READ_SETTING = factorSetting(
+        "node.bandwidth.recovery.factor.read",
+        NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_READ_SETTING
     );
 
-    static final List<Setting<?>> NODE_AVAILABLE_BANDWIDTHS_SETTINGS = List.of(
-        NODE_NETWORK_AVAILABLE_BANDWIDTH_SETTING,
-        NODE_DISK_AVAILABLE_READ_BANDWIDTH_SETTING,
-        NODE_DISK_AVAILABLE_WRITE_BANDWIDTH_SETTING
+    static final List<Setting<?>> NODE_BANDWIDTH_RECOVERY_SETTINGS = List.of(
+        NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING,
+        NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING,
+        NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING
     );
 
     /**
@@ -194,7 +194,7 @@ public class RecoverySettings {
     /**
      * User-defined factors have a value in (0.0, 1.0] and fall back to a corresponding operator factor setting.
      */
-    private static Setting<Double> userFactorSetting(String key, Setting<Double> operatorFallback) {
+    private static Setting<Double> factorSetting(String key, Setting<Double> operatorFallback) {
         return new Setting<>(key, operatorFallback, s -> Setting.parseDouble(s, 0d, 1d, key), v -> {
             if (v == 0d) {
                 throw new IllegalArgumentException("Failed to validate value [" + v + "] for factor setting [" + key + "] must be > [0]");
@@ -394,25 +394,25 @@ public class RecoverySettings {
         this.maxConcurrentSnapshotFileDownloads = INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.get(settings);
         this.maxConcurrentSnapshotFileDownloadsPerNode = INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE.get(settings);
         this.maxSnapshotFileDownloadsPerNodeSemaphore = new AdjustableSemaphore(this.maxConcurrentSnapshotFileDownloadsPerNode, true);
-        this.availableNetworkBandwidth = NODE_NETWORK_AVAILABLE_BANDWIDTH_SETTING.get(settings);
-        this.availableDiskReadBandwidth = NODE_DISK_AVAILABLE_READ_BANDWIDTH_SETTING.get(settings);
-        this.availableDiskWriteBandwidth = NODE_DISK_AVAILABLE_WRITE_BANDWIDTH_SETTING.get(settings);
+        this.availableNetworkBandwidth = NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING.get(settings);
+        this.availableDiskReadBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING.get(settings);
+        this.availableDiskWriteBandwidth = NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING.get(settings);
         computeMaxBytesPerSec(settings);
         if (DiscoveryNode.canContainData(settings)) {
             clusterSettings.addSettingsUpdateConsumer(
                 this::computeMaxBytesPerSec,
                 List.of(
                     INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
-                    MAX_BYTES_PER_SEC_USER_FACTOR_SETTING,
-                    MAX_BYTES_PER_SEC_USER_FACTOR_READS_SETTING,
-                    MAX_BYTES_PER_SEC_USER_FACTOR_WRITES_SETTING,
-                    MAX_BYTES_PER_SEC_OPERATOR_FACTOR_SETTING,
-                    MAX_BYTES_PER_SEC_OPERATOR_FACTOR_READS_SETTING,
-                    MAX_BYTES_PER_SEC_OPERATOR_FACTOR_WRITES_SETTING,
+                    NODE_BANDWIDTH_RECOVERY_FACTOR_SETTING,
+                    NODE_BANDWIDTH_RECOVERY_FACTOR_READ_SETTING,
+                    NODE_BANDWIDTH_RECOVERY_FACTOR_WRITE_SETTING,
+                    NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING,
+                    NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_READ_SETTING,
+                    NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING,
                     // non dynamic settings but they are used to update max bytes per sec
-                    NODE_DISK_AVAILABLE_WRITE_BANDWIDTH_SETTING,
-                    NODE_DISK_AVAILABLE_READ_BANDWIDTH_SETTING,
-                    NODE_NETWORK_AVAILABLE_BANDWIDTH_SETTING,
+                    NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING,
+                    NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING,
+                    NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING,
                     NODE_ROLES_SETTING
                 )
             );
@@ -451,10 +451,10 @@ public class RecoverySettings {
         final long diskBandwidthBytesPerSec;
         if (availableDiskReadBandwidth.getBytes() > 0L && availableDiskWriteBandwidth.getBytes() > 0L) {
             final long diskReadBandwidth = Math.round(
-                availableDiskReadBandwidth.getBytes() * MAX_BYTES_PER_SEC_USER_FACTOR_READS_SETTING.get(settings)
+                availableDiskReadBandwidth.getBytes() * NODE_BANDWIDTH_RECOVERY_FACTOR_READ_SETTING.get(settings)
             );
             final long diskWriteBandwidth = Math.round(
-                availableDiskWriteBandwidth.getBytes() * MAX_BYTES_PER_SEC_USER_FACTOR_WRITES_SETTING.get(settings)
+                availableDiskWriteBandwidth.getBytes() * NODE_BANDWIDTH_RECOVERY_FACTOR_WRITE_SETTING.get(settings)
             );
             diskBandwidthBytesPerSec = Math.min(diskReadBandwidth, diskWriteBandwidth);
         } else {
@@ -462,7 +462,7 @@ public class RecoverySettings {
         }
 
         final long availableBytesPerSec = Math.round(
-            Math.min(diskBandwidthBytesPerSec, networkBandwidthBytesPerSec) * MAX_BYTES_PER_SEC_USER_FACTOR_SETTING.get(settings)
+            Math.min(diskBandwidthBytesPerSec, networkBandwidthBytesPerSec) * NODE_BANDWIDTH_RECOVERY_FACTOR_SETTING.get(settings)
         );
 
         long maxBytesPerSec;
@@ -475,9 +475,8 @@ public class RecoverySettings {
         }
 
         final long maxAllowedBytesPerSec = Math.round(
-            Math.min(diskBandwidthBytesPerSec, networkBandwidthBytesPerSec) * MAX_BYTES_PER_SEC_OPERATOR_MAX_OVERCOMMIT_SETTING.get(
-                settings
-            )
+            Math.min(diskBandwidthBytesPerSec, networkBandwidthBytesPerSec) * NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING
+                .get(settings)
         );
 
         long finalMaxBytesPerSec;
@@ -486,7 +485,7 @@ public class RecoverySettings {
         } else {
             finalMaxBytesPerSec = maxBytesPerSec;
         }
-        logger.fatal("{} ad {}", MAX_BYTES_PER_SEC_USER_FACTOR_SETTING.get(settings), NODE_ROLES_SETTING.get(settings));
+        logger.fatal("{} ad {}", NODE_BANDWIDTH_RECOVERY_FACTOR_SETTING.get(settings), NODE_ROLES_SETTING.get(settings));
         logger.info(
             () -> new ParameterizedMessage(
                 "using rate limit [{}] with [default={}, network_bandwidth={}, disk_bandwidth={}, max_allowed={}]",
@@ -676,14 +675,14 @@ public class RecoverySettings {
     }
 
     private static void validateBandwidthsSettings(Settings settings) {
-        final List<String> nonDefaults = NODE_AVAILABLE_BANDWIDTHS_SETTINGS.stream()
+        final List<String> nonDefaults = NODE_BANDWIDTH_RECOVERY_SETTINGS.stream()
             .filter(setting -> setting.get(settings) != ByteSizeValue.MINUS_ONE)
             .map(Setting::getKey)
             .collect(Collectors.toList());
-        if (nonDefaults.isEmpty() == false && nonDefaults.size() != NODE_AVAILABLE_BANDWIDTHS_SETTINGS.size()) {
+        if (nonDefaults.isEmpty() == false && nonDefaults.size() != NODE_BANDWIDTH_RECOVERY_SETTINGS.size()) {
             throw new IllegalArgumentException(
                 "Settings "
-                    + NODE_AVAILABLE_BANDWIDTHS_SETTINGS.stream().map(Setting::getKey).collect(Collectors.toList())
+                    + NODE_BANDWIDTH_RECOVERY_SETTINGS.stream().map(Setting::getKey).collect(Collectors.toList())
                     + " must all be defined or all be undefined; but only settings "
                     + nonDefaults
                     + " are configured."

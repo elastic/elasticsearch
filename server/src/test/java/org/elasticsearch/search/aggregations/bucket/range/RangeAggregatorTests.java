@@ -618,8 +618,14 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 r.getBuckets().stream().map(InternalRange.Bucket::getKeyAsString).collect(toList()),
                 equalTo(org.elasticsearch.core.List.of("0.0-1.0", "1.0-2.0", "2.0-3.0"))
             );
-            assertThat(r.getBuckets().stream().map(InternalRange.Bucket::getFrom).collect(toList()), equalTo(org.elasticsearch.core.List.of(0.0, 1.0, 2.0)));
-            assertThat(r.getBuckets().stream().map(InternalRange.Bucket::getTo).collect(toList()), equalTo(org.elasticsearch.core.List.of(1.0, 2.0, 3.0)));
+            assertThat(
+                r.getBuckets().stream().map(InternalRange.Bucket::getFrom).collect(toList()),
+                equalTo(org.elasticsearch.core.List.of(0.0, 1.0, 2.0))
+            );
+            assertThat(
+                r.getBuckets().stream().map(InternalRange.Bucket::getTo).collect(toList()),
+                equalTo(org.elasticsearch.core.List.of(1.0, 2.0, 3.0))
+            );
             assertThat(
                 r.getBuckets().stream().map(InternalRange.Bucket::getDocCount).collect(toList()),
                 equalTo(org.elasticsearch.core.List.of(totalDocs, 0L, 0L))
@@ -666,8 +672,14 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                     r.getBuckets().stream().map(InternalRange.Bucket::getKeyAsString).collect(toList()),
                     equalTo(org.elasticsearch.core.List.of("0.0-1.0", "1.0-2.0", "2.0-3.0"))
                 );
-                assertThat(r.getBuckets().stream().map(InternalRange.Bucket::getFrom).collect(toList()), equalTo(org.elasticsearch.core.List.of(0.0, 1.0, 2.0)));
-                assertThat(r.getBuckets().stream().map(InternalRange.Bucket::getTo).collect(toList()), equalTo(org.elasticsearch.core.List.of(1.0, 2.0, 3.0)));
+                assertThat(
+                    r.getBuckets().stream().map(InternalRange.Bucket::getFrom).collect(toList()),
+                    equalTo(org.elasticsearch.core.List.of(0.0, 1.0, 2.0))
+                );
+                assertThat(
+                    r.getBuckets().stream().map(InternalRange.Bucket::getTo).collect(toList()),
+                    equalTo(org.elasticsearch.core.List.of(1.0, 2.0, 3.0))
+                );
                 assertThat(
                     r.getBuckets().stream().map(InternalRange.Bucket::getDocCount).collect(toList()),
                     equalTo(org.elasticsearch.core.List.of(totalDocs, 0L, 0L))

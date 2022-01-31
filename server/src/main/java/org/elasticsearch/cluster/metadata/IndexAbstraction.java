@@ -453,7 +453,6 @@ public interface IndexAbstraction {
 
             Instant timestamp;
             final var formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
-            ;
             XContent xContent = request.getContentType().xContent();
             try (XContentParser parser = xContent.createParser(TS_EXTRACT_CONFIG, request.source().streamInput())) {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);

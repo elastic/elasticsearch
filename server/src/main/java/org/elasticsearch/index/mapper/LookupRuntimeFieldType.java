@@ -195,7 +195,16 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
 
     @Override
     public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        return EMPTY_VALUE_FETCHER;
+        if (context.allowExpensiveQueries() == false) {
+            throw new ElasticsearchException(
+                "cannot be executed against lookup field ["
+                    + name()
+                    + "] while ["
+                    + ALLOW_EXPENSIVE_QUERIES.getKey()
+                    + "] is set to [false]."
+            );
+        }
+        return new LookupFieldValueFetcher(context);
     }
 
     @Override
@@ -208,34 +217,35 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is a lookup field.");
     }
 
-    @Override
-    public LookupFieldCollector lookupFieldCollector(SearchExecutionContext context) {
-        if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException(
-                "cannot be executed against lookup field ["
-                    + name()
-                    + "] while ["
-                    + ALLOW_EXPENSIVE_QUERIES.getKey()
-                    + "] is set to [false]."
-            );
-        }
-        return new LookupFieldCollector() {
-            @Override
-            public List<LookupField> collect(Function<String, List<Object>> inputFieldValues) {
-                final List<Object> inputValues = inputFieldValues.apply(queryInputField);
-                if (inputValues == null) {
-                    return List.of();
-                }
-                return inputValues.stream().map(input -> {
-                    final TermQueryBuilder query = new TermQueryBuilder(queryTargetField, input.toString());
-                    return new LookupField(index, query, fetchFields);
-                }).toList();
-            }
+    private class LookupFieldValueFetcher implements ValueFetcher {
+        private final ValueFetcher inputValueFetcher;
 
-            @Override
-            public List<String> inputFields() {
-                return List.of(queryInputField);
+        LookupFieldValueFetcher(SearchExecutionContext context) {
+            this.inputValueFetcher = context.getFieldType(queryInputField).valueFetcher(context, null);
+        }
+
+        @Override
+        public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) throws IOException {
+            assert false : "call #fetchDocumentField() instead";
+            throw new UnsupportedOperationException("call #fetchDocumentField() instead");
+        }
+
+        @Override
+        public DocumentField fetchDocumentField(String docName, SourceLookup lookup) throws IOException {
+            final DocumentField inputDoc = inputValueFetcher.fetchDocumentField(queryInputField, lookup);
+            if (inputDoc == null || inputDoc.getValues().isEmpty()) {
+                return null;
             }
-        };
+            final List<LookupField> lookupFields = inputDoc.getValues().stream().map(input -> {
+                final TermQueryBuilder query = new TermQueryBuilder(queryTargetField, input.toString());
+                return new LookupField(lookupIndex, query, fetchFields);
+            }).toList();
+            return new DocumentField(docName, List.of(), List.of(), lookupFields);
+        }
+
+        @Override
+        public void setNextReader(LeafReaderContext context) {
+            inputValueFetcher.setNextReader(context);
+        }
     }
 }

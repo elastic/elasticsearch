@@ -792,10 +792,10 @@ public class PeerFinderTests extends ESTestCase {
 
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "connection failed",
+                    "discovery result",
                     "org.elasticsearch.discovery.PeerFinder",
                     Level.WARN,
-                    "address [" + otherNode.getAddress() + "]* connection failed: cannot connect to*"
+                    "address [" + otherNode.getAddress() + "]* discovery result: cannot connect to*"
                 ) {
                     @Override
                     public boolean innerMatch(LogEvent event) {
@@ -816,7 +816,7 @@ public class PeerFinderTests extends ESTestCase {
     }
 
     @TestLogging(reason = "testing logging at DEBUG level", value = "org.elasticsearch.discovery:DEBUG")
-    public void testLogsStackTraceInConnectionFailedMessages() throws IllegalAccessException {
+    public void testLogsStackTraceInDiscoveryResultMessages() throws IllegalAccessException {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
 
         providedAddresses.add(otherNode.getAddress());
@@ -832,10 +832,10 @@ public class PeerFinderTests extends ESTestCase {
             Loggers.addAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "connection failed",
+                    "discovery result",
                     "org.elasticsearch.discovery.PeerFinder",
                     Level.DEBUG,
-                    "address [" + otherNode.getAddress() + "]* connection failed*"
+                    "address [" + otherNode.getAddress() + "]* discovery result*"
                 ) {
                     @Override
                     public boolean innerMatch(LogEvent event) {
@@ -850,10 +850,10 @@ public class PeerFinderTests extends ESTestCase {
 
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "connection failed",
+                    "discovery result",
                     "org.elasticsearch.discovery.PeerFinder",
                     Level.WARN,
-                    "address [" + otherNode.getAddress() + "]* connection failed*"
+                    "address [" + otherNode.getAddress() + "]* discovery result*"
                 ) {
                     @Override
                     public boolean innerMatch(LogEvent event) {

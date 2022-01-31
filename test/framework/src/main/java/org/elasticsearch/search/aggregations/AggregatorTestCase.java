@@ -1320,6 +1320,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
             throw new UnsupportedOperationException();
 
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
+        }
     }
 
     public static class InternalAggCardinalityUpperBound extends InternalAggregation {

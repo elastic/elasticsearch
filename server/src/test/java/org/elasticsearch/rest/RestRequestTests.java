@@ -236,7 +236,7 @@ public class RestRequestTests extends ESTestCase {
         assertEquals("unknown content type", e.getMessage());
     }
 
-    private static RestRequest contentRestRequest(String content, Map<String, String> params) {
+    public static RestRequest contentRestRequest(String content, Map<String, String> params) {
         Map<String, List<String>> headers = new HashMap<>();
         headers.put("Content-Type", Collections.singletonList("application/json"));
         return contentRestRequest(content, params, headers);
@@ -250,7 +250,7 @@ public class RestRequestTests extends ESTestCase {
         return new ContentRestRequest(builder.build());
     }
 
-    private static final class ContentRestRequest extends RestRequest {
+    public static final class ContentRestRequest extends RestRequest {
 
         private final RestRequest restRequest;
 

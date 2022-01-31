@@ -121,6 +121,11 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      */
     public abstract InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext);
 
+    /**
+     * Called by the parent sampling context. Should only ever be called once as some aggregations scale their internal values
+     * @param samplingContext the current sampling context
+     * @return new aggregation with the sampling context applied, could be the same aggregation instance if nothing needs to be done
+     */
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         throw new UnsupportedOperationException(getWriteableName() + " aggregation [" + getName() + "] does not support sampling");
     }

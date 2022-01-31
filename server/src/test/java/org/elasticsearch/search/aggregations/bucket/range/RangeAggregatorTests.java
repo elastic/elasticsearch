@@ -129,9 +129,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         testCase(
             new RangeAggregationBuilder("0").field(fieldName).addRange(Long.MIN_VALUE, Long.MAX_VALUE),
             new MatchAllDocsQuery(),
-            iw -> {
-                iw.addDocument(singleton(new NumericDocValuesField(fieldName, randomLong())));
-            },
+            iw -> { iw.addDocument(singleton(new NumericDocValuesField(fieldName, randomLong()))); },
             result -> {
                 InternalRange<?, ?> range = (InternalRange<?, ?>) result;
                 List<? extends InternalRange.Bucket> ranges = range.getBuckets();

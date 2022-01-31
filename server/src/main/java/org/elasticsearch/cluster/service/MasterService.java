@@ -627,6 +627,21 @@ public class MasterService extends AbstractLifecycleComponent {
         return threadPoolExecutor.getMaxTaskWaitTime();
     }
 
+    private void logExecutionTime(TimeValue executionTime, String activity, String summary) {
+        if (executionTime.getMillis() > slowTaskLoggingThreshold.getMillis()) {
+            logger.warn(
+                "took [{}/{}ms] to {} for [{}], which exceeds the warn threshold of [{}]",
+                executionTime,
+                executionTime.getMillis(),
+                activity,
+                summary,
+                slowTaskLoggingThreshold
+            );
+        } else {
+            logger.debug("took [{}] to {} for [{}]", executionTime, activity, summary);
+        }
+    }
+
     private record ContextPreservingAckListener(ClusterStateAckListener listener, Supplier<ThreadContext.StoredContext> context) {
 
         public boolean mustAck(DiscoveryNode discoveryNode) {
@@ -652,38 +667,6 @@ public class MasterService extends AbstractLifecycleComponent {
 
         public TimeValue ackTimeout() {
             return listener.ackTimeout();
-        }
-    }
-
-    private void logExecutionTime(TimeValue executionTime, String activity, String summary) {
-        if (executionTime.getMillis() > slowTaskLoggingThreshold.getMillis()) {
-            logger.warn(
-                "took [{}/{}ms] to {} for [{}], which exceeds the warn threshold of [{}]",
-                executionTime,
-                executionTime.getMillis(),
-                activity,
-                summary,
-                slowTaskLoggingThreshold
-            );
-        } else {
-            logger.debug("took [{}] to {} for [{}]", executionTime, activity, summary);
-        }
-    }
-
-    private record CompositeTaskAckListener(List<TaskAckListener> listeners) implements ClusterStatePublisher.AckListener {
-
-        @Override
-        public void onCommit(TimeValue commitTime) {
-            for (TaskAckListener listener : listeners) {
-                listener.onCommit(commitTime);
-            }
-        }
-
-        @Override
-        public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
-            for (TaskAckListener listener : listeners) {
-                listener.onNodeAck(node, e);
-            }
         }
     }
 
@@ -772,6 +755,23 @@ public class MasterService extends AbstractLifecycleComponent {
             if (countDown.fastForward()) {
                 logger.trace("timeout waiting for acknowledgement for cluster_state update (version: {})", clusterStateVersion);
                 contextPreservingAckListener.onAckTimeout();
+            }
+        }
+    }
+
+    private record CompositeTaskAckListener(List<TaskAckListener> listeners) implements ClusterStatePublisher.AckListener {
+
+        @Override
+        public void onCommit(TimeValue commitTime) {
+            for (TaskAckListener listener : listeners) {
+                listener.onCommit(commitTime);
+            }
+        }
+
+        @Override
+        public void onNodeAck(DiscoveryNode node, @Nullable Exception e) {
+            for (TaskAckListener listener : listeners) {
+                listener.onNodeAck(node, e);
             }
         }
     }

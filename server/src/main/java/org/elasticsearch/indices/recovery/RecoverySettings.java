@@ -29,6 +29,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.monitor.os.OsProbe;
+import org.elasticsearch.node.NodeRoleSettings;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -206,7 +207,46 @@ public class RecoverySettings {
 
     public static final Setting<ByteSizeValue> INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
         "indices.recovery.max_bytes_per_sec",
-        settings -> recoveryMaxBytesPerSecBasedOnMemory(settings).getStringRep(),
+        s -> {
+            final List<DiscoveryNodeRole> roles = NodeRoleSettings.NODE_ROLES_SETTING.get(s);
+            final List<DiscoveryNodeRole> dataRoles = roles.stream().filter(DiscoveryNodeRole::canContainData).toList();
+            if (dataRoles.isEmpty()) {
+                // if the node is not a data node, this value doesn't matter, use the default
+                return DEFAULT_MAX_BYTES_PER_SEC.getStringRep();
+            }
+            if (dataRoles.stream()
+                .allMatch(
+                    dn -> dn.equals(DiscoveryNodeRole.DATA_COLD_NODE_ROLE) || dn.equals(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
+                ) == false) {
+                // the node is not a dedicated cold and/or frozen node, use the default
+                return DEFAULT_MAX_BYTES_PER_SEC.getStringRep();
+            }
+            /*
+             * Now we are looking at a node that has a single data role, that data role is the cold data role, and the node does not
+             * have the master role. In this case, we are going to set the recovery size as a function of the memory size. We are making
+             * an assumption here that the size of the instance is correlated with I/O resources. That is we are assuming that the
+             * larger the instance, the more disk and networking capacity it has available.
+             */
+            final JavaVersion javaVersion = JAVA_VERSION_OVERRIDING_TEST_SETTING.get(s);
+            if (javaVersion.compareTo(JavaVersion.parse("14")) < 0) {
+                // prior to JDK 14, the JDK did not take into consideration container memory limits when reporting total system memory
+                return DEFAULT_MAX_BYTES_PER_SEC.getStringRep();
+            }
+            final ByteSizeValue totalPhysicalMemory = TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING.get(s);
+            final ByteSizeValue maxBytesPerSec;
+            if (totalPhysicalMemory.compareTo(new ByteSizeValue(4, ByteSizeUnit.GB)) <= 0) {
+                maxBytesPerSec = new ByteSizeValue(40, ByteSizeUnit.MB);
+            } else if (totalPhysicalMemory.compareTo(new ByteSizeValue(8, ByteSizeUnit.GB)) <= 0) {
+                maxBytesPerSec = new ByteSizeValue(60, ByteSizeUnit.MB);
+            } else if (totalPhysicalMemory.compareTo(new ByteSizeValue(16, ByteSizeUnit.GB)) <= 0) {
+                maxBytesPerSec = new ByteSizeValue(90, ByteSizeUnit.MB);
+            } else if (totalPhysicalMemory.compareTo(new ByteSizeValue(32, ByteSizeUnit.GB)) <= 0) {
+                maxBytesPerSec = new ByteSizeValue(125, ByteSizeUnit.MB);
+            } else {
+                maxBytesPerSec = new ByteSizeValue(250, ByteSizeUnit.MB);
+            }
+            return maxBytesPerSec.getStringRep();
+        },
         Property.Dynamic,
         Property.NodeScope
     );
@@ -629,47 +669,6 @@ public class RecoverySettings {
         }
 
         return Releasables.releaseOnce(() -> maxSnapshotFileDownloadsPerNodeSemaphore.release(maxConcurrentSnapshotFileDownloads));
-    }
-
-    private static ByteSizeValue recoveryMaxBytesPerSecBasedOnMemory(Settings settings) {
-        final List<DiscoveryNodeRole> dataRoles = NODE_ROLES_SETTING.get(settings)
-            .stream()
-            .filter(DiscoveryNodeRole::canContainData)
-            .toList();
-        if (dataRoles.isEmpty()) {
-            // if the node is not a data node, this value doesn't matter, use the default
-            return DEFAULT_MAX_BYTES_PER_SEC;
-        }
-        final boolean dedicatedColdOrFrozenNode = dataRoles.stream()
-            .allMatch(dn -> dn.equals(DiscoveryNodeRole.DATA_COLD_NODE_ROLE) || dn.equals(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE));
-        if (dedicatedColdOrFrozenNode == false) {
-            // the node is not a dedicated cold and/or frozen node, use the default
-            return DEFAULT_MAX_BYTES_PER_SEC;
-        }
-        final JavaVersion javaVersion = JAVA_VERSION_OVERRIDING_TEST_SETTING.get(settings);
-        if (javaVersion.compareTo(JavaVersion.parse("14")) < 0) {
-            // prior to JDK 14, the JDK did not take into consideration container memory limits when reporting total system memory
-            return DEFAULT_MAX_BYTES_PER_SEC;
-        }
-        /*
-         * Now we are looking at a node that is a dedicated cold and/or frozen node. In this case, we are going to set the recovery size as
-         * a function of the memory size. We are making an assumption here that the size of the instance is correlated with I/O resources.
-         * That is we are assuming that the larger the instance, the more disk and networking capacity it has available.
-         */
-        final ByteSizeValue totalPhysicalMemory = TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING.get(settings);
-        final ByteSizeValue maxBytesPerSec;
-        if (totalPhysicalMemory.compareTo(new ByteSizeValue(4, ByteSizeUnit.GB)) <= 0) {
-            maxBytesPerSec = new ByteSizeValue(40, ByteSizeUnit.MB);
-        } else if (totalPhysicalMemory.compareTo(new ByteSizeValue(8, ByteSizeUnit.GB)) <= 0) {
-            maxBytesPerSec = new ByteSizeValue(60, ByteSizeUnit.MB);
-        } else if (totalPhysicalMemory.compareTo(new ByteSizeValue(16, ByteSizeUnit.GB)) <= 0) {
-            maxBytesPerSec = new ByteSizeValue(90, ByteSizeUnit.MB);
-        } else if (totalPhysicalMemory.compareTo(new ByteSizeValue(32, ByteSizeUnit.GB)) <= 0) {
-            maxBytesPerSec = new ByteSizeValue(125, ByteSizeUnit.MB);
-        } else {
-            maxBytesPerSec = new ByteSizeValue(250, ByteSizeUnit.MB);
-        }
-        return maxBytesPerSec;
     }
 
     private static void validateNodeBandwidthRecoverySettings(Settings settings) {

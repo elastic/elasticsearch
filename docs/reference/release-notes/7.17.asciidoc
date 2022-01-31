@@ -97,6 +97,9 @@ Infra/Logging::
 * Add `doPrivileged` section in deprecation logger {es-pull}81819[#81819] (issue: {es-issue}81708[#81708])
 * Always emit product origin to deprecation log if present {es-pull}83115[#83115]
 
+Infra/Scripting::
+* Fix deprecated suggestions for `JodaCompatibleZonedDateTime` {es-pull}83276[#83276]
+
 Ingest::
 * Filter enrich policy index deletes to just the policy's associated indices {es-pull}82568[#82568]
 * Fix enrich cache corruption bug {es-pull}82441[#82441] (issue: {es-issue}82340[#82340])
@@ -129,6 +132,7 @@ Settings::
 Snapshot/Restore::
 * Always fail snapshot deletion listeners on master failover {es-pull}82361[#82361] (issue: {es-issue}81596[#81596])
 * Fix potential repository corruption during master failover {es-pull}82912[#82912] (issue: {es-issue}82911[#82911])
+* Move `GetSnapshots` serialization to management pool {es-pull}83215[#83215] (issue: {es-issue}77466[#77466])
 * Remove requirement for key setting on Azure client settings {es-pull}82030[#82030]
 * Support GKE workload identity for searchable snapshots {es-pull}82974[#82974] (issue: {es-issue}82702[#82702])
 
@@ -140,6 +144,9 @@ Stats::
 [[upgrade-7.17.0]]
 [float]
 === Upgrades
+
+Packaging::
+* Upgrade bundled JDK to version 17.0.2+8 {es-pull}83243[#83243] (issue: {es-issue}83242[#83242])
 
 Search::
 * Upgrade to Lucene 8.11.1 {es-pull}81900[#81900]

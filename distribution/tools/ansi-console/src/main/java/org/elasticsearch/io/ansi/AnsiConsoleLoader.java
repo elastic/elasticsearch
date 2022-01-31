@@ -40,7 +40,8 @@ public class AnsiConsoleLoader implements Supplier<ConsoleLoader.Console> {
     // package-private for tests
     static @Nullable ConsoleLoader.Console newConsole(AnsiPrintStream out) {
         if (isValidConsole(out)) {
-            return new ConsoleLoader.Console(out, () -> out.getTerminalWidth(), Ansi.isEnabled(), tryExtractPrintCharset(out));
+            boolean ansiEnabled = Ansi.isEnabled() && out.getType() != AnsiType.VirtualTerminal;
+            return new ConsoleLoader.Console(out, () -> out.getTerminalWidth(), ansiEnabled, tryExtractPrintCharset(out));
         } else {
             return null;
         }

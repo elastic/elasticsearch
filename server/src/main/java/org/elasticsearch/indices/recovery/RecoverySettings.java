@@ -516,7 +516,13 @@ public class RecoverySettings {
         }
 
         final long maxAllowedBytesPerSec = Math.round(
-            availableBytesPerSec * NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING.get(settings)
+            Math.max(
+                Math.min(
+                    Math.min(availableDiskReadBandwidth.getBytes(), availableDiskWriteBandwidth.getBytes()),
+                    networkBandwidthBytesPerSec
+                ),
+                0L
+            ) * NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING.get(settings)
         );
 
         ByteSizeValue finalMaxBytesPerSec;

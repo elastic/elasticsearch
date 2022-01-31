@@ -225,7 +225,7 @@ public class RecoverySettingsTests extends ESTestCase {
             equalTo(
                 ByteSizeValue.ofBytes(
                     Math.round(
-                        Objects.requireNonNullElse(maxOvercommitFactor, 100.d) * ByteSizeValue.ofMb(250).getBytes() * DEFAULT_FACTOR_VALUE
+                        Objects.requireNonNullElse(maxOvercommitFactor, 100.d) * ByteSizeValue.ofMb(250).getBytes()
                     )
                 )
             )

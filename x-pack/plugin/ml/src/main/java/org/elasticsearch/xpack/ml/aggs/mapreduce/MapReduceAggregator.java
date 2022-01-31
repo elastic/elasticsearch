@@ -92,10 +92,13 @@ public abstract class MapReduceAggregator extends AggregatorBase {
     }
 
     @Override
+    protected void doPreCollection() throws IOException {
+        context.getMapReducer().mapInit();
+    }
+
+    @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-
         return new LeafBucketCollectorBase(sub, context) {
-
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 context.getMapReducer().map(context.getExtractors().stream().map(extractor -> {

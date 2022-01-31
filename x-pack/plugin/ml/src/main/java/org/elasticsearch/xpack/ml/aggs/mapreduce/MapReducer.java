@@ -54,6 +54,33 @@ public interface MapReducer extends NamedWriteable, ToXContent {
     void reduce(Stream<MapReducer> partitions);
 
     /**
+     * Definition of the combiner that works as a local reducer, reducing partial data.
+     *
+     * @param partitions
+     */
+    default void combine(Stream<MapReducer> partitions) {}
+
+    /*
+     * Definition of code to execute before the mapper processes any input.
+     */
+    default void mapInit() {};
+
+    /*
+     * Definition of code to execute after the mapper processed all input.
+     */
+    default void mapFinalize() {};
+
+    /*
+     * Definition of code to execute before the reducer processes any input.
+     */
+    default void reduceInit() {};
+
+    /*
+     * Definition of code to execute after the reducer processed all input.
+     */
+    default void reduceFinalize() {};
+
+    /**
      * Forwarded from {@link InternalAggregation}:
      *
      * Signal the framework if the {@linkplain InternalAggregation#reduce(List, ReduceContext)} phase needs to be called

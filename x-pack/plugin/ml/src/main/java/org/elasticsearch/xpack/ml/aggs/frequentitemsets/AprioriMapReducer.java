@@ -40,19 +40,12 @@ public class AprioriMapReducer implements MapReducer {
     private static final long minSetSize = 2;
     private static final long maxSetSize = 10;
 
-    private Map<String, Long> itemSets;
+    private Map<String, Long> itemSets = null;
 
     private StringBuilder stringBuilder = new StringBuilder();
-    private List<Tuple<String, Double>> frequentSets;
+    private List<Tuple<String, Double>> frequentSets = null;
 
-    public AprioriMapReducer() {
-        // itemSets = null;
-
-        // TODO: move into a map init method
-        itemSets = new HashMap<>();
-
-        frequentSets = null;
-    }
+    public AprioriMapReducer() {}
 
     public AprioriMapReducer(StreamInput in) throws IOException {
         this.itemSets = in.readMap(StreamInput::readString, StreamInput::readLong);
@@ -72,13 +65,25 @@ public class AprioriMapReducer implements MapReducer {
     }
 
     @Override
+    public void mapInit() {
+        itemSets = new HashMap<>();
+    }
+
+    @Override
     public void map(Stream<Tuple<String, List<Object>>> keyValues) {
+
+        // dump encoding:
+        // key: [value1, value2, value3] -> "key!value1#key!value2#key!value3#"
+
         stringBuilder.setLength(0);
         keyValues.forEach(v -> {
-            for (Object fieldValue : v.v2()) {
+            v.v2().stream().sorted().forEach(fieldValue -> {
+                stringBuilder.append(v.v1());
+                stringBuilder.append("!");
                 stringBuilder.append(fieldValue);
                 stringBuilder.append("#");
-            }
+            });
+
         });
 
         String key = stringBuilder.toString();
@@ -91,7 +96,10 @@ public class AprioriMapReducer implements MapReducer {
             AprioriMapReducer apprioriPartition = (AprioriMapReducer) p;
             apprioriPartition.itemSets.forEach((key, value) -> itemSets.merge(key, value, (v1, v2) -> v1 + v2));
         });
+    }
 
+    @Override
+    public void reduceFinalize() {
         apprioriSimple();
     }
 

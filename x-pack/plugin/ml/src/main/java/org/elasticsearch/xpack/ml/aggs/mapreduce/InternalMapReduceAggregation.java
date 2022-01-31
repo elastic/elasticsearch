@@ -47,7 +47,11 @@ public final class InternalMapReduceAggregation extends InternalAggregation {
     public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
 
         if (reduceContext.isFinalReduce()) {
+            mapReducer.reduceInit();
             mapReducer.reduce(aggregations.stream().map(agg -> ((InternalMapReduceAggregation) agg).mapReducer));
+            mapReducer.reduceFinalize();
+        } else {
+            mapReducer.combine(aggregations.stream().map(agg -> ((InternalMapReduceAggregation) agg).mapReducer));
         }
 
         // TODO: implement combiner

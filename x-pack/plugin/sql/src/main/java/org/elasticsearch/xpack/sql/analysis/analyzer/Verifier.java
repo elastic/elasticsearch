@@ -1004,8 +1004,9 @@ public final class Verifier {
     }
 
     private static void checkClientSupportsDataTypes(LogicalPlan p, Set<Failure> localFailures, SqlVersion version) {
+        Version ver = Version.fromId(version.id);
         p.output().forEach(e -> {
-            if (e.resolved() && isTypeSupportedInVersion(e.dataType(), Version.fromId(version.id)) == false) {
+            if (e.resolved() && isTypeSupportedInVersion(e.dataType(), ver) == false) {
                 localFailures.add(
                     fail(
                         e,

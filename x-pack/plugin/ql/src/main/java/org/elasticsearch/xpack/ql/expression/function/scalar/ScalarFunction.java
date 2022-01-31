@@ -158,7 +158,7 @@ public abstract class ScalarFunction extends Function {
         return field.dataType() != UNSIGNED_LONG
             ? new ScriptTemplate(processScript(Scripts.DOC_VALUE), params, dataType())
             : new ScriptTemplate(
-                processScript(formatTemplate(format("{ql}.", "nullSafeCastToUnsignedLong({})", Scripts.DOC_VALUE))),
+                processScript(format("{ql}.", "nullSafeCastToUnsignedLong({})", Scripts.DOC_VALUE)),
                 params,
                 UNSIGNED_LONG
             );

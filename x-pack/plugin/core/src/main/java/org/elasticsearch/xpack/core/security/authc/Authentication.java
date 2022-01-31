@@ -161,14 +161,14 @@ public class Authentication implements ToXContentObject {
      * Returns a new {@code Authentication} that reflects a "run as another user" action under the current {@code Authentication}.
      * The security {@code RealmRef#Domain} of the resulting {@code Authentication} is that of the run-as user's realm.
      */
-    public Authentication runAs(User runAs, Realm lookupRealm) {
+    public Authentication runAs(User runAs, @Nullable RealmRef lookupRealmRef) {
         Objects.requireNonNull(runAs);
         assert false == runAs.isRunAs();
         assert false == getUser().isRunAs();
         return new Authentication(
             new User(runAs, getUser()),
             getAuthenticatedBy(),
-            lookupRealm != null ? lookupRealm.realmRef() : null,
+            lookupRealmRef,
             getVersion(),
             getAuthenticationType(),
             getMetadata()
@@ -566,6 +566,7 @@ public class Authentication implements ToXContentObject {
         }
     }
 
+    // TODO is a newer version than the node's a valid value?
     public static Authentication newInternalAuthentication(User internalUser, Version version, String nodeName) {
         // TODO create a system user class, so that the type system guarantees that this is only invoked for internal users
         assert User.isInternal(internalUser);
@@ -627,17 +628,10 @@ public class Authentication implements ToXContentObject {
         return authentication;
     }
 
-    public static Authentication newRealmAuthentication(User user, Realm realm) {
+    public static Authentication newRealmAuthentication(User user, RealmRef realmRef) {
         // TODO make the type system ensure that this is not a run-as user
         assert false == user.isRunAs();
-        Authentication authentication = new Authentication(
-            user,
-            realm.realmRef(),
-            null,
-            Version.CURRENT,
-            AuthenticationType.REALM,
-            Map.of()
-        );
+        Authentication authentication = new Authentication(user, realmRef, null, Version.CURRENT, AuthenticationType.REALM, Map.of());
         assert false == authentication.isServiceAccount();
         assert false == authentication.isApiKey();
         assert false == authentication.isAuthenticatedInternally();
@@ -680,31 +674,39 @@ public class Authentication implements ToXContentObject {
             if (authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
                 metadata = new HashMap<>(metadata);
-                metadata.put(
-                    AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
-                    convertRoleDescriptorsBytesToMap((BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY))
-                );
-                metadata.put(
-                    AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                    convertRoleDescriptorsBytesToMap(
-                        (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
-                    )
-                );
+                if (metadata.containsKey(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)) {
+                    metadata.put(
+                        AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                        convertRoleDescriptorsBytesToMap((BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY))
+                    );
+                }
+                if (metadata.containsKey(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)) {
+                    metadata.put(
+                        AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                        convertRoleDescriptorsBytesToMap(
+                            (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                        )
+                    );
+                }
             } else if (authentication.getVersion().before(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
                     metadata = new HashMap<>(metadata);
-                    metadata.put(
-                        AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
-                        convertRoleDescriptorsMapToBytes(
-                            (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
-                        )
-                    );
-                    metadata.put(
-                        AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                        convertRoleDescriptorsMapToBytes(
-                            (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
-                        )
-                    );
+                    if (metadata.containsKey(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)) {
+                        metadata.put(
+                            AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                            convertRoleDescriptorsMapToBytes(
+                                (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
+                            )
+                        );
+                    }
+                    if (metadata.containsKey(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)) {
+                        metadata.put(
+                            AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                            convertRoleDescriptorsMapToBytes(
+                                (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                            )
+                        );
+                    }
                 }
         }
         return metadata;

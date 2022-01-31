@@ -217,7 +217,7 @@ class AuthenticatorChain {
                 // the user does not exist, but we still create a User object, which will later be rejected by authz
                 finalAuth = authentication.runAs(new User(runAsUsername, null, null, null, Map.of(), true), null);
             } else {
-                finalAuth = authentication.runAs(tuple.v1(), tuple.v2());
+                finalAuth = authentication.runAs(tuple.v1(), tuple.v2().realmRef());
             }
             finishAuthentication(context, finalAuth, listener);
         }, listener::onFailure));

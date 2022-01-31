@@ -485,7 +485,6 @@ public class RecoverySettings {
         } else {
             finalMaxBytesPerSec = maxBytesPerSec;
         }
-        logger.fatal("{} ad {}", NODE_BANDWIDTH_RECOVERY_FACTOR_SETTING.get(settings), NODE_ROLES_SETTING.get(settings));
         logger.info(
             () -> new ParameterizedMessage(
                 "using rate limit [{}] with [default={}, network_bandwidth={}, disk_bandwidth={}, max_allowed={}]",

@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -47,7 +48,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -303,7 +303,7 @@ public class HighlightBuilderTests extends ESTestCase {
             null,
             null,
             null,
-            xContentRegistry(),
+            parserConfig(),
             namedWriteableRegistry,
             null,
             null,
@@ -664,7 +664,7 @@ public class HighlightBuilderTests extends ESTestCase {
         }
         if (randomBoolean()) {
             int items = randomIntBetween(0, 5);
-            Map<String, Object> options = new HashMap<>(items);
+            Map<String, Object> options = Maps.newMapWithExpectedSize(items);
             for (int i = 0; i < items; i++) {
                 Object value = switch (randomInt(2)) {
                     case 0 -> randomAlphaOfLengthBetween(1, 10);
@@ -733,7 +733,7 @@ public class HighlightBuilderTests extends ESTestCase {
                 break;
             case 15:
                 int items = 6;
-                Map<String, Object> options = new HashMap<>(items);
+                Map<String, Object> options = Maps.newMapWithExpectedSize(items);
                 for (int i = 0; i < items; i++) {
                     options.put(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
                 }

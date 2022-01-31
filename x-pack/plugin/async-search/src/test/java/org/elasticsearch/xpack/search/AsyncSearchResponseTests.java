@@ -115,7 +115,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, successfulShards);
-        InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
+        InternalSearchResponse internalSearchResponse = InternalSearchResponse.EMPTY_WITH_TOTAL_HITS;
         return new SearchResponse(
             internalSearchResponse,
             null,

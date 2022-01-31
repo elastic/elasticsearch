@@ -397,14 +397,13 @@ public class SearchAfterIT extends ESIntegTestCase {
         List<Object> converted = new ArrayList<>();
         for (int i = 0; i < sortValues.size(); i++) {
             Object from = sortValues.get(i);
-            if (from instanceof Integer) {
-                converted.add(((Integer) from).longValue());
-            } else if (from instanceof Short) {
-                converted.add(((Short) from).longValue());
-            } else if (from instanceof Byte) {
-                converted.add(((Byte) from).longValue());
-            } else if (from instanceof Boolean) {
-                boolean b = (boolean) from;
+            if (from instanceof Integer integer) {
+                converted.add(integer.longValue());
+            } else if (from instanceof Short s) {
+                converted.add(s.longValue());
+            } else if (from instanceof Byte b) {
+                converted.add(b.longValue());
+            } else if (from instanceof Boolean b) {
                 if (b) {
                     converted.add(1L);
                 } else {

@@ -911,8 +911,27 @@ public class Strings {
         return str;
     }
 
+    /**
+     * Checks that the supplied string is neither null nor blank, per {@link #isNullOrBlank(String)}.
+     * If this check fails, then an {@link IllegalArgumentException} is thrown with the supplied message.
+     *
+     * @param str the <code>String</code> to check
+     * @param message the exception message to use if {@code str} is null or blank
+     * @return the supplied {@code str}
+     */
+    public static String requireNonBlank(String str, String message) {
+        if (isNullOrBlank(str)) {
+            throw new IllegalArgumentException(message);
+        }
+        return str;
+    }
+
     public static boolean isNullOrEmpty(@Nullable String s) {
         return s == null || s.isEmpty();
+    }
+
+    public static boolean isNullOrBlank(@Nullable String s) {
+        return s == null || s.isBlank();
     }
 
     public static String coalesceToEmpty(@Nullable String s) {

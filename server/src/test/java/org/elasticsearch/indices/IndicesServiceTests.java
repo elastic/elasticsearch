@@ -17,7 +17,7 @@ import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -651,7 +651,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         IndexMetadata backingIndex1 = createBackingIndex(dataStreamName1, 1).build();
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(backingIndex1, false)
-            .put(new DataStream(dataStreamName1, createTimestampField("@timestamp"), List.of(backingIndex1.getIndex())));
+            .put(DataStreamTestHelper.newInstance(dataStreamName1, createTimestampField("@timestamp"), List.of(backingIndex1.getIndex())));
         mdBuilder.put("logs_foo", dataStreamName1, null, Strings.toString(QueryBuilders.termQuery("foo", "bar")));
         mdBuilder.put("logs", dataStreamName1, null, Strings.toString(QueryBuilders.termQuery("foo", "baz")));
         mdBuilder.put("logs_bar", dataStreamName1, null, null);

@@ -44,7 +44,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
             actionFilters,
             RethrottleRequest::new,
             ListTasksResponse::new,
-            TaskInfo::new,
+            TaskInfo::from,
             ThreadPool.Names.MANAGEMENT
         );
         this.client = client;

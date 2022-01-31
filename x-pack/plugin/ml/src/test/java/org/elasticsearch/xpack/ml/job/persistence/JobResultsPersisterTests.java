@@ -350,7 +350,7 @@ public class JobResultsPersisterTests extends ESTestCase {
     }
 
     public void testPersistQuantilesSync_QuantilesDocumentCreated() {
-        testPersistQuantilesSync(SearchHits.empty(), ".ml-state-write");
+        testPersistQuantilesSync(SearchHits.EMPTY_WITH_TOTAL_HITS, ".ml-state-write");
     }
 
     public void testPersistQuantilesSync_QuantilesDocumentUpdated() {
@@ -389,7 +389,7 @@ public class JobResultsPersisterTests extends ESTestCase {
     }
 
     public void testPersistQuantilesAsync_QuantilesDocumentCreated() {
-        testPersistQuantilesAsync(SearchHits.empty(), ".ml-state-write");
+        testPersistQuantilesAsync(SearchHits.EMPTY_WITH_TOTAL_HITS, ".ml-state-write");
     }
 
     public void testPersistQuantilesAsync_QuantilesDocumentUpdated() {

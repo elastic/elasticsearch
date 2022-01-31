@@ -1335,6 +1335,7 @@ public class MachineLearning extends Plugin
             4,
             MAX_MAX_OPEN_JOBS_PER_NODE * 4,
             TimeValue.timeValueMinutes(1),
+            false,
             "xpack.ml.job_comms_thread_pool"
         );
 
@@ -1345,6 +1346,7 @@ public class MachineLearning extends Plugin
             1,
             MAX_MAX_OPEN_JOBS_PER_NODE * 4,
             TimeValue.timeValueMinutes(10),
+            false,
             "xpack.ml.utility_thread_pool"
         );
 
@@ -1353,6 +1355,7 @@ public class MachineLearning extends Plugin
             1,
             MAX_MAX_OPEN_JOBS_PER_NODE,
             TimeValue.timeValueMinutes(1),
+            false,
             "xpack.ml.datafeed_thread_pool"
         );
 

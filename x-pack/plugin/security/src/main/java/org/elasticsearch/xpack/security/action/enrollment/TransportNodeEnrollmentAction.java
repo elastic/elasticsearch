@@ -58,8 +58,8 @@ public class TransportNodeEnrollmentAction extends HandledTransportAction<NodeEn
     @Override
     protected void doExecute(Task task, NodeEnrollmentRequest request, ActionListener<NodeEnrollmentResponse> listener) {
 
-        final SslKeyConfig transportKeyConfig = sslService.getTransportSSLConfiguration().getKeyConfig();
-        final SslKeyConfig httpKeyConfig = sslService.getHttpTransportSSLConfiguration().getKeyConfig();
+        final SslKeyConfig transportKeyConfig = sslService.getTransportSSLConfiguration().keyConfig();
+        final SslKeyConfig httpKeyConfig = sslService.getHttpTransportSSLConfiguration().keyConfig();
         if (transportKeyConfig instanceof StoreKeyConfig == false) {
             listener.onFailure(
                 new IllegalStateException(
@@ -102,7 +102,7 @@ public class TransportNodeEnrollmentAction extends HandledTransportAction<NodeEn
         try {
             transportCaCertificates = ((StoreKeyConfig) transportKeyConfig).getConfiguredCertificates()
                 .stream()
-                .map(StoredCertificate::getCertificate)
+                .map(StoredCertificate::certificate)
                 .filter(x509Certificate -> x509Certificate.getBasicConstraints() != -1)
                 .collect(Collectors.toList());
         } catch (Exception e) {

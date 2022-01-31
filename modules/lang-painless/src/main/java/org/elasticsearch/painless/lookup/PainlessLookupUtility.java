@@ -356,11 +356,11 @@ public final class PainlessLookupUtility {
      * derived from an {@link org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation}.
      */
     public static Object[] buildInjections(PainlessMethod painlessMethod, Map<String, Object> constants) {
-        if (painlessMethod.annotations.containsKey(InjectConstantAnnotation.class) == false) {
+        if (painlessMethod.annotations().containsKey(InjectConstantAnnotation.class) == false) {
             return new Object[0];
         }
 
-        List<String> names = ((InjectConstantAnnotation) painlessMethod.annotations.get(InjectConstantAnnotation.class)).injects;
+        List<String> names = ((InjectConstantAnnotation) painlessMethod.annotations().get(InjectConstantAnnotation.class)).injects();
         Object[] injections = new Object[names.size()];
 
         for (int i = 0; i < names.size(); i++) {
@@ -373,7 +373,7 @@ public final class PainlessLookupUtility {
                         + name
                         + "] not found for injection into method "
                         + "["
-                        + buildPainlessMethodKey(painlessMethod.javaMethod.getName(), painlessMethod.typeParameters.size())
+                        + buildPainlessMethodKey(painlessMethod.javaMethod().getName(), painlessMethod.typeParameters().size())
                         + "]"
                 );
             }

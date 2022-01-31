@@ -36,8 +36,8 @@ public class ProfileConfigurationsTests extends ESTestCase {
         final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, defaultConfig);
         assertThat(profileConfigurations.size(), Matchers.equalTo(3));
         assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("full", "cert", "default"));
-        assertThat(profileConfigurations.get("full").getVerificationMode(), Matchers.equalTo(SslVerificationMode.FULL));
-        assertThat(profileConfigurations.get("cert").getVerificationMode(), Matchers.equalTo(SslVerificationMode.CERTIFICATE));
+        assertThat(profileConfigurations.get("full").verificationMode(), Matchers.equalTo(SslVerificationMode.FULL));
+        assertThat(profileConfigurations.get("cert").verificationMode(), Matchers.equalTo(SslVerificationMode.CERTIFICATE));
         assertThat(profileConfigurations.get("default"), Matchers.sameInstance(defaultConfig));
     }
 
@@ -53,7 +53,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
         final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, defaultConfig);
         assertThat(profileConfigurations.size(), Matchers.equalTo(2));
         assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("none", "default"));
-        assertThat(profileConfigurations.get("none").getVerificationMode(), Matchers.equalTo(SslVerificationMode.NONE));
+        assertThat(profileConfigurations.get("none").verificationMode(), Matchers.equalTo(SslVerificationMode.NONE));
         assertThat(profileConfigurations.get("default"), Matchers.sameInstance(defaultConfig));
     }
 

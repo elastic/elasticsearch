@@ -136,7 +136,16 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         );
         assertThat(
             illegalStateException.getMessage(),
-            allOf(startsWith("cannot upgrade a node from version ["), endsWith("] directly to version [" + Version.CURRENT + "]"))
+            allOf(
+                startsWith("cannot upgrade a node from version ["),
+                endsWith(
+                    "] directly to version ["
+                        + Version.CURRENT
+                        + "], upgrade to version ["
+                        + Version.CURRENT.minimumCompatibilityVersion()
+                        + "] first."
+                )
+            )
         );
     }
 

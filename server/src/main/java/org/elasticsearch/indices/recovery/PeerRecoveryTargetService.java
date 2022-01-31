@@ -66,7 +66,6 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * The recovery target handles recoveries of peer shards of the shard+node to recover to.
@@ -228,7 +227,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
-                    if (isSearchableSnapshotStore(indexShard.indexSettings().getSettings())) {
+                    if (indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
                         // for searchable snapshots, peer recovery is treated similarly to recovery from snapshot
                         indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
                         final Store store = indexShard.store();

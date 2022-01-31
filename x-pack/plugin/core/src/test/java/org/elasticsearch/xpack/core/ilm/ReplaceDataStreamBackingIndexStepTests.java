@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
 
@@ -19,6 +20,7 @@ import java.util.UUID;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.is;
 
 public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase<ReplaceDataStreamBackingIndexStep> {
@@ -79,7 +81,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .metadata(
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(sourceIndexMetadata.getIndex())))
+                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(sourceIndexMetadata.getIndex())))
                     .build()
             )
             .build();
@@ -110,7 +112,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices))
                     .build()
             )
             .build();
@@ -158,7 +160,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices))
                     .put(targetIndexMetadata, true)
                     .build()
             )
@@ -210,7 +212,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices))
                     .put(targetIndexMetadata, true)
                     .build()
             )

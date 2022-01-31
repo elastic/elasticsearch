@@ -358,7 +358,7 @@ public class GeometryNormalizerTests extends ESTestCase {
         polygon = new Polygon(new LinearRing(new double[] { 1, 0, 0, 1, 1 }, new double[] { 1, 1, 0, 0, 1 }));
         // for some reason, the normalizer always changes the order of the points
         indexed = new Polygon(new LinearRing(new double[] { 0, 0, 1, 1, 0 }, new double[] { 1, 0, 0, 1, 1 }));
-        ;
+
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, polygon));
         assertEquals(false, GeometryNormalizer.needsNormalize(Orientation.CCW, polygon));
 
@@ -425,5 +425,38 @@ public class GeometryNormalizerTests extends ESTestCase {
         );
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, multiPolygon));
         assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, multiPolygon));
+    }
+
+    public void testIssue82840() {
+        Polygon polygon = new Polygon(
+            new LinearRing(
+                new double[] { -143.10690080319134, -143.10690080319134, 62.41055750853541, -143.10690080319134 },
+                new double[] { -90.0, -30.033129816260214, -30.033129816260214, -90.0 }
+            )
+        );
+        MultiPolygon indexedCCW = new MultiPolygon(
+            List.of(
+                new Polygon(
+                    new LinearRing(
+                        new double[] { 180.0, 180.0, 62.41055750853541, 180.0 },
+                        new double[] { -75.67887564489237, -30.033129816260214, -30.033129816260214, -75.67887564489237 }
+                    )
+                ),
+                new Polygon(
+                    new LinearRing(
+                        new double[] { -180.0, -180.0, -143.10690080319134, -143.10690080319134, -180.0 },
+                        new double[] { -30.033129816260214, -75.67887564489237, -90.0, -30.033129816260214, -30.033129816260214 }
+                    )
+                )
+            )
+        );
+        assertEquals(indexedCCW, GeometryNormalizer.apply(Orientation.CCW, polygon));
+        Polygon indexedCW = new Polygon(
+            new LinearRing(
+                new double[] { -143.10690080319134, 62.41055750853541, -143.10690080319134, -143.10690080319134 },
+                new double[] { -30.033129816260214, -30.033129816260214, -90.0, -30.033129816260214 }
+            )
+        );
+        assertEquals(indexedCW, GeometryNormalizer.apply(Orientation.CW, polygon));
     }
 }

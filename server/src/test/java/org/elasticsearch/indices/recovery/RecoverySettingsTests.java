@@ -26,16 +26,19 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.indices.recovery.RecoverySettings.ALL_MAX_BYTES_PER_SEC_EXTERNAL_SETTINGS;
+import static org.elasticsearch.indices.recovery.RecoverySettings.DEFAULT_FACTOR_VALUE;
 import static org.elasticsearch.indices.recovery.RecoverySettings.DEFAULT_MAX_BYTES_PER_SEC;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_USE_SNAPSHOTS_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.JAVA_VERSION_OVERRIDING_TEST_SETTING;
-import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_DISK_AVAILABLE_BANDWIDTH_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.MAX_BYTES_PER_SEC_OPERATOR_FACTOR_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.MAX_BYTES_PER_SEC_OPERATOR_MAX_OVERCOMMIT_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_AVAILABLE_BANDWIDTHS_SETTINGS;
+import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_DISK_AVAILABLE_READ_BANDWIDTH_SETTING;
+import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_DISK_AVAILABLE_WRITE_BANDWIDTH_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_NETWORK_AVAILABLE_BANDWIDTH_SETTING;
-import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_RECOVERY_MAX_BYTES_PER_SEC_FACTOR_SETTING;
 import static org.elasticsearch.indices.recovery.RecoverySettings.TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.containsString;
@@ -113,114 +116,52 @@ public class RecoverySettingsTests extends ESTestCase {
         );
     }
 
-    public void testIndicesRecoveryMaxBytesPerSecSetting() {
-        final ByteSizeValue indicesRecoveryMaxBytesPerSec = randomByteSizeValue();
+    public void testAvailableBandwidthsSettingsAreAllConfigured() {
+        final NodeRecoverySettings recoverySettings = nodeRecoverySettings();
+        recoverySettings.withRandomIndicesRecoveryMaxBytesPerSec();
+        recoverySettings.withRoles(randomDataNodeRoles());
+        recoverySettings.withRandomMemory();
 
-        final Settings.Builder settings = Settings.builder();
-        settings.put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), indicesRecoveryMaxBytesPerSec);
-        if (randomBoolean()) {
-            ALL_MAX_BYTES_PER_SEC_EXTERNAL_SETTINGS.forEach(setting -> settings.put(setting.getKey(), ByteSizeValue.ZERO));
-        }
-
-        assertThat(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings.build()), equalTo(indicesRecoveryMaxBytesPerSec));
-    }
-
-    public void testExternalSettingsAreAllConfigured() {
-        final Setting<?> randomBandwidthSetting = randomFrom(ALL_MAX_BYTES_PER_SEC_EXTERNAL_SETTINGS);
-
-        final Settings.Builder settings = Settings.builder();
-        settings.put(randomBandwidthSetting.getKey(), randomNonZeroByteSizeValue());
-        if (randomBoolean()) {
-            settings.put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), randomByteSizeValue());
-        }
-
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings.build())
+        final List<Setting<?>> randomSettings = randomSubsetOf(
+            randomIntBetween(1, NODE_AVAILABLE_BANDWIDTHS_SETTINGS.size() - 1),
+            NODE_AVAILABLE_BANDWIDTHS_SETTINGS
         );
+        for (Setting<?> setting : randomSettings) {
+            if (setting.getKey().equals(NODE_NETWORK_AVAILABLE_BANDWIDTH_SETTING.getKey())) {
+                recoverySettings.withNetworkBandwidth(randomNonZeroByteSizeValue());
+            } else if (setting.getKey().equals(NODE_DISK_AVAILABLE_READ_BANDWIDTH_SETTING.getKey())) {
+                recoverySettings.withDiskReadBandwidth(randomNonZeroByteSizeValue());
+            } else if (setting.getKey().equals(NODE_DISK_AVAILABLE_WRITE_BANDWIDTH_SETTING.getKey())) {
+                recoverySettings.withDiskWriteBandwidth(randomNonZeroByteSizeValue());
+            } else {
+                throw new AssertionError();
+            }
+        }
+
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, recoverySettings::build);
         assertThat(
             exception.getMessage(),
             containsString(
-                "Settings [node.disk.allocated_bandwidth, node.network.allocated_bandwidth] must all be defined or all be undefined; "
-                    + "but only settings ["
-                    + randomBandwidthSetting.getKey()
-                    + "] are configured."
+                "Settings "
+                    + NODE_AVAILABLE_BANDWIDTHS_SETTINGS.stream().map(Setting::getKey).collect(Collectors.toList())
+                    + " must all be defined or all be undefined; but only settings "
+                    + NODE_AVAILABLE_BANDWIDTHS_SETTINGS.stream()
+                        .filter(randomSettings::contains)
+                        .map(Setting::getKey)
+                        .collect(Collectors.toList())
+                    + " are configured."
             )
         );
-    }
-
-    public void testIndicesRecoveryMaxBytesPerSecSettingTakesPrecedenceOverDefaults() {
-        final ByteSizeValue indicesRecoveryMaxBytesPerSec = randomByteSizeValue();
-
-        final Settings.Builder settings = Settings.builder();
-        settings.put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), indicesRecoveryMaxBytesPerSec);
-        ALL_MAX_BYTES_PER_SEC_EXTERNAL_SETTINGS.forEach(s -> settings.put(s.getKey(), randomNonZeroByteSizeValue()));
-        if (randomBoolean()) {
-            List<DiscoveryNodeRole> roles = randomSubsetOf(DiscoveryNodeRole.roles());
-            settings.putList(NODE_ROLES_SETTING.getKey(), roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toList()));
-        }
-
-        assertThat(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings.build()), equalTo(indicesRecoveryMaxBytesPerSec));
-
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        RecoverySettings recoverySettings = new RecoverySettings(settings.build(), clusterSettings);
-        assertThat(recoverySettings.getMaxBytesPerSec(), equalTo(indicesRecoveryMaxBytesPerSec));
-    }
-
-    public void testIndicesRecoveryMaxBytesPerSecDefaultOnNonDataNode() {
-        Set<String> nonDataRoles = DiscoveryNodeRole.roles()
-            .stream()
-            .filter(role -> role != DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)
-            .filter(role -> role.canContainData() == false)
-            .map(DiscoveryNodeRole::roleName)
-            .collect(Collectors.toSet());
-
-        final Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.putList(NODE_ROLES_SETTING.getKey(), randomSubsetOf(randomIntBetween(1, nonDataRoles.size()), nonDataRoles));
-        if (randomBoolean()) {
-            settingsBuilder.put(NODE_DISK_AVAILABLE_BANDWIDTH_SETTING.getKey(), randomNonZeroByteSizeValue())
-                .put(NODE_NETWORK_AVAILABLE_BANDWIDTH_SETTING.getKey(), randomNonZeroByteSizeValue());
-        }
-
-        final Settings settings = settingsBuilder.build();
-        assertThat(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings), equalTo(RecoverySettings.DEFAULT_MAX_BYTES_PER_SEC));
-
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
-        assertThat(recoverySettings.getMaxBytesPerSec(), equalTo(RecoverySettings.DEFAULT_MAX_BYTES_PER_SEC));
-    }
-
-    public void testIndicesRecoveryMaxBytesPerSecFromExternalSettings() {
-        final Settings.Builder settingsBuilder = Settings.builder();
-
-        final ByteSizeValue diskBandwidth = ByteSizeValue.ofMb(randomIntBetween(1, 300));
-        settingsBuilder.put(NODE_DISK_AVAILABLE_BANDWIDTH_SETTING.getKey(), diskBandwidth);
-
-        final ByteSizeValue networkBandwidth = ByteSizeValue.ofMb(randomIntBetween(1, 12500));
-        settingsBuilder.put(NODE_NETWORK_AVAILABLE_BANDWIDTH_SETTING.getKey(), networkBandwidth);
-
-        final double factor;
-        if (randomBoolean()) {
-            factor = randomDoubleBetween(0.0, 1.0, true);
-            settingsBuilder.put(NODE_RECOVERY_MAX_BYTES_PER_SEC_FACTOR_SETTING.getKey(), factor);
-        } else {
-            factor = NODE_RECOVERY_MAX_BYTES_PER_SEC_FACTOR_SETTING.get(Settings.EMPTY);
-        }
-
-        final long maxBytesPerSec = RecoverySettings.recoveryMaxBytesPerSec(factor, diskBandwidth.getBytes(), networkBandwidth.getBytes());
-
-        final Settings settings = settingsBuilder.build();
-        assertThat(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings), equalTo(new ByteSizeValue(maxBytesPerSec)));
-
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
-        assertThat(recoverySettings.getMaxBytesPerSec(), equalTo(new ByteSizeValue(maxBytesPerSec)));
     }
 
     public void testDefaultMaxBytesPerSecOnNonDataNode() {
         assertThat(
             "Non-data nodes have a default 40mb rate limit",
-            nodeRecoverySettings().withRole(randomFrom("master", "ingest", "ml")).withRandomMemory().build().getMaxBytesPerSec(),
+            nodeRecoverySettings().withRole(randomFrom("master", "ingest", "ml"))
+                .withRandomBandwidths()
+                .withRandomMemory()
+                .build()
+                .getMaxBytesPerSec(),
             equalTo(DEFAULT_MAX_BYTES_PER_SEC)
         );
     }
@@ -250,17 +191,114 @@ public class RecoverySettingsTests extends ESTestCase {
     }
 
     public void testMaxBytesPerSecOnDataNodeWithIndicesRecoveryMaxBytesPerSec() {
-        final Set<String> roles = new HashSet<>(randomSubsetOf(randomIntBetween(1, 4), "data", "data_hot", "data_warm", "data_content"));
-        roles.addAll(randomSubsetOf(Set.of("data_cold", "data_frozen")));
         final ByteSizeValue random = randomByteSizeValue();
         assertThat(
             "Data nodes that are not dedicated to cold/frozen should use the defined rate limit when set",
-            nodeRecoverySettings().withRoles(roles)
-                .withIndicesRecoveryMaxBytesPerSec(random)
+            nodeRecoverySettings().withIndicesRecoveryMaxBytesPerSec(random)
+                .withRoles(randomDataNodeRoles())
                 .withRandomMemory()
                 .build()
                 .getMaxBytesPerSec(),
             equalTo(random)
+        );
+    }
+
+    public void testMaxBytesPerSecOnDataNodeWithIndicesRecoveryMaxBytesPerSecAndOvercommit() {
+        final Double maxOvercommitFactor = randomBoolean() ? randomDoubleBetween(1.0d, 100.0d, true) : null;
+        assertThat(
+            "Data nodes should not exceed the max. allowed overcommit when 'indices.recovery.max_bytes_per_sec' is too large",
+            nodeRecoverySettings().withIndicesRecoveryMaxBytesPerSec(ByteSizeValue.ofGb(between(100, 1000)))
+                .withNetworkBandwidth(ByteSizeValue.ofGb(1))
+                .withDiskReadBandwidth(ByteSizeValue.ofMb(500))
+                .withDiskWriteBandwidth(ByteSizeValue.ofMb(250))
+                .withMaxOvercommitFactor(maxOvercommitFactor)
+                .withRoles(randomDataNodeRoles())
+                .withRandomMemory()
+                .build()
+                .getMaxBytesPerSec(),
+            equalTo(
+                ByteSizeValue.ofBytes(
+                    Math.round(Objects.requireNonNullElse(maxOvercommitFactor, 100.d) * ByteSizeValue.ofMb(250).getBytes())
+                )
+            )
+        );
+    }
+
+    public void testMaxBytesPerSecOnDataNodeWithAvailableBandwidths() {
+        assertThat(
+            "Data node should use pre 8.1.0 default because available bandwidths are lower",
+            nodeRecoverySettings().withRoles(randomDataNodeRoles())
+                .withRandomMemory()
+                .withNetworkBandwidth(ByteSizeValue.ofGb(between(1, 10)))
+                .withDiskReadBandwidth(ByteSizeValue.ofMb(between(10, 50)))
+                .withDiskWriteBandwidth(ByteSizeValue.ofMb(between(10, 50)))
+                .build()
+                .getMaxBytesPerSec(),
+            equalTo(DEFAULT_MAX_BYTES_PER_SEC)
+        );
+
+        final ByteSizeValue indicesRecoveryMaxBytesPerSec = ByteSizeValue.ofMb(randomFrom(100, 250));
+        assertThat(
+            "Data node should use 'indices.recovery.max_bytes_per_sec' setting because available bandwidths are lower",
+            nodeRecoverySettings().withRoles(randomDataNodeRoles())
+                .withRandomMemory()
+                .withNetworkBandwidth(ByteSizeValue.ofGb(between(1, 10)))
+                .withDiskReadBandwidth(ByteSizeValue.ofMb(between(10, 50)))
+                .withDiskWriteBandwidth(ByteSizeValue.ofMb(between(10, 50)))
+                .withIndicesRecoveryMaxBytesPerSec(indicesRecoveryMaxBytesPerSec)
+                .build()
+                .getMaxBytesPerSec(),
+            equalTo(indicesRecoveryMaxBytesPerSec)
+        );
+
+        final Double factor = randomBoolean() ? randomDoubleBetween(0.5d, 1.0d, true) : null;
+
+        final ByteSizeValue networkBandwidth = ByteSizeValue.ofMb(randomFrom(100, 250));
+        assertThat(
+            "Data node should use available disk read bandwidth",
+            nodeRecoverySettings().withRoles(randomDataNodeRoles())
+                .withRandomMemory()
+                .withNetworkBandwidth(networkBandwidth)
+                .withDiskReadBandwidth(ByteSizeValue.ofMb(between(250, 500)))
+                .withDiskWriteBandwidth(ByteSizeValue.ofMb(between(250, 500)))
+                .withOperatorDefaultFactor(factor)
+                .build()
+                .getMaxBytesPerSec(),
+            equalTo(
+                ByteSizeValue.ofBytes(Math.round(Objects.requireNonNullElse(factor, DEFAULT_FACTOR_VALUE) * networkBandwidth.getBytes()))
+            )
+        );
+
+        final ByteSizeValue diskReadBandwidth = ByteSizeValue.ofMb(randomFrom(100, 250));
+        assertThat(
+            "Data node should use available disk read bandwidth",
+            nodeRecoverySettings().withRoles(randomDataNodeRoles())
+                .withRandomMemory()
+                .withNetworkBandwidth(ByteSizeValue.ofGb(between(1, 10)))
+                .withDiskReadBandwidth(diskReadBandwidth)
+                .withDiskWriteBandwidth(ByteSizeValue.ofMb(between(250, 500)))
+                .withOperatorDefaultFactor(factor)
+                .build()
+                .getMaxBytesPerSec(),
+            equalTo(
+                ByteSizeValue.ofBytes(Math.round(Objects.requireNonNullElse(factor, DEFAULT_FACTOR_VALUE) * diskReadBandwidth.getBytes()))
+            )
+        );
+
+        final ByteSizeValue diskWriteBandwidth = ByteSizeValue.ofMb(randomFrom(100, 250));
+        assertThat(
+            "Data node should use available disk write bandwidth",
+            nodeRecoverySettings().withRoles(randomDataNodeRoles())
+                .withRandomMemory()
+                .withNetworkBandwidth(ByteSizeValue.ofGb(between(1, 10)))
+                .withDiskReadBandwidth(ByteSizeValue.ofMb(between(250, 500)))
+                .withDiskWriteBandwidth(diskWriteBandwidth)
+                .withOperatorDefaultFactor(factor)
+                .build()
+                .getMaxBytesPerSec(),
+            equalTo(
+                ByteSizeValue.ofBytes(Math.round(Objects.requireNonNullElse(factor, DEFAULT_FACTOR_VALUE) * diskWriteBandwidth.getBytes()))
+            )
         );
     }
 
@@ -350,15 +388,33 @@ public class RecoverySettingsTests extends ESTestCase {
         );
     }
 
-    public static ByteSizeValue randomByteSizeValue() {
+    private static ByteSizeValue randomByteSizeValue() {
         return new ByteSizeValue(randomLongBetween(0L, Long.MAX_VALUE >> 16));
     }
 
-    public static ByteSizeValue randomNonZeroByteSizeValue() {
+    private static ByteSizeValue randomNonZeroByteSizeValue() {
         return new ByteSizeValue(randomLongBetween(1L, Long.MAX_VALUE >> 16));
     }
 
-    static NodeRecoverySettings nodeRecoverySettings() {
+    private static Set<String> randomDataNodeRoles() {
+        final Set<String> roles = new HashSet<>(randomSubsetOf(randomIntBetween(1, 4), "data", "data_hot", "data_warm", "data_content"));
+        roles.addAll(randomSubsetOf(Set.of("data_cold", "data_frozen")));
+        if (randomBoolean()) {
+            roles.addAll(
+                randomSubsetOf(
+                    DiscoveryNodeRole.roles()
+                        .stream()
+                        .filter(role -> role != DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)
+                        .filter(role -> role.canContainData() == false)
+                        .map(DiscoveryNodeRole::roleName)
+                        .collect(Collectors.toSet())
+                )
+            );
+        }
+        return roles;
+    }
+
+    private static NodeRecoverySettings nodeRecoverySettings() {
         return new NodeRecoverySettings();
     }
 
@@ -367,7 +423,12 @@ public class RecoverySettingsTests extends ESTestCase {
         private Set<String> roles;
         private ByteSizeValue physicalMemory;
         private @Nullable String javaVersion;
+        private @Nullable ByteSizeValue networkBandwidth;
+        private @Nullable ByteSizeValue diskReadBandwidth;
+        private @Nullable ByteSizeValue diskWriteBandwidth;
         private @Nullable ByteSizeValue indicesRecoveryMaxBytesPerSec;
+        private @Nullable Double operatorDefaultFactor;
+        private @Nullable Double maxOvercommitFactor;
 
         NodeRecoverySettings withRole(String role) {
             this.roles = Set.of(Objects.requireNonNull(role));
@@ -398,6 +459,47 @@ public class RecoverySettingsTests extends ESTestCase {
             return this;
         }
 
+        NodeRecoverySettings withRandomIndicesRecoveryMaxBytesPerSec() {
+            if (randomBoolean()) {
+                withIndicesRecoveryMaxBytesPerSec(randomByteSizeValue());
+            }
+            return this;
+        }
+
+        NodeRecoverySettings withNetworkBandwidth(ByteSizeValue networkBandwidth) {
+            this.networkBandwidth = networkBandwidth;
+            return this;
+        }
+
+        NodeRecoverySettings withDiskReadBandwidth(ByteSizeValue diskReadBandwidth) {
+            this.diskReadBandwidth = diskReadBandwidth;
+            return this;
+        }
+
+        NodeRecoverySettings withDiskWriteBandwidth(ByteSizeValue diskWriteBandwidth) {
+            this.diskWriteBandwidth = diskWriteBandwidth;
+            return this;
+        }
+
+        NodeRecoverySettings withRandomBandwidths() {
+            if (randomBoolean()) {
+                withNetworkBandwidth(randomNonZeroByteSizeValue());
+                withDiskReadBandwidth(randomNonZeroByteSizeValue());
+                withDiskWriteBandwidth(randomNonZeroByteSizeValue());
+            }
+            return this;
+        }
+
+        NodeRecoverySettings withOperatorDefaultFactor(Double factor) {
+            this.operatorDefaultFactor = factor;
+            return this;
+        }
+
+        NodeRecoverySettings withMaxOvercommitFactor(Double factor) {
+            this.maxOvercommitFactor = factor;
+            return this;
+        }
+
         RecoverySettings build() {
             final Settings.Builder settings = Settings.builder();
             settings.put(TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING.getKey(), Objects.requireNonNull(physicalMemory));
@@ -409,6 +511,21 @@ public class RecoverySettingsTests extends ESTestCase {
             }
             if (indicesRecoveryMaxBytesPerSec != null) {
                 settings.put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), indicesRecoveryMaxBytesPerSec);
+            }
+            if (networkBandwidth != null) {
+                settings.put(NODE_NETWORK_AVAILABLE_BANDWIDTH_SETTING.getKey(), networkBandwidth);
+            }
+            if (diskReadBandwidth != null) {
+                settings.put(NODE_DISK_AVAILABLE_READ_BANDWIDTH_SETTING.getKey(), diskReadBandwidth);
+            }
+            if (diskWriteBandwidth != null) {
+                settings.put(NODE_DISK_AVAILABLE_WRITE_BANDWIDTH_SETTING.getKey(), diskWriteBandwidth);
+            }
+            if (operatorDefaultFactor != null) {
+                settings.put(MAX_BYTES_PER_SEC_OPERATOR_FACTOR_SETTING.getKey(), operatorDefaultFactor);
+            }
+            if (maxOvercommitFactor != null) {
+                settings.put(MAX_BYTES_PER_SEC_OPERATOR_MAX_OVERCOMMIT_SETTING.getKey(), maxOvercommitFactor);
             }
             return new RecoverySettings(settings.build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         }

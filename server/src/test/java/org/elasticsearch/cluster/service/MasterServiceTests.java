@@ -489,8 +489,8 @@ public class MasterServiceTests extends ESTestCase {
 
             @Override
             public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
-                assertTrue(executed.compareAndSet(false, true));
-                assertThat(tasks.size(), equalTo(expectedTaskCount));
+                assertTrue("Should execute all tasks at once", executed.compareAndSet(false, true));
+                assertThat("Should execute all tasks at once", tasks.size(), equalTo(expectedTaskCount));
                 executionCountDown.countDown();
                 return ClusterTasksResult.<Task>builder().successes(tasks).build(currentState);
             }

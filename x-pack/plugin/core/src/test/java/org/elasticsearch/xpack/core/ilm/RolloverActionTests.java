@@ -39,7 +39,15 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             : null;
-        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
+        ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
+        ByteSizeValue minPrimaryShardSize = randomBoolean()
+            ? null
+            : new ByteSizeValue(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
+        Long minDocs = randomBoolean() ? null : randomNonNegativeLong();
+        TimeValue minAge = (minDocs == null || randomBoolean())
+            ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
+            : null;
+        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs, minPrimaryShardSize, minAge, minDocs);
     }
 
     @Override
@@ -53,7 +61,10 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
         TimeValue maxAge = instance.getMaxAge();
         Long maxDocs = instance.getMaxDocs();
-        switch (between(0, 3)) {
+        ByteSizeValue minPrimaryShardSize = instance.getMinPrimaryShardSize();
+        TimeValue minAge = instance.getMinAge();
+        Long minDocs = instance.getMinDocs();
+        switch (between(0, 6)) {
             case 0 -> maxSize = randomValueOtherThan(maxSize, () -> {
                 ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
@@ -66,15 +77,25 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
                 maxAge,
                 () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             );
-            case 3 -> maxDocs = maxDocs == null ? randomNonNegativeLong() : maxDocs + 1;
+            case 3 -> minDocs = minDocs == null ? randomNonNegativeLong() : minDocs + 1;
+            case 4 -> minPrimaryShardSize = randomValueOtherThan(minPrimaryShardSize, () -> {
+                ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
+                return new ByteSizeValue(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
+            });
+            case 5 -> minAge = randomValueOtherThan(
+                minAge,
+                () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
+            );
+            case 6 -> minDocs = minDocs == null ? randomNonNegativeLong() : minDocs + 1;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
+        return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs, minPrimaryShardSize, minAge, minDocs);
     }
 
     public void testNoConditions() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new RolloverAction(null, null, null, null));
-        assertEquals("At least one rollover condition must be set.", exception.getMessage());
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> new RolloverAction(null, null, null, null, null, null, null));
+        assertEquals("At least one max_* rollover condition must be set.", exception.getMessage());
     }
 
     public void testToSteps() {

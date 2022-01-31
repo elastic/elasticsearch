@@ -24,15 +24,17 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Request class to swap index under an alias or increment data stream generation upon satisfying conditions
- *
+ * <p>
  * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
  * Any changes done to this class should also go to that client class.
  */
@@ -88,8 +90,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             if (includeTypeName) {
                 // expecting one type only
                 for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
-                    @SuppressWarnings("unchecked")
-                    final Map<String, Object> value = (Map<String, Object>) mappingsEntry.getValue();
+                    @SuppressWarnings("unchecked") final Map<String, Object> value = (Map<String, Object>) mappingsEntry.getValue();
                     request.createIndexRequest.mapping(value);
                 }
             } else {
@@ -143,7 +144,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         createIndexRequest = new CreateIndexRequest(in);
     }
 
-    RolloverRequest() {}
+    RolloverRequest() {
+    }
 
     public RolloverRequest(String rolloverTarget, String newIndexName) {
         this.rolloverTarget = rolloverTarget;
@@ -174,7 +176,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     @Override
     public String[] indices() {
-        return new String[] { rolloverTarget };
+        return new String[]{rolloverTarget};
     }
 
     @Override
@@ -263,33 +265,33 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      * Adds required condition to check if the index is at least <code>age</code> old
      */
     public void addMinIndexAgeCondition(TimeValue age) {
-        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(age);
-        if (this.conditions.containsKey(maxAgeCondition.name)) {
-            throw new IllegalArgumentException(maxAgeCondition.name + " condition is already set");
+        MinAgeCondition minAgeCondition = new MinAgeCondition(age);
+        if (this.conditions.containsKey(minAgeCondition.name)) {
+            throw new IllegalArgumentException(minAgeCondition.name + " condition is already set");
         }
-        this.conditions.put(maxAgeCondition.name, maxAgeCondition);
+        this.conditions.put(minAgeCondition.name, minAgeCondition);
     }
 
     /**
      * Adds required condition to check if the index has at least <code>numDocs</code>
      */
     public void addMinIndexDocsCondition(long numDocs) {
-        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(numDocs);
-        if (this.conditions.containsKey(maxDocsCondition.name)) {
-            throw new IllegalArgumentException(maxDocsCondition.name + " condition is already set");
+        MinDocsCondition minDocsCondition = new MinDocsCondition(numDocs);
+        if (this.conditions.containsKey(minDocsCondition.name)) {
+            throw new IllegalArgumentException(minDocsCondition.name + " condition is already set");
         }
-        this.conditions.put(maxDocsCondition.name, maxDocsCondition);
+        this.conditions.put(minDocsCondition.name, minDocsCondition);
     }
 
     /**
      * Adds a size-based required condition to check if the size of the largest primary shard is at least <code>size</code>.
      */
     public void addMinPrimaryShardSizeCondition(ByteSizeValue size) {
-        MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(size);
-        if (this.conditions.containsKey(maxPrimaryShardSizeCondition.name)) {
-            throw new IllegalArgumentException(maxPrimaryShardSizeCondition + " condition is already set");
+        MinPrimaryShardSizeCondition minPrimaryShardSizeCondition = new MinPrimaryShardSizeCondition(size);
+        if (this.conditions.containsKey(minPrimaryShardSizeCondition.name)) {
+            throw new IllegalArgumentException(minPrimaryShardSizeCondition + " condition is already set");
         }
-        this.conditions.put(maxPrimaryShardSizeCondition.name, maxPrimaryShardSizeCondition);
+        this.conditions.put(minPrimaryShardSizeCondition.name, minPrimaryShardSizeCondition);
     }
 
     public boolean isDryRun() {
@@ -306,6 +308,19 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     public String getNewIndexName() {
         return newIndexName;
+    }
+
+    public boolean areConditionsMet(Map<String, Boolean> trialConditionResults) {
+        Collection<Condition<?>> conditions = getConditions().values();
+        boolean allRequiredMet = conditions.stream()
+            .filter(Condition::isRequired)
+            .allMatch(c -> trialConditionResults.get(c.toString()));
+
+        boolean anyNonRequiredMet = conditions.stream()
+            .filter(Predicate.not(Condition::isRequired))
+            .anyMatch(c -> trialConditionResults.get(c.toString()));
+
+        return trialConditionResults.size() == 0 || (allRequiredMet && anyNonRequiredMet);
     }
 
     /**

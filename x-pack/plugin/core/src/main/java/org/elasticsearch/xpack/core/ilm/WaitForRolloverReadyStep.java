@@ -215,7 +215,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             .rolloverIndex(
                 rolloverRequest,
                 ActionListener.wrap(
-                    response -> listener.onResponse(response.getConditionStatus().values().stream().anyMatch(i -> i), EmptyInfo.INSTANCE),
+                    response -> listener.onResponse(rolloverRequest.areConditionsMet(response.getConditionStatus()), EmptyInfo.INSTANCE),
                     listener::onFailure
                 )
             );
@@ -237,9 +237,21 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         return maxDocs;
     }
 
+    ByteSizeValue getMinPrimaryShardSize() {
+        return minPrimaryShardSize;
+    }
+
+    TimeValue getMinAge() {
+        return minAge;
+    }
+
+    Long getMinDocs() {
+        return minDocs;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), maxSize, maxPrimaryShardSize, maxAge, maxDocs);
+        return Objects.hash(super.hashCode(), maxSize, maxPrimaryShardSize, maxAge, maxDocs, minPrimaryShardSize, minAge, minDocs);
     }
 
     @Override
@@ -255,7 +267,10 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
             && Objects.equals(maxSize, other.maxSize)
             && Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize)
             && Objects.equals(maxAge, other.maxAge)
-            && Objects.equals(maxDocs, other.maxDocs);
+            && Objects.equals(maxDocs, other.maxDocs)
+            && Objects.equals(minPrimaryShardSize, other.minPrimaryShardSize)
+            && Objects.equals(minAge, other.minAge)
+            && Objects.equals(minDocs, other.minDocs);
     }
 
     // We currently have no information to provide for this AsyncWaitStep, so this is an empty object

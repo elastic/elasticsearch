@@ -153,38 +153,24 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     buildStats(metadata.index(trialSourceIndexName), statsResponse)
                 );
 
-                // If this is a dry run, return with the results without invoking a cluster state update
-                if (rolloverRequest.isDryRun()) {
-                    listener.onResponse(
-                        new RolloverResponse(trialSourceIndexName, trialRolloverIndexName, trialConditionResults, true, false, false, false)
-                    );
-                    return;
-                }
-
-                boolean allRequiredMet = rolloverRequest.getConditions()
-                    .values()
-                    .stream()
-                    .filter(Condition::isRequired)
-                    .allMatch(c -> trialConditionResults.get(c.toString()));
-
-                boolean anyNonRequiredMet = rolloverRequest.getConditions()
-                    .values()
-                    .stream()
-                    .filter(Predicate.not(Condition::isRequired))
-                    .anyMatch(c -> trialConditionResults.get(c.toString()));
-
                 final RolloverResponse trialRolloverResponse = new RolloverResponse(
                     trialSourceIndexName,
                     trialRolloverIndexName,
                     trialConditionResults,
-                    false,
+                    rolloverRequest.isDryRun(),
                     false,
                     false,
                     false
                 );
 
+                // If this is a dry run, return with the results without invoking a cluster state update
+                if (rolloverRequest.isDryRun()) {
+                    listener.onResponse(trialRolloverResponse);
+                    return;
+                }
+
                 // Pre-check the conditions to see whether we should submit a new cluster state task
-                if (trialConditionResults.size() == 0 || (allRequiredMet && anyNonRequiredMet)) {
+                if (rolloverRequest.areConditionsMet(trialConditionResults)) {
                     String source = "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
                     RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, listener);
                     ClusterStateTaskConfig config = ClusterStateTaskConfig.build(Priority.NORMAL, rolloverRequest.masterNodeTimeout());
@@ -195,6 +181,22 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 }
             }, listener::onFailure)
         );
+    }
+
+    private boolean areConditionsMet(RolloverRequest rolloverRequest, Map<String, Boolean> trialConditionResults) {
+        boolean allRequiredMet = rolloverRequest.getConditions()
+            .values()
+            .stream()
+            .filter(Condition::isRequired)
+            .allMatch(c -> trialConditionResults.get(c.toString()));
+
+        boolean anyNonRequiredMet = rolloverRequest.getConditions()
+            .values()
+            .stream()
+            .filter(Predicate.not(Condition::isRequired))
+            .anyMatch(c -> trialConditionResults.get(c.toString()));
+
+        return trialConditionResults.size() == 0 || (allRequiredMet && anyNonRequiredMet);
     }
 
     static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions, @Nullable final Condition.Stats stats) {
@@ -337,7 +339,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 assert conditionResults.get() != null : "matching rollover conditions missing on successful rollover";
 
                 activeShardsObserver.waitForActiveShards(
-                    new String[] { rolloverIndex.get() },
+                    new String[]{rolloverIndex.get()},
                     rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                     rolloverRequest.masterNodeTimeout(),
                     isShardsAcknowledged -> listener.onResponse(

@@ -137,7 +137,7 @@ public class RolloverAction implements LifecycleAction {
         }
         maxAge = in.readOptionalTimeValue();
         maxDocs = in.readOptionalVLong();
-        if (in.getVersion().after(Version.V_8_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
             if (in.readBoolean()) {
                 minPrimaryShardSize = new ByteSizeValue(in);
             } else {
@@ -166,7 +166,7 @@ public class RolloverAction implements LifecycleAction {
         }
         out.writeOptionalTimeValue(maxAge);
         out.writeOptionalVLong(maxDocs);
-        if (out.getVersion().after(Version.V_8_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
             out.writeBoolean(minPrimaryShardSize != null);
             if (minPrimaryShardSize != null) {
                 minPrimaryShardSize.writeTo(out);
@@ -257,7 +257,10 @@ public class RolloverAction implements LifecycleAction {
             maxSize,
             maxPrimaryShardSize,
             maxAge,
-            maxDocs
+            maxDocs,
+            minPrimaryShardSize,
+            minAge,
+            minDocs
         );
         RolloverStep rolloverStep = new RolloverStep(rolloverStepKey, waitForActiveShardsKey, client);
         WaitForActiveShardsStep waitForActiveShardsStep = new WaitForActiveShardsStep(waitForActiveShardsKey, updateDateStepKey);
@@ -277,7 +280,7 @@ public class RolloverAction implements LifecycleAction {
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
+        return Objects.hash(maxSize, maxPrimaryShardSize, maxAge, maxDocs, minPrimaryShardSize, minAge, minDocs);
     }
 
     @Override
@@ -292,7 +295,10 @@ public class RolloverAction implements LifecycleAction {
         return Objects.equals(maxSize, other.maxSize)
             && Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize)
             && Objects.equals(maxAge, other.maxAge)
-            && Objects.equals(maxDocs, other.maxDocs);
+            && Objects.equals(maxDocs, other.maxDocs)
+            && Objects.equals(minPrimaryShardSize, other.minPrimaryShardSize)
+            && Objects.equals(minAge, other.minAge)
+            && Objects.equals(minDocs, other.minDocs);
     }
 
     @Override

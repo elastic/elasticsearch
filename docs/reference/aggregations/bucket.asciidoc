@@ -48,6 +48,8 @@ include::bucket/global-aggregation.asciidoc[]
 
 include::bucket/histogram-aggregation.asciidoc[]
 
+include::bucket/ipprefix-aggregation.asciidoc[]
+
 include::bucket/iprange-aggregation.asciidoc[]
 
 include::bucket/missing-aggregation.asciidoc[]

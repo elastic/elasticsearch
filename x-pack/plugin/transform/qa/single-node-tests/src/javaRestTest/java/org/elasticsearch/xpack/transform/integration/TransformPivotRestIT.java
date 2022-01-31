@@ -1073,19 +1073,16 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
         final Request request = new Request(method, endpoint);
         request.setJsonEntity(config);
-        try {
-            client().performRequest(request);
-        } catch (WarningFailureException e) {
-            Response response = e.getResponse();
-            assertThat(
-                "Warnings were: " + response.getWarnings(),
-                response.getWarnings(),
-                hasItems(
-                    "Use of the joda time method [getMillis()] is deprecated. Use [toInstant().toEpochMilli()] instead.",
-                    "Use of the joda time method [getEra()] is deprecated. Use [get(ChronoField.ERA)] instead."
-                )
-            );
-        }
+        WarningFailureException e = expectThrows(WarningFailureException.class, () -> client().performRequest(request));
+        Response response = e.getResponse();
+        assertThat(
+            "Warnings were: " + response.getWarnings(),
+            response.getWarnings(),
+            hasItems(
+                "Use of the joda time method [getMillis()] is deprecated. Use [toInstant().toEpochMilli()] instead.",
+                "Use of the joda time method [getEra()] is deprecated. Use [get(ChronoField.ERA)] instead."
+            )
+        );
     }
 
     public void testPivotWithMaxOnDateField() throws Exception {

@@ -1192,7 +1192,9 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "should see warning at threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
-                        "writing cluster state took [*] which is above the warn threshold of [*]; " + "wrote full state with [0] indices"
+                        """
+                            writing full cluster state took [*] which is above the warn threshold of [*]; \
+                            wrote global metadata and metadata for [0] indices"""
                     )
                 );
 
@@ -1206,7 +1208,9 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "should see warning above threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
-                        "writing cluster state took [*] which is above the warn threshold of [*]; " + "wrote full state with [0] indices"
+                        """
+                            writing full cluster state took [*] which is above the warn threshold of [*]; \
+                            wrote global metadata and metadata for [0] indices"""
                     )
                 );
 
@@ -1238,7 +1242,9 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "should see warning at reduced threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
-                        "writing cluster state took [*] which is above the warn threshold of [*]; " + "wrote full state with [0] indices"
+                        """
+                            writing full cluster state took [*] which is above the warn threshold of [*]; \
+                            wrote global metadata and metadata for [0] indices"""
                     )
                 );
 
@@ -1269,8 +1275,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "should see warning at threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
-                        "writing cluster state took [*] which is above the warn threshold of [*]; "
-                            + "wrote global metadata [false] and metadata for [1] indices and skipped [0] unchanged indices"
+                        """
+                            writing cluster state took [*] which is above the warn threshold of [*]; [skipped writing] global metadata, \
+                            wrote metadata for [1] new indices and [0] existing indices, removed metadata for [0] indices and \
+                            skipped [0] unchanged indices"""
                     )
                 );
 

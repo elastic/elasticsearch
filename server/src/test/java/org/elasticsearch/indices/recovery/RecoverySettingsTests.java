@@ -224,9 +224,7 @@ public class RecoverySettingsTests extends ESTestCase {
                 .getMaxBytesPerSec(),
             equalTo(
                 ByteSizeValue.ofBytes(
-                    Math.round(
-                        Objects.requireNonNullElse(maxOvercommitFactor, 100.d) * ByteSizeValue.ofMb(250).getBytes()
-                    )
+                    Math.round(Objects.requireNonNullElse(maxOvercommitFactor, 100.d) * ByteSizeValue.ofMb(250).getBytes())
                 )
             )
         );

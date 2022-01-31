@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -53,7 +54,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         ) {
             this.format = format;
             this.keyed = keyed;
-            this.key = key != null ? key : generateKey(from, to, format);
+            this.key = key;
             this.from = from;
             this.to = to;
             this.docCount = docCount;
@@ -68,7 +69,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         }
 
         private static Bucket createFromStream(StreamInput in, DocValueFormat format, boolean keyed) throws IOException {
-            String key = in.readString();
+            String key = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readOptionalString() : in.readString();
             BytesRef from = in.readBoolean() ? in.readBytesRef() : null;
             BytesRef to = in.readBoolean() ? in.readBytesRef() : null;
             long docCount = in.readLong();
@@ -79,7 +80,11 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(key);
+            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                out.writeOptionalString(key);
+            } else {
+                out.writeString(key == null ? generateKey(from, to, format) : key);
+            }
             out.writeBoolean(from != null);
             if (from != null) {
                 out.writeBytesRef(from);
@@ -94,12 +99,12 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
 
         @Override
         public Object getKey() {
-            return key;
+            return getKeyAsString();
         }
 
         @Override
         public String getKeyAsString() {
-            return key;
+            return this.key == null ? generateKey(this.from, this.to, this.format) : this.key;
         }
 
         @Override
@@ -114,7 +119,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            String key = this.key;
+            final String key = getKeyAsString();
             if (keyed) {
                 builder.startObject(key);
             } else {

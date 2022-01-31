@@ -14,7 +14,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.RestApiVersion;
@@ -39,7 +39,11 @@ import java.util.Optional;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.search.sort.NestedSortBuilder.FILTER_FIELD;
 
-public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWriteable, ToXContentObject, Rewriteable<SortBuilder<?>> {
+public abstract class SortBuilder<T extends SortBuilder<T>>
+    implements
+        VersionedNamedWriteable,
+        ToXContentObject,
+        Rewriteable<SortBuilder<?>> {
 
     protected SortOrder order = SortOrder.ASC;
 

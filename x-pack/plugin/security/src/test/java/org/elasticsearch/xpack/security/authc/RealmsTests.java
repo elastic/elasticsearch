@@ -22,8 +22,10 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.junit.Before;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -74,6 +77,7 @@ import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -119,6 +123,8 @@ public class RealmsTests extends ESTestCase {
         when(reservedRealm.type()).thenReturn(ReservedRealm.TYPE);
         when(reservedRealm.name()).thenReturn("reserved");
         when(reservedRealm.order()).thenReturn(Integer.MIN_VALUE);
+        when(reservedRealm.domainName()).thenReturn(null);
+        when(reservedRealm.realmRef()).thenReturn(new Authentication.RealmRef("reserved", "reserved", "node"));
     }
 
     private void allowAllRealms() {
@@ -253,24 +259,26 @@ public class RealmsTests extends ESTestCase {
         }
         final String nativeRealmDomain = randomFrom(domains);
 
+        Map<String, Set<RealmConfig.RealmIdentifier>> realmsForDomain = new HashMap<>();
         for (String domain : domains) {
             if (domain != null) {
-                List<String> realmsForDomain = new ArrayList<>();
+                realmsForDomain.computeIfAbsent(domain, k -> new HashSet<>());
                 for (Map.Entry<Integer, String> indexAndDomain : indexToDomain.entrySet()) {
                     if (domain.equals(indexAndDomain.getValue())) {
-                        realmsForDomain.add("realm_" + indexAndDomain.getKey());
+                        realmsForDomain.get(domain).add(new RealmConfig.RealmIdentifier("type_" + indexAndDomain.getKey(),
+                            "realm_" + indexAndDomain.getKey()));
                     }
                 }
                 if (domain.equals(fileRealmDomain)) {
-                    realmsForDomain.add("default_file");
+                    realmsForDomain.get(domain).add(new RealmConfig.RealmIdentifier("file", "default_file"));
                 }
                 if (domain.equals(nativeRealmDomain)) {
-                    realmsForDomain.add("default_native");
+                    realmsForDomain.get(domain).add(new RealmConfig.RealmIdentifier("native", "default_native"));
                 }
-                if (false == realmsForDomain.isEmpty() || randomBoolean()) {
+                if (false == realmsForDomain.get(domain).isEmpty() || randomBoolean()) {
                     builder.put(
                         "xpack.security.authc.domains." + domain + ".realms",
-                        realmsForDomain.stream().collect(Collectors.joining(", "))
+                        realmsForDomain.get(domain).stream().map(RealmConfig.RealmIdentifier::getName).collect(Collectors.joining(", "))
                     );
                 }
             }
@@ -284,7 +292,7 @@ public class RealmsTests extends ESTestCase {
         assertThat(iterator.hasNext(), is(true));
         Realm realm = iterator.next();
         assertThat(realm, is(reservedRealm));
-        assertThat(realm.domainName(), nullValue());
+        verify(reservedRealm).configure(ArgumentMatchers.any(), any(XPackLicenseState.class));
         if (false == fileRealmDisabled && false == nativeRealmDisabled) {
             assertTrue(iterator.hasNext());
             realm = iterator.next();
@@ -422,7 +430,9 @@ public class RealmsTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(settings);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> { new Realms(settings, env, factories, licenseState, threadContext, reservedRealm); }
+            () -> {
+                new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+            }
         );
         assertThat(e.getMessage(), containsString("Found multiple realms configured with the same order"));
     }
@@ -452,7 +462,9 @@ public class RealmsTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(settings);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> { new Realms(settings, env, factories, licenseState, threadContext, reservedRealm); }
+            () -> {
+                new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+            }
         );
         assertThat(e.getMessage(), containsString("Found multiple realms configured with the same name"));
     }

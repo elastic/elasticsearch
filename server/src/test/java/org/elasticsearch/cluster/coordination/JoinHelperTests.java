@@ -12,10 +12,10 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -417,7 +417,7 @@ public class JoinHelperTests extends ESTestCase {
         }
     }
 
-    private static class BadCustom extends AbstractDiffable<ClusterState.Custom> implements ClusterState.Custom {
+    private static class BadCustom implements SimpleDiffable<ClusterState.Custom>, ClusterState.Custom {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

@@ -9,8 +9,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,7 +38,7 @@ import static org.elasticsearch.cluster.metadata.DataStream.TimestampField.FIXED
  * ids corresponding to component templates that should be composed in order when creating a new
  * index.
  */
-public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTemplate> implements ToXContentObject {
+public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTemplate>, ToXContentObject {
     private static final ParseField INDEX_PATTERNS = new ParseField("index_patterns");
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField PRIORITY = new ParseField("priority");
@@ -92,7 +92,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     private final Boolean allowAutoCreate;
 
     static Diff<ComposableIndexTemplate> readITV2DiffFrom(StreamInput in) throws IOException {
-        return AbstractDiffable.readDiffFrom(ComposableIndexTemplate::new, in);
+        return SimpleDiffable.readDiffFrom(ComposableIndexTemplate::new, in);
     }
 
     public static ComposableIndexTemplate parse(XContentParser parser) throws IOException {

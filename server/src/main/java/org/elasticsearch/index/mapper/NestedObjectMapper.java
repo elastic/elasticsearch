@@ -174,7 +174,6 @@ public class NestedObjectMapper extends ObjectMapper {
         }
         NestedObjectMapper mergeWithObject = (NestedObjectMapper) mergeWith;
         NestedObjectMapper toMerge = (NestedObjectMapper) clone();
-
         if (reason == MapperService.MergeReason.INDEX_TEMPLATE) {
             if (mergeWithObject.includeInParent.explicit()) {
                 toMerge.includeInParent = mergeWithObject.includeInParent;

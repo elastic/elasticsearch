@@ -58,7 +58,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.FetchLookupFieldsPhase;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
@@ -96,6 +95,7 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
+import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 import static org.elasticsearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_CRITICAL_READ;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_READ;
@@ -132,8 +132,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final CircuitBreaker circuitBreaker;
     private final ExecutorSelector executorSelector;
-    private final FetchLookupFieldsPhase fetchLookupFieldsPhase;
     private final int defaultPreFilterShardSize;
+    private final boolean ccsCheckCompatibility;
 
     @Inject
     public TransportSearchAction(
@@ -162,7 +162,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.executorSelector = executorSelector;
         this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(clusterService.getSettings());
-        this.fetchLookupFieldsPhase = new FetchLookupFieldsPhase(searchTransportService, searchService::isAllowExpensiveQueries);
+        this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -274,14 +274,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        listener = listener.delegateFailure(
-            (innerListener, resp) -> fetchLookupFieldsPhase.fetchLookupFields(
-                (SearchTask) task,
-                searchRequest.getLocalClusterAlias(),
-                resp.getHits(),
-                innerListener.map(nullValue -> resp)
-            )
-        );
         executeRequest((SearchTask) task, searchRequest, this::searchAsyncAction, listener);
     }
 
@@ -382,6 +374,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchRequest> rewriteListener = ActionListener.wrap(rewritten -> {
             final SearchContextId searchContext;
             final Map<String, OriginalIndices> remoteClusterIndices;
+            if (ccsCheckCompatibility) {
+                checkCCSVersionCompatibility(rewritten);
+            }
             if (rewritten.pointInTimeBuilder() != null) {
                 searchContext = rewritten.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
                 remoteClusterIndices = getIndicesFromSearchContexts(searchContext, rewritten.indicesOptions());

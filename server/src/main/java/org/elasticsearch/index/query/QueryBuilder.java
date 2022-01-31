@@ -9,12 +9,13 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
 
-public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewriteable<QueryBuilder> {
+public interface QueryBuilder extends VersionedNamedWriteable, ToXContentObject, Rewriteable<QueryBuilder> {
 
     /**
      * Converts this QueryBuilder to a lucene {@link Query}.
@@ -65,5 +66,10 @@ public interface QueryBuilder extends NamedWriteable, ToXContentObject, Rewritea
     @Override
     default QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         return this;
+    }
+
+    @Override
+    default Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

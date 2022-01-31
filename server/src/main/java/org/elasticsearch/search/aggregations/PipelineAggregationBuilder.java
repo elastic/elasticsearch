@@ -7,10 +7,11 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -31,7 +32,7 @@ import java.util.Objects;
  */
 public abstract class PipelineAggregationBuilder
     implements
-        NamedWriteable,
+        VersionedNamedWriteable,
         BaseAggregationBuilder,
         ToXContentFragment,
         Rewriteable<PipelineAggregationBuilder> {
@@ -257,5 +258,10 @@ public abstract class PipelineAggregationBuilder
     @Override
     public PipelineAggregationBuilder rewrite(QueryRewriteContext context) throws IOException {
         return this;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

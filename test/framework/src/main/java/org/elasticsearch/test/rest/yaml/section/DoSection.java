@@ -409,8 +409,11 @@ public class DoSection implements ExecutableSection {
         }
         if (headerPresent == false) {
             StringBuilder failureMessage = new StringBuilder();
-            appendBadHeaders(failureMessage, unexpected, "did not get expected product header [Elasticsearch], found header" +
-                (unexpected.size() > 1 ? "s" : ""));
+            appendBadHeaders(
+                failureMessage,
+                unexpected,
+                "did not get expected product header [Elasticsearch], found header" + (unexpected.size() > 1 ? "s" : "")
+            );
             fail(failureMessage.toString());
         }
     }

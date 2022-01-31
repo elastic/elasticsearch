@@ -174,6 +174,13 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public DataStream rollover(Index writeIndex, long generation) {
         ensureNotReplicated();
 
+        return unsafeRollover(writeIndex, generation);
+    }
+
+    /**
+     * Like {@link #rollover(Index, long)}, but does no validation, use with care only.
+     */
+    public DataStream unsafeRollover(Index writeIndex, long generation) {
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(writeIndex);
         return new DataStream(name, timeStampField, backingIndices, generation, metadata, hidden, false, system);
@@ -189,6 +196,13 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      */
     public Tuple<String, Long> nextWriteIndexAndGeneration(Metadata clusterMetadata, Version minNodeVersion) {
         ensureNotReplicated();
+        return unsafeNextWriteIndexAndGeneration(clusterMetadata, minNodeVersion);
+    }
+
+    /**
+     * Like {@link #nextWriteIndexAndGeneration(Metadata, Version)}, but does no validation, use with care only.
+     */
+    public Tuple<String, Long> unsafeNextWriteIndexAndGeneration(Metadata clusterMetadata, Version minNodeVersion) {
         String newWriteIndexName;
         long generation = this.generation;
         long currentTimeMillis = timeProvider.getAsLong();

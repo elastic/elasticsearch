@@ -55,7 +55,18 @@ public final class DataStreamTestHelper {
         long generation,
         Map<String, Object> metadata
     ) {
-        return new DataStream(name, timeStampField, indices, generation, metadata, false, false, false);
+        return newInstance(name, timeStampField, indices, generation, metadata, false);
+    }
+
+    public static DataStream newInstance(
+        String name,
+        DataStream.TimestampField timeStampField,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean replicated
+    ) {
+        return new DataStream(name, timeStampField, indices, generation, metadata, false, replicated, false);
     }
 
     public static IndexMetadata.Builder createFirstBackingIndex(String dataStreamName) {
@@ -195,6 +206,15 @@ public final class DataStreamTestHelper {
         List<String> indexNames,
         int replicas
     ) {
+        return getClusterStateWithDataStreams(dataStreams, indexNames, replicas, false);
+    }
+
+    public static ClusterState getClusterStateWithDataStreams(
+        List<Tuple<String, Integer>> dataStreams,
+        List<String> indexNames,
+        int replicas,
+        boolean replicated
+    ) {
         Metadata.Builder builder = Metadata.builder();
 
         List<IndexMetadata> allIndices = new ArrayList<>();
@@ -210,7 +230,8 @@ public final class DataStreamTestHelper {
                 createTimestampField("@timestamp"),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
                 dsTuple.v2(),
-                null
+                null,
+                replicated
             );
             builder.put(ds);
         }

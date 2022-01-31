@@ -14,7 +14,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
-public interface ClusterStateTaskExecutor<T> {
+public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     /**
      * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no state
      * should be changed.
@@ -63,16 +63,16 @@ public interface ClusterStateTaskExecutor<T> {
      *
      * @param <T> the type of the cluster state update task
      */
-    record ClusterTasksResult<T> (
+    record ClusterTasksResult<T extends ClusterStateTaskListener> (
         @Nullable ClusterState resultingState, // the resulting cluster state
         Map<T, TaskResult> executionResults    // the correspondence between tasks and their outcome
     ) {
 
-        public static <T> Builder<T> builder() {
+        public static <T extends ClusterStateTaskListener> Builder<T> builder() {
             return new Builder<>();
         }
 
-        public static class Builder<T> {
+        public static class Builder<T extends ClusterStateTaskListener> {
             private final Map<T, TaskResult> executionResults = new IdentityHashMap<>();
 
             public Builder<T> success(T task) {

@@ -57,12 +57,12 @@ public class GetDesiredNodesAction extends ActionType<GetDesiredNodesAction.Resp
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.desiredNodes = in.readOptionalWriteable(DesiredNodes::new);
+            this.desiredNodes = new DesiredNodes(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalWriteable(desiredNodes);
+            desiredNodes.writeTo(out);
         }
 
         public DesiredNodes getDesiredNodes() {
@@ -71,13 +71,7 @@ public class GetDesiredNodesAction extends ActionType<GetDesiredNodesAction.Resp
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            if (desiredNodes != null) {
-                return desiredNodes.toXContent(builder, params);
-            } else {
-                builder.startObject();
-                builder.endObject();
-            }
-            return builder;
+            return desiredNodes.toXContent(builder, params);
         }
 
         @Override

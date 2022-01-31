@@ -27,4 +27,14 @@ public class DesiredNodeTests extends ESTestCase {
         assertThat(desiredNode.externalId(), is(notNullValue()));
         assertThat(desiredNode.externalId(), is(equalTo(nodeName)));
     }
+
+    public void testDesiredNodeMustHaveAtLeastOneProcessor() {
+        final String nodeName = randomAlphaOfLength(10);
+        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build();
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new DesiredNode(settings, -1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT)
+        );
+    }
 }

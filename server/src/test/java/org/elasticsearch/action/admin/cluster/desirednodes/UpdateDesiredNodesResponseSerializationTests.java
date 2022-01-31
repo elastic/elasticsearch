@@ -21,11 +21,11 @@ public class UpdateDesiredNodesResponseSerializationTests extends AbstractWireSe
 
     @Override
     protected UpdateDesiredNodesResponse createTestInstance() {
-        return new UpdateDesiredNodesResponse(randomBoolean(), randomBoolean() ? randomAlphaOfLength(10) : null);
+        return new UpdateDesiredNodesResponse(randomBoolean(), randomBoolean());
     }
 
     @Override
     protected UpdateDesiredNodesResponse mutateInstance(UpdateDesiredNodesResponse instance) throws IOException {
-        return new UpdateDesiredNodesResponse(instance.isAcknowledged(), randomAlphaOfLength(10));
+        return new UpdateDesiredNodesResponse(instance.isAcknowledged(), randomBoolean());
     }
 }

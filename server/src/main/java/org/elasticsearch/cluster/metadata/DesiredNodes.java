@@ -84,6 +84,10 @@ public record DesiredNodes(String historyID, long version, List<DesiredNode> nod
         return historyID.equals(other.historyID) && version == other.version;
     }
 
+    public boolean hasSameHistoryId(DesiredNodes other) {
+        return historyID.equals(other.historyID);
+    }
+
     private static void checkForDuplicatedExternalIDs(List<DesiredNode> nodes) {
         Set<String> nodeIDs = new HashSet<>(nodes.size());
         Set<String> duplicatedIDs = new HashSet<>();

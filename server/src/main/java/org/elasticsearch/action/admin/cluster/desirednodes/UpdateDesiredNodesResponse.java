@@ -11,35 +11,37 @@ package org.elasticsearch.action.admin.cluster.desirednodes;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class UpdateDesiredNodesResponse extends AcknowledgedResponse {
-    @Nullable
-    private final String newHistoryId;
+    private final boolean replacedExistingHistoryId;
 
-    public UpdateDesiredNodesResponse(boolean acknowledged, String newHistoryId) {
+    public UpdateDesiredNodesResponse(boolean acknowledged, boolean replacedExistingHistoryId) {
         super(acknowledged);
-        this.newHistoryId = newHistoryId;
+        this.replacedExistingHistoryId = replacedExistingHistoryId;
     }
 
     public UpdateDesiredNodesResponse(StreamInput in) throws IOException {
         super(in);
-        this.newHistoryId = in.readOptionalString();
+        this.replacedExistingHistoryId = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalString(newHistoryId);
+        out.writeBoolean(replacedExistingHistoryId);
+    }
+
+    public boolean hasReplacedExistingHistoryId() {
+        return replacedExistingHistoryId;
     }
 
     @Override
     protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
-        builder.field("new_history_id", newHistoryId);
+        builder.field("replaced_existing_history_id", replacedExistingHistoryId);
     }
 
     @Override
@@ -48,11 +50,11 @@ public class UpdateDesiredNodesResponse extends AcknowledgedResponse {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         UpdateDesiredNodesResponse that = (UpdateDesiredNodesResponse) o;
-        return Objects.equals(newHistoryId, that.newHistoryId);
+        return Objects.equals(replacedExistingHistoryId, that.replacedExistingHistoryId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), newHistoryId);
+        return Objects.hash(super.hashCode(), replacedExistingHistoryId);
     }
 }

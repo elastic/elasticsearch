@@ -8,12 +8,14 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -53,7 +55,11 @@ public class TransportGetDesiredNodesAction extends TransportMasterNodeReadActio
         ClusterState state,
         ActionListener<GetDesiredNodesAction.Response> listener
     ) throws Exception {
-        listener.onResponse(new GetDesiredNodesAction.Response(DesiredNodesMetadata.latestFromClusterState(state)));
+        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(state);
+        if (latestDesiredNodes == null) {
+            throw new ResourceNotFoundException("Desired nodes not found");
+        }
+        listener.onResponse(new GetDesiredNodesAction.Response(latestDesiredNodes));
     }
 
     @Override

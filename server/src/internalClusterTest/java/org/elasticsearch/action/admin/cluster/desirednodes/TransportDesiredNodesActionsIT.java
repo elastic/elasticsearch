@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
@@ -29,9 +30,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
@@ -102,8 +101,15 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
         }
 
-        final DesiredNodes newDesiredNodes = putRandomDesiredNodes();
-        assertThat(newDesiredNodes.historyID(), is(not(equalTo(desiredNodes.historyID()))));
+        final DesiredNodes newDesiredNodes = randomDesiredNodes();
+        final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
+            newDesiredNodes.historyID(),
+            newDesiredNodes.version(),
+            newDesiredNodes.nodes()
+        );
+        final UpdateDesiredNodesResponse response = client().execute(UpdateDesiredNodesAction.INSTANCE, request).actionGet();
+        assertAcked(response);
+        assertThat(response.hasReplacedExistingHistoryId(), is(equalTo(true)));
 
         {
             final ClusterState state = client().admin().cluster().prepareState().get().getState();
@@ -120,7 +126,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         );
 
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
-        assertThat(exception.getMessage(), containsString("Nodes in positions"));
+        assertThat(exception.getMessage(), containsString("Nodes with ids"));
         assertThat(exception.getMessage(), containsString("contain invalid settings"));
         assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
         assertThat(
@@ -133,7 +139,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final DesiredNodes desiredNodes = randomDesiredNodes(Version.CURRENT.previousMajor(), settings -> {});
 
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
-        assertThat(exception.getMessage(), containsString("Nodes in positions"));
+        assertThat(exception.getMessage(), containsString("Nodes with ids"));
         assertThat(exception.getMessage(), containsString("contain invalid settings"));
         assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
         assertThat(exception.getSuppressed()[0].getMessage(), containsString("Illegal node version"));
@@ -145,10 +151,10 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         );
 
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
-        assertThat(exception.getMessage(), containsString("Nodes in positions"));
+        assertThat(exception.getMessage(), containsString("Nodes with ids"));
         assertThat(exception.getMessage(), containsString("contain invalid settings"));
         assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
-        assertThat(exception.getSuppressed()[0].getMessage(), containsString("has unknown settings [desired_nodes.random_setting]"));
+        assertThat(exception.getSuppressed()[0].getMessage(), containsString("unknown setting [desired_nodes.random_setting]"));
     }
 
     public void testUnknownSettingsAreAllowedInFutureVersions() {
@@ -166,7 +172,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
     }
 
-    public void testSomeSettingsCanBeOverridden() {
+    public void testNodeProcessorsGetValidatedWithDesiredNodeProcessors() {
         final int numProcessors = Math.max(Runtime.getRuntime().availableProcessors() + 1, 2048);
         final Consumer<Settings.Builder> settingsConsumer = (settings) -> settings.put(NODE_PROCESSORS_SETTING.getKey(), numProcessors);
         final DesiredNodes desiredNodes = new DesiredNodes(
@@ -187,7 +193,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
     }
 
     public void testGetLatestDesiredNodes() {
-        assertThat(getLatestDesiredNodes(), is(nullValue()));
+        expectThrows(ResourceNotFoundException.class, this::getLatestDesiredNodes);
 
         final DesiredNodes desiredNodes = putRandomDesiredNodes();
         assertThat(getLatestDesiredNodes(), is(equalTo(desiredNodes)));
@@ -199,7 +205,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
         deleteDesiredNodes();
 
-        assertThat(getLatestDesiredNodes(), is(nullValue()));
+        expectThrows(ResourceNotFoundException.class, this::getLatestDesiredNodes);
     }
 
     public void testEmptyExternalIDIsInvalid() {
@@ -211,7 +217,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         );
 
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
-        assertThat(exception.getMessage(), containsString("Nodes in positions"));
+        assertThat(exception.getMessage(), containsString("Nodes with ids"));
         assertThat(exception.getMessage(), containsString("contain invalid settings"));
         assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
         assertThat(exception.getSuppressed()[0].getMessage(), containsString("[node.external_id] is missing or empty"));

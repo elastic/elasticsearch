@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -143,15 +142,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             request = new UpdateDesiredNodesRequest(desiredNodes.historyID(), desiredNodes.version() + 1, updatedNodes);
         }
 
-        final Tuple<ClusterState, String> clusterStateAndNewHistoryId = TransportUpdateDesiredNodesAction.updateDesiredNodes(
-            currentClusterState,
-            request
-        );
-
-        final String newHistoryId = clusterStateAndNewHistoryId.v2();
-        assertThat(newHistoryId, updateSameHistory ? is(nullValue()) : is(equalTo(request.getHistoryID())));
-
-        final ClusterState updatedClusterState = clusterStateAndNewHistoryId.v1();
+        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request);
         final DesiredNodesMetadata desiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
         assertThat(desiredNodesMetadata, is(notNullValue()));
 
@@ -175,15 +166,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             latestDesiredNodes.nodes()
         );
 
-        final Tuple<ClusterState, String> clusterStateAndNewHistoryId = TransportUpdateDesiredNodesAction.updateDesiredNodes(
-            currentClusterState,
-            request
-        );
-
-        final String newHistoryId = clusterStateAndNewHistoryId.v2();
-        assertThat(newHistoryId, is(nullValue()));
-
-        final ClusterState updatedClusterState = clusterStateAndNewHistoryId.v1();
+        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request);
         final DesiredNodesMetadata updatedDesiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
         assertThat(updatedDesiredNodesMetadata, is(notNullValue()));
         assertThat(updatedDesiredNodesMetadata.getLatestDesiredNodes(), is(notNullValue()));

@@ -82,8 +82,8 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
         assert memory != null;
         assert storage != null;
         assert version != null;
-        if (processors < 0) {
-            throw new IllegalArgumentException("processors must be positive, but got " + processors);
+        if (processors <= 0) {
+            throw new IllegalArgumentException("processors must be greater than 0, but got " + processors);
         }
     }
 

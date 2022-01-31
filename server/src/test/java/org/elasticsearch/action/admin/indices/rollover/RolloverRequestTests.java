@@ -25,16 +25,13 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.*;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -61,11 +58,14 @@ public class RolloverRequestTests extends ESTestCase {
             .field("max_docs", 100)
             .field("max_size", "45gb")
             .field("max_primary_shard_size", "55gb")
+            .field("min_age", "10d")
+            .field("min_docs", 100)
+            .field("min_primary_shard_size", "55gb")
             .endObject()
             .endObject();
         request.fromXContent(false, createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
-        assertThat(conditions.size(), equalTo(4));
+        assertThat(conditions.size(), equalTo(7));
         MaxAgeCondition maxAgeCondition = (MaxAgeCondition) conditions.get(MaxAgeCondition.NAME);
         assertThat(maxAgeCondition.value.getMillis(), equalTo(TimeValue.timeValueHours(24 * 10).getMillis()));
         MaxDocsCondition maxDocsCondition = (MaxDocsCondition) conditions.get(MaxDocsCondition.NAME);
@@ -76,6 +76,14 @@ public class RolloverRequestTests extends ESTestCase {
             MaxPrimaryShardSizeCondition.NAME
         );
         assertThat(maxPrimaryShardSizeCondition.value.getBytes(), equalTo(ByteSizeUnit.GB.toBytes(55)));
+        MinAgeCondition minAgeCondition = (MinAgeCondition) conditions.get(MinAgeCondition.NAME);
+        assertThat(minAgeCondition.value.getMillis(), equalTo(TimeValue.timeValueHours(24 * 10).getMillis()));
+        MinDocsCondition minDocsCondition = (MinDocsCondition) conditions.get(MinDocsCondition.NAME);
+        assertThat(minDocsCondition.value, equalTo(100L));
+        MinPrimaryShardSizeCondition minPrimaryShardSizeCondition = (MinPrimaryShardSizeCondition) conditions.get(
+            MinPrimaryShardSizeCondition.NAME
+        );
+        assertThat(minPrimaryShardSizeCondition.value.getBytes(), equalTo(ByteSizeUnit.GB.toBytes(55)));
     }
 
     public void testParsingWithIndexSettings() throws Exception {
@@ -258,11 +266,39 @@ public class RolloverRequestTests extends ESTestCase {
         }
     }
 
-    private static List<Consumer<RolloverRequest>> conditionsGenerator = new ArrayList<>();
-    static {
-        conditionsGenerator.add((request) -> request.addMaxIndexDocsCondition(randomNonNegativeLong()));
-        conditionsGenerator.add((request) -> request.addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
-        conditionsGenerator.add((request) -> request.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong())));
+    public void testConditionsAreMet() throws Exception {
+        RolloverRequest rolloverRequest = new RolloverRequest();
+        assertTrue(rolloverRequest.areConditionsMet(Collections.emptyMap()));
+
+        TimeValue age = TimeValue.timeValueSeconds(5);
+        rolloverRequest.addMaxIndexAgeCondition(age);
+        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(age);
+        assertFalse(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), false)));
+        assertTrue(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), true)));
+
+        rolloverRequest.addMaxIndexDocsCondition(100L);
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
+        assertFalse(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), false)));
+        assertTrue(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), true)));
+        assertFalse(rolloverRequest.areConditionsMet(Map.of(maxDocsCondition.toString(), false)));
+        assertTrue(rolloverRequest.areConditionsMet(Map.of(maxDocsCondition.toString(), true)));
+
+        MaxDocsCondition minDocsCondition = new MaxDocsCondition(1L);
+        rolloverRequest.addMinIndexDocsCondition(1L);
+        assertFalse(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), false)));
+        assertFalse(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), true)));
+        assertFalse(rolloverRequest.areConditionsMet(Map.of(maxDocsCondition.toString(), false)));
+        assertFalse(rolloverRequest.areConditionsMet(Map.of(maxDocsCondition.toString(), true)));
+        assertFalse(rolloverRequest.areConditionsMet(Map.of(minDocsCondition.toString(), true)));
     }
 
+    private static final List<Consumer<RolloverRequest>> conditionsGenerator = Arrays.asList(
+        (request) -> request.addMaxIndexDocsCondition(randomNonNegativeLong()),
+        (request) -> request.addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+        (request) -> request.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong())),
+        (request) -> request.addMaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+        (request) -> request.addMinIndexDocsCondition(randomNonNegativeLong()),
+        (request) -> request.addMinPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+        (request) -> request.addMinIndexAgeCondition(new TimeValue(randomNonNegativeLong()))
+    );
 }

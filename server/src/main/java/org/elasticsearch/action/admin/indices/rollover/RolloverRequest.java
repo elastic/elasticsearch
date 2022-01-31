@@ -48,9 +48,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private static final ParseField MAX_DOCS_CONDITION = new ParseField(MaxDocsCondition.NAME);
     private static final ParseField MAX_SIZE_CONDITION = new ParseField(MaxSizeCondition.NAME);
     private static final ParseField MAX_PRIMARY_SHARD_SIZE_CONDITION = new ParseField(MaxPrimaryShardSizeCondition.NAME);
-    private static final ParseField MIN_AGE_CONDITION = new ParseField(MaxAgeCondition.NAME);
-    private static final ParseField MIN_DOCS_CONDITION = new ParseField(MaxDocsCondition.NAME);
-    private static final ParseField MIN_PRIMARY_SHARD_SIZE_CONDITION = new ParseField(MaxPrimaryShardSizeCondition.NAME);
+    private static final ParseField MIN_AGE_CONDITION = new ParseField(MinAgeCondition.NAME);
+    private static final ParseField MIN_DOCS_CONDITION = new ParseField(MinDocsCondition.NAME);
+    private static final ParseField MIN_PRIMARY_SHARD_SIZE_CONDITION = new ParseField(MinPrimaryShardSizeCondition.NAME);
 
     static {
         CONDITION_PARSER.declareString(
@@ -74,6 +74,21 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
                 new MaxPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxPrimaryShardSizeCondition.NAME))
             ),
             MAX_PRIMARY_SHARD_SIZE_CONDITION
+        );
+        CONDITION_PARSER.declareString(
+            (conditions, s) -> conditions.put(MinAgeCondition.NAME, new MinAgeCondition(TimeValue.parseTimeValue(s, MinAgeCondition.NAME))),
+            MIN_AGE_CONDITION
+        );
+        CONDITION_PARSER.declareLong(
+            (conditions, value) -> conditions.put(MinDocsCondition.NAME, new MinDocsCondition(value)),
+            MIN_DOCS_CONDITION
+        );
+        CONDITION_PARSER.declareString(
+            (conditions, s) -> conditions.put(
+                MinPrimaryShardSizeCondition.NAME,
+                new MinPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MinPrimaryShardSizeCondition.NAME))
+            ),
+            MIN_PRIMARY_SHARD_SIZE_CONDITION
         );
 
         PARSER.declareField(
@@ -314,11 +329,11 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         Collection<Condition<?>> conditions = getConditions().values();
         boolean allRequiredMet = conditions.stream()
             .filter(Condition::isRequired)
-            .allMatch(c -> trialConditionResults.get(c.toString()));
+            .allMatch(c -> trialConditionResults.getOrDefault(c.toString(), false));
 
         boolean anyNonRequiredMet = conditions.stream()
             .filter(Predicate.not(Condition::isRequired))
-            .anyMatch(c -> trialConditionResults.get(c.toString()));
+            .anyMatch(c -> trialConditionResults.getOrDefault(c.toString(), false));
 
         return trialConditionResults.size() == 0 || (allRequiredMet && anyNonRequiredMet);
     }

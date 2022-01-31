@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling.policy;
 
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -30,7 +29,7 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 
-public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> implements Diffable<AutoscalingPolicy>, ToXContentObject {
+public class AutoscalingPolicy implements SimpleDiffable<AutoscalingPolicy>, ToXContentObject {
 
     public static final String NAME = "autoscaling_policy";
 

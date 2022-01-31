@@ -8,10 +8,10 @@
 
 package org.elasticsearch.cluster.serialization;
 
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.DiffableUtils.MapDiff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -411,7 +411,7 @@ public class DiffableTests extends ESTestCase {
 
             @Override
             public Diff<TestDiffable> readDiff(StreamInput in, K key) throws IOException {
-                return AbstractDiffable.readDiffFrom(TestDiffable::readFrom, in);
+                return SimpleDiffable.readDiffFrom(TestDiffable::readFrom, in);
             }
         };
     }
@@ -430,7 +430,7 @@ public class DiffableTests extends ESTestCase {
         };
     }
 
-    public static class TestDiffable extends AbstractDiffable<TestDiffable> {
+    public static class TestDiffable implements SimpleDiffable<TestDiffable> {
 
         private final String value;
 
@@ -447,7 +447,7 @@ public class DiffableTests extends ESTestCase {
         }
 
         public static Diff<TestDiffable> readDiffFrom(StreamInput in) throws IOException {
-            return readDiffFrom(TestDiffable::readFrom, in);
+            return SimpleDiffable.readDiffFrom(TestDiffable::readFrom, in);
         }
 
         @Override

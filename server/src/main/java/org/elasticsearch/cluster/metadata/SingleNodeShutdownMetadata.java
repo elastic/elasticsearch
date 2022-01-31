@@ -10,8 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,10 +30,7 @@ import java.util.Objects;
 /**
  * Contains data about a single node's shutdown readiness.
  */
-public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutdownMetadata>
-    implements
-        ToXContentObject,
-        Diffable<SingleNodeShutdownMetadata> {
+public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShutdownMetadata>, ToXContentObject {
 
     public static final Version REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = Version.V_7_16_0;
 

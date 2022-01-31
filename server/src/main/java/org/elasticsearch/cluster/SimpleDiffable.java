@@ -15,16 +15,16 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 
 /**
- * Abstract diffable object with simple diffs implementation that sends the entire object if object has changed or
+ * Simple diffable object with simple diffs implementation that sends the entire object if object has changed or
  * nothing if object remained the same.
  */
-public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffable<T> {
+public interface SimpleDiffable<T extends Diffable<T>> extends Diffable<T> {
 
-    private static final Diff<?> EMPTY = new CompleteDiff<>();
+    Diff<?> EMPTY = new CompleteDiff<>();
 
     @SuppressWarnings("unchecked")
     @Override
-    public Diff<T> diff(T previousState) {
+    default Diff<T> diff(T previousState) {
         if (this.equals(previousState)) {
             return (Diff<T>) EMPTY;
         } else {
@@ -33,14 +33,14 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
     }
 
     @SuppressWarnings("unchecked")
-    public static <T extends Diffable<T>> Diff<T> readDiffFrom(Reader<T> reader, StreamInput in) throws IOException {
+    static <T extends Diffable<T>> Diff<T> readDiffFrom(Reader<T> reader, StreamInput in) throws IOException {
         if (in.readBoolean()) {
             return new CompleteDiff<>(reader.read(in));
         }
         return (Diff<T>) EMPTY;
     }
 
-    private static class CompleteDiff<T extends Diffable<T>> implements Diff<T> {
+    class CompleteDiff<T extends Diffable<T>> implements Diff<T> {
 
         @Nullable
         private final T part;

@@ -469,7 +469,7 @@ setup:
   - match: { aggregations.date_range.buckets.0.to_as_string: "2021-05-05T00:00:00.000Z" }
 
 ---
-"Min long value":
+"Min and max long range bounds":
   - skip:
       version: " - 8.0.99"
       reason: Bug fixed in 8.1.0

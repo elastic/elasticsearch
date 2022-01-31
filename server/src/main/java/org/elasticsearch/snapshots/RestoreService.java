@@ -1295,7 +1295,7 @@ public class RestoreService implements ClusterStateApplier {
                     request.indexSettings(),
                     request.ignoreIndexSettings()
                 );
-                if (snapshotIndexMetadata.getCurrentVersion().before(minIndexCompatibilityVersion)) {
+                if (snapshotIndexMetadata.getCompatibilityVersion().before(minIndexCompatibilityVersion)) {
                     // adapt index metadata so that it can be understood by current version
                     snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata, currentState);
                 }
@@ -1618,7 +1618,10 @@ public class RestoreService implements ClusterStateApplier {
             .settings(
                 Settings.builder()
                     .put(snapshotIndexMetadata.getSettings())
-                    .put(IndexMetadata.SETTING_INDEX_VERSION_CURRENT.getKey(), clusterState.getNodes().getSmallestNonClientNodeVersion())
+                    .put(
+                        IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.getKey(),
+                        clusterState.getNodes().getSmallestNonClientNodeVersion()
+                    )
             )
             .build();
     }

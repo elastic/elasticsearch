@@ -33,7 +33,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .build();
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Old index with a version < 7.0",
+            "Old index with a compatibility version < 7.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/" + "breaking-changes-8.0.html",
             "This index has version: " + createdWith,
             false,

@@ -22,13 +22,13 @@ public class IndexDeprecationChecks {
 
     static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata) {
         // TODO: this check needs to be revised. It's trivially true right now.
-        Version currentVersion = indexMetadata.getCurrentVersion();
-        if (currentVersion.before(Version.V_7_0_0)) {
+        Version currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
+        if (currentCompatibilityVersion.before(Version.V_7_0_0)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
-                "Old index with a version < 7.0",
+                "Old index with a compatibility version < 7.0",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/" + "breaking-changes-8.0.html",
-                "This index has version: " + currentVersion,
+                "This index has version: " + currentCompatibilityVersion,
                 false,
                 null
             );

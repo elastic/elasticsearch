@@ -1659,7 +1659,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     }
                 }
                 indexMetadata.getAliases().keysIt().forEachRemaining(allAliases::add);
-                oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCurrentVersion().id);
+                oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCompatibilityVersion().id);
             }
 
             final ArrayList<String> duplicates = new ArrayList<>();

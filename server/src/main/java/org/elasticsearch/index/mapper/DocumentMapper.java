@@ -104,8 +104,8 @@ public class DocumentMapper {
                 mappingLookup.getFieldType(match).validateMatchedRoutingPath();
             }
             for (String objectName : mappingLookup.objectMappers().keySet()) {
-                // if path match objectName, and path is not end with *
-                // it means the object' children can't match the path
+                // if path match objectName, and path is not end with '*' .
+                // it means the object' children can't match the path.
                 if (Regex.simpleMatch(path, objectName) && false == path.endsWith("*")) {
                     throw new IllegalArgumentException(
                         "All fields that match routing_path must be keywords with [time_series_dimension: true] "

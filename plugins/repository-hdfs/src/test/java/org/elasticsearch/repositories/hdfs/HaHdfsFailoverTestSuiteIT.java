@@ -207,8 +207,8 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
 
         private void close() {
             for (HAServiceProtocol protocol : protocolsToClose) {
-                if (protocol instanceof HAServiceProtocolClientSideTranslatorPB) {
-                    ((HAServiceProtocolClientSideTranslatorPB) protocol).close();
+                if (protocol instanceof HAServiceProtocolClientSideTranslatorPB haServiceProtocolClientSideTranslatorPB) {
+                    haServiceProtocolClientSideTranslatorPB.close();
                 }
             }
         }

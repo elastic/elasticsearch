@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -64,7 +63,7 @@ import static org.elasticsearch.xpack.sql.action.Protocol.VERSION_NAME;
 /**
  * Base class for requests that contain sql queries (Query and Translate)
  */
-public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest implements CompositeIndicesRequest, ToXContentFragment {
+public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest implements CompositeIndicesRequest {
 
     //
     // parser for sql-proto SqlTypedParamValue

@@ -12,10 +12,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
-import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.io.IOException;
@@ -24,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xpack.sql.action.ProtoShim.toProto;
 
 /**
  * Request for the sql action for translating SQL queries into ES requests
@@ -72,34 +69,5 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
         SqlTranslateRequest request = PARSER.apply(parser, null);
         validateParams(request.params(), request.mode());
         return request;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // This is needed just to test parsing of SqlTranslateRequest, so we can reuse SqlQuerySerialization
-        return ProtoShim.fromProto(
-            new SqlQueryRequest(
-                query(),
-                params(),
-                zoneId(),
-                null,
-                fetchSize(),
-                toProto(requestTimeout()),
-                toProto(pageTimeout()),
-                toProto(filter()),
-                null,
-                null,
-                requestInfo(),
-                false,
-                false,
-                null,
-                runtimeMappings(),
-                null,
-                false,
-                null
-            ),
-            builder,
-            params
-        );
     }
 }

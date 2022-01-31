@@ -70,24 +70,24 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         int mutation = response.get().isEmpty() ? 0 : randomIntBetween(0, 2);
 
         switch (mutation) {
-            case 0:
+            case 0 -> {
                 String toAdd = randomAlphaOfLength(10);
                 mutatedResponses.put(
                     toAdd,
                     Collections.singletonMap(randomAlphaOfLength(10), FieldCapabilitiesTests.randomFieldCaps(toAdd))
                 );
-                break;
-            case 1:
+            }
+            case 1 -> {
                 String toRemove = randomFrom(mutatedResponses.keySet());
                 mutatedResponses.remove(toRemove);
-                break;
-            case 2:
+            }
+            case 2 -> {
                 String toReplace = randomFrom(mutatedResponses.keySet());
                 mutatedResponses.put(
                     toReplace,
                     Collections.singletonMap(randomAlphaOfLength(10), FieldCapabilitiesTests.randomFieldCaps(toReplace))
                 );
-                break;
+            }
         }
         // TODO pass real list
         return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyList());

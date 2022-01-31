@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.inference.ingest;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
@@ -325,14 +326,11 @@ public class InferenceProcessorTests extends ESTestCase {
         String modelId = "model";
         Integer topNClasses = randomBoolean() ? null : randomIntBetween(1, 10);
 
-        Map<String, String> fieldMapping = new HashMap<>(5) {
-            {
-                put("value1", "new_value1");
-                put("value2", "new_value2");
-                put("categorical", "new_categorical");
-                put("_ingest._value", "metafield");
-            }
-        };
+        Map<String, String> fieldMapping = Maps.newMapWithExpectedSize(4);
+        fieldMapping.put("value1", "new_value1");
+        fieldMapping.put("value2", "new_value2");
+        fieldMapping.put("categorical", "new_categorical");
+        fieldMapping.put("_ingest._value", "metafield");
 
         InferenceProcessor processor = new InferenceProcessor(
             client,
@@ -345,25 +343,19 @@ public class InferenceProcessorTests extends ESTestCase {
             fieldMapping
         );
 
-        Map<String, Object> source = new HashMap<>(5) {
-            {
-                put("value1", 1);
-                put("categorical", "foo");
-                put("un_touched", "bar");
-            }
-        };
+        Map<String, Object> source = Maps.newMapWithExpectedSize(3);
+        source.put("value1", 1);
+        source.put("categorical", "foo");
+        source.put("un_touched", "bar");
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
-        Map<String, Object> expectedMap = new HashMap<>(7) {
-            {
-                put("new_value1", 1);
-                put("value1", 1);
-                put("categorical", "foo");
-                put("new_categorical", "foo");
-                put("un_touched", "bar");
-            }
-        };
+        Map<String, Object> expectedMap = Maps.newMapWithExpectedSize(5);
+        expectedMap.put("new_value1", 1);
+        expectedMap.put("value1", 1);
+        expectedMap.put("categorical", "foo");
+        expectedMap.put("new_categorical", "foo");
+        expectedMap.put("un_touched", "bar");
         assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(expectedMap));
 
         ingestMetadata = Collections.singletonMap("_value", "baz");
@@ -378,13 +370,10 @@ public class InferenceProcessorTests extends ESTestCase {
         String modelId = "model";
         Integer topNClasses = randomBoolean() ? null : randomIntBetween(1, 10);
 
-        Map<String, String> fieldMapping = new HashMap<>(5) {
-            {
-                put("value1.foo", "new_value1");
-                put("value2", "new_value2");
-                put("categorical.bar", "new_categorical");
-            }
-        };
+        Map<String, String> fieldMapping = Maps.newMapWithExpectedSize(3);
+        fieldMapping.put("value1.foo", "new_value1");
+        fieldMapping.put("value2", "new_value2");
+        fieldMapping.put("categorical.bar", "new_categorical");
 
         InferenceProcessor processor = new InferenceProcessor(
             client,
@@ -397,25 +386,19 @@ public class InferenceProcessorTests extends ESTestCase {
             fieldMapping
         );
 
-        Map<String, Object> source = new HashMap<>(5) {
-            {
-                put("value1", Collections.singletonMap("foo", 1));
-                put("categorical.bar", "foo");
-                put("un_touched", "bar");
-            }
-        };
+        Map<String, Object> source = Maps.newMapWithExpectedSize(3);
+        source.put("value1", Collections.singletonMap("foo", 1));
+        source.put("categorical.bar", "foo");
+        source.put("un_touched", "bar");
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
-        Map<String, Object> expectedMap = new HashMap<>(7) {
-            {
-                put("new_value1", 1);
-                put("value1", Collections.singletonMap("foo", 1));
-                put("categorical.bar", "foo");
-                put("new_categorical", "foo");
-                put("un_touched", "bar");
-            }
-        };
+        Map<String, Object> expectedMap = Maps.newMapWithExpectedSize(5);
+        expectedMap.put("new_value1", 1);
+        expectedMap.put("value1", Collections.singletonMap("foo", 1));
+        expectedMap.put("categorical.bar", "foo");
+        expectedMap.put("new_categorical", "foo");
+        expectedMap.put("un_touched", "bar");
         assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(expectedMap));
     }
 

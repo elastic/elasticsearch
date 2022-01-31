@@ -27,21 +27,20 @@ public class SecurityActionMapper {
      */
     public String action(String action, TransportRequest request) {
         switch (action) {
-            case ClearScrollAction.NAME:
+            case ClearScrollAction.NAME -> {
                 assert request instanceof ClearScrollRequest;
                 boolean isClearAllScrollRequest = ((ClearScrollRequest) request).scrollIds().contains("_all");
                 if (isClearAllScrollRequest) {
                     return CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME;
                 }
-                break;
-            case AnalyzeAction.NAME:
-            case AnalyzeAction.NAME + "[s]":
+            }
+            case AnalyzeAction.NAME, AnalyzeAction.NAME + "[s]" -> {
                 assert request instanceof AnalyzeAction.Request;
                 String[] indices = ((AnalyzeAction.Request) request).indices();
                 if (indices == null || (indices.length == 1 && indices[0] == null)) {
                     return CLUSTER_PERMISSION_ANALYZE;
                 }
-                break;
+            }
         }
         return action;
     }

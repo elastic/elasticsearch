@@ -36,26 +36,23 @@ public class GeoPointScriptFieldGeoShapeQueryTests extends AbstractGeoPointScrip
 
     @Override
     protected GeoPointScriptFieldGeoShapeQuery mutate(GeoPointScriptFieldGeoShapeQuery orig) {
-        switch (randomInt(2)) {
-            case 0:
-                return new GeoPointScriptFieldGeoShapeQuery(
-                    randomValueOtherThan(orig.script(), this::randomScript),
-                    leafFactory,
-                    orig.fieldName(),
-                    ShapeRelation.INTERSECTS,
-                    polygon2
-                );
-            case 1:
-                return new GeoPointScriptFieldGeoShapeQuery(orig.script(), leafFactory, orig.fieldName(), ShapeRelation.DISJOINT, polygon1);
-            default:
-                return new GeoPointScriptFieldGeoShapeQuery(
-                    orig.script(),
-                    leafFactory,
-                    orig.fieldName() + "modified",
-                    ShapeRelation.INTERSECTS,
-                    polygon1
-                );
-        }
+        return switch (randomInt(2)) {
+            case 0 -> new GeoPointScriptFieldGeoShapeQuery(
+                randomValueOtherThan(orig.script(), this::randomScript),
+                leafFactory,
+                orig.fieldName(),
+                ShapeRelation.INTERSECTS,
+                polygon2
+            );
+            case 1 -> new GeoPointScriptFieldGeoShapeQuery(orig.script(), leafFactory, orig.fieldName(), ShapeRelation.DISJOINT, polygon1);
+            default -> new GeoPointScriptFieldGeoShapeQuery(
+                orig.script(),
+                leafFactory,
+                orig.fieldName() + "modified",
+                ShapeRelation.INTERSECTS,
+                polygon1
+            );
+        };
     }
 
     @Override

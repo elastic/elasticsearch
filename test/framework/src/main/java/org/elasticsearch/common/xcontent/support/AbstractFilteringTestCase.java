@@ -456,4 +456,17 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
             testFilter(deep, deep, manyFilters, emptySet());
         }
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
+    public void testExcludeWildCardFields() throws IOException {
+        Builder sample = builder -> builder.startObject()
+            .startObject("include")
+            .field("field1", "v1")
+            .field("field2", "v2")
+            .endObject()
+            .field("include2", "vv2")
+            .endObject();
+        Builder expected = builder -> builder.startObject().startObject("include").field("field1", "v1").endObject().endObject();
+        testFilter(expected, sample, singleton("include"), singleton("*.field2"));
+    }
 }

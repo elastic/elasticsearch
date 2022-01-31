@@ -70,8 +70,7 @@ configurations {
   dockerSource
   log4jConfig
   tini
-  repositoryPlugins
-  nonRepositoryPlugins
+  allPlugins
   filebeat
   metricbeat
   cloudflareZlib
@@ -85,8 +84,7 @@ dependencies {
   dockerSource project(path: ":distribution:archives:linux-tar", configuration: 'default')
   log4jConfig project(path: ":distribution", configuration: 'log4jConfig')
   tini "krallin:tini:0.19.0:${tiniArch}"
-  repositoryPlugins project(path: ':plugins', configuration: 'repositoryPlugins')
-  nonRepositoryPlugins project(path: ':plugins', configuration: 'nonRepositoryPlugins')
+  allPlugins project(path: ':plugins', configuration: 'allPlugins')
   filebeat "beats:filebeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
   metricbeat "beats:metricbeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
   cloudflareZlib "cloudflare:zlib:${cloudflareZlibVersion}@tar.gz"
@@ -103,6 +101,7 @@ ext.expansions = { Architecture architecture, DockerBase base ->
   def buildDate = BuildParams.isCi() ? BuildParams.buildDate : BuildParams.buildDate.truncatedTo(ChronoUnit.DAYS)
 
   return [
+    'arch'               : architecture.classifier,
     'base_image'         : base.image,
     'bin_dir'            : base == DockerBase.IRON_BANK ? 'scripts' : 'bin',
     'build_date'         : buildDate,
@@ -272,8 +271,6 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         String buildId = providers.systemProperty('build.id').forUseAtConfigurationTime().getOrNull()
         boolean includeBeats = VersionProperties.isElasticsearchSnapshot() == true || buildId != null
 
-        from configurations.repositoryPlugins
-
         if (includeBeats) {
           from configurations.filebeat
           from configurations.metricbeat
@@ -407,7 +404,7 @@ void addBuildEssDockerImageTask(Architecture architecture) {
       final Path projectDir = project.projectDir.toPath()
 
       into("plugins") {
-        from configurations.nonRepositoryPlugins
+        from configurations.allPlugins
       }
 
       from(projectDir.resolve("src/docker/Dockerfile.cloud-ess")) {

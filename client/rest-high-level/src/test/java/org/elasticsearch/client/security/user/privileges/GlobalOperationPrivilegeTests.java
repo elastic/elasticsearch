@@ -61,19 +61,15 @@ public class GlobalOperationPrivilegeTests extends ESTestCase {
     }
 
     private static GlobalOperationPrivilege mutateTestItem(GlobalOperationPrivilege original) {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return new GlobalOperationPrivilege(randomAlphaOfLength(5), original.getOperation(), original.getRaw());
-            case 1:
-                return new GlobalOperationPrivilege(original.getCategory(), randomAlphaOfLength(5), original.getRaw());
-            case 2:
-                return new GlobalOperationPrivilege(
-                    original.getCategory(),
-                    original.getOperation(),
-                    Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4))
-                );
-            default:
-                return new GlobalOperationPrivilege(randomAlphaOfLength(5), original.getOperation(), original.getRaw());
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new GlobalOperationPrivilege(randomAlphaOfLength(5), original.getOperation(), original.getRaw());
+            case 1 -> new GlobalOperationPrivilege(original.getCategory(), randomAlphaOfLength(5), original.getRaw());
+            case 2 -> new GlobalOperationPrivilege(
+                original.getCategory(),
+                original.getOperation(),
+                Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4))
+            );
+            default -> new GlobalOperationPrivilege(randomAlphaOfLength(5), original.getOperation(), original.getRaw());
+        };
     }
 }

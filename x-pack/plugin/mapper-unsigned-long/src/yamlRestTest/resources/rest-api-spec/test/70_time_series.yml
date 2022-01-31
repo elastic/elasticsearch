@@ -50,7 +50,7 @@ setup:
 ---
 fetch the _tsid:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -61,6 +61,7 @@ fetch the _tsid:
           query:
             query_string:
               query: '+@timestamp:"2021-04-28T18:35:24.467Z" +metricset:aa'
+          sort:   [ _tsid ]
 
   - match: {hits.total.value: 2}
   - match: {hits.hits.0.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
@@ -71,10 +72,12 @@ fetch the _tsid:
   - match: {hits.hits.1.fields.ul: [9223372036854775807]}
 
 ---
-# TODO: Sort order is wrong here. Probably this is caused by the encoding of unsigned_long
+# Sort order is of unsigned_long fields is not the one we would expect.
+# This is caused by the encoding of unsigned_long as a signed long before
+# being serialized in _tsid
 aggregate the _tsid:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -100,11 +103,12 @@ aggregate the _tsid:
   - match: {aggregations.tsids.buckets.3.doc_count: 3}
 
 ---
-# The time-series index is sorted by [_tsid, @timestamp] in ascending order by default
-# TODO: Sort order is wrong here. Probably this is caused by the encoding of unsigned_long
-default sort:
+# Sort order is of unsigned_long fields is not the one we would expect.
+# This is caused by the encoding of unsigned_long as a signed long before
+# being serialized in _tsid
+sort by tsid:
   - skip:
-      version: " - 8.00.99"
+      version: " - 8.0.99"
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -112,6 +116,7 @@ default sort:
         index: test
         body:
           fields: [ _tsid ]
+          sort:   [ _tsid ]
 
   - match: {hits.total.value: 8 }
   - match: {hits.hits.0.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
@@ -122,3 +127,42 @@ default sort:
   - match: {hits.hits.5.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
   - match: {hits.hits.6.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
   - match: {hits.hits.7.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
+
+---
+composite aggregation on tsid:
+  - skip:
+      version: " - 8.0.99"
+      reason: _tsid introduced in 8.1.0
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggregations:
+            tsids:
+              composite:
+                sources: [
+                    "tsid": {
+                      "terms": {
+                        "field": "_tsid"
+                      }
+                    }
+                ]
+
+  - match:  { hits.total.value: 8 }
+  - length: { aggregations.tsids.buckets: 4 }
+  - match:  { aggregations.tsids.buckets.0.key.tsid.ul: 9223372036854775808 }
+  - match:  { aggregations.tsids.buckets.0.key.tsid.metricset: "aa" }
+  - match:  { aggregations.tsids.buckets.0.doc_count: 3 }
+  - match:  { aggregations.tsids.buckets.1.key.tsid.ul: 18446744073709551614 }
+  - match:  { aggregations.tsids.buckets.1.key.tsid.metricset: "aa" }
+  - match:  { aggregations.tsids.buckets.1.doc_count: 1 }
+  - match:  { aggregations.tsids.buckets.2.key.tsid.ul: 18446744073709551615 }
+  - match:  { aggregations.tsids.buckets.2.key.tsid.metricset: "aa" }
+  - match:  { aggregations.tsids.buckets.2.doc_count: 1 }
+  - match:  { aggregations.tsids.buckets.3.key.tsid.ul: 9223372036854775807 }
+  - match:  { aggregations.tsids.buckets.3.key.tsid.metricset: "aa" }
+  - match:  { aggregations.tsids.buckets.3.doc_count: 3 }
+  - match:  { aggregations.tsids.after_key.tsid.ul: 9223372036854775807 }
+  - match:  { aggregations.tsids.after_key.tsid.metricset: "aa" }

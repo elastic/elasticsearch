@@ -70,11 +70,11 @@ public class RatedDocument implements Writeable, ToXContentObject {
     }
 
     public String getIndex() {
-        return key.getIndex();
+        return key.index();
     }
 
     public String getDocID() {
-        return key.getDocId();
+        return key.docId();
     }
 
     public int getRating() {
@@ -83,8 +83,8 @@ public class RatedDocument implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(key.getIndex());
-        out.writeString(key.getDocId());
+        out.writeString(key.index());
+        out.writeString(key.docId());
         out.writeVInt(rating);
     }
 
@@ -95,8 +95,8 @@ public class RatedDocument implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(INDEX_FIELD.getPreferredName(), key.getIndex());
-        builder.field(DOC_ID_FIELD.getPreferredName(), key.getDocId());
+        builder.field(INDEX_FIELD.getPreferredName(), key.index());
+        builder.field(DOC_ID_FIELD.getPreferredName(), key.docId());
         builder.field(RATING_FIELD.getPreferredName(), rating);
         builder.endObject();
         return builder;
@@ -127,46 +127,15 @@ public class RatedDocument implements Writeable, ToXContentObject {
     /**
      * a joint document key consisting of the documents index and id
      */
-    static class DocumentKey {
+    record DocumentKey(String index, String docId) {
 
-        private final String docId;
-        private final String index;
-
-        DocumentKey(String index, String docId) {
+        DocumentKey {
             if (Strings.isNullOrEmpty(index)) {
                 throw new IllegalArgumentException("Index must be set for each rated document");
             }
             if (Strings.isNullOrEmpty(docId)) {
                 throw new IllegalArgumentException("DocId must be set for each rated document");
             }
-
-            this.index = index;
-            this.docId = docId;
-        }
-
-        String getIndex() {
-            return index;
-        }
-
-        String getDocId() {
-            return docId;
-        }
-
-        @Override
-        public final boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            DocumentKey other = (DocumentKey) obj;
-            return Objects.equals(index, other.index) && Objects.equals(docId, other.docId);
-        }
-
-        @Override
-        public final int hashCode() {
-            return Objects.hash(index, docId);
         }
 
         @Override

@@ -1,0 +1,6 @@
+pr: 81870
+summary: Convert repository plugins to modules
+area: Infra/Plugins
+type: enhancement
+issues:
+ - 81652

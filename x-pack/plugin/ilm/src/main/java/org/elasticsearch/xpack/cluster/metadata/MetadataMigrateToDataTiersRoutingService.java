@@ -13,8 +13,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -25,7 +30,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -48,9 +52,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE;
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
 import static org.elasticsearch.xpack.ilm.IndexLifecycleTransition.moveStateToNextActionAndUpdateCachedPhase;
@@ -122,6 +126,49 @@ public final class MetadataMigrateToDataTiersRoutingService {
      *        index.routing.allocation.include._tier_preference: "data_cold,data_warm,data_hot"
      *    }
      *
+     *  - loop through the existing legacy, composable, and component templates and remove all the custom attribute routing settings for
+     *  the configured @param nodeAttrName, if any of the index.routing.allocation.require.{nodeAttrName} or index.routing.allocation
+     *  .include.{nodeAttrName} settings are presents in the template (irrespective of what they are configured to, we do not inspect the
+     *  values in this case).
+     *  Eg. this legacy template:
+     *  {
+     *    "order": 0,
+     *    "index_patterns": [
+     *      "*"
+     *    ],
+     *    "settings": {
+     *      "index": {
+     *        "routing": {
+     *          "allocation": {
+     *            "require": {
+     *              "data": "hot"
+     *            },
+     *            "include": {
+     *               "data": "rack1"
+     *            },
+     *            "exclude": {
+     *               "data": "bad_rack"
+     *            }
+     *          }
+     *        }
+     *      }
+     *    },
+     *    "mappings": {},
+     *    "aliases": {}
+     *  }
+     *  will be migrated to
+     *  {
+     *    "order": 0,
+     *    "index_patterns": [
+     *      "*"
+     *    ],
+     *    "settings": {},
+     *    "mappings": {},
+     *    "aliases": {}
+     *  }
+     *
+     * Same pattern applies to composable and component templates.
+     *
      * If no @param nodeAttrName is provided "data" will be used.
      * If no @param indexTemplateToDelete is provided, no index templates will be deleted.
      *
@@ -174,15 +221,16 @@ public final class MetadataMigrateToDataTiersRoutingService {
             attribute = DEFAULT_NODE_ATTRIBUTE_NAME;
         }
         List<String> migratedPolicies = migrateIlmPolicies(mb, currentState, attribute, xContentRegistry, client, licenseState);
-        // Creating an intermediary cluster state view as when migrating policy we also update the cachesd phase definition stored in the
+        // Creating an intermediary cluster state view as when migrating policy we also update the cached phase definition stored in the
         // index metadata so the metadata.builder will probably contain an already updated view over the indices metadata which we don't
         // want to lose when migrating the indices settings
         ClusterState intermediateState = ClusterState.builder(currentState).metadata(mb).build();
         mb = Metadata.builder(intermediateState.metadata());
         List<String> migratedIndices = migrateIndices(mb, intermediateState, attribute);
+        MigratedTemplates migratedTemplates = migrateIndexAndComponentTemplates(mb, intermediateState, attribute);
         return Tuple.tuple(
             ClusterState.builder(currentState).metadata(mb).build(),
-            new MigratedEntities(removedIndexTemplateName, migratedIndices, migratedPolicies)
+            new MigratedEntities(removedIndexTemplateName, migratedIndices, migratedPolicies, migratedTemplates)
         );
     }
 
@@ -306,10 +354,10 @@ public final class MetadataMigrateToDataTiersRoutingService {
             .collect(Collectors.toList());
 
         for (IndexMetadata indexMetadata : managedIndices) {
-            LifecycleExecutionState currentExState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+            LifecycleExecutionState currentExState = indexMetadata.getLifecycleExecutionState();
 
             if (currentExState != null) {
-                Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(currentExState);
+                Step.StepKey currentStepKey = Step.getCurrentStepKey(currentExState);
                 if (currentStepKey != null && phasesWithoutAllocateAction.contains(currentStepKey.getPhase())) {
                     // the index is in a phase that doesn't contain the allocate action anymore
                     if (currentStepKey.getAction().equals(AllocateAction.NAME)) {
@@ -584,6 +632,120 @@ public final class MetadataMigrateToDataTiersRoutingService {
         return newSettingsBuilder.build();
     }
 
+    static MigratedTemplates migrateIndexAndComponentTemplates(Metadata.Builder mb, ClusterState clusterState, String nodeAttrName) {
+        List<String> migratedLegacyTemplates = migrateLegacyTemplates(mb, clusterState, nodeAttrName);
+        List<String> migratedComposableTemplates = migrateComposableTemplates(mb, clusterState, nodeAttrName);
+        List<String> migratedComponentTemplates = migrateComponentTemplates(mb, clusterState, nodeAttrName);
+        return new MigratedTemplates(migratedLegacyTemplates, migratedComposableTemplates, migratedComponentTemplates);
+    }
+
+    static List<String> migrateLegacyTemplates(Metadata.Builder mb, ClusterState clusterState, String nodeAttrName) {
+        String requireRoutingSetting = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + nodeAttrName;
+        String includeRoutingSetting = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
+        String excludeRoutingSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
+
+        List<String> migratedLegacyTemplates = new ArrayList<>();
+
+        for (ObjectObjectCursor<String, IndexTemplateMetadata> templateCursor : clusterState.metadata().templates()) {
+            IndexTemplateMetadata templateMetadata = templateCursor.value;
+            if (templateMetadata.settings().keySet().contains(requireRoutingSetting)
+                || templateMetadata.settings().keySet().contains(includeRoutingSetting)) {
+                IndexTemplateMetadata.Builder templateMetadataBuilder = new IndexTemplateMetadata.Builder(templateMetadata);
+                Settings.Builder settingsBuilder = Settings.builder().put(templateMetadata.settings());
+                settingsBuilder.remove(requireRoutingSetting);
+                settingsBuilder.remove(includeRoutingSetting);
+                settingsBuilder.remove(excludeRoutingSetting);
+                templateMetadataBuilder.settings(settingsBuilder);
+
+                mb.put(templateMetadataBuilder);
+                migratedLegacyTemplates.add(templateCursor.key);
+            }
+        }
+        return migratedLegacyTemplates;
+    }
+
+    static List<String> migrateComposableTemplates(Metadata.Builder mb, ClusterState clusterState, String nodeAttrName) {
+        String requireRoutingSetting = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + nodeAttrName;
+        String includeRoutingSetting = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
+        String excludeRoutingSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
+
+        List<String> migratedComposableTemplates = new ArrayList<>();
+
+        for (Map.Entry<String, ComposableIndexTemplate> templateEntry : clusterState.metadata().templatesV2().entrySet()) {
+            ComposableIndexTemplate composableTemplate = templateEntry.getValue();
+            if (composableTemplate.template() != null && composableTemplate.template().settings() != null) {
+                Settings settings = composableTemplate.template().settings();
+
+                if (settings.keySet().contains(requireRoutingSetting) || settings.keySet().contains(includeRoutingSetting)) {
+                    Template currentInnerTemplate = composableTemplate.template();
+                    ComposableIndexTemplate.Builder migratedComposableTemplateBuilder = new ComposableIndexTemplate.Builder();
+                    Settings.Builder settingsBuilder = Settings.builder().put(settings);
+                    settingsBuilder.remove(requireRoutingSetting);
+                    settingsBuilder.remove(includeRoutingSetting);
+                    settingsBuilder.remove(excludeRoutingSetting);
+                    Template migratedInnerTemplate = new Template(
+                        settingsBuilder.build(),
+                        currentInnerTemplate.mappings(),
+                        currentInnerTemplate.aliases()
+                    );
+
+                    migratedComposableTemplateBuilder.indexPatterns(composableTemplate.indexPatterns());
+                    migratedComposableTemplateBuilder.template(migratedInnerTemplate);
+                    migratedComposableTemplateBuilder.componentTemplates(composableTemplate.composedOf());
+                    migratedComposableTemplateBuilder.priority(composableTemplate.priority());
+                    migratedComposableTemplateBuilder.version(composableTemplate.version());
+                    migratedComposableTemplateBuilder.metadata(composableTemplate.metadata());
+                    migratedComposableTemplateBuilder.dataStreamTemplate(composableTemplate.getDataStreamTemplate());
+                    migratedComposableTemplateBuilder.allowAutoCreate(composableTemplate.getAllowAutoCreate());
+
+                    mb.put(templateEntry.getKey(), migratedComposableTemplateBuilder.build());
+                    migratedComposableTemplates.add(templateEntry.getKey());
+                }
+            }
+        }
+
+        return migratedComposableTemplates;
+    }
+
+    static List<String> migrateComponentTemplates(Metadata.Builder mb, ClusterState clusterState, String nodeAttrName) {
+        String requireRoutingSetting = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + nodeAttrName;
+        String includeRoutingSetting = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
+        String excludeRoutingSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
+
+        List<String> migratedComponentTemplates = new ArrayList<>();
+
+        for (Map.Entry<String, ComponentTemplate> componentEntry : clusterState.metadata().componentTemplates().entrySet()) {
+            ComponentTemplate componentTemplate = componentEntry.getValue();
+            if (componentTemplate.template() != null && componentTemplate.template().settings() != null) {
+                Settings settings = componentTemplate.template().settings();
+
+                if (settings.keySet().contains(requireRoutingSetting) || settings.keySet().contains(includeRoutingSetting)) {
+                    Template currentInnerTemplate = componentTemplate.template();
+                    Settings.Builder settingsBuilder = Settings.builder().put(settings);
+                    settingsBuilder.remove(requireRoutingSetting);
+                    settingsBuilder.remove(includeRoutingSetting);
+                    settingsBuilder.remove(excludeRoutingSetting);
+                    Template migratedInnerTemplate = new Template(
+                        settingsBuilder.build(),
+                        currentInnerTemplate.mappings(),
+                        currentInnerTemplate.aliases()
+                    );
+
+                    ComponentTemplate migratedComponentTemplate = new ComponentTemplate(
+                        migratedInnerTemplate,
+                        componentTemplate.version(),
+                        componentTemplate.metadata()
+                    );
+
+                    mb.put(componentEntry.getKey(), migratedComponentTemplate);
+                    migratedComponentTemplates.add(componentEntry.getKey());
+                }
+            }
+        }
+
+        return migratedComponentTemplates;
+    }
+
     private static Settings migrateToDefaultTierPreference(ClusterState currentState, IndexMetadata indexMetadata) {
         Settings currentIndexSettings = indexMetadata.getSettings();
         List<String> tierPreference = DataTier.parseTierList(currentIndexSettings.get(DataTier.TIER_PREFERENCE));
@@ -637,11 +799,18 @@ public final class MetadataMigrateToDataTiersRoutingService {
         public final String removedIndexTemplateName;
         public final List<String> migratedIndices;
         public final List<String> migratedPolicies;
+        public final MigratedTemplates migratedTemplates;
 
-        public MigratedEntities(@Nullable String removedIndexTemplateName, List<String> migratedIndices, List<String> migratedPolicies) {
+        public MigratedEntities(
+            @Nullable String removedIndexTemplateName,
+            List<String> migratedIndices,
+            List<String> migratedPolicies,
+            MigratedTemplates migratedTemplates
+        ) {
             this.removedIndexTemplateName = removedIndexTemplateName;
             this.migratedIndices = Collections.unmodifiableList(migratedIndices);
             this.migratedPolicies = Collections.unmodifiableList(migratedPolicies);
+            this.migratedTemplates = migratedTemplates;
         }
 
         @Override
@@ -655,12 +824,52 @@ public final class MetadataMigrateToDataTiersRoutingService {
             MigratedEntities that = (MigratedEntities) o;
             return Objects.equals(removedIndexTemplateName, that.removedIndexTemplateName)
                 && Objects.equals(migratedIndices, that.migratedIndices)
-                && Objects.equals(migratedPolicies, that.migratedPolicies);
+                && Objects.equals(migratedPolicies, that.migratedPolicies)
+                && Objects.equals(migratedTemplates, that.migratedTemplates);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(removedIndexTemplateName, migratedIndices, migratedPolicies);
+            return Objects.hash(removedIndexTemplateName, migratedIndices, migratedPolicies, migratedTemplates);
+        }
+    }
+
+    /**
+     * Represents the legacy, composable, and component templates that were migrated away from shard allocation settings based on custom
+     * node attributes.
+     */
+    public static final class MigratedTemplates {
+        public final List<String> migratedLegacyTemplates;
+        public final List<String> migratedComposableTemplates;
+        public final List<String> migratedComponentTemplates;
+
+        public MigratedTemplates(
+            List<String> migratedLegacyTemplates,
+            List<String> migratedComposableTemplates,
+            List<String> migratedComponentTemplates
+        ) {
+            this.migratedLegacyTemplates = Collections.unmodifiableList(migratedLegacyTemplates);
+            this.migratedComposableTemplates = Collections.unmodifiableList(migratedComposableTemplates);
+            this.migratedComponentTemplates = Collections.unmodifiableList(migratedComponentTemplates);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            MigratedTemplates that = (MigratedTemplates) o;
+            return Objects.equals(migratedLegacyTemplates, that.migratedLegacyTemplates)
+                && Objects.equals(migratedComposableTemplates, that.migratedComposableTemplates)
+                && Objects.equals(migratedComponentTemplates, that.migratedComponentTemplates);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(migratedLegacyTemplates, migratedComposableTemplates, migratedComponentTemplates);
         }
     }
 }

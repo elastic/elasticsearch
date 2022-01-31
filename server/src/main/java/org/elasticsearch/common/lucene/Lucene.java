@@ -471,16 +471,12 @@ public class Lucene {
 
     private static Object readMissingValue(StreamInput in) throws IOException {
         final byte id = in.readByte();
-        switch (id) {
-            case 0:
-                return in.readGenericValue();
-            case 1:
-                return SortField.STRING_FIRST;
-            case 2:
-                return SortField.STRING_LAST;
-            default:
-                throw new IOException("Unknown missing value id: " + id);
-        }
+        return switch (id) {
+            case 0 -> in.readGenericValue();
+            case 1 -> SortField.STRING_FIRST;
+            case 2 -> SortField.STRING_LAST;
+            default -> throw new IOException("Unknown missing value id: " + id);
+        };
     }
 
     public static void writeSortValue(StreamOutput out, Object field) throws IOException {
@@ -620,16 +616,12 @@ public class Lucene {
 
     private static Number readExplanationValue(StreamInput in) throws IOException {
         final int numberType = in.readByte();
-        switch (numberType) {
-            case 0:
-                return in.readFloat();
-            case 1:
-                return in.readDouble();
-            case 2:
-                return in.readZLong();
-            default:
-                throw new IOException("Unexpected number type: " + numberType);
-        }
+        return switch (numberType) {
+            case 0 -> in.readFloat();
+            case 1 -> in.readDouble();
+            case 2 -> in.readZLong();
+            default -> throw new IOException("Unexpected number type: " + numberType);
+        };
     }
 
     public static Explanation readExplanation(StreamInput in) throws IOException {

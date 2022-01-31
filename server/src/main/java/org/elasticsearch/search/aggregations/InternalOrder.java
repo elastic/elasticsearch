@@ -582,14 +582,12 @@ public abstract class InternalOrder extends BucketOrder {
                 );
                 return orderAsc ? KEY_ASC : KEY_DESC;
             }
-            switch (orderKey) {
-                case "_key":
-                    return orderAsc ? KEY_ASC : KEY_DESC;
-                case "_count":
-                    return orderAsc ? COUNT_ASC : COUNT_DESC;
-                default: // assume all other orders are sorting on a sub-aggregation. Validation occurs later.
-                    return aggregation(orderKey, orderAsc);
-            }
+            return switch (orderKey) {
+                case "_key" -> orderAsc ? KEY_ASC : KEY_DESC;
+                case "_count" -> orderAsc ? COUNT_ASC : COUNT_DESC;
+                default -> // assume all other orders are sorting on a sub-aggregation. Validation occurs later.
+                    aggregation(orderKey, orderAsc);
+            };
         }
     }
 }

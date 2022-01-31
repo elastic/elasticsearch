@@ -38,42 +38,24 @@ public class TextStructure implements ToXContentObject, Writeable {
         SEMI_STRUCTURED_TEXT;
 
         public boolean supportsNesting() {
-            switch (this) {
-                case NDJSON:
-                case XML:
-                    return true;
-                case DELIMITED:
-                case SEMI_STRUCTURED_TEXT:
-                    return false;
-                default:
-                    throw new IllegalStateException("enum value [" + this + "] missing from switch.");
-            }
+            return switch (this) {
+                case NDJSON, XML -> true;
+                case DELIMITED, SEMI_STRUCTURED_TEXT -> false;
+            };
         }
 
         public boolean isStructured() {
-            switch (this) {
-                case NDJSON:
-                case XML:
-                case DELIMITED:
-                    return true;
-                case SEMI_STRUCTURED_TEXT:
-                    return false;
-                default:
-                    throw new IllegalStateException("enum value [" + this + "] missing from switch.");
-            }
+            return switch (this) {
+                case NDJSON, XML, DELIMITED -> true;
+                case SEMI_STRUCTURED_TEXT -> false;
+            };
         }
 
         public boolean isSemiStructured() {
-            switch (this) {
-                case NDJSON:
-                case XML:
-                case DELIMITED:
-                    return false;
-                case SEMI_STRUCTURED_TEXT:
-                    return true;
-                default:
-                    throw new IllegalStateException("enum value [" + this + "] missing from switch.");
-            }
+            return switch (this) {
+                case NDJSON, XML, DELIMITED -> false;
+                case SEMI_STRUCTURED_TEXT -> true;
+            };
         }
 
         public static Format fromString(String name) {

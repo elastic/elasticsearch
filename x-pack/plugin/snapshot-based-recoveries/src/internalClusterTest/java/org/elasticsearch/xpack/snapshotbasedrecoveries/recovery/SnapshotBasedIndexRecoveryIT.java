@@ -1347,29 +1347,26 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             SearchResponse searchResponse;
             switch (testCase) {
-                case 0:
+                case 0 -> {
                     searchResponse = searchRequestBuilder.setQuery(QueryBuilders.matchAllQuery()).get();
                     assertSearchResponseContainsAllIndexedDocs(searchResponse, docCount);
-                    break;
-                case 1:
+                }
+                case 1 -> {
                     int docIdToMatch = randomIntBetween(0, docCount - 1);
                     searchResponse = searchRequestBuilder.setQuery(QueryBuilders.termQuery("field", docIdToMatch)).get();
                     assertThat(searchResponse.getSuccessfulShards(), equalTo(1));
                     assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
                     SearchHit searchHit = searchResponse.getHits().getAt(0);
-
                     Map<String, Object> source = searchHit.getSourceAsMap();
-
                     assertThat(source, is(notNullValue()));
                     assertThat(source.get("field"), is(equalTo(docIdToMatch)));
                     assertThat(source.get("field2"), is(equalTo("Some text " + docIdToMatch)));
-                    break;
-                case 2:
+                }
+                case 2 -> {
                     searchResponse = searchRequestBuilder.setQuery(QueryBuilders.matchQuery("field2", "text")).get();
                     assertSearchResponseContainsAllIndexedDocs(searchResponse, docCount);
-                    break;
-                default:
-                    throw new IllegalStateException("Unexpected value: " + testCase);
+                }
+                default -> throw new IllegalStateException("Unexpected value: " + testCase);
             }
         }
     }

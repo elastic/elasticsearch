@@ -13,6 +13,4 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
 }
 
-test.enabled = false
-
 addQaCheckDependencies()

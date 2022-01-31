@@ -258,18 +258,18 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
         Metadata.Builder metadataBuilder = null;
         // group staleShards entries by index
         for (Map.Entry<Index, List<StaleShard>> indexEntry : staleShards.stream()
-            .collect(Collectors.groupingBy(fs -> fs.getShardId().getIndex()))
+            .collect(Collectors.groupingBy(fs -> fs.shardId().getIndex()))
             .entrySet()) {
             final IndexMetadata oldIndexMetadata = oldMetadata.getIndexSafe(indexEntry.getKey());
             IndexMetadata.Builder indexMetadataBuilder = null;
             // group staleShards entries by shard id
             for (Map.Entry<ShardId, List<StaleShard>> shardEntry : indexEntry.getValue()
                 .stream()
-                .collect(Collectors.groupingBy(staleShard -> staleShard.getShardId()))
+                .collect(Collectors.groupingBy(StaleShard::shardId))
                 .entrySet()) {
                 int shardNumber = shardEntry.getKey().getId();
                 Set<String> oldInSyncAllocations = oldIndexMetadata.inSyncAllocationIds(shardNumber);
-                Set<String> idsToRemove = shardEntry.getValue().stream().map(e -> e.getAllocationId()).collect(Collectors.toSet());
+                Set<String> idsToRemove = shardEntry.getValue().stream().map(StaleShard::allocationId).collect(Collectors.toSet());
                 assert idsToRemove.stream().allMatch(id -> oldRoutingTable.getByAllocationId(shardEntry.getKey(), id) == null)
                     : "removing stale ids: " + idsToRemove + ", some of which have still a routing entry: " + oldRoutingTable;
                 Set<String> remainingInSyncAllocations = Sets.difference(oldInSyncAllocations, idsToRemove);

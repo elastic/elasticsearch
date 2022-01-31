@@ -114,27 +114,23 @@ public class InvalidateApiKeyResponseTests extends ESTestCase {
     }
 
     private static InvalidateApiKeyResponse mutateTestItem(InvalidateApiKeyResponse original) {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return new InvalidateApiKeyResponse(
-                    Arrays.asList(randomArray(2, 5, String[]::new, () -> randomAlphaOfLength(5))),
-                    original.getPreviouslyInvalidatedApiKeys(),
-                    original.getErrors()
-                );
-            case 1:
-                return new InvalidateApiKeyResponse(original.getInvalidatedApiKeys(), Collections.emptyList(), original.getErrors());
-            case 2:
-                return new InvalidateApiKeyResponse(
-                    original.getInvalidatedApiKeys(),
-                    original.getPreviouslyInvalidatedApiKeys(),
-                    Collections.emptyList()
-                );
-            default:
-                return new InvalidateApiKeyResponse(
-                    Arrays.asList(randomArray(2, 5, String[]::new, () -> randomAlphaOfLength(5))),
-                    original.getPreviouslyInvalidatedApiKeys(),
-                    original.getErrors()
-                );
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new InvalidateApiKeyResponse(
+                Arrays.asList(randomArray(2, 5, String[]::new, () -> randomAlphaOfLength(5))),
+                original.getPreviouslyInvalidatedApiKeys(),
+                original.getErrors()
+            );
+            case 1 -> new InvalidateApiKeyResponse(original.getInvalidatedApiKeys(), Collections.emptyList(), original.getErrors());
+            case 2 -> new InvalidateApiKeyResponse(
+                original.getInvalidatedApiKeys(),
+                original.getPreviouslyInvalidatedApiKeys(),
+                Collections.emptyList()
+            );
+            default -> new InvalidateApiKeyResponse(
+                Arrays.asList(randomArray(2, 5, String[]::new, () -> randomAlphaOfLength(5))),
+                original.getPreviouslyInvalidatedApiKeys(),
+                original.getErrors()
+            );
+        };
     }
 }

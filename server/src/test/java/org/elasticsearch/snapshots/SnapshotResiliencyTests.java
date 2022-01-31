@@ -1966,7 +1966,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new FetchPhase(Collections.emptyList()),
                     responseCollectorService,
                     new NoneCircuitBreakerService(),
-                    EmptySystemIndices.INSTANCE.getExecutorSelector()
+                    EmptySystemIndices.INSTANCE.getExecutorSelector(),
+                    transportService
                 );
                 SearchPhaseController searchPhaseController = new SearchPhaseController(searchService::aggReduceContextBuilder);
                 actions.put(

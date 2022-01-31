@@ -338,7 +338,7 @@ public class SearchTransportService {
     /**
      * Used by {@link TransportSearchAction} to send the expand queries (field collapsing).
      */
-    public void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
+    void sendExecuteMultiSearch(final MultiSearchRequest request, SearchTask task, final ActionListener<MultiSearchResponse> listener) {
         final Transport.Connection connection = transportService.getConnection(transportService.getLocalNode());
         transportService.sendChildRequest(
             connection,

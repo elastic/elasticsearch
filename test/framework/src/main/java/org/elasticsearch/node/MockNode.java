@@ -8,6 +8,7 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
@@ -129,7 +130,8 @@ public class MockNode extends Node {
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
-        ExecutorSelector executorSelector
+        ExecutorSelector executorSelector,
+        TransportService transportService
     ) {
         if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
             return super.newSearchService(
@@ -141,7 +143,8 @@ public class MockNode extends Node {
                 fetchPhase,
                 responseCollectorService,
                 circuitBreakerService,
-                executorSelector
+                executorSelector,
+                transportService
             );
         }
         return new MockSearchService(
@@ -153,7 +156,8 @@ public class MockNode extends Node {
             fetchPhase,
             responseCollectorService,
             circuitBreakerService,
-            executorSelector
+            executorSelector,
+            transportService
         );
     }
 

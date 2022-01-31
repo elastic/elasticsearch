@@ -8,37 +8,34 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 
 public class LookupRuntimeFieldIT extends ESIntegTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
-    }
 
     @Before
     public void populateIndex() throws Exception {
@@ -48,12 +45,16 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
             .setMapping("author", "type=keyword", "joined", "type=date,format=yyyy-MM-dd")
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
-        client().prepareBulk("authors")
-            .add(new IndexRequest().source("author", "john", "first_name", "John", "last_name", "New York", "joined", "2020-03-01"))
-            .add(new IndexRequest().source("author", "mike", "first_name", "Mike", "last_name", "Boston", "joined", "2010-06-20"))
-            .add(new IndexRequest().source("author", "jack", "first_name", "Jack", "last_name", "Austin", "joined", "1999-11-03"))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        List<Map<String, String>> authors = List.of(
+            Map.of("author", "john", "first_name", "John", "last_name", "New York", "joined", "2020-03-01"),
+            Map.of("author", "mike", "first_name", "Mike", "last_name", "Boston", "joined", "2010-06-20"),
+            Map.of("author", "jack", "first_name", "Jack", "last_name", "Austin", "joined", "1999-11-03")
+        );
+        for (Map<String, String> author : authors) {
+            client().prepareIndex("authors").setSource(author).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
+        }
+        client().admin().indices().prepareRefresh("authors").get();
+
         client().admin()
             .indices()
             .prepareCreate("publishers")
@@ -67,12 +68,13 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
         client().admin()
             .indices()
             .prepareCreate("books")
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
             .setMapping("""
                 {
                     "properties": {
                         "title": {"type": "text"},
                         "author_id": {"type": "keyword"},
+                        "genre": {"type": "keyword"},
                         "published_date": {
                             "type": "date",
                             "format": "yyyy-MM-dd"
@@ -81,7 +83,7 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
                     "runtime": {
                         "author": {
                             "type": "lookup",
-                            "index": "authors",
+                            "lookup_index": "authors",
                             "query_type": "term",
                             "query_input_field": "author_id",
                             "query_target_field": "author",
@@ -91,47 +93,61 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
                 }
                 """)
             .get();
-        client().prepareBulk("books")
-            .add(
-                new IndexRequest().id("book_1")
-                    .source("title", "the first book", "author_id", "john", "publisher_id", "p1", "published_date", "2020-01-05")
-            )
-            .add(
-                new IndexRequest().id("book_2")
-                    .source("title", "the second book", "author_id", "mike", "publisher_id", "p2", "published_date", "2020-02-10")
-            )
-            .add(
-                new IndexRequest().id("book_3")
-                    .source(
-                        "title",
-                        "the third book",
-                        "author_id",
-                        List.of("mark", "mike"),
-                        "publisher_id",
-                        "p1",
-                        "published_date",
-                        "2021-04-20"
-                    )
-            )
-            .add(
-                new IndexRequest().id("book_4")
-                    .source(
-                        "title",
-                        "the forth book",
-                        "author_id",
-                        List.of("mike", "jack"),
-                        "publisher_id",
-                        "p1",
-                        "published_date",
-                        "2021-05-11"
-                    )
-            )
-            .add(
-                new IndexRequest().id("book_5")
-                    .source("title", "the fifth book", "author_id", "mike", "publisher_id", "p2", "published_date", "2021-06-30")
-            )
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        List<Map<String, Object>> books = List.of(
+            Map.of(
+                "title",
+                "the first book",
+                "genre",
+                "fiction",
+                "author_id",
+                "john",
+                "publisher_id",
+                "p1",
+                "published_date",
+                "2020-01-05"
+            ),
+            Map.of(
+                "title",
+                "the second book",
+                "genre",
+                "science",
+                "author_id",
+                "mike",
+                "publisher_id",
+                "p2",
+                "published_date",
+                "2020-02-10"
+            ),
+            Map.of(
+                "title",
+                "the third book",
+                "genre",
+                "science",
+                "author_id",
+                List.of("mark", "mike"),
+                "publisher_id",
+                "p1",
+                "published_date",
+                "2021-04-20"
+            ),
+            Map.of(
+                "title",
+                "the forth book",
+                "genre",
+                "fiction",
+                "author_id",
+                List.of("mike", "jack"),
+                "publisher_id",
+                "p1",
+                "published_date",
+                "2021-05-11"
+            ),
+            Map.of("title", "the fifth book", "genre", "science", "author_id", "mike", "publisher_id", "p2", "published_date", "2021-06-30")
+        );
+        for (Map<String, Object> book : books) {
+            client().prepareIndex("books").setSource(book).setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values())).get();
+        }
+        client().admin().indices().prepareRefresh("books").get();
     }
 
     public void testBasic() {
@@ -177,7 +193,7 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
                 {
                     "publisher": {
                         "type": "lookup",
-                        "index": "publishers",
+                        "lookup_index": "publishers",
                         "query_type": "term",
                         "query_input_field": "publisher_id",
                         "query_target_field": "_id",
@@ -225,7 +241,7 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
             {
                 "author": {
                     "type": "lookup",
-                    "index": "authors",
+                    "lookup_index": "authors",
                     "query_type": "term",
                     "query_input_field": "author_id",
                     "query_target_field": "author",
@@ -240,43 +256,79 @@ public class LookupRuntimeFieldIT extends ESIntegTestCase {
         assertThat(hit0.field("author").getValues(), equalTo(List.of(Map.of("first_name", List.of("John"), "joined", List.of("03/2020")))));
     }
 
-    public void testIndexNotExist() throws IOException {
-        IndexNotFoundException failure = expectThrows(
-            IndexNotFoundException.class,
-            () -> client().prepareSearch("books")
-                .setRuntimeMappings(parseMapping("""
-                    {
-                        "another_author": {
-                            "type": "lookup",
-                            "index": "book_author",
-                            "query_type": "term",
-                            "query_input_field": "author_id",
-                            "query_target_field": "another_field",
-                            "fetch_fields": ["name*"]
-                        }
-                    }
-                    """))
-                .setFetchSource(false)
-                .setQuery(new TermQueryBuilder("title", "second"))
+    public void testTopHitsAggregation() {
+        int iters = iterations(5, 10);
+        int requestSize = between(0, 1);
+        boolean hasAggs = randomBoolean();
+        for (int i = 0; i < iters; i++) {
+            if (randomBoolean()) {
+                requestSize = between(0, 1);
+                hasAggs = randomBoolean();
+            }
+            SearchRequestBuilder request = client().prepareSearch("books")
+                .addSort("published_date", SortOrder.ASC)
                 .addFetchField("title")
-                .addFetchField("another_author")
-                .get()
-        );
-        assertThat(failure.getMessage(), equalTo("no such index [book_author]"));
-    }
-
-    public void testExpensiveQueries() throws Exception {
-        // Coordinating node doesn't allow expensive queries
-        final String newNode = internalCluster().startNode(Settings.builder().put("search.allow_expensive_queries", false));
-        final ElasticsearchException error = expectThrows(
-            ElasticsearchException.class,
-            () -> client(newNode).prepareSearch("books").addFetchField("title").addFetchField("author").get()
-        );
-        assertThat(
-            error.getMessage(),
-            equalTo("cannot be executed against lookup field while [search.allow_expensive_queries] is set to [false].")
-        );
-        internalCluster().stopNode(newNode);
+                .addFetchField("author")
+                .setSize(requestSize);
+            if (hasAggs) {
+                TermsAggregationBuilder aggs = new TermsAggregationBuilder("aggs").field("genre")
+                    .subAggregation(
+                        new TopHitsAggregationBuilder("recent_books").size(1)
+                            .fetchField("title")
+                            .fetchField("author")
+                            .sort("published_date", SortOrder.DESC)
+                    );
+                request.addAggregation(aggs);
+            }
+            SearchResponse resp = request.get();
+            ElasticsearchAssertions.assertNoFailures(resp);
+            if (hasAggs) {
+                List<Aggregation> aggs = resp.getAggregations().asList();
+                assertThat(aggs, hasSize(1));
+                StringTerms termsAggs = (StringTerms) aggs.get(0);
+                assertThat(termsAggs.getBuckets(), hasSize(2));
+                {
+                    StringTerms.Bucket bucket = termsAggs.getBuckets().get(0);
+                    assertThat(bucket.getKeyAsString(), equalTo("science"));
+                    assertThat(bucket.getAggregations().asList(), hasSize(1));
+                    InternalTopHits hits = (InternalTopHits) bucket.getAggregations().asList().get(0);
+                    assertThat(hits.getHits().getHits(), arrayWithSize(1));
+                    SearchHit hit = hits.getHits().getHits()[0];
+                    assertThat(hit.field("title").getValues(), contains("the fifth book"));
+                    assertThat(
+                        hit.field("author").getValues(),
+                        contains(Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston")))
+                    );
+                }
+                {
+                    StringTerms.Bucket bucket = termsAggs.getBuckets().get(1);
+                    assertThat(bucket.getKeyAsString(), equalTo("fiction"));
+                    assertThat(bucket.getAggregations().asList(), hasSize(1));
+                    InternalTopHits hits = (InternalTopHits) bucket.getAggregations().asList().get(0);
+                    assertThat(hits.getHits().getHits(), arrayWithSize(1));
+                    SearchHit hit = hits.getHits().getHits()[0];
+                    assertThat(hit.field("title").getValues(), contains("the forth book"));
+                    assertThat(
+                        hit.field("author").getValues(),
+                        contains(
+                            Map.of("first_name", List.of("Mike"), "last_name", List.of("Boston")),
+                            Map.of("first_name", List.of("Jack"), "last_name", List.of("Austin"))
+                        )
+                    );
+                }
+            } else {
+                assertThat(resp.getAggregations(), nullValue());
+            }
+            assertThat(resp.getHits().getHits(), arrayWithSize(requestSize));
+            if (requestSize > 0) {
+                SearchHit hit0 = resp.getHits().getHits()[0];
+                assertThat(hit0.field("title").getValues(), contains("the first book"));
+                assertThat(
+                    hit0.field("author").getValues(),
+                    contains(Map.of("first_name", List.of("John"), "last_name", List.of("New York")))
+                );
+            }
+        }
     }
 
     private Map<String, Object> parseMapping(String mapping) throws IOException {

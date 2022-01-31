@@ -53,7 +53,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
         if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
             lookupFields = in.readList(LookupField::new);
         } else {
-            lookupFields = Collections.emptyList();
+            lookupFields = List.of();
         }
     }
 
@@ -70,6 +70,8 @@ public class DocumentField implements Writeable, Iterable<Object> {
         this.values = Objects.requireNonNull(values, "values must not be null");
         this.ignoredValues = Objects.requireNonNull(ignoredValues, "ignoredValues must not be null");
         this.lookupFields = Objects.requireNonNull(lookupFields, "lookupFields must not be null");
+        assert (lookupFields.isEmpty() == false) != (values.isEmpty() == false || ignoredValues.isEmpty() == false)
+            : "DocumentField can't have both lookup fields and values";
     }
 
     /**
@@ -117,10 +119,12 @@ public class DocumentField implements Writeable, Iterable<Object> {
             out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
         }
         if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
-            out.writeCollection(lookupFields);
+            out.writeList(lookupFields);
         } else {
-            // We deliberately do not to fail CCS search requests when the remote clusters are on the new version,
-            // and have lookup fields, but the local cluster is still on an old version.
+            if (lookupFields.isEmpty() == false) {
+                assert false : "Lookup fields must be resolved on data nodes";
+                throw new IllegalStateException("Lookup fields must be resolved on data nodes; got [" + lookupFields + "]");
+            }
         }
     }
 

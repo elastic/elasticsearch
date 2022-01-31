@@ -8,17 +8,21 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +36,7 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
  * <pre>
  * {
  *     "type": "lookup",
- *     "index": "an_external_index",
+ *     "lookup_index": "an_external_index",
  *     "query_type": "term",
  *     "query_input_field": "ip_address",
  *     "query_target_field": "host_ip",
@@ -50,8 +54,8 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
     public static final Set<String> SUPPORTED_QUERY_TYPES = Set.of("term");
 
     private static class Builder extends RuntimeField.Builder {
-        private final FieldMapper.Parameter<String> index = FieldMapper.Parameter.stringParam(
-            "index",
+        private final FieldMapper.Parameter<String> lookupIndex = FieldMapper.Parameter.stringParam(
+            "lookup_index",
             false,
             RuntimeField.initializerNotSupported(),
             null
@@ -77,9 +81,12 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
             false,
             RuntimeField.initializerNotSupported(),
             null
-        ).addValidator(v -> {
-            if (Strings.isEmpty(v)) {
+        ).addValidator(inputField -> {
+            if (Strings.isEmpty(inputField)) {
                 throw new IllegalArgumentException("[query_input_field] parameter must be specified");
+            }
+            if (inputField.equals(name)) {
+                throw new IllegalArgumentException("lookup field [" + name + "] can't use input from itself");
             }
         });
 
@@ -88,8 +95,8 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
             false,
             RuntimeField.initializerNotSupported(),
             null
-        ).addValidator(v -> {
-            if (Strings.isEmpty(v)) {
+        ).addValidator(targetField -> {
+            if (Strings.isEmpty(targetField)) {
                 throw new IllegalArgumentException("[query_target_field] parameter must be specified");
             }
         });
@@ -141,7 +148,7 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         @Override
         protected List<FieldMapper.Parameter<?>> getParameters() {
             final List<FieldMapper.Parameter<?>> parameters = new ArrayList<>(super.getParameters());
-            parameters.add(index);
+            parameters.add(lookupIndex);
             parameters.add(queryType);
             parameters.add(queryInputField);
             parameters.add(queryTargetField);
@@ -154,7 +161,7 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
             final LookupRuntimeFieldType ft = new LookupRuntimeFieldType(
                 name,
                 meta(),
-                index.get(),
+                lookupIndex.get(),
                 queryInputField.get(),
                 queryTargetField.get(),
                 fetchFields.get()
@@ -173,7 +180,7 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
     }
 
     private static final ValueFetcher EMPTY_VALUE_FETCHER = (lookup, ignoredValues) -> List.of();
-    private final String index;
+    private final String lookupIndex;
     private final String queryInputField;
     private final String queryTargetField;
     private final List<FieldAndFormat> fetchFields;
@@ -181,13 +188,13 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
     private LookupRuntimeFieldType(
         String name,
         Map<String, String> meta,
-        String index,
+        String lookupIndex,
         String queryInputField,
         String queryTargetField,
         List<FieldAndFormat> fetchFields
     ) {
         super(name, false, false, false, TextSearchInfo.NONE, meta);
-        this.index = index;
+        this.lookupIndex = lookupIndex;
         this.queryInputField = queryInputField;
         this.queryTargetField = queryTargetField;
         this.fetchFields = fetchFields;

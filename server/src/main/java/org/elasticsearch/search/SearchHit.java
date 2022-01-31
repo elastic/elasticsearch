@@ -484,6 +484,13 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     }
 
     /**
+     * Returns true if this hit has unresolved lookup fields; otherwise, returns false
+     */
+    public boolean hasLookupFields() {
+        return documentFields.values().stream().anyMatch(doc -> doc.getLookupFields().isEmpty() == false);
+    }
+
+    /**
      * Resolve the lookup fields with the given results and merge them as regular fetch fields.
      */
     public void resolveLookupFields(Map<LookupField, List<Object>> lookupResults) {
@@ -496,20 +503,17 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
                 if (docField.getLookupFields().isEmpty()) {
                     return docField;
                 }
-                final List<LookupField> newLookupFields = new ArrayList<>();
                 final List<Object> newValues = new ArrayList<>(docField.getValues());
                 for (LookupField lookupField : docField.getLookupFields()) {
                     final List<Object> resolvedValues = lookupResults.get(lookupField);
                     if (resolvedValues != null) {
                         newValues.addAll(resolvedValues);
-                    } else {
-                        newLookupFields.add(lookupField);
                     }
                 }
-                if (newValues.isEmpty() && newLookupFields.isEmpty() && docField.getIgnoredValues().isEmpty()) {
+                if (newValues.isEmpty() && docField.getIgnoredValues().isEmpty()) {
                     return null;
                 } else {
-                    return new DocumentField(docField.getName(), newValues, docField.getIgnoredValues(), newLookupFields);
+                    return new DocumentField(docField.getName(), newValues, docField.getIgnoredValues());
                 }
             });
         }

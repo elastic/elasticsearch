@@ -36,7 +36,7 @@ setup:
           runtime_mappings:
             location:
               type: lookup
-              index: ip_locations
+              lookup_index: ip_locations
               query_type: term
               query_input_field: ip
               query_target_field: _id
@@ -50,26 +50,3 @@ setup:
   - match: { hits.hits.0.fields.location: [ { country: [ 'Canada' ], city: [ 'Montreal' ] } ] }
   - match: { hits.hits.1.fields.msg: [ 'The second message' ] }
   - match: { hits.hits.1.fields.location: null }
-
----
-"Lookup index doesn't exist":
-  - skip:
-      version: " - 8.0.99"
-      reason: "Lookup fields are introduced in 8.1"
-  - do:
-      catch: /no such index/
-      search:
-        index: logs
-        body:
-          runtime_mappings:
-            location:
-              type: lookup
-              index: another_ip_locations
-              query_type: term
-              query_input_field: ip
-              query_target_field: _id
-              fetch_fields: [ "*" ]
-          sort: ord
-          fields:
-            - msg
-            - location

@@ -9,6 +9,7 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.action.search.SearchShardTask;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -23,6 +24,7 @@ import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -81,7 +83,8 @@ public class MockSearchService extends SearchService {
         FetchPhase fetchPhase,
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
-        ExecutorSelector executorSelector
+        ExecutorSelector executorSelector,
+        TransportService transportService
     ) {
         super(
             clusterService,
@@ -92,7 +95,8 @@ public class MockSearchService extends SearchService {
             fetchPhase,
             responseCollectorService,
             circuitBreakerService,
-            executorSelector
+            executorSelector,
+            transportService
         );
     }
 

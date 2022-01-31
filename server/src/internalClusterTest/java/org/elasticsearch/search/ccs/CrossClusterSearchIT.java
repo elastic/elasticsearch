@@ -60,6 +60,7 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -247,30 +248,23 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
     }
 
     /**
-     * Makes sure that lookup fields are resolved on the local cluster
+     * Makes sure that lookup fields are resolved on each cluster
      */
-    public void testLookupFields() throws Exception {
-        if (randomBoolean()) {
-            cluster("cluster_a").ensureAtMostNumDataNodes(1);
-        }
-        // Create the `users` index on the remote cluster to make sure we never fetch lookup fields from this index.
-        if (randomBoolean()) {
-            cluster("cluster_a").client()
-                .admin()
-                .indices()
-                .prepareCreate("users")
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
-                .get();
-            cluster("cluster_a").client()
-                .prepareBulk("users")
-                .add(new IndexRequest().id("a").source("name", "Remote A"))
-                .add(new IndexRequest().id("b").source("name", "Remote B"))
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
-        }
-        if (randomBoolean()) {
-            cluster(LOCAL_CLUSTER).ensureAtMostNumDataNodes(1);
-        }
+    public void testResolveLookupFieldsOnEachCluster() throws Exception {
+        cluster("cluster_a").client()
+            .admin()
+            .indices()
+            .prepareCreate("users")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
+            .get();
+        cluster("cluster_a").client()
+            .prepareBulk("users")
+            .add(new IndexRequest().id("a").source("name", "Remote A"))
+            .add(new IndexRequest().id("b").source("name", "Remote B"))
+            .add(new IndexRequest().id("c").source("name", "Remote C"))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
         client().admin()
             .indices()
             .prepareCreate("users")
@@ -286,11 +280,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         // Setup calls on the local cluster
         client().admin()
             .indices()
-            .prepareCreate("calls")
+            .prepareCreate("local_calls")
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .setMapping("from_user", "type=keyword", "to_user", "type=keyword")
             .get();
-        client().prepareBulk("calls")
+        client().prepareBulk("local_calls")
             .add(new IndexRequest().source("from_user", "a", "to_user", List.of("b", "c"), "duration", 95))
             .add(new IndexRequest().source("from_user", "a", "to_user", "b", "duration", 25))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -312,12 +306,11 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
-        // Search on the remote cluster only
         final String runtimeMappingSource = """
             {
                 "from": {
                     "type": "lookup",
-                    "index": "users",
+                    "lookup_index": "users",
                     "query_type": "term",
                     "query_input_field": "from_user",
                     "query_target_field": "_id",
@@ -325,7 +318,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 },
                 "to": {
                     "type": "lookup",
-                    "index": "users",
+                    "lookup_index": "users",
                     "query_type": "term",
                     "query_input_field": "to_user",
                     "query_target_field": "_id",
@@ -337,6 +330,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, runtimeMappingSource)) {
             runtimeMappings = parser.map();
         }
+        // Search on the remote cluster only
         {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(new TermQueryBuilder("to_user", "c"))
                 .runtimeMappings(runtimeMappings)
@@ -348,12 +342,14 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             SearchResponse searchResponse = client().search(request).actionGet();
             ElasticsearchAssertions.assertHitCount(searchResponse, 2);
             SearchHit hit0 = searchResponse.getHits().getHits()[0];
+            assertThat(hit0.getIndex(), equalTo("remote_calls"));
             assertThat(hit0.field("from"), nullValue());
-            assertThat(hit0.field("to").getValues(), contains(Map.of("name", List.of("Local C"))));
+            assertThat(hit0.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
 
             SearchHit hit1 = searchResponse.getHits().getHits()[1];
-            assertThat(hit1.field("from").getValues(), contains(Map.of("name", List.of("Local A")), Map.of("name", List.of("Local B"))));
-            assertThat(hit1.field("to").getValues(), contains(Map.of("name", List.of("Local C"))));
+            assertThat(hit1.getIndex(), equalTo("remote_calls"));
+            assertThat(hit1.field("from").getValues(), contains(Map.of("name", List.of("Remote A")), Map.of("name", List.of("Remote B"))));
+            assertThat(hit1.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
         }
         // Search on both clusters
         {
@@ -362,19 +358,22 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 .sort(new FieldSortBuilder("duration"))
                 .fetchField("from")
                 .fetchField("to");
-            SearchRequest request = new SearchRequest("calls", "cluster_a:remote_calls").source(searchSourceBuilder);
+            SearchRequest request = new SearchRequest("local_calls", "cluster_a:remote_calls").source(searchSourceBuilder);
             request.setCcsMinimizeRoundtrips(randomBoolean());
             SearchResponse searchResponse = client().search(request).actionGet();
             ElasticsearchAssertions.assertHitCount(searchResponse, 3);
             SearchHit hit0 = searchResponse.getHits().getHits()[0];
+            assertThat(hit0.getIndex(), equalTo("remote_calls"));
             assertThat(hit0.field("from"), nullValue());
-            assertThat(hit0.field("to").getValues(), contains(Map.of("name", List.of("Local C"))));
+            assertThat(hit0.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
 
             SearchHit hit1 = searchResponse.getHits().getHits()[1];
-            assertThat(hit1.field("from").getValues(), contains(Map.of("name", List.of("Local A")), Map.of("name", List.of("Local B"))));
-            assertThat(hit1.field("to").getValues(), contains(Map.of("name", List.of("Local C"))));
+            assertThat(hit1.getIndex(), equalTo("remote_calls"));
+            assertThat(hit1.field("from").getValues(), contains(Map.of("name", List.of("Remote A")), Map.of("name", List.of("Remote B"))));
+            assertThat(hit1.field("to").getValues(), contains(Map.of("name", List.of("Remote C"))));
 
             SearchHit hit2 = searchResponse.getHits().getHits()[2];
+            assertThat(hit2.getIndex(), equalTo("local_calls"));
             assertThat(hit2.field("from").getValues(), contains(Map.of("name", List.of("Local A"))));
             assertThat(hit2.field("to").getValues(), contains(Map.of("name", List.of("Local B")), Map.of("name", List.of("Local C"))));
         }

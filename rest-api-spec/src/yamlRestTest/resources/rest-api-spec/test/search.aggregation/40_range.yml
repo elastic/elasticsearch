@@ -1,20 +1,20 @@
 setup:
   - do:
       indices.create:
-        index: test
-        body:
-          settings:
-            number_of_replicas: 0
-          mappings:
-            properties:
-              double:
-                type: double
-              long:
-                type: long
-              float:
-                type: float
-              half_float:
-                type: half_float
+          index: test
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                double:
+                  type: double
+                long:
+                  type: long
+                float:
+                  type: float
+                half_float:
+                  type: half_float
 
   - do:
       indices.create:

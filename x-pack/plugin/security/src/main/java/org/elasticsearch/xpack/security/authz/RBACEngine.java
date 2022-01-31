@@ -859,10 +859,11 @@ public class RBACEngine implements AuthorizationEngine {
      * A lazily loaded Set for authorized indices. It avoids loading the set if only contains check is required.
      * It only loads the set if iterating through it is necessary, i.e. when expanding wildcards.
      *
-     * NOTE that the lazy loading does not guarantee to run only once and is not meant to be used by multi-threads
-     * because loading multiple times can incur performance penalty (but not correctness).
+     * NOTE that the lazy loading is NOT thread-safe and must NOT be used by multi-threads.
+     * The current usage has it wrapped inside a CachingAsyncSupplier which guarantees it to be accessed
+     * from a single thread. Extra caution is needed if moving or using this class in other places.
      */
-    private static class AuthorizedIndicesSet implements Set<String> {
+    static class AuthorizedIndicesSet implements Set<String> {
 
         private final Supplier<Set<String>> supplier;
         private final Predicate<String> predicate;
@@ -926,7 +927,11 @@ public class RBACEngine implements AuthorizationEngine {
 
         @Override
         public boolean containsAll(Collection<?> c) {
-            return c.stream().allMatch(this::contains);
+            if (authorizedIndices == null) {
+                return c.stream().allMatch(this::contains);
+            } else {
+                return authorizedIndices.containsAll(c);
+            }
         }
 
         @Override

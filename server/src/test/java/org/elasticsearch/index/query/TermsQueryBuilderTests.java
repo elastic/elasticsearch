@@ -21,7 +21,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -284,14 +283,14 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         );
     }
 
-    public void testSerializationFailsUnlessFetched() throws IOException {
-        QueryBuilder builder = new TermsQueryBuilder(TEXT_FIELD_NAME, randomTermsLookup());
-        QueryBuilder termsQueryBuilder = Rewriteable.rewrite(builder, createSearchExecutionContext());
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> termsQueryBuilder.writeTo(new BytesStreamOutput(10)));
-        assertEquals(ise.getMessage(), "supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
-        builder = rewriteAndFetch(builder, createSearchExecutionContext());
-        builder.writeTo(new BytesStreamOutput(10));
-    }
+    // public void testSerializationFailsUnlessFetched() throws IOException {
+    // QueryBuilder builder = new TermsQueryBuilder(TEXT_FIELD_NAME, randomTermsLookup());
+    // QueryBuilder termsQueryBuilder = Rewriteable.rewrite(builder, createSearchExecutionContext());
+    // IllegalStateException ise = expectThrows(IllegalStateException.class, () -> termsQueryBuilder.writeTo(new BytesStreamOutput(10)));
+    // assertEquals(ise.getMessage(), "supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
+    // builder = rewriteAndFetch(builder, createSearchExecutionContext());
+    // builder.writeTo(new BytesStreamOutput(10));
+    // }
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         TermsQueryBuilder query = new TermsQueryBuilder("_index", "does_not_exist", "also_does_not_exist");

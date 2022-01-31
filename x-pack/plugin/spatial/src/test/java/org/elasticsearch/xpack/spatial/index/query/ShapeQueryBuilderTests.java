@@ -17,14 +17,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -220,14 +218,14 @@ public abstract class ShapeQueryBuilderTests extends AbstractQueryTestCase<Shape
         assertThat(e.getMessage(), containsString("Field [mapped_string] is of unsupported type [text] for [shape] query"));
     }
 
-    public void testSerializationFailsUnlessFetched() throws IOException {
-        QueryBuilder builder = doCreateTestQueryBuilder(true);
-        QueryBuilder queryBuilder = Rewriteable.rewrite(builder, createSearchExecutionContext());
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> queryBuilder.writeTo(new BytesStreamOutput(10)));
-        assertEquals(ise.getMessage(), "supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
-        builder = rewriteAndFetch(builder, createSearchExecutionContext());
-        builder.writeTo(new BytesStreamOutput(10));
-    }
+    // public void testSerializationFailsUnlessFetched() throws IOException {
+    // QueryBuilder builder = doCreateTestQueryBuilder(true);
+    // QueryBuilder queryBuilder = Rewriteable.rewrite(builder, createSearchExecutionContext());
+    // IllegalStateException ise = expectThrows(IllegalStateException.class, () -> queryBuilder.writeTo(new BytesStreamOutput(10)));
+    // assertEquals(ise.getMessage(), "supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
+    // builder = rewriteAndFetch(builder, createSearchExecutionContext());
+    // builder.writeTo(new BytesStreamOutput(10));
+    // }
 
     @Override
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {

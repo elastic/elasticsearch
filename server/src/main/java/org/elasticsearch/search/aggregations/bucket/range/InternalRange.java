@@ -160,7 +160,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
                 out.writeOptionalString(key);
             } else {
-                out.writeString(getKeyAsString());
+                out.writeString(key == null ? generateKey(from, to, format) : key);
             }
             out.writeDouble(from);
             if (out.getVersion().onOrAfter(Version.V_7_17_0)) {

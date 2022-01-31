@@ -519,16 +519,16 @@ public class RecoverySettings {
             availableBytesPerSec * NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING.get(settings)
         );
 
-        long finalMaxBytesPerSec;
+        ByteSizeValue finalMaxBytesPerSec;
         if (maxAllowedBytesPerSec > 0L) {
-            finalMaxBytesPerSec = Math.min(maxBytesPerSec, maxAllowedBytesPerSec);
+            finalMaxBytesPerSec = ByteSizeValue.ofBytes(Math.min(maxBytesPerSec, maxAllowedBytesPerSec));
         } else {
-            finalMaxBytesPerSec = maxBytesPerSec;
+            finalMaxBytesPerSec = ByteSizeValue.ofBytes(maxBytesPerSec);
         }
         logger.info(
             () -> new ParameterizedMessage(
                 "using rate limit [{}] with [default={}, read={}, write={}, max={}]",
-                ByteSizeValue.ofBytes(finalMaxBytesPerSec),
+                finalMaxBytesPerSec,
                 ByteSizeValue.ofBytes(defaultBytesPerSec),
                 ByteSizeValue.ofBytes(readBytesPerSec),
                 ByteSizeValue.ofBytes(writeBytesPerSec),
@@ -536,21 +536,6 @@ public class RecoverySettings {
             )
         );
         setMaxBytesPerSec(finalMaxBytesPerSec);
-    }
-
-    private void setMaxBytesPerSec(final long value) {
-        this.maxBytesPerSec = new ByteSizeValue(value);
-        if (maxBytesPerSec.getBytes() <= 0) {
-            rateLimiter = null;
-        } else if (rateLimiter != null) {
-            rateLimiter.setMBPerSec(maxBytesPerSec.getMbFrac());
-        } else {
-            rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
-        }
-    }
-
-    ByteSizeValue getMaxBytesPerSec() {
-        return maxBytesPerSec;
     }
 
     public RateLimiter rateLimiter() {
@@ -610,6 +595,21 @@ public class RecoverySettings {
 
     public void setInternalActionLongTimeout(TimeValue internalActionLongTimeout) {
         this.internalActionLongTimeout = internalActionLongTimeout;
+    }
+
+    private void setMaxBytesPerSec(ByteSizeValue maxBytesPerSec) {
+        this.maxBytesPerSec = maxBytesPerSec;
+        if (maxBytesPerSec.getBytes() <= 0) {
+            rateLimiter = null;
+        } else if (rateLimiter != null) {
+            rateLimiter.setMBPerSec(maxBytesPerSec.getMbFrac());
+        } else {
+            rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
+        }
+    }
+
+    ByteSizeValue getMaxBytesPerSec() {
+        return maxBytesPerSec;
     }
 
     public int getMaxConcurrentFileChunks() {

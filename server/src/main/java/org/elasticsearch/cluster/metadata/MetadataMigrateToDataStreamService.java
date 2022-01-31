@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -113,7 +114,8 @@ public class MetadataMigrateToDataStreamService {
                     writeIndexRef.set(clusterState.metadata().dataStreams().get(request.aliasName).getWriteIndex().getName());
                     return clusterState;
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

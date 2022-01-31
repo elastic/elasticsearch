@@ -45,7 +45,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
@@ -685,7 +684,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     public void testSnapshotWithDateMath() {
         final String repo = "repo";
 
-        final IndexNameExpressionResolver nameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         final String snapshotName = "<snapshot-{now/d}>";
 
         logger.info("-->  creating repository");
@@ -695,11 +693,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean()))
         );
 
-        final String expression1 = nameExpressionResolver.resolveDateMathExpression(snapshotName);
+        final String expression1 = IndexNameExpressionResolver.resolveDateMathExpression(snapshotName);
         logger.info("-->  creating date math snapshot");
         createFullSnapshot(repo, snapshotName);
         // snapshot could be taken before or after a day rollover
-        final String expression2 = nameExpressionResolver.resolveDateMathExpression(snapshotName);
+        final String expression2 = IndexNameExpressionResolver.resolveDateMathExpression(snapshotName);
 
         SnapshotsStatusResponse response = clusterAdmin().prepareSnapshotStatus(repo)
             .setSnapshots(Sets.newHashSet(expression1, expression2).toArray(Strings.EMPTY_ARRAY))

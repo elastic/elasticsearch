@@ -126,6 +126,20 @@ public class Authentication implements ToXContentObject {
     }
 
     /**
+     * Authenticate with a service account and no run-as
+     */
+    public boolean isServiceAccount() {
+        return isAuthenticatedWithServiceAccount() && false == getUser().isRunAs();
+    }
+
+    /**
+     * Authenticated with an API key and no run-as
+     */
+    public boolean isApiKey() {
+        return isAuthenticatedWithApiKey() && false == getUser().isRunAs();
+    }
+
+    /**
      * Writes the authentication to the context. There must not be an existing authentication in the context and if there is an
      * {@link IllegalStateException} will be thrown
      */
@@ -170,11 +184,11 @@ public class Authentication implements ToXContentObject {
      *      security limitations</a>
      */
     public boolean canAccessResourcesOf(Authentication other) {
-        if (AuthenticationType.API_KEY == getAuthenticationType() && AuthenticationType.API_KEY == other.getAuthenticationType()) {
+        if (isApiKey() && other.isApiKey()) {
             final boolean sameKeyId = getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
                 .equals(other.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
             if (sameKeyId) {
-                assert getUser().principal().equals(other.getUser().principal())
+                assert getUser().principal().equals(getUser().principal())
                     : "The same API key ID cannot be attributed to two different usernames";
             }
             return sameKeyId;
@@ -278,7 +292,7 @@ public class Authentication implements ToXContentObject {
     }
 
     private void assertApiKeyMetadata() {
-        assert (AuthenticationType.API_KEY.equals(this.type) == false) || (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
+        assert (false == isAuthenticatedWithApiKey()) || (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
             : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
     }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -130,13 +131,13 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                super.clusterStateProcessed(source, oldState, newState);
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                super.clusterStateProcessed(oldState, newState);
                 MigratedEntities entities = migratedEntities.get();
                 listener.onResponse(
                     new MigrateToDataTiersResponse(
@@ -150,7 +151,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
                     )
                 );
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
 
     }
 

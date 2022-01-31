@@ -53,8 +53,8 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
 
     public void testDeletePolicyDoesNotExistUnlocksPolicy() throws InterruptedException {
         String fakeId = "fake-id";
-        createIndex(EnrichPolicy.getBaseName(fakeId) + "-foo1");
-        createIndex(EnrichPolicy.getBaseName(fakeId) + "-foo2");
+        createIndex(EnrichPolicy.getIndexName(fakeId, 1001));
+        createIndex(EnrichPolicy.getIndexName(fakeId, 1002));
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> reference = new AtomicReference<>();
@@ -128,13 +128,13 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         }
 
-        createIndex(EnrichPolicy.getBaseName(name) + "-foo1");
-        createIndex(EnrichPolicy.getBaseName(name) + "-foo2");
+        createIndex(EnrichPolicy.getIndexName(name, 1001));
+        createIndex(EnrichPolicy.getIndexName(name, 1002));
 
         client().admin()
             .indices()
             .prepareGetIndex()
-            .setIndices(EnrichPolicy.getBaseName(name) + "-foo1", EnrichPolicy.getBaseName(name) + "-foo2")
+            .setIndices(EnrichPolicy.getIndexName(name, 1001), EnrichPolicy.getIndexName(name, 1002))
             .get();
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -160,7 +160,7 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             () -> client().admin()
                 .indices()
                 .prepareGetIndex()
-                .setIndices(EnrichPolicy.getBaseName(name) + "-foo1", EnrichPolicy.getBaseName(name) + "-foo2")
+                .setIndices(EnrichPolicy.getIndexName(name, 1001), EnrichPolicy.getIndexName(name, 1001))
                 .get()
         );
 
@@ -183,8 +183,8 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
         AtomicReference<Exception> error = saveEnrichPolicy(name, policy, clusterService);
         assertThat(error.get(), nullValue());
 
-        createIndex(EnrichPolicy.getBaseName(name) + "-foo1");
-        createIndex(EnrichPolicy.getBaseName(name) + "-foo2");
+        createIndex(EnrichPolicy.getIndexName(name, 1001));
+        createIndex(EnrichPolicy.getIndexName(name, 1002));
 
         EnrichPolicyLocks enrichPolicyLocks = getInstanceFromNode(EnrichPolicyLocks.class);
         assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
@@ -239,6 +239,52 @@ public class TransportDeleteEnrichPolicyActionTests extends AbstractEnrichTestCa
             assertFalse(enrichPolicyLocks.captureExecutionState().isAnyPolicyInFlight());
 
             assertNull(EnrichStore.getPolicy(name, clusterService.state()));
+        }
+    }
+
+    public void testDeletePolicyPrefixes() throws InterruptedException {
+        EnrichPolicy policy = randomEnrichPolicy(XContentType.JSON);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+
+        String name = "my-policy";
+        String otherName = "my-policy-two"; // the first policy is a prefix of this one
+
+        final TransportDeleteEnrichPolicyAction transportAction = node().injector().getInstance(TransportDeleteEnrichPolicyAction.class);
+        AtomicReference<Exception> error;
+        error = saveEnrichPolicy(name, policy, clusterService);
+        assertThat(error.get(), nullValue());
+        error = saveEnrichPolicy(otherName, policy, clusterService);
+        assertThat(error.get(), nullValue());
+
+        // create an index for the *other* policy
+        createIndex(EnrichPolicy.getIndexName(otherName, 1001));
+
+        {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final AtomicReference<AcknowledgedResponse> reference = new AtomicReference<>();
+
+            ActionTestUtils.execute(transportAction, null, new DeleteEnrichPolicyAction.Request(name), new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    reference.set(acknowledgedResponse);
+                    latch.countDown();
+                }
+
+                public void onFailure(final Exception e) {
+                    fail();
+                }
+            });
+            latch.await();
+            assertNotNull(reference.get());
+            assertTrue(reference.get().isAcknowledged());
+
+            assertNull(EnrichStore.getPolicy(name, clusterService.state()));
+
+            // deleting name policy should have no effect on the other policy
+            assertNotNull(EnrichStore.getPolicy(otherName, clusterService.state()));
+
+            // and the index associated with the other index should be unaffected
+            client().admin().indices().prepareGetIndex().setIndices(EnrichPolicy.getIndexName(otherName, 1001)).get();
         }
     }
 }

@@ -72,8 +72,8 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -209,7 +209,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             null,
             null,
             null,
-            NamedXContentRegistry.EMPTY,
+            XContentParserConfiguration.EMPTY,
             new NamedWriteableRegistry(Collections.emptyList()),
             null,
             null,
@@ -328,7 +328,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
-        builder.setRuntime(runtimeFieldTypes);
+        builder.addRuntimeFields(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(MapperBuilderContext.ROOT), new MetadataFieldMapper[0], Collections.emptyMap());
         return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList(), Collections.emptyList());
     }
@@ -435,7 +435,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             mappingLookup,
             null,
             null,
-            NamedXContentRegistry.EMPTY,
+            XContentParserConfiguration.EMPTY,
             new NamedWriteableRegistry(Collections.emptyList()),
             null,
             null,

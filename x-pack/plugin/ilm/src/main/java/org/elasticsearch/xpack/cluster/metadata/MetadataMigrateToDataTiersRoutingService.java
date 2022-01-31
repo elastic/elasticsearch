@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -29,7 +30,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -52,9 +52,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE;
 import static org.elasticsearch.cluster.routing.allocation.DataTier.TIER_PREFERENCE;
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
 import static org.elasticsearch.xpack.ilm.IndexLifecycleTransition.moveStateToNextActionAndUpdateCachedPhase;
@@ -354,10 +354,10 @@ public final class MetadataMigrateToDataTiersRoutingService {
             .collect(Collectors.toList());
 
         for (IndexMetadata indexMetadata : managedIndices) {
-            LifecycleExecutionState currentExState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+            LifecycleExecutionState currentExState = indexMetadata.getLifecycleExecutionState();
 
             if (currentExState != null) {
-                Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(currentExState);
+                Step.StepKey currentStepKey = Step.getCurrentStepKey(currentExState);
                 if (currentStepKey != null && phasesWithoutAllocateAction.contains(currentStepKey.getPhase())) {
                     // the index is in a phase that doesn't contain the allocate action anymore
                     if (currentStepKey.getAction().equals(AllocateAction.NAME)) {

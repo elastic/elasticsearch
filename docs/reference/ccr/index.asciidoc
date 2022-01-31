@@ -195,6 +195,11 @@ You can't manually modify a follower index's mappings or aliases. To make
 changes, you must update the leader index. Because they are read-only, follower
 indices reject writes in all configurations. 
 
+NOTE: Although changes to aliases on the leader index are replicated to follower
+indices, write indices are ignored. Follower indices can't accept direct writes,
+so if any leader aliases have `is_write_index` set to `true`, that value is
+forced to `false`.
+
 For example, you index a document named `doc_1` in Datacenter A, which
 replicates to Datacenter B. If a client connects to Datacenter B and attempts
 to update `doc_1`, the request fails. To update `doc_1`, the client must

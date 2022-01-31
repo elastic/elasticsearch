@@ -55,6 +55,7 @@ public class TimeSeriesMetricsService {
         request.indices(indices);
         request.fields("*");
         request.indicesOptions(indicesOptions);
+        request.filters("+dimension");
         client.fieldCaps(request, listener.map(this::newMetrics));
     }
 

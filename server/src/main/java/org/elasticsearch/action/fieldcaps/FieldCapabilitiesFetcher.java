@@ -188,7 +188,7 @@ class FieldCapabilitiesFetcher {
                 case "+metadata" -> (ft, c) -> c.isMetadataField(ft.name());
                 case "-metadata" -> (ft, c) -> c.isMetadataField(ft.name()) == false;
                 case "-nested" -> (ft, c) -> c.nestedLookup().getNestedParent(ft.name()) == null;
-                case "+dimension" -> (ft, c) -> ft.isDimension();
+                case "+timeseries" -> (ft, c) -> ft.isDimension() || ft.getMetricType() != null;
                 case "-multifield" -> (ft, c) -> c.isMultiField(ft.name()) == false;
                 default -> throw new IllegalArgumentException("Unknown field caps filter [" + filter + "]");
             };

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -19,9 +20,9 @@ public class ResponseRewriterTests extends ESTestCase {
     public void testExcludeMetadata() {
         Map<String, IndexFieldCapabilities> oldResponse = Map.of(
             "field",
-            new IndexFieldCapabilities("field", "keyword", false, true, true, false, null, Collections.emptyMap()),
+            fieldCaps("field", "keyword", false),
             "_index",
-            new IndexFieldCapabilities("_index", "_index", true, true, true, false, null, Collections.emptyMap())
+            fieldCaps("_index", "_index", true)
         );
 
         Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
@@ -38,9 +39,9 @@ public class ResponseRewriterTests extends ESTestCase {
     public void testIncludeOnlyMetadata() {
         Map<String, IndexFieldCapabilities> oldResponse = Map.of(
             "field",
-            new IndexFieldCapabilities("field", "keyword", false, true, true, false, null, Collections.emptyMap()),
+            fieldCaps("field", "keyword", false),
             "_index",
-            new IndexFieldCapabilities("_index", "_index", true, true, true, false, null, Collections.emptyMap())
+            fieldCaps("_index", "_index", true)
         );
 
         Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
@@ -57,11 +58,11 @@ public class ResponseRewriterTests extends ESTestCase {
     public void testExcludeNested() {
         Map<String, IndexFieldCapabilities> oldResponse = Map.of(
             "field",
-            new IndexFieldCapabilities("field", "keyword", false, true, true, false, null, Collections.emptyMap()),
+            fieldCaps("field", "keyword", false),
             "parent",
-            new IndexFieldCapabilities("parent", "nested", false, false, false, false, null, Collections.emptyMap()),
+            fieldCaps("parent", "nested", false),
             "parent.child",
-            new IndexFieldCapabilities("parent.child", "keyword", false, true, true, false, null, Collections.emptyMap())
+            fieldCaps("parent.child", "keyword", false)
         );
 
         Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
@@ -100,23 +101,35 @@ public class ResponseRewriterTests extends ESTestCase {
         assertTrue(rewritten.containsKey("parent.child"));
     }
 
-    public void testIncludeOnlyDimensions() {
+    public void testIncludeOnlyTimeSeriesValues() {
         Map<String, IndexFieldCapabilities> oldResponse = Map.of(
             "field1",
             fieldCaps("field1", "text", false),
             "field2",
-            new IndexFieldCapabilities("field2", "keyword", false, true, true, true, null, Collections.emptyMap())
+            new IndexFieldCapabilities("field2", "keyword", false, true, true, true, null, Collections.emptyMap()),
+            "field3",
+            new IndexFieldCapabilities(
+                "field3",
+                "long",
+                false,
+                true,
+                true,
+                false,
+                TimeSeriesParams.MetricType.counter,
+                Collections.emptyMap()
+            )
         );
 
         Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
             Version.V_8_0_0,
             oldResponse,
-            new String[] { "+dimension" },
+            new String[] { "+timeseries" },
             f -> f.startsWith("_")
         );
 
         assertFalse(rewritten.containsKey("field1"));
         assertTrue(rewritten.containsKey("field2"));
+        assertTrue(rewritten.containsKey("field3"));
     }
 
     public void testExcludeParents() {

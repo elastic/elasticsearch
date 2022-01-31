@@ -42,21 +42,21 @@ public class CursorTests extends ESTestCase {
         verifyNoMoreInteractions(clientMock);
     }
 
-//    TODO: implement
-//    @SuppressWarnings("unchecked")
-//    public void testScrollCursorClearCursor() {
-//        Client clientMock = mock(Client.class);
-//        ActionListener<Boolean> listenerMock = mock(ActionListener.class);
-//        String cursorString = randomAlphaOfLength(10);
-//        Cursor cursor = new ScrollCursor(cursorString, Collections.emptyList(), new BitSet(0), randomInt());
-//
-//        cursor.clear(clientMock, listenerMock);
-//
-//        ArgumentCaptor<ClearScrollRequest> request = ArgumentCaptor.forClass(ClearScrollRequest.class);
-//        verify(clientMock).clearScroll(request.capture(), any(ActionListener.class));
-//        assertEquals(Collections.singletonList(cursorString), request.getValue().getScrollIds());
-//        verifyNoMoreInteractions(listenerMock);
-//    }
+    // TODO: implement
+    // @SuppressWarnings("unchecked")
+    // public void testScrollCursorClearCursor() {
+    // Client clientMock = mock(Client.class);
+    // ActionListener<Boolean> listenerMock = mock(ActionListener.class);
+    // String cursorString = randomAlphaOfLength(10);
+    // Cursor cursor = new ScrollCursor(cursorString, Collections.emptyList(), new BitSet(0), randomInt());
+    //
+    // cursor.clear(clientMock, listenerMock);
+    //
+    // ArgumentCaptor<ClearScrollRequest> request = ArgumentCaptor.forClass(ClearScrollRequest.class);
+    // verify(clientMock).clearScroll(request.capture(), any(ActionListener.class));
+    // assertEquals(Collections.singletonList(cursorString), request.getValue().getScrollIds());
+    // verifyNoMoreInteractions(listenerMock);
+    // }
 
     private static SqlQueryResponse createRandomSqlResponse() {
         int columnCount = between(1, 10);

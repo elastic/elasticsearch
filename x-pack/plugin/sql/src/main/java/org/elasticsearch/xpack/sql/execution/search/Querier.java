@@ -17,7 +17,6 @@ import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -147,9 +146,8 @@ public class Querier {
     }
 
     private void searchWithPointInTime(SearchRequest search, ActionListener<SearchResponse> listener) {
-        final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(search.indices()).indicesOptions(
-            indicesOptions(cfg.includeFrozen())
-        ).keepAlive(cfg.pageTimeout());
+        final OpenPointInTimeRequest openPitRequest = new OpenPointInTimeRequest(search.indices()).indicesOptions(search.indicesOptions())
+            .keepAlive(cfg.pageTimeout());
 
         client.execute(OpenPointInTimeAction.INSTANCE, openPitRequest, wrap((openPointInTimeResponse) -> {
             String pitId = openPointInTimeResponse.getPointInTimeId();
@@ -177,10 +175,6 @@ public class Querier {
         }
     }
 
-    private static IndicesOptions indicesOptions(boolean includeFrozen) {
-        return includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS;
-    }
-
     public static SearchRequest prepareRequest(SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen, String... indices) {
         source.timeout(timeout);
 
@@ -188,7 +182,9 @@ public class Querier {
         searchRequest.indices(indices);
         searchRequest.source(source);
         searchRequest.allowPartialSearchResults(false);
-        searchRequest.indicesOptions(indicesOptions(includeFrozen));
+        searchRequest.indicesOptions(
+            includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
+        );
 
         return searchRequest;
     }

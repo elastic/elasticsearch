@@ -266,14 +266,9 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             expected.put("rows", values);
             cursor = (String) response.remove("cursor");
             assertResponse(expected, response);
-            assertNotNull(cursor);
         }
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("rows", emptyList());
-        assertResponse(
-            expected,
-            runSql(new StringEntity(cursor(cursor).mode(mode).toString(), ContentType.APPLICATION_JSON), StringUtils.EMPTY, mode)
-        );
+
+        assertNull(cursor);
 
         deleteIndex("test_date_timezone");
     }

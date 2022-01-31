@@ -840,29 +840,28 @@ public class TranslogTests extends ESTestCase {
                 }
                 assertEquals(expectedOp.opType(), op.opType());
                 switch (op.opType()) {
-                    case INDEX:
+                    case INDEX -> {
                         Translog.Index indexOp = (Translog.Index) op;
                         Translog.Index expIndexOp = (Translog.Index) expectedOp;
                         assertEquals(expIndexOp.id(), indexOp.id());
                         assertEquals(expIndexOp.routing(), indexOp.routing());
                         assertEquals(expIndexOp.source(), indexOp.source());
                         assertEquals(expIndexOp.version(), indexOp.version());
-                        break;
-                    case DELETE:
+                    }
+                    case DELETE -> {
                         Translog.Delete delOp = (Translog.Delete) op;
                         Translog.Delete expDelOp = (Translog.Delete) expectedOp;
                         assertEquals(expDelOp.id(), delOp.id());
                         assertEquals(expDelOp.version(), delOp.version());
-                        break;
-                    case NO_OP:
+                    }
+                    case NO_OP -> {
                         final Translog.NoOp noOp = (Translog.NoOp) op;
                         final Translog.NoOp expectedNoOp = (Translog.NoOp) expectedOp;
                         assertThat(noOp.seqNo(), equalTo(expectedNoOp.seqNo()));
                         assertThat(noOp.primaryTerm(), equalTo(expectedNoOp.primaryTerm()));
                         assertThat(noOp.reason(), equalTo(expectedNoOp.reason()));
-                        break;
-                    default:
-                        throw new AssertionError("unsupported operation type [" + op.opType() + "]");
+                    }
+                    default -> throw new AssertionError("unsupported operation type [" + op.opType() + "]");
                 }
             }
             assertNull(snapshot.next());
@@ -999,20 +998,11 @@ public class TranslogTests extends ESTestCase {
                         final Translog.Operation op;
                         final Translog.Operation.Type type = Translog.Operation.Type.values()[((int) (id % Translog.Operation.Type
                             .values().length))];
-                        switch (type) {
-                            case CREATE:
-                            case INDEX:
-                                op = new Translog.Index("" + id, id, primaryTerm.get(), new byte[] { (byte) id });
-                                break;
-                            case DELETE:
-                                op = new Translog.Delete(Long.toString(id), id, primaryTerm.get());
-                                break;
-                            case NO_OP:
-                                op = new Translog.NoOp(id, 1, Long.toString(id));
-                                break;
-                            default:
-                                throw new AssertionError("unsupported operation type [" + type + "]");
-                        }
+                        op = switch (type) {
+                            case CREATE, INDEX -> new Translog.Index("" + id, id, primaryTerm.get(), new byte[] { (byte) id });
+                            case DELETE -> new Translog.Delete(Long.toString(id), id, primaryTerm.get());
+                            case NO_OP -> new Translog.NoOp(id, 1, Long.toString(id));
+                        };
                         Translog.Location location = translog.add(op);
                         tracker.markSeqNoAsProcessed(id);
                         Translog.Location existing = writtenOps.put(op, location);
@@ -2334,30 +2324,21 @@ public class TranslogTests extends ESTestCase {
                 for (int opCount = 0; opCount < opsPerThread; opCount++) {
                     Translog.Operation op;
                     final Translog.Operation.Type type = randomFrom(Translog.Operation.Type.values());
-                    switch (type) {
-                        case CREATE:
-                        case INDEX:
-                            op = new Translog.Index(
-                                threadId + "_" + opCount,
-                                seqNoGenerator.getAndIncrement(),
-                                primaryTerm.get(),
-                                randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8")
-                            );
-                            break;
-                        case DELETE:
-                            op = new Translog.Delete(
-                                threadId + "_" + opCount,
-                                seqNoGenerator.getAndIncrement(),
-                                primaryTerm.get(),
-                                1 + randomInt(100000)
-                            );
-                            break;
-                        case NO_OP:
-                            op = new Translog.NoOp(seqNoGenerator.getAndIncrement(), primaryTerm.get(), randomAlphaOfLength(16));
-                            break;
-                        default:
-                            throw new AssertionError("unsupported operation type [" + type + "]");
-                    }
+                    op = switch (type) {
+                        case CREATE, INDEX -> new Translog.Index(
+                            threadId + "_" + opCount,
+                            seqNoGenerator.getAndIncrement(),
+                            primaryTerm.get(),
+                            randomUnicodeOfLengthBetween(1, 20 * 1024).getBytes("UTF-8")
+                        );
+                        case DELETE -> new Translog.Delete(
+                            threadId + "_" + opCount,
+                            seqNoGenerator.getAndIncrement(),
+                            primaryTerm.get(),
+                            1 + randomInt(100000)
+                        );
+                        case NO_OP -> new Translog.NoOp(seqNoGenerator.getAndIncrement(), primaryTerm.get(), randomAlphaOfLength(16));
+                    };
 
                     Translog.Location loc = add(op);
                     writtenOperations.add(new LocationOperation(op, loc));

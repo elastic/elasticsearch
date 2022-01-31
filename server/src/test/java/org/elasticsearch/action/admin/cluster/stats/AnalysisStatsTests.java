@@ -91,7 +91,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
     @Override
     protected AnalysisStats mutateInstance(AnalysisStats instance) throws IOException {
         switch (randomInt(7)) {
-            case 0:
+            case 0 -> {
                 Set<IndexFeatureStats> charFilters = new HashSet<>(instance.getUsedCharFilterTypes());
                 if (charFilters.removeIf(s -> s.getName().equals("pattern_replace")) == false) {
                     charFilters.add(randomStats("pattern_replace"));
@@ -106,7 +106,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers()
                 );
-            case 1:
+            }
+            case 1 -> {
                 Set<IndexFeatureStats> tokenizers = new HashSet<>(instance.getUsedTokenizerTypes());
                 if (tokenizers.removeIf(s -> s.getName().equals("whitespace")) == false) {
                     tokenizers.add(randomStats("whitespace"));
@@ -121,7 +122,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers()
                 );
-            case 2:
+            }
+            case 2 -> {
                 Set<IndexFeatureStats> tokenFilters = new HashSet<>(instance.getUsedTokenFilterTypes());
                 if (tokenFilters.removeIf(s -> s.getName().equals("stop")) == false) {
                     tokenFilters.add(randomStats("stop"));
@@ -136,7 +138,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers()
                 );
-            case 3:
+            }
+            case 3 -> {
                 Set<IndexFeatureStats> analyzers = new HashSet<>(instance.getUsedAnalyzerTypes());
                 if (analyzers.removeIf(s -> s.getName().equals("english")) == false) {
                     analyzers.add(randomStats("english"));
@@ -151,7 +154,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers()
                 );
-            case 4:
+            }
+            case 4 -> {
                 Set<IndexFeatureStats> builtInCharFilters = new HashSet<>(instance.getUsedBuiltInCharFilters());
                 if (builtInCharFilters.removeIf(s -> s.getName().equals("html_strip")) == false) {
                     builtInCharFilters.add(randomStats("html_strip"));
@@ -166,7 +170,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers()
                 );
-            case 5:
+            }
+            case 5 -> {
                 Set<IndexFeatureStats> builtInTokenizers = new HashSet<>(instance.getUsedBuiltInTokenizers());
                 if (builtInTokenizers.removeIf(s -> s.getName().equals("keyword")) == false) {
                     builtInTokenizers.add(randomStats("keyword"));
@@ -181,7 +186,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInTokenFilters(),
                     instance.getUsedBuiltInAnalyzers()
                 );
-            case 6:
+            }
+            case 6 -> {
                 Set<IndexFeatureStats> builtInTokenFilters = new HashSet<>(instance.getUsedBuiltInTokenFilters());
                 if (builtInTokenFilters.removeIf(s -> s.getName().equals("trim")) == false) {
                     builtInTokenFilters.add(randomStats("trim"));
@@ -196,7 +202,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     builtInTokenFilters,
                     instance.getUsedBuiltInAnalyzers()
                 );
-            case 7:
+            }
+            case 7 -> {
                 Set<IndexFeatureStats> builtInAnalyzers = new HashSet<>(instance.getUsedBuiltInAnalyzers());
                 if (builtInAnalyzers.removeIf(s -> s.getName().equals("french")) == false) {
                     builtInAnalyzers.add(randomStats("french"));
@@ -211,8 +218,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                     instance.getUsedBuiltInTokenFilters(),
                     builtInAnalyzers
                 );
-            default:
-                throw new AssertionError();
+            }
+            default -> throw new AssertionError();
         }
 
     }
@@ -225,13 +232,39 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .build();
-        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(settings).putMapping(mapping);
-        Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
-        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
-        IndexFeatureStats expectedStats = new IndexFeatureStats("german");
-        expectedStats.count = 1;
-        expectedStats.indexCount = 1;
-        assertEquals(Collections.singleton(expectedStats), analysisStats.getUsedBuiltInAnalyzers());
+        Metadata metadata = new Metadata.Builder().put(new IndexMetadata.Builder("foo").settings(settings).putMapping(mapping)).build();
+        {
+            AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
+            IndexFeatureStats expectedStats = new IndexFeatureStats("german");
+            expectedStats.count = 1;
+            expectedStats.indexCount = 1;
+            assertEquals(Collections.singleton(expectedStats), analysisStats.getUsedBuiltInAnalyzers());
+        }
+
+        Metadata metadata2 = Metadata.builder(metadata)
+            .put(new IndexMetadata.Builder("bar").settings(settings).putMapping(mapping))
+            .build();
+        {
+            AnalysisStats analysisStats = AnalysisStats.of(metadata2, () -> {});
+            IndexFeatureStats expectedStats = new IndexFeatureStats("german");
+            expectedStats.count = 2;
+            expectedStats.indexCount = 2;
+            assertEquals(Collections.singleton(expectedStats), analysisStats.getUsedBuiltInAnalyzers());
+        }
+
+        Metadata metadata3 = Metadata.builder(metadata2).put(new IndexMetadata.Builder("baz").settings(settings).putMapping("""
+            {"properties":{"bar1":{"type":"text","analyzer":"french"},
+            "bar2":{"type":"text","analyzer":"french"},"bar3":{"type":"text","analyzer":"french"}}}""")).build();
+        {
+            AnalysisStats analysisStats = AnalysisStats.of(metadata3, () -> {});
+            IndexFeatureStats expectedStatsGerman = new IndexFeatureStats("german");
+            expectedStatsGerman.count = 2;
+            expectedStatsGerman.indexCount = 2;
+            IndexFeatureStats expectedStatsFrench = new IndexFeatureStats("french");
+            expectedStatsFrench.count = 3;
+            expectedStatsFrench.indexCount = 1;
+            assertEquals(Set.of(expectedStatsGerman, expectedStatsFrench), analysisStats.getUsedBuiltInAnalyzers());
+        }
     }
 
     public void testIgnoreSystemIndices() {

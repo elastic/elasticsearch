@@ -202,27 +202,31 @@ configurations {
   integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
 }
 dependencies {
+  components.all(JacksonAlignmentRule)
+  // Forcefully downgrade the jackson platform as used in production
+  api enforcedPlatform("com.fasterxml.jackson:jackson-bom:${versions.getProperty('jackson')}")
   api localGroovy()
   api gradleApi()
 
   api "org.elasticsearch:build-conventions:$version"
   api "org.elasticsearch.gradle:build-tools:$version"
 
-  api 'commons-codec:commons-codec:1.12'
+  // same version as http client transitive dep
+  api 'commons-codec:commons-codec:1.11'
   api 'org.apache.commons:commons-compress:1.19'
   api 'org.apache.ant:ant:1.10.8'
-  api 'com.netflix.nebula:gradle-extra-configurations-plugin:5.0.1'
-  api 'com.netflix.nebula:gradle-info-plugin:9.2.0'
+  api 'com.netflix.nebula:gradle-info-plugin:11.1.0'
   api 'org.apache.rat:apache-rat:0.11'
   api "net.java.dev.jna:jna:${versions.getProperty('jna')}"
-  api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
+  api 'gradle.plugin.com.github.johnrengelman:shadow:7.1.2'
   // for our ide tweaking
-  api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.7'
+  api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:1.1.1'
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
   api 'de.thetaphi:forbiddenapis:3.2'
-  api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.0'
+  api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.13'
   api 'org.apache.maven:maven-model:3.6.2'
-  api 'com.networknt:json-schema-validator:1.0.36'
+  // needs to match the jackson minor version in use
+  api 'com.networknt:json-schema-validator:1.0.49'
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.getProperty('jackson')}"
   api 'org.ow2.asm:asm:9.2'
   api 'org.ow2.asm:asm-tree:9.2'
@@ -231,7 +235,6 @@ dependencies {
   compileOnly "com.puppycrawl.tools:checkstyle:${versions.getProperty('checkstyle')}"
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation "com.puppycrawl.tools:checkstyle:${versions.getProperty('checkstyle')}"
-//  testImplementation "junit:junit:${versions.getProperty('junit')}"
   testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
   testImplementation 'org.mockito:mockito-core:1.9.5'
   testImplementation "org.hamcrest:hamcrest:${versions.getProperty('hamcrest')}"
@@ -290,4 +293,15 @@ tasks.register("bootstrapPerformanceTests", Copy) {
   into('build/performanceTests')
   def root = file('..')
   filter(ReplaceTokens, tokens: [testGitCommit:GitInfo.gitInfo(root).revision])
+}
+
+abstract class JacksonAlignmentRule implements ComponentMetadataRule {
+  void execute(ComponentMetadataContext ctx) {
+    ctx.details.with {d ->
+      if (d.id.group.startsWith("com.fasterxml.jackson")) {
+        // declare that Jackson modules all belong to the Jackson virtual platform
+        belongsTo("com.fasterxml.jackson:jackson-bom:${d.id.version}")
+      }
+    }
+  }
 }

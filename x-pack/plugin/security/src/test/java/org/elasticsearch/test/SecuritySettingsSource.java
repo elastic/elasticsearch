@@ -60,8 +60,19 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     public static final String TEST_USER_NAME = "test_user";
     public static final Hasher HASHER = getFastStoredHashAlgoForTests();
     public static final String TEST_PASSWORD_HASHED = new String(HASHER.hash(new SecureString(TEST_PASSWORD.toCharArray())));
+
     public static final String TEST_ROLE = "user";
-    public static final String TEST_SUPERUSER = "test_superuser";
+    private static final String TEST_ROLE_YML = """
+        user:
+          cluster: [ ALL ]
+          indices:
+            - names: '*'
+              allow_restricted_indices: true
+              privileges: [ ALL ]
+        """;
+
+    public static final String ES_TEST_ROOT_USER = "es_test_root";
+
     public static final RequestOptions SECURITY_REQUEST_OPTIONS = RequestOptions.DEFAULT.toBuilder()
         .addHeader(
             "Authorization",
@@ -80,7 +91,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         + ":"
         + TEST_PASSWORD_HASHED
         + "\n"
-        + TEST_SUPERUSER
+        + ES_TEST_ROOT_USER
         + ":"
         + TEST_PASSWORD_HASHED
         + "\n";
@@ -90,23 +101,11 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         + TEST_USER_NAME
         + ","
         + DEFAULT_TRANSPORT_CLIENT_USER_NAME
-        + "\n"
-        + DEFAULT_TRANSPORT_CLIENT_ROLE
-        + ":"
-        + DEFAULT_TRANSPORT_CLIENT_USER_NAME
-        + "\n"
-        + "superuser:"
-        + TEST_SUPERUSER
-        + "\n";
+        + "\n" //
+        + (DEFAULT_TRANSPORT_CLIENT_ROLE + ":" + DEFAULT_TRANSPORT_CLIENT_USER_NAME + "\n") //
+        + (SecuritySettingsSourceField.ES_TEST_ROOT_ROLE + ":" + ES_TEST_ROOT_USER + "\n");
 
-    public static final String CONFIG_ROLE_ALLOW_ALL = """
-        %s:
-          cluster: [ ALL ]
-          indices:
-            - names: '*'
-              allow_restricted_indices: true
-              privileges: [ ALL ]
-        """.formatted(TEST_ROLE);
+    public static final String CONFIG_STANDARD_ROLES_YML = TEST_ROLE_YML + "\n" + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
 
     private final Path parentFolder;
     private final String subfolderPrefix;
@@ -200,7 +199,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     }
 
     protected String configRoles() {
-        return CONFIG_ROLE_ALLOW_ALL;
+        return CONFIG_STANDARD_ROLES_YML;
     }
 
     protected String configOperatorUsers() {

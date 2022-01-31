@@ -48,7 +48,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -100,7 +99,7 @@ public class JoinHelper {
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
         this.joinReasonService = joinReasonService;
-        this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(allocationService, logger, rerouteService) {
+        this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(allocationService, rerouteService) {
 
             private final long term = currentTermSupplier.getAsLong();
 
@@ -372,12 +371,12 @@ public class JoinHelper {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
+        public void onFailure(Exception e) {
             joinListener.onFailure(e);
         }
 
         @Override
-        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             joinListener.onResponse(null);
         }
 
@@ -396,15 +395,13 @@ public class JoinHelper {
     class LeaderJoinAccumulator implements JoinAccumulator {
         @Override
         public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
-            final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(sender, joinReasonService.getJoinReason(sender, Mode.LEADER));
-            assert joinTaskExecutor != null;
-            masterService.submitStateUpdateTask(
-                "node-join",
-                task,
-                ClusterStateTaskConfig.build(Priority.URGENT),
-                joinTaskExecutor,
-                new JoinTaskListener(task, joinListener)
+            final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(
+                sender,
+                joinReasonService.getJoinReason(sender, Mode.LEADER),
+                joinListener
             );
+            assert joinTaskExecutor != null;
+            masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
         }
 
         @Override
@@ -457,19 +454,17 @@ public class JoinHelper {
             assert closed == false : "CandidateJoinAccumulator closed";
             closed = true;
             if (newMode == Mode.LEADER) {
-                final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new LinkedHashMap<>();
-                joinRequestAccumulator.forEach((node, listener) -> {
-                    final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(
-                        node,
-                        joinReasonService.getJoinReason(node, Mode.CANDIDATE)
-                    );
-                    pendingAsTasks.put(task, new JoinTaskListener(task, listener));
-                });
+                final List<JoinTaskExecutor.Task> pendingAsTasks = new ArrayList<>();
+                joinRequestAccumulator.forEach(
+                    (node, listener) -> pendingAsTasks.add(
+                        new JoinTaskExecutor.Task(node, joinReasonService.getJoinReason(node, Mode.CANDIDATE), listener)
+                    )
+                );
 
                 final String stateUpdateSource = "elected-as-master ([" + pendingAsTasks.size() + "] nodes joined)";
 
-                pendingAsTasks.put(JoinTaskExecutor.newBecomeMasterTask(), (source, e) -> {});
-                pendingAsTasks.put(JoinTaskExecutor.newFinishElectionTask(), (source, e) -> {});
+                pendingAsTasks.add(JoinTaskExecutor.newBecomeMasterTask());
+                pendingAsTasks.add(JoinTaskExecutor.newFinishElectionTask());
                 joinTaskExecutor = joinTaskExecutorGenerator.get();
                 masterService.submitStateUpdateTasks(
                     stateUpdateSource,

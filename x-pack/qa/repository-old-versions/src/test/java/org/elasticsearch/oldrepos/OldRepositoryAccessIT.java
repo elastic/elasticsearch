@@ -25,10 +25,16 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CloseIndexRequest;
+import org.elasticsearch.client.indices.GetMappingsRequest;
+import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.routing.Murmur3HashFunction;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -37,22 +43,33 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 public class OldRepositoryAccessIT extends ESRestTestCase {
     @Override
@@ -90,7 +107,8 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         );
 
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
-        int numDocs = 5;
+        int numDocs = 10;
+        int extraDocs = 1;
         final Set<String> expectedIds = new HashSet<>();
         try (
             RestHighLevelClient client = highLevelClient(adminClient());
@@ -99,18 +117,40 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             try {
                 Request createIndex = new Request("PUT", "/test");
                 int numberOfShards = randomIntBetween(1, 3);
-                createIndex.setJsonEntity("""
-                    {"settings":{"number_of_shards": %s}}
-                    """.formatted(numberOfShards));
+
+                XContentBuilder settingsBuilder = XContentFactory.jsonBuilder().startObject().startObject("settings");
+                settingsBuilder.field("index.number_of_shards", numberOfShards);
+
+                // 6.5.0 started using soft-deletes, but it was only enabled by default on 7.0
+                if (oldVersion.onOrAfter(Version.fromString("6.5.0"))
+                    && oldVersion.before(Version.fromString("7.0.0"))
+                    && randomBoolean()) {
+                    settingsBuilder.field("index.soft_deletes.enabled", true);
+                }
+
+                settingsBuilder.endObject().endObject();
+
+                createIndex.setJsonEntity(Strings.toString(settingsBuilder));
                 assertOK(oldEs.performRequest(createIndex));
 
-                for (int i = 0; i < numDocs; i++) {
+                for (int i = 0; i < numDocs + extraDocs; i++) {
                     String id = "testdoc" + i;
                     expectedIds.add(id);
-                    Request doc = new Request("PUT", "/test/doc/" + id);
+                    // use multiple types for ES versions < 6.0.0
+                    String type = getType(oldVersion, id);
+                    Request doc = new Request("PUT", "/test/" + type + "/" + id);
                     doc.addParameter("refresh", "true");
                     doc.setJsonEntity(sourceForDoc(i));
                     assertOK(oldEs.performRequest(doc));
+                }
+
+                for (int i = 0; i < extraDocs; i++) {
+                    String id = randomFrom(expectedIds);
+                    expectedIds.remove(id);
+                    String type = getType(oldVersion, id);
+                    Request doc = new Request("DELETE", "/test/" + type + "/" + id);
+                    doc.addParameter("refresh", "true");
+                    oldEs.performRequest(doc);
                 }
 
                 // register repo on old ES and take snapshot
@@ -190,7 +230,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
                 if (Build.CURRENT.isSnapshot()) {
                     // restore / mount and check whether searches work
-                    restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards);
+                    restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards, sourceOnlyRepository, oldVersion);
 
                     // close indices
                     assertTrue(
@@ -208,7 +248,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                     );
 
                     // restore / mount again
-                    restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards);
+                    restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards, sourceOnlyRepository, oldVersion);
                 }
             } finally {
                 IOUtils.closeWhileHandlingException(
@@ -228,13 +268,23 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         }
     }
 
+    private String getType(Version oldVersion, String id) {
+        return "doc" + (oldVersion.before(Version.fromString("6.0.0")) ? Math.abs(Murmur3HashFunction.hash(id) % 2) : 0);
+    }
+
     private static String sourceForDoc(int i) {
         return "{\"test\":\"test" + i + "\",\"val\":" + i + "}";
     }
 
     @SuppressWarnings("removal")
-    private void restoreMountAndVerify(int numDocs, Set<String> expectedIds, RestHighLevelClient client, int numberOfShards)
-        throws IOException {
+    private void restoreMountAndVerify(
+        int numDocs,
+        Set<String> expectedIds,
+        RestHighLevelClient client,
+        int numberOfShards,
+        boolean sourceOnlyRepository,
+        Version oldVersion
+    ) throws IOException {
         // restore index
         RestoreSnapshotResponse restoreSnapshotResponse = client.snapshot()
             .restore(
@@ -258,8 +308,41 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 .getStatus()
         );
 
+        MappingMetadata mapping = client.indices()
+            .getMapping(new GetMappingsRequest().indices("restored_test"), RequestOptions.DEFAULT)
+            .mappings()
+            .get("restored_test");
+        logger.info("mapping for {}: {}", mapping.type(), mapping.source().string());
+        Map<String, Object> root = mapping.sourceAsMap();
+        assertThat(root, hasKey("_meta"));
+        assertThat(root.get("_meta"), instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> meta = (Map<String, Object>) root.get("_meta");
+        assertThat(meta, hasKey("legacy_mappings"));
+        assertThat(meta.get("legacy_mappings"), instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> legacyMappings = (Map<String, Object>) meta.get("legacy_mappings");
+        assertThat(legacyMappings.keySet(), not(empty()));
+        for (Map.Entry<String, Object> entry : legacyMappings.entrySet()) {
+            String type = entry.getKey();
+            assertThat(type, startsWith("doc"));
+            assertThat(entry.getValue(), instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> legacyMapping = (Map<String, Object>) entry.getValue();
+            assertThat(legacyMapping, hasKey("properties"));
+            assertThat(legacyMapping.get("properties"), instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> propertiesMapping = (Map<String, Object>) legacyMapping.get("properties");
+            assertThat(propertiesMapping, hasKey("val"));
+            assertThat(propertiesMapping.get("val"), instanceOf(Map.class));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> valMapping = (Map<String, Object>) propertiesMapping.get("val");
+            assertThat(valMapping, hasKey("type"));
+            assertEquals("long", valMapping.get("type"));
+        }
+
         // run a search against the index
-        assertDocs("restored_test", numDocs, expectedIds, client);
+        assertDocs("restored_test", numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
 
         // mount as full copy searchable snapshot
         RestoreSnapshotResponse mountSnapshotResponse = client.searchableSnapshots()
@@ -285,7 +368,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         );
 
         // run a search against the index
-        assertDocs("mounted_full_copy_test", numDocs, expectedIds, client);
+        assertDocs("mounted_full_copy_test", numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
 
         // mount as shared cache searchable snapshot
         mountSnapshotResponse = client.searchableSnapshots()
@@ -300,13 +383,26 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().successfulShards());
 
         // run a search against the index
-        assertDocs("mounted_shared_cache_test", numDocs, expectedIds, client);
+        assertDocs("mounted_shared_cache_test", numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
     }
 
     @SuppressWarnings("removal")
-    private void assertDocs(String index, int numDocs, Set<String> expectedIds, RestHighLevelClient client) throws IOException {
+    private void assertDocs(
+        String index,
+        int numDocs,
+        Set<String> expectedIds,
+        RestHighLevelClient client,
+        boolean sourceOnlyRepository,
+        Version oldVersion
+    ) throws IOException {
+        RequestOptions v7RequestOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Content-Type", "application/vnd.elasticsearch+json;compatible-with=7")
+            .addHeader("Accept", "application/vnd.elasticsearch+json;compatible-with=7")
+            .build();
+        RequestOptions randomRequestOptions = randomBoolean() ? RequestOptions.DEFAULT : v7RequestOptions;
+
         // run a search against the index
-        SearchResponse searchResponse = client.search(new SearchRequest(index), RequestOptions.DEFAULT);
+        SearchResponse searchResponse = client.search(new SearchRequest(index), randomRequestOptions);
         logger.info(searchResponse);
         // check hit count
         assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
@@ -318,21 +414,73 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertTrue(Arrays.stream(searchResponse.getHits().getHits()).allMatch(SearchHit::hasSource));
         // check that correct _source present for each document
         for (SearchHit h : searchResponse.getHits().getHits()) {
-            assertEquals(sourceForDoc(Integer.parseInt(h.getId().substring("testdoc".length()))), h.getSourceAsString());
+            assertEquals(sourceForDoc(getIdAsNumeric(h.getId())), h.getSourceAsString());
         }
 
+        String id = randomFrom(expectedIds);
+        int num = getIdAsNumeric(id);
         // run a search using runtime fields against the index
         searchResponse = client.search(
             new SearchRequest(index).source(
                 SearchSourceBuilder.searchSource()
-                    .query(QueryBuilders.matchQuery("val", 2))
+                    .query(QueryBuilders.matchQuery("val", num))
                     .runtimeMappings(Map.of("val", Map.of("type", "long")))
             ),
-            RequestOptions.DEFAULT
+            randomRequestOptions
         );
         logger.info(searchResponse);
         assertEquals(1, searchResponse.getHits().getTotalHits().value);
-        assertEquals("testdoc2", searchResponse.getHits().getHits()[0].getId());
-        assertEquals(sourceForDoc(2), searchResponse.getHits().getHits()[0].getSourceAsString());
+        assertEquals(id, searchResponse.getHits().getHits()[0].getId());
+        assertEquals(sourceForDoc(num), searchResponse.getHits().getHits()[0].getSourceAsString());
+
+        if (sourceOnlyRepository == false) {
+            // check that doc values can be accessed by (reverse) sorting on numeric val field
+            // first add mapping for field (this will be done automatically in the future)
+            XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+            mappingBuilder.startObject().startObject("properties");
+            mappingBuilder.startObject("val").field("type", "long").endObject();
+            mappingBuilder.endObject().endObject();
+            assertTrue(
+                client.indices().putMapping(new PutMappingRequest(index).source(mappingBuilder), RequestOptions.DEFAULT).isAcknowledged()
+            );
+
+            // search using reverse sort on val
+            searchResponse = client.search(
+                new SearchRequest(index).source(
+                    SearchSourceBuilder.searchSource()
+                        .query(QueryBuilders.matchAllQuery())
+                        .sort(SortBuilders.fieldSort("val").order(SortOrder.DESC))
+                ),
+                randomRequestOptions
+            );
+            logger.info(searchResponse);
+            // check sort order
+            assertEquals(
+                expectedIds.stream().sorted(Comparator.comparingInt(this::getIdAsNumeric).reversed()).collect(Collectors.toList()),
+                Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toList())
+            );
+
+            if (oldVersion.before(Version.fromString("6.0.0"))) {
+                // search on _type and check that results contain _type information
+                String randomType = getType(oldVersion, randomFrom(expectedIds));
+                long typeCount = expectedIds.stream().filter(idd -> getType(oldVersion, idd).equals(randomType)).count();
+                searchResponse = client.search(
+                    new SearchRequest(index).source(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("_type", randomType))),
+                    randomRequestOptions
+                );
+                logger.info(searchResponse);
+                assertEquals(typeCount, searchResponse.getHits().getTotalHits().value);
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    DocumentField typeField = hit.field("_type");
+                    assertNotNull(typeField);
+                    assertThat(typeField.getValue(), instanceOf(String.class));
+                    assertEquals(randomType, typeField.getValue());
+                }
+            }
+        }
+    }
+
+    private int getIdAsNumeric(String id) {
+        return Integer.parseInt(id.substring("testdoc".length()));
     }
 }

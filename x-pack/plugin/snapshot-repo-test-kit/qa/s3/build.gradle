@@ -12,11 +12,9 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:s3-fixture')
-final Project repositoryPlugin = project(':plugins:repository-s3')
 
 dependencies {
   testImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
-  testImplementation repositoryPlugin
 }
 
 restResources {
@@ -54,7 +52,6 @@ tasks.named("integTest").configure {
 
 testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
-  plugin repositoryPlugin.path
 
   keystore 's3.client.repo_test_kit.access_key', s3AccessKey
   keystore 's3.client.repo_test_kit.secret_key', s3SecretKey

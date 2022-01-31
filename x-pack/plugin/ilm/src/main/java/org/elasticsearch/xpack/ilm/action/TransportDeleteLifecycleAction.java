@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -94,7 +95,8 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
                     );
                     return newState.build();
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

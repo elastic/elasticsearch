@@ -86,15 +86,15 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
                 throw new ParsingException(parser.getTokenLocation(), "Expected [FIELD_NAME] but got [" + parser.currentToken() + "]");
             }
             switch (parser.currentName()) {
-                case "_name":
+                case "_name" -> {
                     parser.nextToken();
                     name = parser.text();
-                    break;
-                case "boost":
+                }
+                case "boost" -> {
                     parser.nextToken();
                     boost = parser.floatValue();
-                    break;
-                default:
+                }
+                default -> {
                     if (providerName != null) {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -103,7 +103,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
                     }
                     providerName = parser.currentName();
                     provider = IntervalsSourceProvider.fromXContent(parser);
-
+                }
             }
         }
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {

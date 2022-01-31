@@ -410,7 +410,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     .getValuesSource();
                 SortedSetDocValues values = globalOrdsValues(context, ordinalsValuesSource);
                 long maxOrd = values.getValueCount();
-                if (maxOrd > 0 && maxOrd <= MAX_ORDS_TO_TRY_FILTERS && context.enableRewriteToFilterByFilter()) {
+                if (maxOrd > 0
+                    && maxOrd <= MAX_ORDS_TO_TRY_FILTERS
+                    && context.enableRewriteToFilterByFilter()
+                    && false == context.isInSortOrderExecutionRequired()) {
                     StringTermsAggregatorFromFilters adapted = StringTermsAggregatorFromFilters.adaptIntoFiltersOrNull(
                         name,
                         factories,
@@ -527,14 +530,13 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         };
 
         public static ExecutionMode fromString(String value) {
-            switch (value) {
-                case "global_ordinals":
-                    return GLOBAL_ORDINALS;
-                case "map":
-                    return MAP;
-                default:
-                    throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals]");
-            }
+            return switch (value) {
+                case "global_ordinals" -> GLOBAL_ORDINALS;
+                case "map" -> MAP;
+                default -> throw new IllegalArgumentException(
+                    "Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals]"
+                );
+            };
         }
 
         private final ParseField parseField;

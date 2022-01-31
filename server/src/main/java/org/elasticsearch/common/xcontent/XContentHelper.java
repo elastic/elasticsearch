@@ -86,7 +86,11 @@ public class XContentHelper {
         BytesReference bytes,
         XContentType xContentType
     ) throws IOException {
-        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecation), bytes);
+        return createParser(
+            XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecation),
+            bytes,
+            xContentType
+        );
     }
 
     /**
@@ -228,7 +232,9 @@ public class XContentHelper {
         @Nullable Set<String> include,
         @Nullable Set<String> exclude
     ) throws ElasticsearchParseException {
-        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY.withFiltering(include, exclude), input)) {
+        try (
+            XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY.withFiltering(include, exclude, false), input)
+        ) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -262,7 +268,7 @@ public class XContentHelper {
     ) throws ElasticsearchParseException {
         try (
             XContentParser parser = xContent.createParser(
-                XContentParserConfiguration.EMPTY.withFiltering(include, exclude),
+                XContentParserConfiguration.EMPTY.withFiltering(include, exclude, false),
                 bytes,
                 offset,
                 length

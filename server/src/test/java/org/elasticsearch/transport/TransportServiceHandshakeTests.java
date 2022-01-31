@@ -23,7 +23,8 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -53,14 +54,15 @@ public class TransportServiceHandshakeTests extends ESTestCase {
     private List<TransportService> transportServices = new ArrayList<>();
 
     private NetworkHandle startServices(String nodeNameAndId, Settings settings, Version version) {
-        MockNioTransport transport = new MockNioTransport(
+        TcpTransport transport = new Netty4Transport(
             settings,
             Version.CURRENT,
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(settings)
         );
         final DisruptingTransportInterceptor transportInterceptor = new DisruptingTransportInterceptor();
         TransportService transportService = new MockTransportService(

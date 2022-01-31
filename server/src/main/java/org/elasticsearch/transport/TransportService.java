@@ -186,7 +186,7 @@ public class TransportService extends AbstractLifecycleComponent
             localNodeFactory,
             clusterSettings,
             taskHeaders,
-            new ClusterConnectionManager(settings, transport)
+            new ClusterConnectionManager(settings, transport, threadPool.getThreadContext())
         );
     }
 

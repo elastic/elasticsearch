@@ -17,6 +17,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -102,7 +103,7 @@ public class RestGetMappingsCancellationIT extends HttpSmokeTestCase {
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     return transformationFn.apply(currentState);
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
 
         future.actionGet();
     }

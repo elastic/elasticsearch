@@ -35,7 +35,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -135,7 +134,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             );
             return;
         }
-        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndexMetadata.getSettings())) {
+        if (leaderIndexMetadata.isSearchableSnapshot()) {
             listener.onFailure(
                 new IllegalArgumentException(
                     "leader index ["
@@ -311,7 +310,9 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 remoteDataStream.getMetadata(),
                 remoteDataStream.isHidden(),
                 true,
-                remoteDataStream.isAllowCustomRouting()
+                remoteDataStream.isSystem(),
+                remoteDataStream.isAllowCustomRouting(),
+                remoteDataStream.getIndexMode()
             );
         } else {
             if (localDataStream.isReplicated() == false) {
@@ -341,7 +342,9 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 remoteDataStream.getMetadata(),
                 localDataStream.isHidden(),
                 localDataStream.isReplicated(),
-                localDataStream.isAllowCustomRouting()
+                localDataStream.isSystem(),
+                localDataStream.isAllowCustomRouting(),
+                localDataStream.getIndexMode()
             );
         }
     }

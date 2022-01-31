@@ -574,19 +574,12 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
         Throwable downloadFileError = executionException.getCause();
         switch (downloadFileErrorType) {
-            case CORRUPTED_FILE:
-            case LARGER_THAN_EXPECTED_FILE:
+            case CORRUPTED_FILE, LARGER_THAN_EXPECTED_FILE ->
                 // Files larger than expected are caught by VerifyingIndexInput too
                 assertThat(downloadFileError, is(instanceOf(CorruptIndexException.class)));
-                break;
-            case TRUNCATED_FILE:
-                assertThat(downloadFileError, is(instanceOf(EOFException.class)));
-                break;
-            case FETCH_ERROR:
-                assertThat(downloadFileError, is(instanceOf(RuntimeException.class)));
-                break;
-            default:
-                throw new IllegalStateException("Unexpected value: " + downloadFileErrorType);
+            case TRUNCATED_FILE -> assertThat(downloadFileError, is(instanceOf(EOFException.class)));
+            case FETCH_ERROR -> assertThat(downloadFileError, is(instanceOf(RuntimeException.class)));
+            default -> throw new IllegalStateException("Unexpected value: " + downloadFileErrorType);
         }
 
         assertThat(filesBeforeRestoringSnapshotFile, equalTo(directory.listAll()));
@@ -851,7 +844,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
     private InputStream getFaultyInputStream(DownloadFileErrorType downloadFileErrorType, byte[] fileData) {
         switch (downloadFileErrorType) {
-            case CORRUPTED_FILE:
+            case CORRUPTED_FILE -> {
                 byte[] fileDataCopy = new byte[fileData.length];
                 System.arraycopy(fileData, 0, fileDataCopy, 0, fileData.length);
                 // Corrupt the file
@@ -859,22 +852,23 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                     fileDataCopy[i] ^= 0xFF;
                 }
                 return new ByteArrayInputStream(fileDataCopy);
-            case TRUNCATED_FILE:
+            }
+            case TRUNCATED_FILE -> {
                 final int truncatedFileLength = fileData.length / 2;
                 byte[] truncatedCopy = new byte[truncatedFileLength];
                 System.arraycopy(fileData, 0, truncatedCopy, 0, truncatedFileLength);
                 return new ByteArrayInputStream(truncatedCopy);
-            case LARGER_THAN_EXPECTED_FILE:
+            }
+            case LARGER_THAN_EXPECTED_FILE -> {
                 byte[] largerData = new byte[fileData.length + randomIntBetween(1, 250)];
                 System.arraycopy(fileData, 0, largerData, 0, fileData.length);
                 for (int i = fileData.length; i < largerData.length; i++) {
                     largerData[i] = randomByte();
                 }
                 return new ByteArrayInputStream(largerData);
-            case FETCH_ERROR:
-                throw new RuntimeException("Unexpected error");
-            default:
-                throw new IllegalStateException("Unexpected value: " + downloadFileErrorType);
+            }
+            case FETCH_ERROR -> throw new RuntimeException("Unexpected error");
+            default -> throw new IllegalStateException("Unexpected value: " + downloadFileErrorType);
         }
     }
 }

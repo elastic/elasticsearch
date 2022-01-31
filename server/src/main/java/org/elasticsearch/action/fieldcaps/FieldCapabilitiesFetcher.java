@@ -11,7 +11,6 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -107,22 +106,20 @@ class FieldCapabilitiesFetcher {
                         // checks if the parent field contains sub-fields
                         if (searchExecutionContext.getFieldType(parentField) == null) {
                             // no field type, it must be an object field
-                            ObjectMapper mapper = searchExecutionContext.getObjectMapper(parentField);
-                            // Composite runtime fields do not have a mapped type for the root - check for null
-                            if (mapper != null) {
-                                String type = mapper.isNested() ? "nested" : "object";
-                                IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
-                                    parentField,
-                                    type,
-                                    false,
-                                    false,
-                                    false,
-                                    false,
-                                    null,
-                                    Collections.emptyMap()
-                                );
-                                responseMap.put(parentField, fieldCap);
-                            }
+                            String type = searchExecutionContext.nestedLookup().getNestedMappers().get(parentField) != null
+                                ? "nested"
+                                : "object";
+                            IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
+                                parentField,
+                                type,
+                                false,
+                                false,
+                                false,
+                                false,
+                                null,
+                                Collections.emptyMap()
+                            );
+                            responseMap.put(parentField, fieldCap);
                         }
                         dotIndex = parentField.lastIndexOf('.');
                     }

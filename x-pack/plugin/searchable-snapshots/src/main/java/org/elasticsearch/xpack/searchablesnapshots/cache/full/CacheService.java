@@ -551,13 +551,12 @@ public class CacheService extends AbstractLifecycleComponent {
                 final CacheFile cacheFile = event.value;
                 try {
                     switch (event.type) {
-                        case DELETE:
+                        case DELETE -> {
                             logger.trace("deleting cache file [{}] from persistent cache", cacheFile.getFile().getFileName());
                             persistentCache.removeCacheFile(cacheFile);
                             deletes += 1L;
-                            break;
-
-                        case NEEDS_FSYNC:
+                        }
+                        case NEEDS_FSYNC -> {
                             final SortedSet<ByteRange> ranges = cacheFile.fsync();
                             logger.trace(
                                 "cache file [{}] synchronized with [{}] completed range(s)",
@@ -587,10 +586,8 @@ public class CacheService extends AbstractLifecycleComponent {
                                     updates += 1L;
                                 }
                             }
-                            break;
-
-                        default:
-                            throw new IllegalArgumentException("Unknown cache file event [" + event + ']');
+                        }
+                        default -> throw new IllegalArgumentException("Unknown cache file event [" + event + ']');
                     }
                 } catch (Exception e) {
                     logger.warn(

@@ -520,13 +520,9 @@ public class TasksIT extends ESIntegTestCase {
         expectThrows(TaskCancelledException.class, future::actionGet);
 
         logger.info("--> checking that test tasks are not running");
-        assertBusy(
-            () -> assertEquals(
-                0,
-                client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "*").get().getTasks().size()
-            ),
-            2,
-            TimeUnit.SECONDS
+        assertEquals(
+            0,
+            client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "*").get().getTasks().size()
         );
     }
 

@@ -11,7 +11,7 @@ package org.elasticsearch.action.support.nodes;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IntermediateNodeResponses;
+import org.elasticsearch.action.support.NodeResponseTracker;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeActionTests;
 import org.elasticsearch.cluster.ClusterName;
@@ -120,7 +120,7 @@ public class TransportNodesActionTests extends ESTestCase {
 
         Collections.shuffle(allResponses, random());
 
-        IntermediateNodeResponses nodeResponseCollector = new IntermediateNodeResponses(allResponses);
+        NodeResponseTracker nodeResponseCollector = new NodeResponseTracker(allResponses);
 
         final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
         action.newResponse(new Task(1, "test", "test", "", null, emptyMap()), request, nodeResponseCollector, future);
@@ -177,7 +177,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         assertTrue(listener.isDone());
-        assertTrue(asyncAction.getResponseCollector().isDiscarded());
+        assertTrue(asyncAction.getNodeResponseTracker().responsesDiscarded());
         expectThrows(ExecutionException.class, TaskCancelledException.class, listener::get);
     }
 

@@ -13,44 +13,45 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * This class collects and tracks the intermediate responses that can be used to construct the aggregated response. It also gives the
- * possibility to discard the intermediate results when asked, a use case for this call is when a task is cancelled.
+ * This class tracks the intermediate responses that can be used to construct the aggregated response. It also gives the possibility to
+ * discard the intermediate results when asked, a use case for this call is when the corresponding task is cancelled.
  */
-public class IntermediateNodeResponses {
+public class NodeResponseTracker {
 
-    private static final AlreadyDiscardedException ALREADY_DISCARDED_EXCEPTION = new AlreadyDiscardedException();
+    private static final DiscardedResponsesException DISCARDED_RESPONSES_EXCEPTION = new DiscardedResponsesException();
 
     private final int expectedResponses;
     private final AtomicInteger counter = new AtomicInteger();
+    private final AtomicReferenceArray<Boolean> receivedResponseFromNode;
     private volatile AtomicReferenceArray<Object> responses;
-    private volatile boolean discarded = false;
 
-    public IntermediateNodeResponses(int size) {
+    public NodeResponseTracker(int size) {
         this.expectedResponses = size;
         this.responses = new AtomicReferenceArray<>(size);
+        this.receivedResponseFromNode = new AtomicReferenceArray<>(size);
     }
 
-    public IntermediateNodeResponses(Collection<Object> array) {
+    public NodeResponseTracker(Collection<Object> array) {
         this.responses = new AtomicReferenceArray<>(array.toArray());
         this.expectedResponses = responses.length();
+        this.receivedResponseFromNode = new AtomicReferenceArray<>(responses.length());
     }
 
     /**
-     * This method marks the responses as discarded and discards the results collected to free up the resources
+     * This method discards the results collected to free up the resources
      */
-    public void discard() {
-        if (discarded == false) {
-            discarded = true;
+    public void discardIntermediateResponses() {
+        if (responses != null) {
             responses = null;
         }
     }
 
-    public boolean isComplete() {
-        return discarded == false && expectedResponses == counter.get();
+    public boolean allNodesResponded() {
+        return expectedResponses == counter.get();
     }
 
-    public boolean isDiscarded() {
-        return discarded;
+    public boolean responsesDiscarded() {
+        return responses == null;
     }
 
     /**
@@ -63,31 +64,32 @@ public class IntermediateNodeResponses {
      */
     public boolean maybeAddResponse(int nodeIndex, Object response) {
         AtomicReferenceArray<Object> responses = this.responses;
-        if (discarded) {
-            return false;
-        }
-        if (responses.compareAndSet(nodeIndex, null, response)) {
+        boolean firstEncounter = receivedResponseFromNode.compareAndSet(nodeIndex, null, true);
+        if (firstEncounter) {
             counter.incrementAndGet();
-            return true;
-        } else {
+        }
+        if (responsesDiscarded() || firstEncounter == false) {
             return false;
         }
+
+        responses.set(nodeIndex, response);
+        return true;
     }
 
-    public Object getResponse(int nodeIndex) throws AlreadyDiscardedException {
+    public Object getResponse(int nodeIndex) throws DiscardedResponsesException {
         AtomicReferenceArray<Object> responses = this.responses;
-        if (discarded) {
-            throw ALREADY_DISCARDED_EXCEPTION;
+        if (responsesDiscarded()) {
+            throw DISCARDED_RESPONSES_EXCEPTION;
         }
         return responses.get(nodeIndex);
     }
 
-    public int size() throws AlreadyDiscardedException {
-        if (discarded) {
-            throw ALREADY_DISCARDED_EXCEPTION;
+    public int size() throws DiscardedResponsesException {
+        if (responsesDiscarded()) {
+            throw DISCARDED_RESPONSES_EXCEPTION;
         }
         return expectedResponses;
     }
 
-    public static class AlreadyDiscardedException extends Exception {}
+    public static class DiscardedResponsesException extends Exception {}
 }

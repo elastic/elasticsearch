@@ -16,7 +16,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IntermediateNodeResponses;
+import org.elasticsearch.action.support.NodeResponseTracker;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -118,7 +118,7 @@ public abstract class TransportBroadcastByNodeAction<
 
     private Response newResponse(
         Request request,
-        IntermediateNodeResponses responseCollector,
+        NodeResponseTracker responseCollector,
         int unavailableShardCount,
         Map<String, List<ShardRouting>> nodes,
         ClusterState clusterState
@@ -157,7 +157,7 @@ public abstract class TransportBroadcastByNodeAction<
             totalShards += unavailableShardCount;
             int failedShards = exceptions.size();
             return newResponse(request, totalShards, successfulShards, failedShards, broadcastByNodeResponses, exceptions, clusterState);
-        } catch (IntermediateNodeResponses.AlreadyDiscardedException exception) {
+        } catch (NodeResponseTracker.DiscardedResponsesException exception) {
             return null;
         }
     }
@@ -269,7 +269,8 @@ public abstract class TransportBroadcastByNodeAction<
         private final DiscoveryNodes nodes;
         private final Map<String, List<ShardRouting>> nodeIds;
         private final int unavailableShardCount;
-        private final IntermediateNodeResponses responseCollector;
+        private final NodeResponseTracker nodeResponseTracker;
+        private volatile boolean cancelled;
 
         protected AsyncAction(Task task, Request request, ActionListener<Response> listener) {
             this.task = task;
@@ -316,14 +317,13 @@ public abstract class TransportBroadcastByNodeAction<
 
             }
             this.unavailableShardCount = unavailableShardCount;
-            responseCollector = new IntermediateNodeResponses(nodeIds.size());
+            nodeResponseTracker = new NodeResponseTracker(nodeIds.size());
         }
 
         public void start() {
             if (task instanceof CancellableTask cancellableTask) {
                 if (cancellableTask.registerListener(this) == false) {
                     cancellableTask.notifyIfCancelled(listener);
-                    responseCollector.discard();
                     return;
                 }
             }
@@ -384,7 +384,8 @@ public abstract class TransportBroadcastByNodeAction<
                 logger.trace("received response for [{}] from node [{}]", actionName, node.getId());
             }
 
-            if (responseCollector.maybeAddResponse(nodeIndex, response) && responseCollector.isComplete()) {
+            nodeResponseTracker.maybeAddResponse(nodeIndex, response);
+            if (nodeResponseTracker.allNodesResponded()) {
                 onCompletion();
             }
         }
@@ -392,21 +393,26 @@ public abstract class TransportBroadcastByNodeAction<
         protected void onNodeFailure(DiscoveryNode node, int nodeIndex, Throwable t) {
             String nodeId = node.getId();
             logger.debug(new ParameterizedMessage("failed to execute [{}] on node [{}]", actionName, nodeId), t);
-
-            if (responseCollector.maybeAddResponse(nodeIndex, t) && responseCollector.isComplete()) {
+            nodeResponseTracker.maybeAddResponse(nodeIndex, t);
+            if (nodeResponseTracker.allNodesResponded()) {
                 onCompletion();
             }
         }
 
         protected void onCompletion() {
+            if (cancelled) {
+                ((CancellableTask) task).notifyIfCancelled(listener);
+                return;
+            }
+
             Response response = null;
             try {
-                response = newResponse(request, responseCollector, unavailableShardCount, nodeIds, clusterState);
+                response = newResponse(request, nodeResponseTracker, unavailableShardCount, nodeIds, clusterState);
             } catch (Exception e) {
                 logger.debug("failed to combine responses from nodes", e);
                 listener.onFailure(e);
             }
-            if (responseCollector.isComplete() && response != null) {
+            if (response != null) {
                 try {
                     listener.onResponse(response);
                 } catch (Exception e) {
@@ -417,9 +423,8 @@ public abstract class TransportBroadcastByNodeAction<
 
         @Override
         public void onCancelled() {
-            if ((task instanceof CancellableTask t) && t.notifyIfCancelled(listener)) {
-                responseCollector.discard();
-            }
+            cancelled = (task instanceof CancellableTask t) && t.isCancelled();
+            nodeResponseTracker.discardIntermediateResponses();
         }
     }
 

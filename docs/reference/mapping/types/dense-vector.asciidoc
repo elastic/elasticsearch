@@ -91,11 +91,9 @@ PUT my-index-2
 efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
 that sacrifices result accuracy for improved speed.
 
-//tag::dense-vector-indexing-speed[]
 NOTE: Indexing vectors for approximate kNN search is an expensive process. It
 can take substantial time to ingest documents that contain vector fields with
 `index` enabled.
-//end::dense-vector-indexing-speed[]
 
 Dense vector fields cannot be indexed if they are within
 <<nested, `nested`>> mappings.

@@ -1,5 +1,0 @@
-pr: 83313
-summary: Adjust `DotExpandingXContentParser` behaviour
-area: Mapping
-type: bug
-issues: []

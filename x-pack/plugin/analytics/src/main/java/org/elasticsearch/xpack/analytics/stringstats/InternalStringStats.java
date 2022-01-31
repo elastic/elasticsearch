@@ -12,7 +12,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
-import org.elasticsearch.search.aggregations.support.LongToLongFunction;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -204,19 +203,6 @@ public class InternalStringStats extends InternalAggregation {
     @Override
     @SuppressWarnings("HiddenField")
     public InternalStringStats reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        return innerReduce(aggregations, l -> l);
-    }
-
-    @Override
-    public InternalAggregation reduceSampled(
-        List<InternalAggregation> aggregations,
-        AggregationReduceContext reduceContext,
-        SamplingContext context
-    ) {
-        return innerReduce(aggregations, reduceContext.isFinalReduce() ? context::inverseScale : l -> l);
-    }
-
-    private InternalStringStats innerReduce(List<InternalAggregation> aggregations, LongToLongFunction countScale) {
         long count = 0;
         long totalLength = 0;
         int minLength = Integer.MAX_VALUE;
@@ -229,15 +215,30 @@ public class InternalStringStats extends InternalAggregation {
             minLength = Math.min(minLength, stats.getMinLength());
             maxLength = Math.max(maxLength, stats.getMaxLength());
             totalLength += stats.totalLength;
-            stats.charOccurrences.forEach((k, v) -> occurs.merge(k, v, Long::sum));
+            stats.charOccurrences.forEach((k, v) -> occurs.merge(k, v, (oldValue, newValue) -> oldValue + newValue));
         }
-        count = countScale.apply(count);
+
         return new InternalStringStats(name, count, totalLength, minLength, maxLength, occurs, showDistribution, format, getMetadata());
     }
 
     @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalStringStats(
+            name,
+            samplingContext.inverseScale(count),
+            totalLength,
+            minLength,
+            maxLength,
+            charOccurrences,
+            showDistribution,
+            format,
+            getMetadata()
+        );
+    }
+
+    @Override
     protected boolean mustReduceOnSingleInternalAgg() {
-        return true;
+        return false;
     }
 
     @Override

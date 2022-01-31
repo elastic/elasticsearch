@@ -13,7 +13,6 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.support.DoubleToDoubleFunction;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -72,19 +71,6 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
 
     @Override
     public InternalRate reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        return innerReduce(aggregations, d -> d);
-    }
-
-    @Override
-    public InternalAggregation reduceSampled(
-        List<InternalAggregation> aggregations,
-        AggregationReduceContext reduceContext,
-        SamplingContext context
-    ) {
-        return innerReduce(aggregations, reduceContext.isFinalReduce() ? context::inverseScale : d -> d);
-    }
-
-    private InternalRate innerReduce(List<InternalAggregation> aggregations, DoubleToDoubleFunction valueScale) {
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
         CompensatedSum kahanSummation = new CompensatedSum(0, 0);
@@ -96,13 +82,12 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
                 firstDivisor = ((InternalRate) aggregation).divisor;
             }
         }
-        double sum = valueScale.apply(kahanSummation.value());
-        return new InternalRate(name, sum, firstDivisor, format, getMetadata());
+        return new InternalRate(name, kahanSummation.value(), firstDivisor, format, getMetadata());
     }
 
     @Override
-    protected boolean mustReduceSampledOnSingleInternalAgg() {
-        return true;
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalRate(name, samplingContext.inverseScale(sum), divisor, format, getMetadata());
     }
 
     @Override

@@ -72,20 +72,8 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalSum reduceSampled(
-        List<InternalAggregation> aggregations,
-        AggregationReduceContext reduceContext,
-        SamplingContext context
-    ) {
-        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        aggregations.forEach(aggregation -> kahanSummation.add(((InternalSum) aggregation).sum));
-        final double summation = reduceContext.isFinalReduce() ? context.inverseScale(kahanSummation.value()) : kahanSummation.value();
-        return new InternalSum(name, summation, format, getMetadata());
-    }
-
-    @Override
-    protected boolean mustReduceSampledOnSingleInternalAgg() {
-        return true;
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalSum(name, samplingContext.inverseScale(sum), format, getMetadata());
     }
 
     @Override

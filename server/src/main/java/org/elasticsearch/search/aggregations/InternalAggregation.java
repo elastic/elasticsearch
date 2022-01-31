@@ -121,19 +121,8 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      */
     public abstract InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext);
 
-    /**
-     * Reduces the given aggregations within the provided sampling context.
-     * @param aggregations The aggregations to sample
-     * @param reduceContext The current reduction context
-     * @param context The sampling context
-     * @return the reduced aggregation of the same type
-     */
-    public InternalAggregation reduceSampled(
-        List<InternalAggregation> aggregations,
-        AggregationReduceContext reduceContext,
-        SamplingContext context
-    ) {
-        throw new UnsupportedOperationException(getWriteableName() + "aggregation [" + getName() + "] does not support sampling");
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        throw new UnsupportedOperationException(getWriteableName() + " aggregation [" + getName() + "] does not support sampling");
     }
 
     /**
@@ -141,15 +130,6 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * when there is only one {@linkplain InternalAggregation}.
      */
     protected abstract boolean mustReduceOnSingleInternalAgg();
-
-    /**
-     * Signal the frame work if {@linkplain InternalAggregation#reduceSampled(List, AggregationReduceContext, SamplingContext)} phase
-     * needs to be called while within a sampled context and only {@linkplain InternalAggregation} is present in the list
-     * @return should reduction with just one aggregation take place
-     */
-    protected boolean mustReduceSampledOnSingleInternalAgg() {
-        return mustReduceOnSingleInternalAgg();
-    }
 
     /**
      * Return true if this aggregation is mapped, and can lead a reduction.  If this agg returns

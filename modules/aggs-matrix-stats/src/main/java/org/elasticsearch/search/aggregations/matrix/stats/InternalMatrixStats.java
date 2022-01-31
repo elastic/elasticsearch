@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 
@@ -225,30 +224,6 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        return innerReduce(
-            aggregations,
-            runningStats -> reduceContext.isFinalReduce()
-                ? new InternalMatrixStats(name, runningStats.docCount, runningStats, new MatrixStatsResults(runningStats), getMetadata())
-                : new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata())
-        );
-    }
-
-    @Override
-    public InternalAggregation reduceSampled(
-        List<InternalAggregation> aggregations,
-        AggregationReduceContext reduceContext,
-        SamplingContext context
-    ) {
-        return innerReduce(aggregations, runningStats -> {
-            if (reduceContext.isFinalReduce()) {
-                MatrixStatsResults results = new MatrixStatsResults(runningStats, context);
-                return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, getMetadata());
-            }
-            return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata());
-        });
-    }
-
-    private InternalAggregation innerReduce(List<InternalAggregation> aggregations, Function<RunningStats, InternalMatrixStats> newAgg) {
         // merge stats across all shards
         List<InternalAggregation> aggs = new ArrayList<>(aggregations);
         aggs.removeIf(p -> ((InternalMatrixStats) p).stats == null);
@@ -262,7 +237,23 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         for (InternalAggregation agg : aggs) {
             runningStats.merge(((InternalMatrixStats) agg).stats);
         }
-        return newAgg.apply(runningStats);
+
+        if (reduceContext.isFinalReduce()) {
+            MatrixStatsResults matrixStatsResults = new MatrixStatsResults(runningStats);
+            return new InternalMatrixStats(name, matrixStatsResults.getDocCount(), runningStats, matrixStatsResults, getMetadata());
+        }
+        return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalMatrixStats(
+            name,
+            samplingContext.inverseScale(getDocCount()),
+            stats,
+            new MatrixStatsResults(stats, samplingContext),
+            getMetadata()
+        );
     }
 
     @Override

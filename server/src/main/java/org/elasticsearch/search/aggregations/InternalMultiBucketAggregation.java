@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
-import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,18 +64,6 @@ public abstract class InternalMultiBucketAggregation<
      * requires all buckets to have the same key.
      */
     protected abstract B reduceBucket(List<B> buckets, AggregationReduceContext context);
-
-    /**
-     * Reduces a list of same-keyed buckets (from multiple shards) into a single bucket. This takes
-     * into account the provided sampling context as well.
-     * @param buckets the same-keyed buckets to merge
-     * @param context the current aggregation reduction context
-     * @param samplingContext The sampling context
-     * @return the reduced bucket
-     */
-    protected B reduceSampledBucket(List<B> buckets, AggregationReduceContext context, SamplingContext samplingContext) {
-        throw new UnsupportedOperationException(getWriteableName() + " aggregation [" + getName() + "] does not support sampling");
-    }
 
     @Override
     public abstract List<B> getBuckets();

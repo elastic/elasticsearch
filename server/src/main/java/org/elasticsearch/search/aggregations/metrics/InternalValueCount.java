@@ -68,24 +68,8 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
     }
 
     @Override
-    public InternalAggregation reduceSampled(
-        List<InternalAggregation> aggregations,
-        AggregationReduceContext reduceContext,
-        SamplingContext context
-    ) {
-        long valueCount = 0;
-        for (InternalAggregation aggregation : aggregations) {
-            valueCount += ((InternalValueCount) aggregation).value;
-        }
-        if (reduceContext.isFinalReduce()) {
-            valueCount = context.inverseScale(valueCount);
-        }
-        return new InternalValueCount(name, valueCount, getMetadata());
-    }
-
-    @Override
-    protected boolean mustReduceSampledOnSingleInternalAgg() {
-        return true;
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalValueCount(name, samplingContext.inverseScale(value), getMetadata());
     }
 
     @Override

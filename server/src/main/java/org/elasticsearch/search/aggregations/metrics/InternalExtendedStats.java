@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -244,51 +243,6 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
 
     @Override
     public InternalExtendedStats reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        return innerReduce(aggregations, (innerAggs, sumOfSqrs) -> {
-            final InternalStats stats = super.reduce(aggregations, reduceContext);
-            return new InternalExtendedStats(
-                name,
-                stats.getCount(),
-                stats.getSum(),
-                stats.getMin(),
-                stats.getMax(),
-                sumOfSqrs,
-                sigma,
-                format,
-                getMetadata()
-            );
-        });
-    }
-
-    @Override
-    public InternalExtendedStats reduceSampled(
-        List<InternalAggregation> aggregations,
-        AggregationReduceContext reduceContext,
-        SamplingContext context
-    ) {
-        return innerReduce(aggregations, (innerAggs, sumOfSqrs) -> {
-            if (reduceContext.isFinalReduce()) {
-                sumOfSqrs = context.inverseScale(sumOfSqrs);
-            }
-            final InternalStats stats = super.reduceSampled(aggregations, reduceContext, context);
-            return new InternalExtendedStats(
-                name,
-                stats.getCount(),
-                stats.getSum(),
-                stats.getMin(),
-                stats.getMax(),
-                sumOfSqrs,
-                sigma,
-                format,
-                getMetadata()
-            );
-        });
-    }
-
-    private InternalExtendedStats innerReduce(
-        List<InternalAggregation> aggregations,
-        BiFunction<List<InternalAggregation>, Double, InternalExtendedStats> newAgg
-    ) {
         double sumOfSqrs = 0;
         double compensationOfSqrs = 0;
         for (InternalAggregation aggregation : aggregations) {
@@ -306,12 +260,33 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
                 sumOfSqrs = newSumOfSqrs;
             }
         }
-        return newAgg.apply(aggregations, sumOfSqrs);
+        final InternalStats stats = super.reduce(aggregations, reduceContext);
+        return new InternalExtendedStats(
+            name,
+            stats.getCount(),
+            stats.getSum(),
+            stats.getMin(),
+            stats.getMax(),
+            sumOfSqrs,
+            sigma,
+            format,
+            getMetadata()
+        );
     }
 
     @Override
-    protected boolean mustReduceOnSingleInternalAgg() {
-        return true;
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalExtendedStats(
+            name,
+            samplingContext.inverseScale(count),
+            samplingContext.inverseScale(sum),
+            min,
+            max,
+            samplingContext.inverseScale(sumOfSqrs),
+            sigma,
+            format,
+            getMetadata()
+        );
     }
 
     static class Fields {

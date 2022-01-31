@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
-import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -125,7 +124,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * Reduces the given list of aggregations as well as the top-level pipeline aggregators extracted from the first
      * {@link InternalAggregations} object found in the list.
      * Note that pipeline aggregations _are not_ reduced by this method.  Pipelines are handled
-     * separately by {@link InternalAggregations#topLevelReduce(List, AggregationReduceContext)}
+     * separately by {@link InternalAggregations#topLevelReduce(List, ReduceContext)}
      */
     public static InternalAggregations reduce(List<InternalAggregations> aggregationsList, AggregationReduceContext context) {
         if (aggregationsList.isEmpty()) {
@@ -162,42 +161,4 @@ public final class InternalAggregations extends Aggregations implements Writeabl
 
         return from(reducedAggregations);
     }
-
-    public static InternalAggregations reduceSampled(
-        List<InternalAggregations> aggregationsList,
-        AggregationReduceContext context,
-        SamplingContext samplingContext
-    ) {
-        if (aggregationsList.isEmpty()) {
-            return null;
-        }
-
-        // first we collect all aggregations of the same type and list them together
-        Map<String, List<InternalAggregation>> aggByName = new HashMap<>();
-        for (InternalAggregations aggregations : aggregationsList) {
-            for (Aggregation aggregation : aggregations.aggregations) {
-                aggByName.computeIfAbsent(aggregation.getName(), k -> new ArrayList<>(aggregationsList.size()))
-                    .add((InternalAggregation) aggregation);
-            }
-        }
-
-        // now we can use the first aggregation of each list to handle the reduce of its list
-        List<InternalAggregation> reducedAggregations = new ArrayList<>();
-        for (Map.Entry<String, List<InternalAggregation>> entry : aggByName.entrySet()) {
-            List<InternalAggregation> aggregations = entry.getValue();
-            // Sort aggregations so that unmapped aggs come last in the list
-            // If all aggs are unmapped, the agg that leads the reduction will just return itself
-            aggregations.sort(INTERNAL_AGG_COMPARATOR);
-            InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
-            if (first.mustReduceSampledOnSingleInternalAgg() || aggregations.size() > 1) {
-                reducedAggregations.add(first.reduceSampled(aggregations, context, samplingContext));
-            } else {
-                // no need for reduce phase
-                reducedAggregations.add(first);
-            }
-        }
-
-        return from(reducedAggregations);
-    }
-
 }

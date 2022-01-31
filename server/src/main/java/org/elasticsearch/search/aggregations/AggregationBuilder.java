@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentParser;
@@ -191,11 +192,8 @@ public abstract class AggregationBuilder
      *
      * By default, it's false for all aggregations.
      *
-     * If the sub-classed builder supports sampling, be sure of the following:
-     *
-     *  - That the generated {@link AggregatorFactory} to scales any user provided parameters
-     *  - That the resulting internal aggregation objects override the {@link InternalAggregation#reduceSampled} and scales any values
-     *    that require scaling.
+     * If the sub-classed builder supports sampling, be sure of the following that the resulting internal aggregation objects
+     * override the {@link InternalAggregation#finalizeSampling(SamplingContext)} and scales any values that require scaling.
      * @return does this aggregation builder support sampling
      */
     public boolean supportsSampling() {

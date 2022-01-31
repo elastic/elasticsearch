@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class InternalRandomSampler extends InternalSingleBucketAggregation implements Sampler {
     public static final String NAME = "mapped_random_sampler";
@@ -83,7 +84,14 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation imple
             docCount += ((InternalSingleBucketAggregation) aggregation).getDocCount();
             subAggregationsList.add(((InternalSingleBucketAggregation) aggregation).getAggregations());
         }
-        final InternalAggregations aggs = InternalAggregations.reduceSampled(subAggregationsList, reduceContext, buildContext());
+        InternalAggregations aggs = InternalAggregations.reduce(subAggregationsList, reduceContext);
+        if (reduceContext.isFinalReduce()) {
+            SamplingContext context = buildContext();
+            aggs = InternalAggregations.from(
+                aggs.asList().stream().map(agg -> ((InternalAggregation) agg).finalizeSampling(context)).collect(Collectors.toList())
+            );
+        }
+
         return newAggregation(getName(), docCount, aggs);
     }
 

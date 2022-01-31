@@ -132,7 +132,8 @@ public abstract class TransportNodesAction<
      * @see #newResponseAsync(Task, BaseNodesRequest, List, List, ActionListener)
      */
     // exposed for tests
-    void newResponse(Task task, NodesRequest request, NodeResponseTracker responseCollector, ActionListener<NodesResponse> listener) {
+    void newResponse(Task task, NodesRequest request, NodeResponseTracker responseCollector, ActionListener<NodesResponse> listener)
+        throws NodeResponseTracker.DiscardedResponsesException {
 
         if (responseCollector == null) {
             listener.onFailure(new NullPointerException("nodesResponses"));
@@ -142,20 +143,16 @@ public abstract class TransportNodesAction<
         final List<NodeResponse> responses = new ArrayList<>();
         final List<FailedNodeException> failures = new ArrayList<>();
 
-        try {
-            for (int i = 0; i < responseCollector.size(); ++i) {
-                Object response = responseCollector.getResponse(i);
-                if (responseCollector.getResponse(i)instanceof FailedNodeException failedNodeException) {
-                    failures.add(failedNodeException);
-                } else {
-                    responses.add(nodeResponseClass.cast(response));
-                }
+        for (int i = 0; i < responseCollector.size(); ++i) {
+            Object response = responseCollector.getResponse(i);
+            if (responseCollector.getResponse(i)instanceof FailedNodeException failedNodeException) {
+                failures.add(failedNodeException);
+            } else {
+                responses.add(nodeResponseClass.cast(response));
             }
-
-            newResponseAsync(task, request, responses, failures, listener);
-        } catch (NodeResponseTracker.DiscardedResponsesException exception) {
-            logger.debug("Task was already cancelled");
         }
+
+        newResponseAsync(task, request, responses, failures, listener);
     }
 
     /**
@@ -302,7 +299,15 @@ public abstract class TransportNodesAction<
             }
 
             final String executor = finalExecutor.equals(ThreadPool.Names.SAME) ? ThreadPool.Names.GENERIC : finalExecutor;
-            threadPool.executor(executor).execute(() -> newResponse(task, request, nodeResponseTracker, listener));
+            threadPool.executor(executor).execute(() -> {
+                try {
+                    newResponse(task, request, nodeResponseTracker, listener);
+                } catch (NodeResponseTracker.DiscardedResponsesException e) {
+                    if (cancelled) {
+                        ((CancellableTask) task).notifyIfCancelled(listener);
+                    }
+                }
+            });
         }
 
         @Override

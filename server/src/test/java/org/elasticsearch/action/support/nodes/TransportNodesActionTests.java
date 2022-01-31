@@ -94,14 +94,14 @@ public class TransportNodesActionTests extends ESTestCase {
         assertEquals(clusterService.state().nodes().resolveNodes(finalNodesIds).length, capturedRequests.size());
     }
 
-    public void testNewResponseNullArray() {
+    public void testNewResponseNullArray() throws Exception {
         TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
         final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
         action.newResponse(new Task(1, "test", "test", "", null, emptyMap()), new TestNodesRequest(), null, future);
         expectThrows(NullPointerException.class, future::actionGet);
     }
 
-    public void testNewResponse() {
+    public void testNewResponse() throws Exception {
         TestTransportNodesAction action = getTestTransportNodesAction();
         TestNodesRequest request = new TestNodesRequest();
         List<TestNodeResponse> expectedNodeResponses = mockList(TestNodeResponse::new, randomIntBetween(0, 2));

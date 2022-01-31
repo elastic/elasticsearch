@@ -218,6 +218,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.minCompatibleShardNode = searchRequest.minCompatibleShardNode;
         this.waitForCheckpoints = searchRequest.waitForCheckpoints;
         this.waitForCheckpointsTimeout = searchRequest.waitForCheckpointsTimeout;
+        try {
+            this.writeTo(new VersionCheckingStreamOutput(Version.CURRENT));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**

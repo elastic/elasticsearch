@@ -38,8 +38,8 @@ public class CancellableTask extends Task {
             }
             this.isCancelled = true;
             this.reason = reason;
-            listeners.forEach(CancellationListener::onCancelled);
         }
+        listeners.forEach(CancellationListener::onCancelled);
         onCancelled();
     }
 

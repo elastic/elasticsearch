@@ -341,17 +341,12 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
          * range of valid values.
          */
         double v = randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true);
-        switch (between(0, 3)) {
-            case 0:
-                return v;
-            case 1:
-                return (float) v;
-            case 2:
-                return Double.toString(v);
-            case 3:
-                return Float.toString((float) v);
-            default:
-                throw new IllegalArgumentException();
-        }
+        return switch (between(0, 3)) {
+            case 0 -> v;
+            case 1 -> (float) v;
+            case 2 -> Double.toString(v);
+            case 3 -> Float.toString((float) v);
+            default -> throw new IllegalArgumentException();
+        };
     }
 }

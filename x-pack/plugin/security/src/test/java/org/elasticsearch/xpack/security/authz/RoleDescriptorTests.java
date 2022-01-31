@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.VersionUtils;
@@ -24,8 +25,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.hamcrest.Matchers;
 
@@ -65,7 +69,7 @@ public class RoleDescriptorTests extends ESTestCase {
             "null_role",
             randomFrom((String[]) null, new String[0]),
             randomFrom((RoleDescriptor.IndicesPrivileges[]) null, new RoleDescriptor.IndicesPrivileges[0]),
-            randomFrom((RoleDescriptor.ApplicationResourcePrivileges[]) null, new RoleDescriptor.ApplicationResourcePrivileges[0]),
+            randomFrom((ApplicationResourcePrivileges[]) null, new ApplicationResourcePrivileges[0]),
             randomFrom((ConfigurableClusterPrivilege[]) null, new ConfigurableClusterPrivilege[0]),
             randomFrom((String[]) null, new String[0]),
             randomFrom((Map<String, Object>) null, Map.of()),
@@ -82,12 +86,8 @@ public class RoleDescriptorTests extends ESTestCase {
                 .grantedFields("body", "title")
                 .query("{\"match_all\": {}}")
                 .build() };
-        final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = {
-            RoleDescriptor.ApplicationResourcePrivileges.builder()
-                .application("my_app")
-                .privileges("read", "write")
-                .resources("*")
-                .build() };
+        final ApplicationResourcePrivileges[] applicationPrivileges = {
+            ApplicationResourcePrivileges.builder().application("my_app").privileges("read", "write").resources("*").build() };
 
         final ConfigurableClusterPrivilege[] configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
             new ConfigurableClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))) };
@@ -116,42 +116,15 @@ public class RoleDescriptorTests extends ESTestCase {
         );
     }
 
-    public void testToXContent() throws Exception {
-        RoleDescriptor.IndicesPrivileges[] groups = new RoleDescriptor.IndicesPrivileges[] {
-            RoleDescriptor.IndicesPrivileges.builder()
-                .indices("i1", "i2")
-                .privileges("read")
-                .grantedFields("body", "title")
-                .allowRestrictedIndices(randomBoolean())
-                .query("{\"match_all\": {}}")
-                .build() };
-        final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = {
-            RoleDescriptor.ApplicationResourcePrivileges.builder()
-                .application("my_app")
-                .privileges("read", "write")
-                .resources("*")
-                .build() };
-        final ConfigurableClusterPrivilege[] configurableClusterPrivileges = {
-            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))) };
-
-        Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
-        RoleDescriptor descriptor = new RoleDescriptor(
-            "test",
-            new String[] { "all", "none" },
-            groups,
-            applicationPrivileges,
-            configurableClusterPrivileges,
-            new String[] { "sudo" },
-            metadata,
-            Collections.emptyMap()
-        );
-        XContentBuilder builder = descriptor.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
-        RoleDescriptor parsed = RoleDescriptor.parse("test", BytesReference.bytes(builder), false, XContentType.JSON);
+    public void testToXContentRoundtrip() throws Exception {
+        final RoleDescriptor descriptor = randomRoleDescriptor();
+        final XContentType xContentType = randomFrom(XContentType.values());
+        final BytesReference xContentValue = toShuffledXContent(descriptor, xContentType, ToXContent.EMPTY_PARAMS, false);
+        final RoleDescriptor parsed = RoleDescriptor.parse(descriptor.getName(), xContentValue, false, xContentType);
         assertThat(parsed, equalTo(descriptor));
     }
 
     public void testParse() throws Exception {
-
         String q = "{\"cluster\":[\"a\", \"b\"]}";
         RoleDescriptor rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertEquals("test", rd.getName());
@@ -320,33 +293,8 @@ public class RoleDescriptorTests extends ESTestCase {
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setVersion(version);
-        RoleDescriptor.IndicesPrivileges[] groups = new RoleDescriptor.IndicesPrivileges[] {
-            RoleDescriptor.IndicesPrivileges.builder()
-                .indices("i1", "i2")
-                .privileges("read")
-                .grantedFields("body", "title")
-                .query("{\"query\": {\"match_all\": {}}}")
-                .build() };
-        final RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges = {
-            RoleDescriptor.ApplicationResourcePrivileges.builder()
-                .application("my_app")
-                .privileges("read", "write")
-                .resources("*")
-                .build() };
-        final ConfigurableClusterPrivilege[] configurableClusterPrivileges = {
-            new ConfigurableClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02"))) };
 
-        Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
-        final RoleDescriptor descriptor = new RoleDescriptor(
-            "test",
-            new String[] { "all", "none" },
-            groups,
-            applicationPrivileges,
-            configurableClusterPrivileges,
-            new String[] { "sudo" },
-            metadata,
-            null
-        );
+        final RoleDescriptor descriptor = randomRoleDescriptor();
         descriptor.writeTo(output);
         final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput streamInput = new NamedWriteableAwareStreamInput(
@@ -355,7 +303,7 @@ public class RoleDescriptorTests extends ESTestCase {
         );
         streamInput.setVersion(version);
         final RoleDescriptor serialized = new RoleDescriptor(streamInput);
-        assertEquals(descriptor, serialized);
+        assertThat(serialized, equalTo(descriptor));
     }
 
     public void testParseEmptyQuery() throws Exception {
@@ -504,7 +452,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 randomAlphaOfLengthBetween(1, 10),
                 new String[0],
                 new RoleDescriptor.IndicesPrivileges[0],
-                new RoleDescriptor.ApplicationResourcePrivileges[0],
+                new ApplicationResourcePrivileges[0],
                 new ConfigurableClusterPrivilege[0],
                 new String[0],
                 new HashMap<>(),
@@ -529,9 +477,9 @@ public class RoleDescriptorTests extends ESTestCase {
                 : new RoleDescriptor.IndicesPrivileges[] {
                     RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
             booleans.get(2)
-                ? new RoleDescriptor.ApplicationResourcePrivileges[0]
-                : new RoleDescriptor.ApplicationResourcePrivileges[] {
-                    RoleDescriptor.ApplicationResourcePrivileges.builder().application("app").privileges("foo").resources("res").build() },
+                ? new ApplicationResourcePrivileges[0]
+                : new ApplicationResourcePrivileges[] {
+                    ApplicationResourcePrivileges.builder().application("app").privileges("foo").resources("res").build() },
             booleans.get(3)
                 ? new ConfigurableClusterPrivilege[0]
                 : new ConfigurableClusterPrivilege[] {
@@ -546,5 +494,76 @@ public class RoleDescriptorTests extends ESTestCase {
         } else {
             assertTrue(roleDescriptor.isEmpty());
         }
+    }
+
+    private RoleDescriptor randomRoleDescriptor() {
+        final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(0, 3)];
+        for (int i = 0; i < indexPrivileges.length; i++) {
+            final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
+                .privileges(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
+                .indices(generateRandomStringArray(5, randomIntBetween(3, 9), false, false))
+                .allowRestrictedIndices(randomBoolean());
+            if (randomBoolean()) {
+                builder.query(
+                    randomBoolean()
+                        ? "{ \"term\": { \"" + randomAlphaOfLengthBetween(3, 24) + "\" : \"" + randomAlphaOfLengthBetween(3, 24) + "\" }"
+                        : "{ \"match_all\": {} }"
+                );
+            }
+            if (randomBoolean()) {
+                if (randomBoolean()) {
+                    builder.grantedFields("*");
+                    builder.deniedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
+                } else {
+                    builder.grantedFields(generateRandomStringArray(4, randomIntBetween(4, 9), false, false));
+                }
+            }
+            indexPrivileges[i] = builder.build();
+        }
+        final ApplicationResourcePrivileges[] applicationPrivileges = new ApplicationResourcePrivileges[randomIntBetween(0, 2)];
+        for (int i = 0; i < applicationPrivileges.length; i++) {
+            final ApplicationResourcePrivileges.Builder builder = ApplicationResourcePrivileges.builder();
+            builder.application(randomAlphaOfLengthBetween(5, 12) + (randomBoolean() ? "*" : ""));
+            if (randomBoolean()) {
+                builder.privileges("*");
+            } else {
+                builder.privileges(generateRandomStringArray(6, randomIntBetween(4, 8), false, false));
+            }
+            if (randomBoolean()) {
+                builder.resources("*");
+            } else {
+                builder.resources(generateRandomStringArray(6, randomIntBetween(4, 8), false, false));
+            }
+            applicationPrivileges[i] = builder.build();
+        }
+        final ConfigurableClusterPrivilege[] configurableClusterPrivileges;
+        if (randomBoolean()) {
+            configurableClusterPrivileges = new ConfigurableClusterPrivilege[] {
+                new ConfigurableClusterPrivileges.ManageApplicationPrivileges(
+                    Sets.newHashSet(generateRandomStringArray(3, randomIntBetween(4, 12), false, false))
+                ) };
+        } else {
+            configurableClusterPrivileges = new ConfigurableClusterPrivilege[0];
+        }
+        final Map<String, Object> metadata = new HashMap<>();
+        while (randomBoolean()) {
+            String key = randomAlphaOfLengthBetween(4, 12);
+            if (randomBoolean()) {
+                key = MetadataUtils.RESERVED_PREFIX + key;
+            }
+            final Object value = randomBoolean() ? randomInt() : randomAlphaOfLengthBetween(3, 50);
+            metadata.put(key, value);
+        }
+
+        return new RoleDescriptor(
+            randomAlphaOfLengthBetween(3, 90),
+            randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
+            indexPrivileges,
+            applicationPrivileges,
+            configurableClusterPrivileges,
+            generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
+            metadata,
+            Map.of()
+        );
     }
 }

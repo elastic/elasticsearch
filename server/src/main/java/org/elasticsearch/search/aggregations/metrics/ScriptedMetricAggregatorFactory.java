@@ -97,15 +97,13 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
     @SuppressWarnings({ "unchecked" })
     static <T> T deepCopyParams(T original) {
         T clone;
-        if (original instanceof Map) {
-            Map<?, ?> originalMap = (Map<?, ?>) original;
+        if (original instanceof Map<?, ?> originalMap) {
             Map<Object, Object> clonedMap = new HashMap<>();
             for (Map.Entry<?, ?> e : originalMap.entrySet()) {
                 clonedMap.put(deepCopyParams(e.getKey()), deepCopyParams(e.getValue()));
             }
             clone = (T) clonedMap;
-        } else if (original instanceof List) {
-            List<?> originalList = (List<?>) original;
+        } else if (original instanceof List<?> originalList) {
             List<Object> clonedList = new ArrayList<>();
             for (Object o : originalList) {
                 clonedList.add(deepCopyParams(o));

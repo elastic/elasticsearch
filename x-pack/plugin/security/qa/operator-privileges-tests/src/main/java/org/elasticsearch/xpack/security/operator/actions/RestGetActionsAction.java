@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.security.operator.actions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;

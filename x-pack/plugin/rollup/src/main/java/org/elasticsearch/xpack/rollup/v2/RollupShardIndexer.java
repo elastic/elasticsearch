@@ -30,13 +30,14 @@ import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexService;
@@ -191,8 +192,8 @@ class RollupShardIndexer {
         if (fieldType instanceof DateFieldMapper.DateFieldType == false) {
             throw new IllegalArgumentException("Wrong type for the timestamp field, " + "expected [date], got [" + fieldType.name() + "]");
         }
-        if (fieldType.isSearchable() == false) {
-            throw new IllegalArgumentException("The timestamp field [" + fieldType.name() + "]  is not searchable");
+        if (fieldType.isIndexed() == false) {
+            throw new IllegalArgumentException("The timestamp field [" + fieldType.name() + "]  is not indexed");
         }
     }
 
@@ -265,7 +266,7 @@ class RollupShardIndexer {
 
     private void indexBucket(BucketKey key, List<FieldMetricsProducer> fieldsMetrics, int docCount) {
         IndexRequestBuilder request = client.prepareIndex(tmpIndex);
-        Map<String, Object> doc = new HashMap<>(2 + key.groupFields.size() + fieldsMetrics.size());
+        Map<String, Object> doc = Maps.newMapWithExpectedSize(2 + key.groupFields.size() + fieldsMetrics.size());
         doc.put(DocCountFieldMapper.NAME, docCount);
         doc.put(timestampField.name(), timestampFormat.format(key.timestamp));
 

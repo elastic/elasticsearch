@@ -302,7 +302,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         assertBusy(() -> {
             GetTaskResponse taskResponse = client().execute(GetTaskAction.INSTANCE, getPolicyTaskRequest).actionGet();
             assertThat(
-                ((ExecuteEnrichPolicyStatus) taskResponse.getTask().getTask().getStatus()).getPhase(),
+                ((ExecuteEnrichPolicyStatus) taskResponse.getTask().getTask().status()).getPhase(),
                 is(ExecuteEnrichPolicyStatus.PolicyPhases.COMPLETE)
             );
         });

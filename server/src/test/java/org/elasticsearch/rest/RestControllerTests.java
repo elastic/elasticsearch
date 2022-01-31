@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -767,6 +767,32 @@ public class RestControllerTests extends ESTestCase {
             assertThat(request.contentParser().getRestApiVersion(), equalTo(RestApiVersion.current()));
             assertThat(xContentBuilder.getRestApiVersion(), equalTo(RestApiVersion.current()));
             channel1.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        });
+
+        assertFalse(channel.getSendResponseCalled());
+        restController.dispatchRequest(fakeRestRequest, channel, new ThreadContext(Settings.EMPTY));
+        assertTrue(channel.getSendResponseCalled());
+    }
+
+    public void testCustomMediaTypeValidation() {
+        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+
+        final String mediaType = "application/x-protobuf";
+        FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
+        AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
+
+        // register handler that handles custom media type validation
+        restController.registerHandler(new Route(GET, "/foo"), new RestHandler() {
+            @Override
+            public boolean mediaTypesValid(RestRequest request) {
+                return request.getXContentType() == null
+                    && request.getParsedContentType().mediaTypeWithoutParameters().equals("application/x-protobuf");
+            }
+
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+            }
         });
 
         assertFalse(channel.getSendResponseCalled());

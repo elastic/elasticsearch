@@ -11,7 +11,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -92,7 +92,7 @@ public class SearchInputTests extends ESTestCase {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         SearchResponse searchResponse = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             1,
             1,
@@ -133,7 +133,7 @@ public class SearchInputTests extends ESTestCase {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         SearchResponse searchResponse = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             1,
             1,
@@ -188,7 +188,7 @@ public class SearchInputTests extends ESTestCase {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
         SearchResponse searchResponse = new SearchResponse(
-            InternalSearchResponse.empty(),
+            InternalSearchResponse.EMPTY_WITH_TOTAL_HITS,
             "",
             1,
             1,

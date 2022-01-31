@@ -18,7 +18,7 @@ public interface ClusterStateTaskListener {
      * level and otherwise ignored, except in tests where it raises an {@link AssertionError}. If log-and-ignore is the right behaviour then
      * implementations must do so themselves, typically using a more specific logger and at a less dramatic log level.
      */
-    void onFailure(String source, Exception e);
+    void onFailure(Exception e);
 
     /**
      * A callback for when the task was rejected because the processing node is no longer the elected master.
@@ -27,8 +27,8 @@ public interface ClusterStateTaskListener {
      * level and otherwise ignored, except in tests where it raises an {@link AssertionError}. If log-and-ignore is the right behaviour then
      * implementations must do so themselves, typically using a more specific logger and at a less dramatic log level.
      */
-    default void onNoLongerMaster(String source) {
-        onFailure(source, new NotMasterException("no longer master. source: [" + source + "]"));
+    default void onNoLongerMaster() {
+        onFailure(new NotMasterException("no longer master"));
     }
 
     /**
@@ -39,5 +39,5 @@ public interface ClusterStateTaskListener {
      * level and otherwise ignored, except in tests where it raises an {@link AssertionError}. If log-and-ignore is the right behaviour then
      * implementations must do so themselves, typically using a more specific logger and at a less dramatic log level.
      */
-    default void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
+    default void clusterStateProcessed(ClusterState oldState, ClusterState newState) {}
 }

@@ -29,6 +29,7 @@ import javax.crypto.SecretKeyFactory;
 import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_TO_REALM_ASSOC_SETTING;
 
 /**
  * A container for xpack setting constants.
@@ -308,6 +309,7 @@ public class XPackSettings {
         settings.add(PASSWORD_HASHING_ALGORITHM);
         settings.add(ENROLLMENT_ENABLED);
         settings.add(SECURITY_AUTOCONFIGURATION_ENABLED);
+        settings.add(DOMAIN_TO_REALM_ASSOC_SETTING);
         return Collections.unmodifiableList(settings);
     }
 

@@ -934,9 +934,8 @@ public abstract class StreamOutput extends OutputStream {
                 writeInt(((IndexFormatTooNewException) throwable).getMaxVersion());
                 writeMessage = false;
                 writeCause = false;
-            } else if (throwable instanceof IndexFormatTooOldException) {
+            } else if (throwable instanceof IndexFormatTooOldException t) {
                 writeVInt(3);
-                IndexFormatTooOldException t = (IndexFormatTooOldException) throwable;
                 writeOptionalString(t.getResourceDescription());
                 if (t.getVersion() == null) {
                     writeBoolean(false);

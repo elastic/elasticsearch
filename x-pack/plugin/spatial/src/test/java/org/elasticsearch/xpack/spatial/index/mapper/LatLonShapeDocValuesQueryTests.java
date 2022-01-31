@@ -160,15 +160,11 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
     }
 
     private LatLonGeometry randomLuceneQueryGeometry() {
-        switch (randomInt(3)) {
-            case 0:
-                return GeoTestUtil.nextPolygon();
-            case 1:
-                return GeoTestUtil.nextCircle();
-            case 2:
-                return new Point(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude());
-            default:
-                return GeoTestUtil.nextBox();
-        }
+        return switch (randomInt(3)) {
+            case 0 -> GeoTestUtil.nextPolygon();
+            case 1 -> GeoTestUtil.nextCircle();
+            case 2 -> new Point(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude());
+            default -> GeoTestUtil.nextBox();
+        };
     }
 }

@@ -50,6 +50,16 @@
         "default":"open",
         "description":"Whether wildcard expressions should get expanded to open or closed indices (default: open)"
       },
+      "features":{
+        "type":"enum",
+        "options":[
+          "aliases",
+          "mappings",
+          "settings"
+        ],
+        "default":"aliases,mappings,settings",
+        "description":"Return only information on specified index features"
+      },
       "flat_settings":{
         "type":"boolean",
         "description":"Return settings in flat format (default: false)"

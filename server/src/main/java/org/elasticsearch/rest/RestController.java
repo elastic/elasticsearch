@@ -13,7 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -334,15 +334,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
         throws Exception {
         final int contentLength = request.contentLength();
         if (contentLength > 0) {
-            final XContentType xContentType = request.getXContentType();
-            if (xContentType == null) {
+            if (handler.mediaTypesValid(request) == false) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
+            final XContentType xContentType = request.getXContentType();
             // TODO consider refactoring to handler.supportsContentStream(xContentType). It is only used with JSON and SMILE
             if (handler.supportsContentStream()
-                && xContentType.canonical() != XContentType.JSON
-                && xContentType.canonical() != XContentType.SMILE) {
+                && XContentType.JSON != xContentType.canonical()
+                && XContentType.SMILE != xContentType.canonical()) {
                 channel.sendResponse(
                     BytesRestResponse.createSimpleErrorResponse(
                         channel,

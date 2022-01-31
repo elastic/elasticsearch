@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContent.Params;
+import org.elasticsearch.xpack.core.transform.transforms.NullRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.RetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
@@ -67,6 +68,13 @@ public abstract class AbstractSerializingTransformTestCase<T extends ToXContent 
                 RetentionPolicyConfig.class,
                 TransformField.TIME.getPreferredName(),
                 TimeRetentionPolicyConfig::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                RetentionPolicyConfig.class,
+                NullRetentionPolicyConfig.NAME.getPreferredName(),
+                in -> NullRetentionPolicyConfig.INSTANCE
             )
         );
 

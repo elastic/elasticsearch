@@ -10,7 +10,7 @@ package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * Base request builder for master node read operations that can be executed on the local node as well

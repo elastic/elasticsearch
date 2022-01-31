@@ -69,23 +69,22 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
         createIndex("index1", "index2");
 
         switch (randomIntBetween(0, 2)) {
-            case 0:
+            case 0 -> {
                 assertAcked(client().admin().indices().prepareClose("*"));
                 assertAcked(client().admin().indices().prepareOpen("*"));
                 assertAcked(client().admin().indices().prepareDelete("*"));
-                break;
-            case 1:
+            }
+            case 1 -> {
                 assertAcked(client().admin().indices().prepareClose("_all"));
                 assertAcked(client().admin().indices().prepareOpen("_all"));
                 assertAcked(client().admin().indices().prepareDelete("_all"));
-                break;
-            case 2:
+            }
+            case 2 -> {
                 assertAcked(client().admin().indices().prepareClose("*", "-index1"));
                 assertAcked(client().admin().indices().prepareOpen("*", "-index1"));
                 assertAcked(client().admin().indices().prepareDelete("*", "-index1"));
-                break;
-            default:
-                throw new UnsupportedOperationException();
+            }
+            default -> throw new UnsupportedOperationException();
         }
     }
 

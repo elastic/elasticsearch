@@ -92,8 +92,7 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
         assertThat(query, notNullValue());
         assertThat(query, anyOf(instanceOf(BooleanQuery.class), instanceOf(PrefixQuery.class)));
 
-        if (query instanceof PrefixQuery) {
-            final PrefixQuery prefixQuery = (PrefixQuery) query;
+        if (query instanceof final PrefixQuery prefixQuery) {
             assertThat(prefixQuery.getPrefix().text(), equalToIgnoringCase((String) queryBuilder.value()));
         } else {
             assertThat(query, instanceOf(BooleanQuery.class));

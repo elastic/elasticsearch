@@ -63,29 +63,25 @@ public class KibanaEnrollmentResponseTests extends ESTestCase {
     }
 
     private static KibanaEnrollmentResponse mutateTestItem(KibanaEnrollmentResponse original) {
-        switch (randomIntBetween(0, 3)) {
-            case 0:
-                return new KibanaEnrollmentResponse(
-                    randomAlphaOfLengthBetween(14, 20),
-                    new SecureString(randomAlphaOfLengthBetween(71, 90).toCharArray()),
-                    randomAlphaOfLength(52)
-                );
-            case 1:
-                return new KibanaEnrollmentResponse(
-                    original.getTokenName(),
-                    new SecureString(randomAlphaOfLengthBetween(71, 90).toCharArray()),
-                    randomAlphaOfLength(52)
-                );
-            case 2:
-                return new KibanaEnrollmentResponse(randomAlphaOfLengthBetween(14, 20), original.getTokenValue(), randomAlphaOfLength(52));
-            case 3:
-                return new KibanaEnrollmentResponse(
-                    randomAlphaOfLengthBetween(14, 20),
-                    new SecureString(randomAlphaOfLengthBetween(71, 90).toCharArray()),
-                    original.getHttpCa()
-                );
-        }
-        // we never reach here
-        return null;
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> new KibanaEnrollmentResponse(
+                randomAlphaOfLengthBetween(14, 20),
+                new SecureString(randomAlphaOfLengthBetween(71, 90).toCharArray()),
+                randomAlphaOfLength(52)
+            );
+            case 1 -> new KibanaEnrollmentResponse(
+                original.getTokenName(),
+                new SecureString(randomAlphaOfLengthBetween(71, 90).toCharArray()),
+                randomAlphaOfLength(52)
+            );
+            case 2 -> new KibanaEnrollmentResponse(randomAlphaOfLengthBetween(14, 20), original.getTokenValue(), randomAlphaOfLength(52));
+            case 3 -> new KibanaEnrollmentResponse(
+                randomAlphaOfLengthBetween(14, 20),
+                new SecureString(randomAlphaOfLengthBetween(71, 90).toCharArray()),
+                original.getHttpCa()
+            );
+            // we never reach here
+            default -> null;
+        };
     }
 }

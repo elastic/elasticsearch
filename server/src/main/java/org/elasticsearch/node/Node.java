@@ -10,6 +10,7 @@ package org.elasticsearch.node;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Assertions;
@@ -28,8 +29,8 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
@@ -39,7 +40,6 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -95,6 +95,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -156,6 +157,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.shutdown.PluginShutdownService;
@@ -234,13 +236,10 @@ public class Node implements Closeable {
         }, Property.NodeScope)
     );
     public static final Setting<String> BREAKER_TYPE_KEY = new Setting<>("indices.breaker.type", "hierarchy", (s) -> {
-        switch (s) {
-            case "hierarchy":
-            case "none":
-                return s;
-            default:
-                throw new IllegalArgumentException("indices.breaker.type must be one of [hierarchy, none] but was: " + s);
-        }
+        return switch (s) {
+            case "hierarchy", "none" -> s;
+            default -> throw new IllegalArgumentException("indices.breaker.type must be one of [hierarchy, none] but was: " + s);
+        };
     }, Setting.Property.NodeScope);
 
     public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING = Setting.positiveTimeSetting(
@@ -303,7 +302,7 @@ public class Node implements Closeable {
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
                 "version[{}], pid[{}], build[{}/{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-                Build.CURRENT.getQualifiedVersion(),
+                Build.CURRENT.qualifiedVersion(),
                 jvmInfo.pid(),
                 Build.CURRENT.flavor().displayName(),
                 Build.CURRENT.type().displayName(),
@@ -331,7 +330,7 @@ public class Node implements Closeable {
             if (Build.CURRENT.isProductionRelease() == false) {
                 logger.warn(
                     "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-                    Build.CURRENT.getQualifiedVersion()
+                    Build.CURRENT.qualifiedVersion()
                 );
             }
             if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {
@@ -472,6 +471,7 @@ public class Node implements Closeable {
             final UsageService usageService = new UsageService();
 
             SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
+            IndexSearcher.setMaxClauseCount(SearchUtils.calculateMaxClauseValue(threadPool));
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
                 NetworkModule.getNamedWriteables().stream(),
                 IndicesModule.getNamedWriteables().stream(),
@@ -550,10 +550,9 @@ public class Node implements Closeable {
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
             modules.add(settingsModule);
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
-            final PersistedClusterStateService lucenePersistedStateFactory = new PersistedClusterStateService(
+            final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
                 nodeEnvironment,
                 xContentRegistry,
-                bigArrays,
                 clusterService.getClusterSettings(),
                 threadPool::relativeTimeInMillis
             );
@@ -624,7 +623,12 @@ public class Node implements Closeable {
                 searchModule.getRequestCacheKeyDifferentiator()
             );
 
-            final AliasValidator aliasValidator = new AliasValidator();
+            IndexSettingProviders indexSettingProviders = new IndexSettingProviders(
+                pluginsService.filterPlugins(Plugin.class)
+                    .stream()
+                    .flatMap(p -> p.getAdditionalIndexSettingProviders().stream())
+                    .collect(Collectors.toSet())
+            );
 
             final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
             final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
@@ -632,19 +636,15 @@ public class Node implements Closeable {
                 clusterService,
                 indicesService,
                 clusterModule.getAllocationService(),
-                aliasValidator,
                 shardLimitValidator,
                 environment,
                 settingsModule.getIndexScopedSettings(),
                 threadPool,
                 xContentRegistry,
                 systemIndices,
-                forbidPrivateIndexSettings
+                forbidPrivateIndexSettings,
+                indexSettingProviders
             );
-            pluginsService.filterPlugins(Plugin.class)
-                .forEach(
-                    p -> p.getAdditionalIndexSettingProviders().forEach(metadataCreateIndexService::addAdditionalIndexSettingProvider)
-                );
 
             final MetadataCreateDataStreamService metadataCreateDataStreamService = new MetadataCreateDataStreamService(
                 threadPool,
@@ -909,9 +909,8 @@ public class Node implements Closeable {
                 b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                 b.bind(MetadataUpgrader.class).toInstance(metadataUpgrader);
                 b.bind(MetaStateService.class).toInstance(metaStateService);
-                b.bind(PersistedClusterStateService.class).toInstance(lucenePersistedStateFactory);
+                b.bind(PersistedClusterStateService.class).toInstance(persistedClusterStateService);
                 b.bind(IndicesService.class).toInstance(indicesService);
-                b.bind(AliasValidator.class).toInstance(aliasValidator);
                 b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
                 b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
                 b.bind(MetadataDataStreamsService.class).toInstance(metadataDataStreamsService);
@@ -965,6 +964,7 @@ public class Node implements Closeable {
                 b.bind(SystemIndices.class).toInstance(systemIndices);
                 b.bind(PluginShutdownService.class).toInstance(pluginShutdownService);
                 b.bind(ExecutorSelector.class).toInstance(executorSelector);
+                b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
             });
             injector = modules.createInjector();
 

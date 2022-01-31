@@ -9,7 +9,7 @@
 package org.elasticsearch.rest.action.datastreams;
 
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;

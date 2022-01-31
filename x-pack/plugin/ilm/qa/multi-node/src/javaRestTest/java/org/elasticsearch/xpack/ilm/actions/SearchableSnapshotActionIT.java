@@ -427,7 +427,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // restore the datastream
         Request restoreSnapshot = new Request("POST", "/_snapshot/" + snapshotRepo + "/" + dsSnapshotName + "/_restore");
         restoreSnapshot.addParameter("wait_for_completion", "true");
-        restoreSnapshot.setJsonEntity("{\"indices\": \"" + dataStream + "\", \"include_global_state\": true}");
+        restoreSnapshot.setJsonEntity("{\"indices\": \"" + dataStream + "\", \"include_global_state\": false}");
         assertOK(client().performRequest(restoreSnapshot));
 
         assertThat(indexExists(searchableSnapMountedIndexName), is(true));

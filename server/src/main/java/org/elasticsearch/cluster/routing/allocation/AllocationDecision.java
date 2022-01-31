@@ -74,26 +74,17 @@ public enum AllocationDecision implements Writeable {
 
     public static AllocationDecision readFrom(StreamInput in) throws IOException {
         byte id = in.readByte();
-        switch (id) {
-            case 0:
-                return YES;
-            case 1:
-                return THROTTLED;
-            case 2:
-                return NO;
-            case 3:
-                return WORSE_BALANCE;
-            case 4:
-                return AWAITING_INFO;
-            case 5:
-                return ALLOCATION_DELAYED;
-            case 6:
-                return NO_VALID_SHARD_COPY;
-            case 7:
-                return NO_ATTEMPT;
-            default:
-                throw new IllegalArgumentException("Unknown value [" + id + "]");
-        }
+        return switch (id) {
+            case 0 -> YES;
+            case 1 -> THROTTLED;
+            case 2 -> NO;
+            case 3 -> WORSE_BALANCE;
+            case 4 -> AWAITING_INFO;
+            case 5 -> ALLOCATION_DELAYED;
+            case 6 -> NO_VALID_SHARD_COPY;
+            case 7 -> NO_ATTEMPT;
+            default -> throw new IllegalArgumentException("Unknown value [" + id + "]");
+        };
     }
 
     /**

@@ -27,6 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -90,8 +91,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
             return;
         }
         assertThat(query, either(instanceOf(SpanMultiTermQueryWrapper.class)).or(instanceOf(FieldMaskingSpanQuery.class)));
-        if (query instanceof SpanMultiTermQueryWrapper) {
-            SpanMultiTermQueryWrapper<?> wrapper = (SpanMultiTermQueryWrapper<?>) query;
+        if (query instanceof SpanMultiTermQueryWrapper<?> wrapper) {
             Query innerQuery = queryBuilder.innerQuery().toQuery(context);
             if (queryBuilder.innerQuery().boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
                 assertThat(innerQuery, instanceOf(BoostQuery.class));
@@ -105,8 +105,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
             } else {
                 assertThat(wrapper.getRewriteMethod(), instanceOf(SpanBooleanQueryRewriteWithMaxClause.class));
             }
-        } else if (query instanceof FieldMaskingSpanQuery) {
-            FieldMaskingSpanQuery mask = (FieldMaskingSpanQuery) query;
+        } else if (query instanceof FieldMaskingSpanQuery mask) {
             assertThat(mask.getMaskedQuery(), instanceOf(TermQuery.class));
         }
     }
@@ -164,6 +163,11 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         @Override
         public String fieldName() {
             return "foo";
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
         }
     }
 

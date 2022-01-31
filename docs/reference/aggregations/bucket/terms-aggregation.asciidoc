@@ -129,7 +129,7 @@ aggregation close to the `max_buckets` limit. You'll know you've gone too large
 if the request fails with a message about `max_buckets`.
 
 [[search-aggregations-bucket-terms-aggregation-shard-size]]
-==== Shard Size
+==== Shard size
 
 To get more accurate results, the `terms` agg fetches more than
 the top `size` terms from each shard. It fetches the top `shard_size` terms,
@@ -156,6 +156,10 @@ NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sens
 
 [[terms-agg-doc-count-error]]
 ==== Document count error
+
+Even with a larger `shard_size` value, `doc_count` values for a `terms`
+aggregation may be approximate. As a result, any sub-aggregations on the `terms`
+aggregation may also be approximate.
 
 `sum_other_doc_count` is the number of documents that didn't make it into the
 the top `size` terms. If this is greater than `0`, you can be sure that the

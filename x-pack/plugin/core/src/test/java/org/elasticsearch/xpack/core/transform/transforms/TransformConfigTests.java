@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -39,7 +40,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -199,23 +199,13 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     public static Map<String, Object> randomMetadata() {
         return randomMap(0, 10, () -> {
             String key = randomAlphaOfLengthBetween(1, 10);
-            Object value;
-            switch (randomIntBetween(0, 3)) {
-                case 0:
-                    value = null;
-                    break;
-                case 1:
-                    value = randomLong();
-                    break;
-                case 2:
-                    value = randomAlphaOfLengthBetween(1, 10);
-                    break;
-                case 3:
-                    value = randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
-                    break;
-                default:
-                    throw new AssertionError();
-            }
+            Object value = switch (randomIntBetween(0, 3)) {
+                case 0 -> null;
+                case 1 -> randomLong();
+                case 2 -> randomAlphaOfLengthBetween(1, 10);
+                case 3 -> randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+                default -> throw new AssertionError();
+            };
             return Tuple.tuple(key, value);
         });
     }
@@ -251,7 +241,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     private static Map<String, String> randomHeaders() {
-        Map<String, String> headers = new HashMap<>(1);
+        Map<String, String> headers = Maps.newMapWithExpectedSize(1);
         headers.put("key", "value");
 
         return headers;
@@ -875,7 +865,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 Collections.singletonList(
                     new DeprecationIssue(
                         Level.WARNING,
-                        "Transform [" + id + "] uses deprecated max_page_search_size",
+                        "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                         false,
@@ -897,7 +887,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 List.of(
                     new DeprecationIssue(
                         Level.WARNING,
-                        "Transform [" + id + "] uses deprecated max_page_search_size",
+                        "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                         false,
@@ -919,7 +909,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 List.of(
                     new DeprecationIssue(
                         Level.CRITICAL,
-                        "Transform [" + id + "] is too old",
+                        "Transform [" + id + "] uses an obsolete configuration format",
                         TransformDeprecations.UPGRADE_TRANSFORM_URL,
                         TransformDeprecations.ACTION_UPGRADE_TRANSFORMS_API,
                         false,
@@ -927,7 +917,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                     ),
                     new DeprecationIssue(
                         Level.WARNING,
-                        "Transform [" + id + "] uses deprecated max_page_search_size",
+                        "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                         false,

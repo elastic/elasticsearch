@@ -88,6 +88,16 @@ created the data stream:
   - match: { data_streams.0.template: 'my-template1' }
   - match: { data_streams.0.hidden: false }
   - match: { data_streams.0.system: false }
+  - set:  { data_streams.0.indices.0.index_name: backing_index }
+
+  - do:
+      indices.get:
+        index: $backing_index
+        human: true
+  - match: { $body.$backing_index.data_stream: 'k8s' }
+  - match: { $body.$backing_index.settings.index.mode: 'time_series' }
+  - match: { $body.$backing_index.settings.index.time_series.start_time: '2021-04-28T00:00:00Z' }
+  - match: { $body.$backing_index.settings.index.time_series.end_time: '2021-04-29T00:00:00Z' }
 
 ---
 fetch the tsid:

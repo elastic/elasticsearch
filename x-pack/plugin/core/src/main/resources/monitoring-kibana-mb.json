@@ -22,18 +22,6 @@
             }
           }
         },
-        "elasticsearch": {
-          "properties": {
-            "cluster": {
-              "properties": {
-                "id": {
-                  "ignore_above": 1024,
-                  "type": "keyword"
-                }
-              }
-            }
-          }
-        },
         "service": {
           "properties": {
             "address": {
@@ -172,6 +160,18 @@
         },
         "kibana": {
           "properties": {
+            "elasticsearch": {
+              "properties": {
+                "cluster": {
+                  "properties": {
+                    "id": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            },
             "stats": {
               "properties": {
                 "request": {
@@ -639,12 +639,13 @@
         },
         "cluster_uuid": {
           "type": "alias",
-          "path": "elasticsearch.cluster.id"
+          "path": "kibana.elasticsearch.cluster.id"
         }
       }
     },
     "settings": {
-      "index.mapping.total_fields.limit": 2000
+      "index.mapping.total_fields.limit": 2000,
+      "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
     }
   },
   "data_stream": {}

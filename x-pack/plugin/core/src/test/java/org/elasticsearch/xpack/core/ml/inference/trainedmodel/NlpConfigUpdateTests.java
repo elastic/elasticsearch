@@ -60,7 +60,19 @@ public class NlpConfigUpdateTests extends ESTestCase {
             ElasticsearchStatusException.class,
             () -> NlpConfigUpdate.tokenizationFromMap(finalConfig)
         );
-        assertThat(e.getMessage(), containsString("unknown tokenization type expecting one of [bert] got [not_bert]"));
+        assertThat(e.getMessage(), containsString("unknown tokenization type expecting one of [bert, mpnet] got [not_bert]"));
+    }
 
+    public void testTokenizationFromMap_MpNet() {
+        Map<String, Object> config = new HashMap<>() {
+            {
+                Map<String, Object> truncate = new HashMap<>();
+                truncate.put("truncate", "first");
+                Map<String, Object> tokenizer = new HashMap<>();
+                tokenizer.put("mpnet", truncate);
+                put("tokenization", tokenizer);
+            }
+        };
+        assertThat(NlpConfigUpdate.tokenizationFromMap(config), equalTo(new MPNetTokenizationUpdate(Tokenization.Truncate.FIRST)));
     }
 }

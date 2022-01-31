@@ -44,6 +44,7 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSourceType;
@@ -60,6 +61,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -107,7 +109,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     public static class Defaults {
-        public static final Set<Metric> METRICS = Collections.emptySet();
+        public static final EnumSet<Metric> METRICS = EnumSet.noneOf(Metric.class);
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -116,7 +118,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         private final Parameter<Boolean> ignoreMalformed;
 
-        private final Parameter<Set<Metric>> metrics = new Parameter<>(Names.METRICS, false, () -> Defaults.METRICS, (n, c, o) -> {
+        private final Parameter<EnumSet<Metric>> metrics = new Parameter<>(Names.METRICS, false, () -> Defaults.METRICS, (n, c, o) -> {
             @SuppressWarnings("unchecked")
             List<String> metricsList = (List<String>) o;
             EnumSet<Metric> parsedMetrics = EnumSet.noneOf(Metric.class);
@@ -129,7 +131,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }
             }
             return parsedMetrics;
-        }, m -> toType(m).metrics).addValidator(v -> {
+        }, m -> toType(m).metrics, XContentBuilder::enumSet, Objects::toString).addValidator(v -> {
             if (v == null || v.isEmpty()) {
                 throw new IllegalArgumentException("Property [" + Names.METRICS + "] is required for field [" + name() + "].");
             }
@@ -151,7 +153,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Metric [" + o.toString() + "] is not supported.", e);
             }
-        }, m -> toType(m).defaultMetric);
+        }, m -> toType(m).defaultMetric, XContentBuilder::field, Objects::toString);
 
         public Builder(String name, Boolean ignoreMalformedByDefault) {
             super(name);
@@ -321,6 +323,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         Metric getDefaultMetric() {
             return defaultMetric;
+        }
+
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return delegateFieldType().mayExistInIndex(context);    // TODO how does searching actually work here?
         }
 
         @Override
@@ -510,7 +517,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     private final boolean ignoreMalformedByDefault;
 
     /** A set of metrics supported */
-    private final Set<Metric> metrics;
+    private final EnumSet<Metric> metrics;
 
     /** The default metric to be when querying this field type */
     protected Metric defaultMetric;

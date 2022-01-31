@@ -517,18 +517,10 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         switch (reason) {
-
-            case INDEX_CREATED:
-                routingTableBuilder.addAsNew(metadata.index(shardId.getIndex()));
-                break;
-            case CLUSTER_RECOVERED:
-                routingTableBuilder.addAsRecovery(metadata.index(shardId.getIndex()));
-                break;
-            case INDEX_REOPENED:
-                routingTableBuilder.addAsFromCloseToOpen(metadata.index(shardId.getIndex()));
-                break;
-            default:
-                throw new IllegalArgumentException("can't do " + reason + " for you. teach me");
+            case INDEX_CREATED -> routingTableBuilder.addAsNew(metadata.index(shardId.getIndex()));
+            case CLUSTER_RECOVERED -> routingTableBuilder.addAsRecovery(metadata.index(shardId.getIndex()));
+            case INDEX_REOPENED -> routingTableBuilder.addAsFromCloseToOpen(metadata.index(shardId.getIndex()));
+            default -> throw new IllegalArgumentException("can't do " + reason + " for you. teach me");
         }
         ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)

@@ -103,15 +103,15 @@ public class ExecutionManager {
                         break;
                     }
                     // optional field
-                } else if (extractor instanceof ComputingExtractor) {
-                    keyFields.add(((ComputingExtractor) extractor).hitName());
+                } else if (extractor instanceof ComputingExtractor computingExtractor) {
+                    keyFields.add(computingExtractor.hitName());
                 }
             }
 
             PhysicalPlan query = plans.get(i);
             // search query
-            if (query instanceof EsQueryExec) {
-                SearchSourceBuilder source = ((EsQueryExec) query).source(session, false);
+            if (query instanceof EsQueryExec esQueryExec) {
+                SearchSourceBuilder source = esQueryExec.source(session, false);
                 QueryRequest original = () -> source;
                 BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, keyFields, optionalKeys);
                 Criterion<BoxedQueryRequest> criterion = new Criterion<>(

@@ -54,8 +54,7 @@ public class TextClassificationProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
-        if (config instanceof TextClassificationConfig) {
-            TextClassificationConfig textClassificationConfig = (TextClassificationConfig) config;
+        if (config instanceof TextClassificationConfig textClassificationConfig) {
             return (tokenization, pytorchResult) -> processResult(
                 tokenization,
                 pytorchResult,

@@ -113,31 +113,16 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         FieldSortBuilder mutated = new FieldSortBuilder(original);
         int parameter = randomIntBetween(0, 6);
         switch (parameter) {
-            case 0:
-                mutated.setNestedSort(
-                    randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3))
-                );
-                break;
-            case 1:
-                mutated.sortMode(randomValueOtherThan(original.sortMode(), () -> randomFrom(SortMode.values())));
-                break;
-            case 2:
-                mutated.unmappedType(randomValueOtherThan(original.unmappedType(), () -> randomAlphaOfLengthBetween(1, 10)));
-                break;
-            case 3:
-                mutated.missing(randomValueOtherThan(original.missing(), () -> randomFrom(missingContent)));
-                break;
-            case 4:
-                mutated.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
-                break;
-            case 5:
-                mutated.setNumericType(randomValueOtherThan(original.getNumericType(), () -> randomFrom("long", "double")));
-                break;
-            case 6:
-                mutated.setFormat(randomValueOtherThan(original.getFormat(), () -> randomFrom("yyyy-MM-dd", "yyyy/MM/dd")));
-                break;
-            default:
-                throw new IllegalStateException("Unsupported mutation.");
+            case 0 -> mutated.setNestedSort(
+                randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3))
+            );
+            case 1 -> mutated.sortMode(randomValueOtherThan(original.sortMode(), () -> randomFrom(SortMode.values())));
+            case 2 -> mutated.unmappedType(randomValueOtherThan(original.unmappedType(), () -> randomAlphaOfLengthBetween(1, 10)));
+            case 3 -> mutated.missing(randomValueOtherThan(original.missing(), () -> randomFrom(missingContent)));
+            case 4 -> mutated.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
+            case 5 -> mutated.setNumericType(randomValueOtherThan(original.getNumericType(), () -> randomFrom("long", "double")));
+            case 6 -> mutated.setFormat(randomValueOtherThan(original.getFormat(), () -> randomFrom("yyyy-MM-dd", "yyyy/MM/dd")));
+            default -> throw new IllegalStateException("Unsupported mutation.");
         }
         return mutated;
     }
@@ -477,50 +462,42 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                     for (int i = 0; i < numDocs; i++) {
                         Document doc = new Document();
                         switch (numberType) {
-                            case LONG:
+                            case LONG -> {
                                 long v1 = randomLong();
                                 values[i] = v1;
                                 doc.add(new LongPoint(fieldName, v1));
-                                break;
-
-                            case INTEGER:
+                            }
+                            case INTEGER -> {
                                 int v2 = randomInt();
                                 values[i] = (long) v2;
                                 doc.add(new IntPoint(fieldName, v2));
-                                break;
-
-                            case DOUBLE:
+                            }
+                            case DOUBLE -> {
                                 double v3 = randomDouble();
                                 values[i] = v3;
                                 doc.add(new DoublePoint(fieldName, v3));
-                                break;
-
-                            case FLOAT:
+                            }
+                            case FLOAT -> {
                                 float v4 = randomFloat();
                                 values[i] = v4;
                                 doc.add(new FloatPoint(fieldName, v4));
-                                break;
-
-                            case HALF_FLOAT:
+                            }
+                            case HALF_FLOAT -> {
                                 float v5 = randomFloat();
                                 values[i] = (double) v5;
                                 doc.add(new HalfFloatPoint(fieldName, v5));
-                                break;
-
-                            case BYTE:
+                            }
+                            case BYTE -> {
                                 byte v6 = randomByte();
                                 values[i] = (long) v6;
                                 doc.add(new IntPoint(fieldName, v6));
-                                break;
-
-                            case SHORT:
+                            }
+                            case SHORT -> {
                                 short v7 = randomShort();
                                 values[i] = (long) v7;
                                 doc.add(new IntPoint(fieldName, v7));
-                                break;
-
-                            default:
-                                throw new AssertionError("unknown type " + numberType);
+                            }
+                            default -> throw new AssertionError("unknown type " + numberType);
                         }
                         writer.addDocument(doc);
                     }

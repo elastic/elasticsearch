@@ -51,10 +51,9 @@ import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_F
  * be called for each settings update.
  */
 public final class IndexSettings {
-    public static final Setting<List<String>> DEFAULT_FIELD_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> DEFAULT_FIELD_SETTING = Setting.stringListSetting(
         "index.query.default_field",
         Collections.singletonList("*"),
-        Function.identity(),
         Property.IndexScope,
         Property.Dynamic
     );
@@ -106,16 +105,12 @@ public final class IndexSettings {
         Property.IndexScope
     );
     public static final Setting<String> INDEX_CHECK_ON_STARTUP = new Setting<>("index.shard.check_on_startup", "false", (s) -> {
-        switch (s) {
-            case "false":
-            case "true":
-            case "checksum":
-                return s;
-            default:
-                throw new IllegalArgumentException(
-                    "unknown value for [index.shard.check_on_startup] must be one of " + "[true, false, checksum] but was: " + s
-                );
-        }
+        return switch (s) {
+            case "false", "true", "checksum" -> s;
+            default -> throw new IllegalArgumentException(
+                "unknown value for [index.shard.check_on_startup] must be one of " + "[true, false, checksum] but was: " + s
+            );
+        };
     }, Property.IndexScope);
 
     /**
@@ -537,6 +532,15 @@ public final class IndexSettings {
                 return IndexMode.VALIDATE_WITH_SETTINGS.iterator();
             }
         },
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
+        "index.look_ahead_time",
+        TimeValue.timeValueHours(2),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueDays(7),
         Property.IndexScope,
         Property.Final
     );

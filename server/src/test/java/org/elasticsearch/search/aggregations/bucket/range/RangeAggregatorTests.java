@@ -135,7 +135,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 List<? extends InternalRange.Bucket> ranges = range.getBuckets();
                 assertEquals(1, ranges.size());
                 assertEquals(from + "-" + to, ranges.get(0).getKeyAsString());
-                assertEquals(2, ranges.get(0).getDocCount());
+                assertEquals(1, ranges.get(0).getDocCount());
             },
             field
         );

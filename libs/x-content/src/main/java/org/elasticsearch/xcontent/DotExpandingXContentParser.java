@@ -89,11 +89,11 @@ public class DotExpandingXContentParser extends FilterXContentParser {
         for (String part : parts) {
             // check if the field name contains only whitespace
             if (part.isEmpty()) {
-                throw new IllegalArgumentException("object field cannot contain only whitespace: ['" + fullFieldPath + "']");
+                throw new IllegalArgumentException("field name cannot contain only whitespace: ['" + fullFieldPath + "']");
             }
             if (part.isBlank()) {
                 throw new IllegalArgumentException(
-                    "object field starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]"
+                    "field name starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]"
                 );
             }
         }
@@ -110,16 +110,17 @@ public class DotExpandingXContentParser extends FilterXContentParser {
     }
 
     private enum State {
-        PRE,
-        DURING,
-        POST
+        EXPANDING_START_OBJECT,
+        PARSING_ORIGINAL_CONTENT,
+        ENDING_EXPANDED_OBJECT
     }
 
     final String[] subPaths;
     final XContentParser subparser;
 
-    int level = 0;
-    private State state = State.PRE;
+    private int expandedTokens = 0;
+    private int innerLevel = -1;
+    private State state = State.EXPANDING_START_OBJECT;
 
     private DotExpandingXContentParser(XContentParser subparser, XContentParser root, String[] subPaths) {
         super(root);
@@ -129,72 +130,86 @@ public class DotExpandingXContentParser extends FilterXContentParser {
 
     @Override
     public Token nextToken() throws IOException {
-        if (state == State.PRE) {
-            level++;
-            if (level == subPaths.length * 2 - 1) {
-                state = State.DURING;
-                return in.currentToken();
+        if (state == State.EXPANDING_START_OBJECT) {
+            expandedTokens++;
+            assert expandedTokens < subPaths.length * 2;
+            if (expandedTokens == subPaths.length * 2 - 1) {
+                state = State.PARSING_ORIGINAL_CONTENT;
+                Token token = in.currentToken();
+                if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
+                    innerLevel++;
+                }
+                return token;
             }
-            if (level % 2 == 0) {
+            // The expansion consists of adding pairs of START_OBJECT and FIELD_NAME tokens
+            if (expandedTokens % 2 == 0) {
                 return Token.FIELD_NAME;
             }
             return Token.START_OBJECT;
         }
-        if (state == State.DURING) {
+        if (state == State.PARSING_ORIGINAL_CONTENT) {
             Token token = subparser.nextToken();
+            if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
+                innerLevel++;
+            }
+            if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
+                innerLevel--;
+            }
             if (token != null) {
                 return token;
             }
-            state = State.POST;
+            state = State.ENDING_EXPANDED_OBJECT;
         }
-        assert state == State.POST;
-        if (level >= 1) {
-            level -= 2;
-        }
-        return level < 0 ? null : Token.END_OBJECT;
+        assert expandedTokens % 2 == 1;
+        expandedTokens -= 2;
+        return expandedTokens < 0 ? null : Token.END_OBJECT;
     }
 
     @Override
     public Token currentToken() {
-        if (state == State.PRE) {
-            return level % 2 == 1 ? Token.START_OBJECT : Token.FIELD_NAME;
-        }
-        if (state == State.POST) {
-            if (level > 1) {
-                return Token.END_OBJECT;
-            }
-        }
-        return in.currentToken();
+        return switch (state) {
+            case EXPANDING_START_OBJECT -> expandedTokens % 2 == 1 ? Token.START_OBJECT : Token.FIELD_NAME;
+            case ENDING_EXPANDED_OBJECT -> Token.END_OBJECT;
+            case PARSING_ORIGINAL_CONTENT -> in.currentToken();
+        };
     }
 
     @Override
     public String currentName() throws IOException {
-        if (state == State.DURING) {
-            return in.currentName();
-        }
-        if (state == State.POST) {
-            if (level <= 1) {
+        if (state == State.PARSING_ORIGINAL_CONTENT) {
+            assert expandedTokens == subPaths.length * 2 - 1;
+            // whenever we are parsing some inner object/array we can easily delegate to the inner parser
+            // e.g. field.with.dots: { obj:{ parsing here } }
+            if (innerLevel > 0) {
                 return in.currentName();
             }
-            throw new IllegalStateException("Can't get current name during END_OBJECT");
+            Token token = currentToken();
+            // if we are parsing the outer object/array, only at the start object/array we need to return
+            // e.g. dots instead of field.with.dots otherwise we can simply delegate to the inner parser
+            // which will do the right thing
+            if (innerLevel == 0 && token != Token.START_OBJECT && token != Token.START_ARRAY) {
+                return in.currentName();
+            }
+            // note that innerLevel can be -1 if there are no inner object/array e.g. field.with.dots: value
+            // as well as while there is and we are parsing their END_OBJECT or END_ARRAY
         }
-        return subPaths[level / 2];
+        return subPaths[expandedTokens / 2];
     }
 
     @Override
     public void skipChildren() throws IOException {
-        if (state == State.PRE) {
+        if (state == State.EXPANDING_START_OBJECT) {
             in.skipChildren();
-            state = State.POST;
+            state = State.ENDING_EXPANDED_OBJECT;
         }
-        if (state == State.DURING) {
+        if (state == State.PARSING_ORIGINAL_CONTENT) {
             subparser.skipChildren();
         }
     }
 
     @Override
     public String textOrNull() throws IOException {
-        if (state == State.PRE) {
+        if (state == State.EXPANDING_START_OBJECT) {
             throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
         }
         return super.textOrNull();
@@ -202,7 +217,7 @@ public class DotExpandingXContentParser extends FilterXContentParser {
 
     @Override
     public Number numberValue() throws IOException {
-        if (state == State.PRE) {
+        if (state == State.EXPANDING_START_OBJECT) {
             throw new IllegalStateException("Can't get numeric value on a " + currentToken() + " at " + getTokenLocation());
         }
         return super.numberValue();
@@ -210,7 +225,7 @@ public class DotExpandingXContentParser extends FilterXContentParser {
 
     @Override
     public boolean booleanValue() throws IOException {
-        if (state == State.PRE) {
+        if (state == State.EXPANDING_START_OBJECT) {
             throw new IllegalStateException("Can't get boolean value on a " + currentToken() + " at " + getTokenLocation());
         }
         return super.booleanValue();

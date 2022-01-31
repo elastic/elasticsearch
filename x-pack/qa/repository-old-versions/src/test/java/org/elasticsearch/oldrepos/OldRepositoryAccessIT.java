@@ -395,8 +395,14 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         boolean sourceOnlyRepository,
         Version oldVersion
     ) throws IOException {
+        RequestOptions v7RequestOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Content-Type", "application/vnd.elasticsearch+json;compatible-with=7")
+            .addHeader("Accept", "application/vnd.elasticsearch+json;compatible-with=7")
+            .build();
+        RequestOptions randomRequestOptions = randomBoolean() ? RequestOptions.DEFAULT : v7RequestOptions;
+
         // run a search against the index
-        SearchResponse searchResponse = client.search(new SearchRequest(index), RequestOptions.DEFAULT);
+        SearchResponse searchResponse = client.search(new SearchRequest(index), randomRequestOptions);
         logger.info(searchResponse);
         // check hit count
         assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
@@ -420,7 +426,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                     .query(QueryBuilders.matchQuery("val", num))
                     .runtimeMappings(Map.of("val", Map.of("type", "long")))
             ),
-            RequestOptions.DEFAULT
+            randomRequestOptions
         );
         logger.info(searchResponse);
         assertEquals(1, searchResponse.getHits().getTotalHits().value);
@@ -445,7 +451,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                         .query(QueryBuilders.matchAllQuery())
                         .sort(SortBuilders.fieldSort("val").order(SortOrder.DESC))
                 ),
-                RequestOptions.DEFAULT
+                randomRequestOptions
             );
             logger.info(searchResponse);
             // check sort order
@@ -460,7 +466,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 long typeCount = expectedIds.stream().filter(idd -> getType(oldVersion, idd).equals(randomType)).count();
                 searchResponse = client.search(
                     new SearchRequest(index).source(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("_type", randomType))),
-                    RequestOptions.DEFAULT
+                    randomRequestOptions
                 );
                 logger.info(searchResponse);
                 assertEquals(typeCount, searchResponse.getHits().getTotalHits().value);

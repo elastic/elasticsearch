@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -61,7 +62,6 @@ public class MetadataRolloverService {
     private final ThreadPool threadPool;
     private final MetadataCreateIndexService createIndexService;
     private final MetadataIndexAliasesService indexAliasesService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
 
     @Inject
@@ -69,13 +69,11 @@ public class MetadataRolloverService {
         ThreadPool threadPool,
         MetadataCreateIndexService createIndexService,
         MetadataIndexAliasesService indexAliasesService,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices
     ) {
         this.threadPool = threadPool;
         this.createIndexService = createIndexService;
         this.indexAliasesService = indexAliasesService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
     }
 
@@ -163,10 +161,8 @@ public class MetadataRolloverService {
         final String sourceProvidedName = writeIndex.getSettings()
             .get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, writeIndex.getIndex().getName());
         final String sourceIndexName = writeIndex.getIndex().getName();
-        final String unresolvedName = (newIndexName != null)
-            ? newIndexName
-            : generateRolloverIndexName(sourceProvidedName, indexNameExpressionResolver);
-        final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
+        final String unresolvedName = (newIndexName != null) ? newIndexName : generateRolloverIndexName(sourceProvidedName);
+        final String rolloverIndexName = IndexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
         return new NameResolution(sourceIndexName, unresolvedName, rolloverIndexName);
     }
 
@@ -247,15 +243,17 @@ public class MetadataRolloverService {
             );
         }
 
+        final ComposableIndexTemplate templateV2;
         final SystemDataStreamDescriptor systemDataStreamDescriptor;
         if (dataStream.isSystem() == false) {
             systemDataStreamDescriptor = null;
-            lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+            templateV2 = lookupTemplateForDataStream(dataStreamName, currentState.metadata());
         } else {
             systemDataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamName);
             if (systemDataStreamDescriptor == null) {
                 throw new IllegalArgumentException("no system data stream descriptor found for data stream [" + dataStreamName + "]");
             }
+            templateV2 = systemDataStreamDescriptor.getComposableIndexTemplate();
         }
 
         final DataStream ds = dataStream.getDataStream();
@@ -275,6 +273,7 @@ public class MetadataRolloverService {
             systemDataStreamDescriptor,
             now
         );
+        createIndexClusterStateRequest.setMatchingTemplate(templateV2);
         ClusterState newState = createIndexService.applyCreateIndexRequest(
             currentState,
             createIndexClusterStateRequest,
@@ -293,8 +292,8 @@ public class MetadataRolloverService {
         return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
     }
 
-    static String generateRolloverIndexName(String sourceIndexName, IndexNameExpressionResolver indexNameExpressionResolver) {
-        String resolvedName = indexNameExpressionResolver.resolveDateMathExpression(sourceIndexName);
+    static String generateRolloverIndexName(String sourceIndexName) {
+        String resolvedName = IndexNameExpressionResolver.resolveDateMathExpression(sourceIndexName);
         final boolean isDateMath = sourceIndexName.equals(resolvedName) == false;
         if (INDEX_NAME_PATTERN.matcher(resolvedName).matches()) {
             int numberIndex = sourceIndexName.lastIndexOf("-");

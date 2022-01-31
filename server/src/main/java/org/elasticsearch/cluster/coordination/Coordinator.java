@@ -308,8 +308,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     "node-left",
                     task,
                     ClusterStateTaskConfig.build(Priority.IMMEDIATE),
-                    nodeRemovalExecutor,
-                    task
+                    nodeRemovalExecutor
                 );
             }
         }

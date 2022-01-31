@@ -8,9 +8,10 @@
 
 package org.elasticsearch.search.aggregations.timeseries;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -80,7 +81,7 @@ public class TimeSeriesIndexSearcher {
         private final LeafCollector collector;
         private final Bits liveDocs;
         private final DocIdSetIterator iterator;
-        private final SortedSetDocValues tsids;
+        private final SortedDocValues tsids;
         private final SortedNumericDocValues timestamps;
         final int docBase;
         int docId;
@@ -93,8 +94,8 @@ public class TimeSeriesIndexSearcher {
             this.collector.setScorer(scorer);
             iterator = scorer.iterator();
             docBase = context.docBase;
-            tsids = context.reader().getSortedSetDocValues(TimeSeriesIdFieldMapper.NAME);
-            timestamps = context.reader().getSortedNumericDocValues(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+            tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
+            timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
         }
 
         void collectCurrent() throws IOException {
@@ -106,7 +107,7 @@ public class TimeSeriesIndexSearcher {
                 docId = iterator.nextDoc();
                 if (docId != DocIdSetIterator.NO_MORE_DOCS && (liveDocs == null || liveDocs.get(docId))) {
                     if (tsids.advanceExact(docId)) {
-                        BytesRef tsid = tsids.lookupOrd(tsids.nextOrd());
+                        BytesRef tsid = tsids.lookupOrd(tsids.ordValue());
                         if (timestamps.advanceExact(docId)) {
                             this.timestamp = timestamps.nextValue();
                             if (tsid.equals(this.tsid) == false) {

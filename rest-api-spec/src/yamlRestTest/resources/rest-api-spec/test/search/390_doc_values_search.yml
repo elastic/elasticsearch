@@ -42,6 +42,9 @@ setup:
               boolean:
                 type: boolean
                 index: false
+              ip:
+                type: ip
+                index: false
 
   - do:
       index:
@@ -58,6 +61,7 @@ setup:
           date: "2017/01/01"
           keyword: "key1"
           boolean: "false"
+          ip: "192.168.0.1"
 
   - do:
       index:
@@ -74,6 +78,7 @@ setup:
           date: "2017/01/02"
           keyword: "key2"
           boolean: "true"
+          ip: "192.168.0.2"
 
   - do:
       indices.refresh: {}
@@ -283,4 +288,31 @@ setup:
       search:
         index: test
         body: { query: { range: { boolean: { gte: "false" } } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test match query on ip field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { match: { ip: { query: "192.168.0.1" } } } }
+  - length:   { hits.hits: 1  }
+
+---
+"Test terms query on ip field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { terms: { ip: [ "192.168.0.1", "192.168.0.2" ] } } }
+  - length:   { hits.hits: 2  }
+
+---
+"Test range query on ip field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body: { query: { range: { ip: { gte: "192.168.0.1" } } } }
   - length:   { hits.hits: 2  }

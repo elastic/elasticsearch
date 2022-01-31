@@ -13,6 +13,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.XContent;
@@ -404,7 +405,8 @@ public interface IndexAbstraction {
 
         public static final XContentParserConfiguration TS_EXTRACT_CONFIG = XContentParserConfiguration.EMPTY.withFiltering(
             Set.of("@timestamp"),
-            null
+            null,
+            false
         );
 
         private final org.elasticsearch.cluster.metadata.DataStream dataStream;
@@ -444,7 +446,7 @@ public interface IndexAbstraction {
                 return getWriteIndex();
             }
 
-            if (dataStream.isTimeSeries(metadata::index) == false) {
+            if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
                 return getWriteIndex();
             }
 

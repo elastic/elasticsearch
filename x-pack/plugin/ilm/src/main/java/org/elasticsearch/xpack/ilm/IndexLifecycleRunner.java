@@ -684,7 +684,7 @@ class IndexLifecycleRunner {
                 busyIndices.remove(dedupKey);
                 assert removed : "tried to unregister unknown task [" + task + "]";
             }));
-            clusterService.submitStateUpdateTask(source, task, ILM_TASK_CONFIG, ILM_TASK_EXECUTOR, task);
+            clusterService.submitStateUpdateTask(source, task, ILM_TASK_CONFIG, ILM_TASK_EXECUTOR);
         } else {
             logger.trace("skipped redundant execution of [{}]", source);
         }

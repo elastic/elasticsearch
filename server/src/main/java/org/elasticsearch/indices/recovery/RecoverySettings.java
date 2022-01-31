@@ -93,7 +93,7 @@ public class RecoverySettings {
         "node.bandwidth.recovery.network"
     );
 
-    static final double DEFAULT_FACTOR_VALUE = 0.8d;
+    static final double DEFAULT_FACTOR_VALUE = 0.4d;
 
     /**
      * Default factor as defined by the operator.

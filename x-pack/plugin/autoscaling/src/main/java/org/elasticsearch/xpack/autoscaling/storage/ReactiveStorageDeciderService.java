@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -567,9 +568,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             DataStream dataStream = stream.getDataStream();
             for (int i = 0; i < numberNewIndices; ++i) {
                 final String uuid = UUIDs.randomBase64UUID();
-                long generation = dataStream.getGeneration() + 1;
-                final String indexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), generation, now) + "-" + uuid;
-                dataStream = dataStream.unsafeRollover(new Index(indexName, uuid), generation);
+                final Tuple<String, Long> rolledDataStreamInfo = dataStream.unsafeNextWriteIndexAndGeneration(state.metadata());
+                dataStream = dataStream.unsafeRollover(new Index(rolledDataStreamInfo.v1(), uuid), rolledDataStreamInfo.v2());
 
                 // this unintentionally copies the in-sync allocation ids too. This has the fortunate effect of these indices
                 // not being regarded new by the disk threshold decider, thereby respecting the low watermark threshold even for primaries.
@@ -577,7 +577,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 // ensuring at least that when replicas are involved, we still respect the low watermark. This is therefore left as is
                 // for now with the intention to fix in a follow-up.
                 IndexMetadata newIndex = IndexMetadata.builder(writeIndex)
-                    .index(indexName)
+                    .index(dataStream.getWriteIndex().getName())
                     .settings(Settings.builder().put(writeIndex.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, uuid))
                     .build();
                 long size = Math.min(avgSizeCeil, scaledTotalSize - (avgSizeCeil * i));

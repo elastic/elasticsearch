@@ -277,7 +277,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Like #rollover, but does no validation, use with care only.
+     * Like {@link #rollover(Index, long)}, but does no validation, use with care only.
      */
     public DataStream unsafeRollover(Index writeIndex, long generation) {
         List<Index> backingIndices = new ArrayList<>(indices);
@@ -306,6 +306,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     public Tuple<String, Long> nextWriteIndexAndGeneration(Metadata clusterMetadata) {
         ensureNotReplicated();
+        return unsafeNextWriteIndexAndGeneration(clusterMetadata);
+    }
+
+    /**
+     * Like {@link #nextWriteIndexAndGeneration(Metadata)}, but does no validation, use with care only.
+     */
+    public Tuple<String, Long> unsafeNextWriteIndexAndGeneration(Metadata clusterMetadata) {
         String newWriteIndexName;
         long generation = this.generation;
         long currentTimeMillis = timeProvider.getAsLong();

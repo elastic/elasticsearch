@@ -4,6 +4,8 @@
 
 Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
 
+coming::[7.17.0]
+
 [[deprecation-7.17.0]]
 [float]
 === Deprecations
@@ -29,6 +31,7 @@ Authorization::
 * Add {kib} system permissions for Endpoint action indices {es-pull}81953[#81953]
 
 ILM+SLM::
+* Add an index->step cache to the `PolicyStepsRegistry` {es-pull}82316[#82316] (issue: {es-issue}77466[#77466])
 * Migrate legacy/v2/component templates away from custom attributes routing {es-pull}82472[#82472] (issue: {es-issue}82170[#82170])
 * Migrate to data tiers API dry run on any ILM status {es-pull}82226[#82226] (issue: {es-issue}82169[#82169])
 
@@ -65,6 +68,9 @@ Aggregations::
 * Fix bucket keys format for range aggregations on float field {es-pull}81801[#81801] (issue: {es-issue}81749[#81749])
 * Fix cardinality aggregation in asynchronous search {es-pull}82108[#82108]
 * Fix missing fields in range aggregation response for date fields {es-pull}82732[#82732] (issue: {es-issue}82688[#82688])
+
+Allocation::
+* Correct context for batched reroute notifications {es-pull}83019[#83019]
 
 Authorization::
 * Fix field level security for frozen tier {es-pull}82521[#82521] (issues: {es-issue}78988[#78988], {es-issue}82044[#82044])
@@ -109,19 +115,25 @@ Machine Learning::
 Monitoring::
 * Always attempt upgrade monitoring templates {es-pull}82713[#82713] (issue: {es-issue}82453[#82453])
 
-Search::
-* Fix bug where field is not returned if it has the same prefix as a nested field {es-pull}82922[#82922] (issue: {es-issue}82905[#82905])
+Network::
+* Correct context for `ClusterConnManager` listener {es-pull}83035[#83035]
 
 Settings::
 * Change `deprecation.skip_deprecated_settings` to work with dynamic settings {es-pull}81836[#81836]
 * Check both node and cluster settings in `NodeDeprecationChecks` {es-pull}82487[#82487] (issue: {es-issue}82484[#82484])
 * Ignore dynamic settings specified by `deprecation.skip_deprecated_settings` in node deprecation checks {es-pull}82883[#82883] (issue: {es-issue}82889[#82889])
 
+Search::
+* Fix bug where field is not returned if it has the same prefix as a nested field {es-pull}82922[#82922] (issue: {es-issue}82905[#82905])
+
 Snapshot/Restore::
 * Always fail snapshot deletion listeners on master failover {es-pull}82361[#82361] (issue: {es-issue}81596[#81596])
 * Fix potential repository corruption during master failover {es-pull}82912[#82912] (issue: {es-issue}82911[#82911])
 * Remove requirement for key setting on Azure client settings {es-pull}82030[#82030]
-* Support GKE workload identity for searchable snapshots {es-pull}82974[#82974] (issue: {es-issue}82702[#82702])
+* Support GKE Workload Identity for Searchable Snapshots {es-pull}82974[#82974] (issue: {es-issue}82702[#82702])
+
+Stats::
+* Correct context for CancellableSOCache listener {es-pull}83021[#83021]
 
 
 

@@ -166,20 +166,4 @@ public class DotExpandingXContentParserTests extends ESTestCase {
             {"first.dot":{"second.dot":"value","third":"value"},"nodots":"value"}\
             """);
     }
-
-    public void testParseValue() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, """
-            { "test" : { "with" : { "dots" : "value"}}}""");
-        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-        assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
-        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-        parser.booleanValue();
-        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-    }
 }

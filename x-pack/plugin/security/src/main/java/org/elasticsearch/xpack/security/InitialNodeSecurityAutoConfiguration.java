@@ -254,7 +254,7 @@ public class InitialNodeSecurityAutoConfiguration {
         } else if (false == Strings.isEmpty(elasticPassword)) {
             builder.append(
                 infoBullet
-                    + " Password for the "
+                    + "  Password for the "
                     + boldOnANSI
                     + "elastic"
                     + boldOffANSI
@@ -271,7 +271,7 @@ public class InitialNodeSecurityAutoConfiguration {
         builder.append(System.lineSeparator());
 
         if (null != caCertFingerprint) {
-            builder.append(infoBullet + " HTTP CA certificate SHA-256 fingerprint:");
+            builder.append(infoBullet + "  HTTP CA certificate SHA-256 fingerprint:");
             builder.append(System.lineSeparator());
             builder.append("  " + boldOnANSI + caCertFingerprint + boldOffANSI);
         }
@@ -279,7 +279,7 @@ public class InitialNodeSecurityAutoConfiguration {
         builder.append(System.lineSeparator());
 
         if (null != kibanaEnrollmentToken) {
-            builder.append(infoBullet + " Configure Kibana to use this cluster:");
+            builder.append(infoBullet + "  Configure Kibana to use this cluster:");
             builder.append(System.lineSeparator());
             builder.append(bullet + " Run Kibana and click the configuration link in the terminal when Kibana starts.");
             builder.append(System.lineSeparator());
@@ -325,7 +325,7 @@ public class InitialNodeSecurityAutoConfiguration {
                     + ", using the enrollment token that you generated."
             );
         } else if (Strings.isEmpty(nodeEnrollmentToken)) {
-            builder.append(infoBullet + " Configure other nodes to join this cluster:");
+            builder.append(infoBullet + "  Configure other nodes to join this cluster:");
             builder.append(System.lineSeparator());
             builder.append(bullet + " On this node:");
             builder.append(System.lineSeparator());

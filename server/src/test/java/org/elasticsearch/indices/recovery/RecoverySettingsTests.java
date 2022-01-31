@@ -205,9 +205,15 @@ public class RecoverySettingsTests extends ESTestCase {
 
     public void testMaxBytesPerSecOnDataNodeWithIndicesRecoveryMaxBytesPerSecAndOvercommit() {
         final Double maxOvercommitFactor = randomBoolean() ? randomDoubleBetween(1.0d, 100.0d, true) : null;
+        final ByteSizeValue indicesRecoveryMaxBytesPerSec = switch (randomInt(2)) {
+            case 0 -> ByteSizeValue.MINUS_ONE;
+            case 1 -> ByteSizeValue.ZERO;
+            case 2 -> ByteSizeValue.ofGb(between(100, 1000));
+            default -> throw new AssertionError();
+        };
         assertThat(
             "Data nodes should not exceed the max. allowed overcommit when 'indices.recovery.max_bytes_per_sec' is too large",
-            nodeRecoverySettings().withIndicesRecoveryMaxBytesPerSec(ByteSizeValue.ofGb(between(100, 1000)))
+            nodeRecoverySettings().withIndicesRecoveryMaxBytesPerSec(indicesRecoveryMaxBytesPerSec)
                 .withNetworkBandwidth(ByteSizeValue.ofGb(1))
                 .withDiskReadBandwidth(ByteSizeValue.ofMb(500))
                 .withDiskWriteBandwidth(ByteSizeValue.ofMb(250))

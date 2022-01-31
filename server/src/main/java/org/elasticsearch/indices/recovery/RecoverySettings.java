@@ -521,7 +521,11 @@ public class RecoverySettings {
 
         ByteSizeValue finalMaxBytesPerSec;
         if (maxAllowedBytesPerSec > 0L) {
-            finalMaxBytesPerSec = ByteSizeValue.ofBytes(Math.min(maxBytesPerSec, maxAllowedBytesPerSec));
+            if (maxBytesPerSec > 0L) {
+                finalMaxBytesPerSec = ByteSizeValue.ofBytes(Math.min(maxBytesPerSec, maxAllowedBytesPerSec));
+            } else {
+                finalMaxBytesPerSec = ByteSizeValue.ofBytes(maxAllowedBytesPerSec);
+            }
         } else {
             finalMaxBytesPerSec = ByteSizeValue.ofBytes(maxBytesPerSec);
         }

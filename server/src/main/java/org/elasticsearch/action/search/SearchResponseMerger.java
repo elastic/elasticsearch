@@ -135,7 +135,7 @@ final class SearchResponseMerger {
 
             profileResults.putAll(searchResponse.getProfileResults());
 
-            if (searchResponse.getAggregations() != null && searchResponse.getAggregations() != InternalAggregations.EMPTY) {
+            if (searchResponse.hasAggregations()) {
                 InternalAggregations internalAggs = (InternalAggregations) searchResponse.getAggregations();
                 aggs.add(internalAggs);
             }

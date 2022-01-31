@@ -67,9 +67,9 @@ import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -154,16 +154,16 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
-        InternalSum sum = mock(InternalSum.class);
-        when(sum.getValue()).thenReturn(10.0);
+        Sum sum = mock(Sum.class);
+        when(sum.value()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
         when(sum.getName()).thenReturn("foo");
         when(sum.getMetadata()).thenReturn(metadata);
         when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(sum);
 
-        InternalSum count = mock(InternalSum.class);
-        when(count.getValue()).thenReturn(2.0);
+        Sum count = mock(Sum.class);
+        when(count.value()).thenReturn(2.0);
         when(count.value()).thenReturn(2.0);
         when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
         when(count.getMetadata()).thenReturn(null);
@@ -257,16 +257,16 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
-        InternalSum sum = mock(InternalSum.class);
-        when(sum.getValue()).thenReturn(10.0);
+        Sum sum = mock(Sum.class);
+        when(sum.value()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
         when(sum.getName()).thenReturn("foo");
         when(sum.getMetadata()).thenReturn(metadata);
         when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(sum);
 
-        InternalSum count = mock(InternalSum.class);
-        when(count.getValue()).thenReturn(2.0);
+        Sum count = mock(Sum.class);
+        when(count.value()).thenReturn(2.0);
         when(count.value()).thenReturn(2.0);
         when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
         when(count.getMetadata()).thenReturn(null);
@@ -384,16 +384,16 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
-        InternalSum sum = mock(InternalSum.class);
-        when(sum.getValue()).thenReturn(10.0);
+        Sum sum = mock(Sum.class);
+        when(sum.value()).thenReturn(10.0);
         when(sum.value()).thenReturn(10.0);
         when(sum.getName()).thenReturn("foo");
         when(sum.getMetadata()).thenReturn(metadata);
         when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(sum);
 
-        InternalSum count = mock(InternalSum.class);
-        when(count.getValue()).thenReturn(2.0);
+        Sum count = mock(Sum.class);
+        when(count.value()).thenReturn(2.0);
         when(count.value()).thenReturn(2.0);
         when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
         when(count.getMetadata()).thenReturn(null);

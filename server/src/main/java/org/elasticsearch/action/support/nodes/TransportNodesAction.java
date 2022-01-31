@@ -127,15 +127,15 @@ public abstract class TransportNodesAction<
      * pass it to the listener. Fails the listener with a {@link NullPointerException} if {@code nodesResponses} is null.
      *
      * @param request The associated request.
-     * @param responseCollector All node-level responses collected so far
-     * @throws NullPointerException if {@code nodesResponses} is {@code null}
+     * @param nodeResponseTracker All node-level responses collected so far
+     * @throws NodeResponseTracker.DiscardedResponsesException if {@code nodeResponseTracker} has already discarded the intermediate results
      * @see #newResponseAsync(Task, BaseNodesRequest, List, List, ActionListener)
      */
     // exposed for tests
-    void newResponse(Task task, NodesRequest request, NodeResponseTracker responseCollector, ActionListener<NodesResponse> listener)
+    void newResponse(Task task, NodesRequest request, NodeResponseTracker nodeResponseTracker, ActionListener<NodesResponse> listener)
         throws NodeResponseTracker.DiscardedResponsesException {
 
-        if (responseCollector == null) {
+        if (nodeResponseTracker == null) {
             listener.onFailure(new NullPointerException("nodesResponses"));
             return;
         }
@@ -143,9 +143,9 @@ public abstract class TransportNodesAction<
         final List<NodeResponse> responses = new ArrayList<>();
         final List<FailedNodeException> failures = new ArrayList<>();
 
-        for (int i = 0; i < responseCollector.size(); ++i) {
-            Object response = responseCollector.getResponse(i);
-            if (responseCollector.getResponse(i)instanceof FailedNodeException failedNodeException) {
+        for (int i = 0; i < nodeResponseTracker.size(); ++i) {
+            Object response = nodeResponseTracker.getResponse(i);
+            if (nodeResponseTracker.getResponse(i)instanceof FailedNodeException failedNodeException) {
                 failures.add(failedNodeException);
             } else {
                 responses.add(nodeResponseClass.cast(response));
@@ -286,7 +286,7 @@ public abstract class TransportNodesAction<
 
         private void onFailure(int idx, String nodeId, Throwable t) {
             logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
-            nodeResponseTracker.maybeAddResponse(idx, t);
+            nodeResponseTracker.maybeAddResponse(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
             if (nodeResponseTracker.allNodesResponded()) {
                 finishHim();
             }

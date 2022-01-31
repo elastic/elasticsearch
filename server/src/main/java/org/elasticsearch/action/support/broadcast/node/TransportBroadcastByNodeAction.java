@@ -118,7 +118,7 @@ public abstract class TransportBroadcastByNodeAction<
 
     private Response newResponse(
         Request request,
-        NodeResponseTracker responseCollector,
+        NodeResponseTracker nodeResponseTracker,
         int unavailableShardCount,
         Map<String, List<ShardRouting>> nodes,
         ClusterState clusterState
@@ -128,8 +128,8 @@ public abstract class TransportBroadcastByNodeAction<
         List<ShardOperationResult> broadcastByNodeResponses = new ArrayList<>();
         List<DefaultShardOperationFailedException> exceptions = new ArrayList<>();
         try {
-            for (int i = 0; i < responseCollector.size(); i++) {
-                Object response = responseCollector.getResponse(i);
+            for (int i = 0; i < nodeResponseTracker.size(); i++) {
+                Object response = nodeResponseTracker.getResponse(i);
                 if (response instanceof FailedNodeException exception) {
                     totalShards += nodes.get(exception.nodeId()).size();
                     for (ShardRouting shard : nodes.get(exception.nodeId())) {
@@ -393,7 +393,7 @@ public abstract class TransportBroadcastByNodeAction<
         protected void onNodeFailure(DiscoveryNode node, int nodeIndex, Throwable t) {
             String nodeId = node.getId();
             logger.debug(new ParameterizedMessage("failed to execute [{}] on node [{}]", actionName, nodeId), t);
-            nodeResponseTracker.maybeAddResponse(nodeIndex, t);
+            nodeResponseTracker.maybeAddResponse(nodeIndex, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
             if (nodeResponseTracker.allNodesResponded()) {
                 onCompletion();
             }

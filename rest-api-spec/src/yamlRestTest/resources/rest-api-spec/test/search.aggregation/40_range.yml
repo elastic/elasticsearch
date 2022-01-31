@@ -218,6 +218,46 @@ setup:
   - match: { aggregations.float_range.buckets.2.doc_count: 3 }
 
 ---
+"Double range on long field":
+  - skip:
+      version: " - 8.0.99"
+      reason: Bug fixed in 8.1.0
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            double_range:
+              range:
+                field: "long"
+                ranges:
+                  -
+                    to: 24.9
+                  -
+                    from: 24.9
+                    to: 79.9
+                  -
+                    from: 79.9
+
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.double_range.buckets: 3 }
+  - match: { aggregations.double_range.buckets.0.key: "*-24.9" }
+  - is_false: aggregations.double_range.buckets.0.from
+  - match: { aggregations.double_range.buckets.0.to: 24.9 }
+  - match: { aggregations.double_range.buckets.0.doc_count: 0 }
+  - match: { aggregations.double_range.buckets.1.key: "24.9-79.9" }
+  - match: { aggregations.double_range.buckets.1.from: 24.9 }
+  - match: { aggregations.double_range.buckets.1.to: 79.9 }
+  - match: { aggregations.double_range.buckets.1.doc_count: 2 }
+  - match: { aggregations.double_range.buckets.2.key: "79.9-*" }
+  - match: { aggregations.double_range.buckets.2.from: 79.9 }
+  - is_false:  aggregations.double_range.buckets.2.to
+  - match: { aggregations.double_range.buckets.2.doc_count: 1 }
+
+
+---
 "Double range no decimal":
   - do:
       search:

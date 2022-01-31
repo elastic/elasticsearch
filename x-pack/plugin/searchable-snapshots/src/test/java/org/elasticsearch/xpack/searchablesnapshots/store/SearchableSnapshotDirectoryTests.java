@@ -56,6 +56,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.PathUtils;
@@ -544,7 +545,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 if (randomBoolean()) {
                     writer.forceMerge(1, true);
                 }
-                final Map<String, String> userData = new HashMap<>(2);
+                final Map<String, String> userData = Maps.newMapWithExpectedSize(2);
                 userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, "0");
                 userData.put(Translog.TRANSLOG_UUID_KEY, UUIDs.randomBase64UUID(random()));
                 writer.setLiveCommitData(userData.entrySet());

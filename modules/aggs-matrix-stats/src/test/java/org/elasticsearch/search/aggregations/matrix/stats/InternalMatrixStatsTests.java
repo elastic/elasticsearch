@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -109,7 +110,7 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
             case 3:
             default:
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

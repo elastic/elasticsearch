@@ -176,7 +176,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public boolean hasNested() {
-        return mappingLookup().hasNested();
+        return mappingLookup().nestedLookup() != NestedLookup.EMPTY;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {

@@ -31,6 +31,7 @@ import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class MapsTests extends ESTestCase {
 
@@ -204,6 +205,22 @@ public class MapsTests extends ESTestCase {
         for (Map.Entry<String, Object> entry : flatten.entrySet()) {
             assertThat(entry.getKey(), entry.getValue(), equalTo(deepGet(entry.getKey(), map)));
         }
+    }
+
+    public void testCapacityIsEnoughForMapToNotBeResized() {
+        for (int i = 0; i < 1000; i++) {
+            int size = randomIntBetween(0, 1_000_000);
+            int capacity = Maps.capacity(size);
+            assertThat(size, lessThanOrEqualTo((int) (capacity * 0.75f)));
+        }
+    }
+
+    public void testCapacityForMaxSize() {
+        assertEquals(Integer.MAX_VALUE, Maps.capacity(Integer.MAX_VALUE));
+    }
+
+    public void testCapacityForZeroSize() {
+        assertEquals(1, Maps.capacity(0));
     }
 
     @SuppressWarnings("unchecked")

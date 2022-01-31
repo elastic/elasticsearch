@@ -8,7 +8,7 @@
 //tag::notable-breaking-changes[]
 TIP: {ess-setting-change}
 
-.`action.destructive_requires_name` now defaults to `false`. {ess-icon}
+.`action.destructive_requires_name` now defaults to `true`. {ess-icon}
 [%collapsible]
 ====
 *Details* +
@@ -875,11 +875,10 @@ previously be used to enable compression for all shared file system repositories
 The `repositories.fs.compress` setting has been removed.
 
 *Impact* +
-Use the repository specific `compress` setting to enable compression. See
-{ref}/snapshots-register-repository.html[Register a snapshot repository] for
-information on the `compress` setting.
-
-Discontinue use of the `repositories.fs.compress` node-level setting.
+Discontinue use of the `repositories.fs.compress` node-level setting. Use the
+repository-specific `compress` setting to enable compression instead. Refer to
+{ref}/snapshots-filesystem-repository.html#filesystem-repository-settings[Shared
+file system repository settings].
 ====
 //end::notable-breaking-changes[]
 
@@ -907,3 +906,29 @@ will continue to use that configured value.
 Any node that did not have an explicitly configured password hashing algorithm in
 {es} 6.x or {es} 7.x would have failed to start.
 ====
+
+//tag::notable-breaking-changes[]
+.The `xpack.monitoring.history.duration` will not delete indices created by metricbeat or elastic agent
+[%collapsible]
+====
+*Details* +
+
+Prior to 8.0, Elasticsearch would internally handle removal of all monitoring indices according to the
+`xpack.monitoring.history.duration` setting.
+
+When using metricbeat or elastic agent >= 8.0 to collect monitoring data, indices are managed via an ILM policy. If the setting is present, the policy will be created using the `xpack.monitoring.history.duration` as an initial retention period.
+
+If you need to customize retention settings for monitoring data collected with metricbeat, please update the `.monitoring-8-ilm-policy` ILM policy directly.
+
+The `xpack.monitoring.history.duration` setting will only apply to monitoring indices written using (legacy) internal
+collection, not indices created by metricbeat or agent.
+
+*Impact* +
+After upgrading, insure that the `.monitoring-8-ilm-policy` ILM policy aligns with your desired retention settings.
+
+If you only use
+metricbeat or agent to collect monitoring data, you can also remove any custom `xpack.monitoring.history.duration`
+settings.
+
+====
+// end::notable-breaking-changes[]

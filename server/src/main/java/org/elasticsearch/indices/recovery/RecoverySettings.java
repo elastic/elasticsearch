@@ -35,7 +35,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.Setting.parseInt;
 
@@ -46,24 +45,44 @@ public class RecoverySettings {
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);
 
+    /**
+     * Undocumented setting, used to override the total physical available memory in tests
+     **/
+    // package private for tests
+    static final Setting<ByteSizeValue> TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING = Setting.byteSizeSetting(
+        "recovery_settings.total_physical_memory_override",
+        settings -> new ByteSizeValue(OsProbe.getInstance().getTotalPhysicalMemorySize()).getStringRep(),
+        Property.NodeScope
+    );
+
+    /**
+     * Undocumented setting, used to override the current JVM version in tests
+     **/
+    // package private for tests
+    static final Setting<JavaVersion> JAVA_VERSION_OVERRIDING_TEST_SETTING = new Setting<>(
+        "recovery_settings.java_version_override",
+        settings -> JavaVersion.current().toString(),
+        JavaVersion::parse,
+        Property.NodeScope
+    );
+
+    public static final ByteSizeValue DEFAULT_MAX_BYTES_PER_SEC = new ByteSizeValue(40L, ByteSizeUnit.MB);
+
     public static final Setting<ByteSizeValue> INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
         "indices.recovery.max_bytes_per_sec",
         s -> {
-            final ByteSizeValue defaultMaxBytesPerSec = new ByteSizeValue(40, ByteSizeUnit.MB);
             final List<DiscoveryNodeRole> roles = NodeRoleSettings.NODE_ROLES_SETTING.get(s);
-            final List<DiscoveryNodeRole> dataRoles = roles.stream()
-                .filter(DiscoveryNodeRole::canContainData)
-                .collect(Collectors.toUnmodifiableList());
+            final List<DiscoveryNodeRole> dataRoles = roles.stream().filter(DiscoveryNodeRole::canContainData).toList();
             if (dataRoles.isEmpty()) {
                 // if the node is not a data node, this value doesn't matter, use the default
-                return defaultMaxBytesPerSec.getStringRep();
+                return DEFAULT_MAX_BYTES_PER_SEC.getStringRep();
             }
             if (dataRoles.stream()
                 .allMatch(
                     dn -> dn.equals(DiscoveryNodeRole.DATA_COLD_NODE_ROLE) || dn.equals(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
                 ) == false) {
                 // the node is not a dedicated cold and/or frozen node, use the default
-                return defaultMaxBytesPerSec.getStringRep();
+                return DEFAULT_MAX_BYTES_PER_SEC.getStringRep();
             }
             /*
              * Now we are looking at a node that has a single data role, that data role is the cold data role, and the node does not
@@ -71,11 +90,12 @@ public class RecoverySettings {
              * an assumption here that the size of the instance is correlated with I/O resources. That is we are assuming that the
              * larger the instance, the more disk and networking capacity it has available.
              */
-            if (JavaVersion.current().compareTo(JavaVersion.parse("14")) < 0) {
+            final JavaVersion javaVersion = JAVA_VERSION_OVERRIDING_TEST_SETTING.get(s);
+            if (javaVersion.compareTo(JavaVersion.parse("14")) < 0) {
                 // prior to JDK 14, the JDK did not take into consideration container memory limits when reporting total system memory
-                return defaultMaxBytesPerSec.getStringRep();
+                return DEFAULT_MAX_BYTES_PER_SEC.getStringRep();
             }
-            final ByteSizeValue totalPhysicalMemory = new ByteSizeValue(OsProbe.getInstance().getTotalPhysicalMemorySize());
+            final ByteSizeValue totalPhysicalMemory = TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING.get(s);
             final ByteSizeValue maxBytesPerSec;
             if (totalPhysicalMemory.compareTo(new ByteSizeValue(4, ByteSizeUnit.GB)) <= 0) {
                 maxBytesPerSec = new ByteSizeValue(40, ByteSizeUnit.MB);
@@ -373,6 +393,10 @@ public class RecoverySettings {
         } else {
             rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
         }
+    }
+
+    ByteSizeValue getMaxBytesPerSec() {
+        return maxBytesPerSec;
     }
 
     public int getMaxConcurrentFileChunks() {

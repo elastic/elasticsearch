@@ -8,10 +8,10 @@
 package org.elasticsearch.indices.analysis;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.util.Maps;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 public class PreBuiltCacheFactory {
@@ -77,7 +77,7 @@ public class PreBuiltCacheFactory {
      */
     private static class PreBuiltCacheStrategyElasticsearch<T> implements PreBuiltCache<T> {
 
-        Map<Version, T> mapModel = new HashMap<>(2);
+        Map<Version, T> mapModel = Maps.newMapWithExpectedSize(2);
 
         @Override
         public T get(Version version) {
@@ -100,7 +100,7 @@ public class PreBuiltCacheFactory {
      */
     private static class PreBuiltCacheStrategyLucene<T> implements PreBuiltCache<T> {
 
-        private Map<org.apache.lucene.util.Version, T> mapModel = new HashMap<>(2);
+        private Map<org.apache.lucene.util.Version, T> mapModel = Maps.newMapWithExpectedSize(2);
 
         @Override
         public T get(Version version) {

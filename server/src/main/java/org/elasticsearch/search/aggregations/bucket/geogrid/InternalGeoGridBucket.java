@@ -51,7 +51,7 @@ public abstract class InternalGeoGridBucket extends InternalMultiBucketAggregati
         aggregations.writeTo(out);
     }
 
-    protected long hashAsLong() {
+    public long hashAsLong() {
         return hashAsLong;
     }
 

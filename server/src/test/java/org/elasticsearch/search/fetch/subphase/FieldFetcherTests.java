@@ -46,6 +46,7 @@ import static org.elasticsearch.xcontent.ObjectPath.eval;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 
 public class FieldFetcherTests extends MapperServiceTestCase {
 
@@ -718,7 +719,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
-        assertEquals(2, fields.size());
+        assertThat(fields.values(), hasSize(2));
         assertThat(fields.keySet(), containsInAnyOrder("f1", "obj"));
         assertEquals("value1", fields.get("f1").getValue());
         List<Object> obj = fields.get("obj").getValues();
@@ -1000,6 +1001,33 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.get("date_field").getValues().size(), equalTo(2));
         assertThat(fields.get("date_field").getValues().get(0), equalTo("11"));
         assertThat(fields.get("date_field").getValues().get(1), equalTo("12"));
+    }
+
+    public void testNestedPrefix() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "properties" : {
+                  "foo" : {
+                    "type" : "nested",
+                    "properties" : {
+                      "nested_field" : {
+                        "type" : "keyword"
+                      }
+                    }
+                  },
+                  "foo_bar" : {
+                    "type" : "double"
+                  }
+                }
+              }
+            }
+            """;
+        MapperService mapperService = createMapperService(mapping);
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("foo_bar", 3.1).endObject();
+        // the field should be returned
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "foo_bar");
+        assertThat(fields.get("foo_bar").getValues().size(), equalTo(1));
     }
 
     /**

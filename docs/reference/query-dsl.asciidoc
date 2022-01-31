@@ -33,8 +33,8 @@ the stability of the cluster. Those queries can be categorised as follows:
 
 * Queries that need to do linear scans to identify matches:
 ** <<query-dsl-script-query,`script` queries>>
-** queries on <<number,numeric>> and <<date,date>> fields that are not indexed
-   but have <<doc-values,doc values>> enabled
+** queries on <<number,numeric>>, <<date,date>>, <<boolean,boolean>>, <<ip,ip>> or <<keyword,keyword>> fields
+   that are not indexed but have <<doc-values,doc values>> enabled
 
 * Queries that have a high up-front cost:
 ** <<query-dsl-fuzzy-query,`fuzzy` queries>> (except on

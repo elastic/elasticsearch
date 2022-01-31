@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
@@ -55,6 +56,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -77,6 +79,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -548,7 +551,7 @@ public class RestoreService implements ClusterStateApplier {
                 globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
             }
             final Map<String, DataStream> dataStreamsInSnapshot = globalMetadata.dataStreams();
-            dataStreams = new HashMap<>(requestedDataStreams.size());
+            dataStreams = Maps.newMapWithExpectedSize(requestedDataStreams.size());
             for (String requestedDataStream : requestedDataStreams) {
                 final DataStream dataStreamInSnapshot = dataStreamsInSnapshot.get(requestedDataStream);
                 assert dataStreamInSnapshot != null : "DataStream [" + requestedDataStream + "] not found in snapshot";
@@ -696,7 +699,8 @@ public class RestoreService implements ClusterStateApplier {
             dataStream.isHidden(),
             dataStream.isReplicated(),
             dataStream.isSystem(),
-            dataStream.isAllowCustomRouting()
+            dataStream.isAllowCustomRouting(),
+            dataStream.getIndexMode()
         );
     }
 
@@ -1293,6 +1297,11 @@ public class RestoreService implements ClusterStateApplier {
                     request.indexSettings(),
                     request.ignoreIndexSettings()
                 );
+                if (snapshotIndexMetadata.getCreationVersion()
+                    .before(currentState.getNodes().getMaxNodeVersion().minimumIndexCompatibilityVersion())) {
+                    // adapt index metadata so that it can be understood by current version
+                    snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata);
+                }
                 try {
                     snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(snapshotIndexMetadata, minIndexCompatibilityVersion);
                 } catch (Exception ex) {
@@ -1579,6 +1588,32 @@ public class RestoreService implements ClusterStateApplier {
         public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
             listener.onResponse(new RestoreCompletionResponse(restoreUUID, snapshot, restoreInfo));
         }
+    }
+
+    private IndexMetadata convertLegacyIndex(IndexMetadata snapshotIndexMetadata) {
+        MappingMetadata mappingMetadata = snapshotIndexMetadata.mapping();
+        Map<String, Object> loadedMappingSource = mappingMetadata.rawSourceAsMap();
+
+        // store old mapping under _meta/legacy_mappings
+        Map<String, Object> legacyMapping = new LinkedHashMap<>();
+        boolean sourceOnlySnapshot = snapshotIndexMetadata.getSettings().getAsBoolean("index.source_only", false);
+        if (sourceOnlySnapshot) {
+            // actual mapping is under "_meta" (but strip type first)
+            Object sourceOnlyMeta = mappingMetadata.sourceAsMap().get("_meta");
+            if (sourceOnlyMeta instanceof Map<?, ?> sourceOnlyMetaMap) {
+                legacyMapping.put("legacy_mappings", sourceOnlyMetaMap);
+            }
+        } else {
+            legacyMapping.put("legacy_mappings", loadedMappingSource);
+        }
+
+        Map<String, Object> newMappingSource = new LinkedHashMap<>();
+        newMappingSource.put("_meta", legacyMapping);
+
+        Map<String, Object> newMapping = new LinkedHashMap<>();
+        newMapping.put(mappingMetadata.type(), newMappingSource);
+        // TODO: _routing? Perhaps we don't need to obey any routing here as stuff is read-only anyway and get API will be disabled
+        return IndexMetadata.builder(snapshotIndexMetadata).putMapping(new MappingMetadata(mappingMetadata.type(), newMapping)).build();
     }
 
     private static IndexMetadata.Builder restoreToCreateNewIndex(IndexMetadata snapshotIndexMetadata, String renamedIndexName) {

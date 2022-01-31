@@ -1,0 +1,5 @@
+pr: 83019
+summary: Correct context for batched reroute notifications
+area: Allocation
+type: bug
+issues: []

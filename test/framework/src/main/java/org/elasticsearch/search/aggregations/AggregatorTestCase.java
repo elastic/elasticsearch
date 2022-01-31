@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
@@ -20,6 +21,7 @@ import org.apache.lucene.index.CompositeReaderContext;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
@@ -32,6 +34,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
@@ -68,6 +73,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -88,6 +94,7 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -119,6 +126,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.timeseries.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
@@ -251,6 +259,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             new NoneCircuitBreakerService(),
             AggregationBuilder.DEFAULT_PREALLOCATION * 5, // We don't know how many bytes to preallocate so we grab a hand full
             DEFAULT_MAX_BUCKETS,
+            false,
             fieldTypes
         );
     }
@@ -268,6 +277,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         CircuitBreakerService breakerService,
         long bytesToPreallocate,
         int maxBucket,
+        boolean isInSortOrderExecutionRequired,
         MappedFieldType... fieldTypes
     ) throws IOException {
         MappingLookup mappingLookup = MappingLookup.fromMappers(
@@ -329,7 +339,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             () -> 0L,
             () -> false,
             q -> q,
-            true
+            true,
+            isInSortOrderExecutionRequired
         );
         releasables.add(context);
         return context;
@@ -546,11 +557,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
             breakerService,
             randomBoolean() ? 0 : builder.bytesToPreallocate(),
             maxBucket,
+            builder.isInSortOrderExecutionRequired(),
             fieldTypes
         );
         C root = createAggregator(builder, context);
 
-        if (splitLeavesIntoSeparateAggregators && searcher.getIndexReader().leaves().size() > 0) {
+        if (splitLeavesIntoSeparateAggregators
+            && searcher.getIndexReader().leaves().size() > 0
+            && context.isInSortOrderExecutionRequired() == false) {
             assertThat(ctx, instanceOf(CompositeReaderContext.class));
             final CompositeReaderContext compCTX = (CompositeReaderContext) ctx;
             final int size = compCTX.leaves().size();
@@ -562,14 +576,22 @@ public abstract class AggregatorTestCase extends ESTestCase {
             for (ShardSearcher subSearcher : subSearchers) {
                 C a = createAggregator(builder, context);
                 a.preCollection();
-                Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
-                subSearcher.search(weight, a);
+                if (context.isInSortOrderExecutionRequired()) {
+                    new TimeSeriesIndexSearcher(subSearcher).search(rewritten, a);
+                } else {
+                    Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
+                    subSearcher.search(weight, a);
+                }
                 a.postCollection();
                 aggs.add(a.buildTopLevel());
             }
         } else {
             root.preCollection();
-            searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+            if (context.isInSortOrderExecutionRequired()) {
+                new TimeSeriesIndexSearcher(searcher).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+            } else {
+                searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+            }
             root.postCollection();
             aggs.add(root.buildTopLevel());
         }
@@ -635,8 +657,17 @@ public abstract class AggregatorTestCase extends ESTestCase {
         Consumer<V> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
+        boolean timeSeries = aggregationBuilder.isInSortOrderExecutionRequired();
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
+            IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
+            if (timeSeries) {
+                Sort sort = new Sort(
+                    new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
+                    new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
+                );
+                config.setIndexSort(sort);
+            }
+            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config);
             buildIndex.accept(indexWriter);
             indexWriter.close();
 
@@ -721,6 +752,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             breakerService,
             builder.bytesToPreallocate(),
             DEFAULT_MAX_BUCKETS,
+            builder.isInSortOrderExecutionRequired(),
             fieldTypes
         );
         Aggregator aggregator = createAggregator(builder, context);
@@ -1287,6 +1319,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
         protected void doWriteTo(StreamOutput out) throws IOException {
             throw new UnsupportedOperationException();
 
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
         }
     }
 

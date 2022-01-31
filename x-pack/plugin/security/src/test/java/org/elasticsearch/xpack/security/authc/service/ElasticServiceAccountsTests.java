@@ -87,12 +87,12 @@ import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -205,6 +205,19 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetIndex), is(false));
             assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotFleetIndex), is(false));
         });
+
+        final IndexAbstraction apmSampledTracesIndex = mockIndexAbstraction("traces-apm.sampled-" + randomAlphaOfLengthBetween(1, 20));
+        assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(apmSampledTracesIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(apmSampledTracesIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(apmSampledTracesIndex), is(false));
 
         final String kibanaApplication = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
         final String privilegeName = randomAlphaOfLengthBetween(3, 16);

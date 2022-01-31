@@ -76,14 +76,14 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
-import org.elasticsearch.xpack.core.security.action.ApiKey;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -1141,8 +1141,7 @@ public class ApiKeyService {
      */
     private <E extends Throwable> E traceLog(String action, String identifier, E exception) {
         if (logger.isTraceEnabled()) {
-            if (exception instanceof ElasticsearchException) {
-                final ElasticsearchException esEx = (ElasticsearchException) exception;
+            if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
                     logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}] - [{}]", action, identifier, detail), esEx);
@@ -1161,8 +1160,7 @@ public class ApiKeyService {
      */
     private <E extends Throwable> E traceLog(String action, E exception) {
         if (logger.isTraceEnabled()) {
-            if (exception instanceof ElasticsearchException) {
-                final ElasticsearchException esEx = (ElasticsearchException) exception;
+            if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
                     logger.trace(() -> new ParameterizedMessage("Failure in [{}] - [{}]", action, detail), esEx);

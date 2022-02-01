@@ -141,19 +141,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
     }
 
-    public static class Indicator implements ToXContentObject {
-
-        private final String name;
-        private final HealthStatus status;
-        private final String summary;
-        private final ToXContentFragment details;
-
-        public Indicator(String name, HealthStatus status, String summary, ToXContentFragment details) {
-            this.name = name;
-            this.status = status;
-            this.summary = summary;
-            this.details = details;
-        }
+    public record Indicator(String name, HealthStatus status, String summary, ToXContentFragment details) implements ToXContentObject {
 
         public String getName() {
             return name;
@@ -165,10 +153,6 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         public String getSummary() {
             return summary;
-        }
-
-        public void writeDetails(XContentBuilder builder, Params params) throws IOException {
-
         }
 
         @Override

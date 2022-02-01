@@ -13,12 +13,14 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.xpack.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
@@ -32,15 +34,18 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
         TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
-        Settings settings = builder().put("index.mode", "time_series").build();
+        Settings settings = Settings.EMPTY;
         var provider = new DataStreamIndexSettingsProvider();
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
+            IndexMode.TIME_SERIES,
             metadata,
             now.toEpochMilli(),
             settings
         );
+        assertThat(result.size(), equalTo(3));
+        assertThat(result.get(IndexSettings.MODE.getKey()), equalTo(IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT)));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
     }
@@ -56,30 +61,15 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
+            IndexMode.TIME_SERIES,
             metadata,
             now.toEpochMilli(),
             settings
         );
-        assertThat(result.size(), equalTo(2));
+        assertThat(result.size(), equalTo(3));
+        assertThat(result.get(IndexSettings.MODE.getKey()), equalTo(IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT)));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(lookAheadTime.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(lookAheadTime.getMillis())));
-    }
-
-    public void testGetAdditionalIndexSettingsNoTimeSeries() {
-        Metadata metadata = Metadata.EMPTY_METADATA;
-        String dataStreamName = "logs-app1";
-
-        long now = Instant.now().toEpochMilli();
-        Settings settings = randomBoolean() ? Settings.EMPTY : builder().put("index.mode", "standard").build();
-        var provider = new DataStreamIndexSettingsProvider();
-        Settings result = provider.getAdditionalIndexSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-            dataStreamName,
-            metadata,
-            now,
-            settings
-        );
-        assertThat(result, equalTo(Settings.EMPTY));
     }
 
     public void testGetAdditionalIndexSettingsDataStreamAlreadyCreated() {
@@ -88,27 +78,24 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Instant sixHoursAgo = Instant.now().minus(6, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MILLIS);
         Instant currentEnd = sixHoursAgo.plusMillis(lookAheadTime.getMillis());
-        Metadata metadata = DataStreamTestHelper.getClusterStateWithDataStreams(
-            List.of(Tuple.tuple(dataStreamName, 1)),
-            List.of(),
-            sixHoursAgo.toEpochMilli(),
-            builder().put(IndexSettings.TIME_SERIES_START_TIME.getKey(), FORMATTER.format(sixHoursAgo))
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), FORMATTER.format(currentEnd))
-                .build(),
-            1
+        Metadata metadata = DataStreamTestHelper.getClusterStateWithDataStream(
+            dataStreamName,
+            List.of(new Tuple<>(sixHoursAgo, currentEnd))
         ).getMetadata();
 
         Instant now = sixHoursAgo.plus(6, ChronoUnit.HOURS);
-        Settings settings = builder().put("index.mode", "time_series").build();
+        Settings settings = Settings.EMPTY;
         var provider = new DataStreamIndexSettingsProvider();
         var result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
+            IndexMode.TIME_SERIES,
             metadata,
             now.toEpochMilli(),
             settings
         );
-        assertThat(result.size(), equalTo(2));
+        assertThat(result.size(), equalTo(3));
+        assertThat(result.get(IndexSettings.MODE.getKey()), equalTo(IndexMode.TIME_SERIES.name().toLowerCase(Locale.ROOT)));
         assertThat(result.get(IndexSettings.TIME_SERIES_START_TIME.getKey()), equalTo(FORMATTER.format(currentEnd)));
         assertThat(
             result.get(IndexSettings.TIME_SERIES_END_TIME.getKey()),
@@ -119,22 +106,41 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     public void testGetAdditionalIndexSettingsDataStreamAlreadyCreatedTimeSettingsMissing() {
         String dataStreamName = "logs-app1";
         Instant twoHoursAgo = Instant.now().minus(4, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MILLIS);
-        Metadata metadata = DataStreamTestHelper.getClusterStateWithDataStreams(
-            List.of(Tuple.tuple(dataStreamName, 1)),
-            List.of(),
-            twoHoursAgo.toEpochMilli(),
-            builder().build(),
-            1
-        ).getMetadata();
+        Metadata.Builder mb = Metadata.builder(
+            DataStreamTestHelper.getClusterStateWithDataStreams(
+                List.of(Tuple.tuple(dataStreamName, 1)),
+                List.of(),
+                twoHoursAgo.toEpochMilli(),
+                builder().build(),
+                1
+            ).getMetadata()
+        );
+        DataStream ds = mb.dataStream(dataStreamName);
+        mb.put(
+            new DataStream(
+                ds.getName(),
+                ds.getTimeStampField(),
+                ds.getIndices(),
+                ds.getGeneration(),
+                ds.getMetadata(),
+                ds.isHidden(),
+                ds.isReplicated(),
+                ds.isSystem(),
+                ds.isAllowCustomRouting(),
+                IndexMode.TIME_SERIES
+            )
+        );
+        Metadata metadata = mb.build();
 
         Instant now = twoHoursAgo.plus(2, ChronoUnit.HOURS);
-        Settings settings = builder().put("index.mode", "time_series").build();
+        Settings settings = Settings.EMPTY;
         var provider = new DataStreamIndexSettingsProvider();
         Exception e = expectThrows(
             IllegalStateException.class,
             () -> provider.getAdditionalIndexSettings(
                 DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                 dataStreamName,
+                IndexMode.TIME_SERIES,
                 metadata,
                 now.toEpochMilli(),
                 settings
@@ -143,11 +149,46 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "backing index [%s] in tsdb mode doesn't have the [index.time_series.start_time] index setting".formatted(
+                "backing index [%s] in tsdb mode doesn't have the [index.time_series.end_time] index setting".formatted(
                     DataStream.getDefaultBackingIndexName(dataStreamName, 1, twoHoursAgo.toEpochMilli())
                 )
             )
         );
+    }
+
+    public void testGetAdditionalIndexSettingsIndexModeNotSpecified() {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        String dataStreamName = "logs-app1";
+
+        Settings settings = Settings.EMPTY;
+        var provider = new DataStreamIndexSettingsProvider();
+        Settings result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            null,
+            metadata,
+            1L,
+            settings
+        );
+        assertThat(result.size(), equalTo(0));
+    }
+
+    public void testGetAdditionalIndexSettingsIndexModeStandardSpecified() {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        String dataStreamName = "logs-app1";
+
+        Settings settings = Settings.EMPTY;
+        var provider = new DataStreamIndexSettingsProvider();
+        Settings result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
+            IndexMode.STANDARD,
+            metadata,
+            1L,
+            settings
+        );
+        assertThat(result.size(), equalTo(1));
+        assertThat(result.get(IndexSettings.MODE.getKey()), equalTo(IndexMode.STANDARD.name().toLowerCase(Locale.ROOT)));
     }
 
 }

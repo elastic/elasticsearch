@@ -14,10 +14,10 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
@@ -1802,7 +1802,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    private static class BrokenCustom extends AbstractDiffable<ClusterState.Custom> implements ClusterState.Custom {
+    private static class BrokenCustom implements SimpleDiffable<ClusterState.Custom>, ClusterState.Custom {
 
         static final String EXCEPTION_MESSAGE = "simulated";
 

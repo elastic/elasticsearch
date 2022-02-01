@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -112,7 +112,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     public static class Response extends ActionResponse implements ToXContentObject {
         public static final ParseField DATASTREAMS_FIELD = new ParseField("data_streams");
 
-        public static class DataStreamInfo extends AbstractDiffable<DataStreamInfo> implements ToXContentObject {
+        public static class DataStreamInfo implements SimpleDiffable<DataStreamInfo>, ToXContentObject {
 
             public static final ParseField STATUS_FIELD = new ParseField("status");
             public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");

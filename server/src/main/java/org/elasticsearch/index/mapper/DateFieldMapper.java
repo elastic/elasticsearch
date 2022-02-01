@@ -609,8 +609,13 @@ public final class DateFieldMapper extends FieldMapper {
             if (isIndexed()) {
                 return LongPoint.newDistanceFeatureQuery(name(), 1.0f, originLong, pivotLong);
             } else {
-                return new LongScriptFieldDistanceFeatureQuery(new Script(""),
-                    ctx -> new SortedNumericDocValuesLongFieldScript(name(), context.lookup(), ctx), name(), originLong, pivotLong);
+                return new LongScriptFieldDistanceFeatureQuery(
+                    new Script(""),
+                    ctx -> new SortedNumericDocValuesLongFieldScript(name(), context.lookup(), ctx),
+                    name(),
+                    originLong,
+                    pivotLong
+                );
             }
         }
 

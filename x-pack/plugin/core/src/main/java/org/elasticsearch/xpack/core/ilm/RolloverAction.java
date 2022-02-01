@@ -52,8 +52,15 @@ public class RolloverAction implements LifecycleAction {
 
     private static final ConstructingObjectParser<RolloverAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new RolloverAction((ByteSizeValue) a[0], (ByteSizeValue) a[1], (TimeValue) a[2], (Long) a[3], (ByteSizeValue) a[4],
-            (TimeValue) a[5], (Long) a[6])
+        a -> new RolloverAction(
+            (ByteSizeValue) a[0],
+            (ByteSizeValue) a[1],
+            (TimeValue) a[2],
+            (Long) a[3],
+            (ByteSizeValue) a[4],
+            (TimeValue) a[5],
+            (Long) a[6]
+        )
     );
 
     static {

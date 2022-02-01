@@ -72,8 +72,18 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         TimeValue minAge = (minDocs == null || randomBoolean())
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             : null;
-        return new WaitForRolloverReadyStep(stepKey, nextStepKey, client, maxSize, maxPrimaryShardSize, maxAge, maxDocs,
-            minPrimaryShardSize, minAge, minDocs);
+        return new WaitForRolloverReadyStep(
+            stepKey,
+            nextStepKey,
+            client,
+            maxSize,
+            maxPrimaryShardSize,
+            maxAge,
+            maxDocs,
+            minPrimaryShardSize,
+            minAge,
+            minDocs
+        );
     }
 
     @Override
@@ -115,8 +125,18 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             case 8 -> minDocs = randomValueOtherThan(minDocs, ESTestCase::randomNonNegativeLong);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new WaitForRolloverReadyStep(key, nextKey, instance.getClient(), maxSize, maxPrimaryShardSize, maxAge, maxDocs,
-            minPrimaryShardSize, minAge, minDocs);
+        return new WaitForRolloverReadyStep(
+            key,
+            nextKey,
+            instance.getClient(),
+            maxSize,
+            maxPrimaryShardSize,
+            maxAge,
+            maxDocs,
+            minPrimaryShardSize,
+            minAge,
+            minDocs
+        );
     }
 
     @Override

@@ -14,10 +14,12 @@ import java.security.NoSuchAlgorithmException;
 
 import javax.crypto.SecretKeyFactory;
 
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_TO_REALM_ASSOC_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class XPackSettingsTests extends ESTestCase {
@@ -108,6 +110,15 @@ public class XPackSettingsTests extends ESTestCase {
 
     public void testDefaultServiceTokenHashingAlgorithm() {
         assertThat(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(Settings.EMPTY), equalTo("PBKDF2_STRETCH"));
+    }
+
+    // Ensure the setting for domain is not registered by default. The reverse, i.e., it is registered, is tested elsewhere
+    public void testRealmDomainSettingNotRegistered() {
+        assertThat(
+            XPackSettings.getAllSettings().stream().noneMatch(setting -> setting.getKey().equals(DOMAIN_TO_REALM_ASSOC_SETTING.getKey())),
+            is(true)
+        );
+
     }
 
     private boolean isSecretkeyFactoryAlgoAvailable(String algorithmId) {

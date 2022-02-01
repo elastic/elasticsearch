@@ -35,6 +35,11 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_T
  * A container for xpack setting constants.
  */
 public class XPackSettings {
+
+    public static final boolean USER_PROFILE_FEATURE_FLAG_ENABLED = "true".equals(
+        System.getProperty("es.user_profile_feature_flag_enabled")
+    );
+
     private static final boolean IS_DARWIN_AARCH64;
     static {
         final String name = System.getProperty("os.name");
@@ -309,7 +314,9 @@ public class XPackSettings {
         settings.add(PASSWORD_HASHING_ALGORITHM);
         settings.add(ENROLLMENT_ENABLED);
         settings.add(SECURITY_AUTOCONFIGURATION_ENABLED);
-        settings.add(DOMAIN_TO_REALM_ASSOC_SETTING);
+        if (USER_PROFILE_FEATURE_FLAG_ENABLED) {
+            settings.add(DOMAIN_TO_REALM_ASSOC_SETTING);
+        }
         return Collections.unmodifiableList(settings);
     }
 

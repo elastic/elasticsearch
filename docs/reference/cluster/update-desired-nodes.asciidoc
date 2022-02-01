@@ -93,7 +93,7 @@ The API returns the following result:
 --------------------------------------------------
 {
   "acknowledged": true,
-  "new_history_id": "Ywkh3INLQcuPT49f6kcppA"
+  "replaced_existing_history_id": false
 }
 --------------------------------------------------
 

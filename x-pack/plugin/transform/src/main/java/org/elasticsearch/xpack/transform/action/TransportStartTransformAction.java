@@ -193,7 +193,10 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
 
             if (dest.length == 0) {
                 createDestinationIndex(transformConfigHolder.get(), validationResponse.getDestIndexMappings(), ActionListener.wrap(r -> {
-                    auditor.info(request.getId(), "Created destination index [" + destinationIndex + "] with deduced mappings.");
+                    String message = Boolean.FALSE.equals(transformConfigHolder.get().getSettings().getDeduceMappings())
+                        ? "Created destination index [" + destinationIndex + "]."
+                        : "Created destination index [" + destinationIndex + "] with deduced mappings.";
+                    auditor.info(request.getId(), message);
                     createOrGetIndexListener.onResponse(r);
                 }, createOrGetIndexListener::onFailure));
             } else {

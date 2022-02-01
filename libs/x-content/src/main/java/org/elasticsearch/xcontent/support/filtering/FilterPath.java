@@ -68,13 +68,22 @@ public class FilterPath {
      * if current node is a double wildcard node, the node will also add to nextFilters.
      * @param name the xcontent property name
      * @param nextFilters nextFilters is a List, used to check the inner property of name
+     * @param matchFieldNamesWithDots support dot in field name or not
      * @return true if the name equal a final node, otherwise return false
      */
-    boolean matches(String name, List<FilterPath> nextFilters) {
+    boolean matches(String name, List<FilterPath> nextFilters, boolean matchFieldNamesWithDots) {
         if (nextFilters == null) {
             return false;
         }
 
+        // match dot first
+        if (matchFieldNamesWithDots) {
+            // contains dot and not the first or last char
+            int dotIndex = name.indexOf('.');
+            if ((dotIndex != -1) && (dotIndex != 0) && (dotIndex != name.length() - 1)) {
+                return matchFieldNamesWithDots(name, dotIndex, nextFilters);
+            }
+        }
         FilterPath termNode = termsChildren.get(name);
         if (termNode != null) {
             if (termNode.isFinalNode()) {
@@ -99,6 +108,25 @@ public class FilterPath {
             nextFilters.add(this);
         }
 
+        return false;
+    }
+
+    private boolean matchFieldNamesWithDots(String name, int dotIndex, List<FilterPath> nextFilters) {
+        String prefixName = name.substring(0, dotIndex);
+        String suffixName = name.substring(dotIndex + 1);
+        List<FilterPath> prefixFilterPath = new ArrayList<>();
+        boolean prefixMatch = matches(prefixName, prefixFilterPath, true);
+        // if prefixMatch return true(because prefix is a final FilterPath node)
+        if (prefixMatch) {
+            return true;
+        }
+        // if has prefixNextFilter, use them to match suffix
+        for (FilterPath filter : prefixFilterPath) {
+            boolean matches = filter.matches(suffixName, nextFilters, true);
+            if (matches) {
+                return true;
+            }
+        }
         return false;
     }
 

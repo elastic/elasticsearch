@@ -35,7 +35,7 @@ public final class InternalMapReduceAggregation extends InternalAggregation {
 
     @Override
     public String getWriteableName() {
-        return mapReducer.getWriteableName();
+        return mapReducer.getAggregationWritableName();
     }
 
     @Override

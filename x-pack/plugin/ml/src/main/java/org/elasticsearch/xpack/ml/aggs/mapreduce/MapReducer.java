@@ -38,6 +38,18 @@ import java.util.stream.Stream;
 public interface MapReducer extends NamedWriteable, ToXContent {
 
     /**
+     * Returns the name of the writable aggregation object
+     *
+     * There are 2 writable names involved:
+     *  - the writable name of the aggregation
+     *  - the writable name of the map-reducer
+     *
+     * The usecase for this is not about using 1 map-reducer in 2 aggregations, which is possible, but
+     * versioning the map-reducer, so using different versions of a map-reducer in 1 aggregation.
+     */
+    String getAggregationWritableName();
+
+    /**
      * Definition of the mapper that gets executed locally on every shard
      *
      * TODO: assumes only 1 "flat" input, what about multi inputs?

@@ -25,7 +25,7 @@ public final class FrequentItemSetsAggregator extends MapReduceAggregator {
         Map<String, Object> metadata,
         List<ValuesSourceConfig> configs
     ) throws IOException {
-        super(name, context, parent, metadata, new AprioriMapReducer(), configs);
+        super(name, context, parent, metadata, new AprioriMapReducer(FrequentItemSetsAggregationBuilder.NAME), configs);
     }
 
 }

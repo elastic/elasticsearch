@@ -35,21 +35,26 @@ public class AprioriMapReducer implements MapReducer {
     private static final Logger logger = LogManager.getLogger(AprioriMapReducer.class);
 
     private static final int VERSION = 1;
-    public static final String NAME = "map-reduce-apriori-" + VERSION;
+    public static final String NAME = "frequent_items-apriori-" + VERSION;
 
     // TODO: parameterize
     private static final double minSupport = 0.1;
     private static final long minSetSize = 2;
     private static final long maxSetSize = 10;
 
+    private final String aggregationWritableName;
+
     private Map<String, Long> itemSets = null;
 
     private StringBuilder stringBuilder = new StringBuilder();
     private List<FrequentItemSet> frequentSets = null;
 
-    public AprioriMapReducer() {}
+    public AprioriMapReducer(String aggregationWritableName) {
+        this.aggregationWritableName = aggregationWritableName;
+    }
 
     public AprioriMapReducer(StreamInput in) throws IOException {
+        this.aggregationWritableName = in.readString();
         this.itemSets = in.readMap(StreamInput::readString, StreamInput::readLong);
 
         // not send over the wire
@@ -62,7 +67,13 @@ public class AprioriMapReducer implements MapReducer {
     }
 
     @Override
+    public String getAggregationWritableName() {
+        return aggregationWritableName;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(aggregationWritableName);
         out.writeMap(itemSets, StreamOutput::writeString, StreamOutput::writeLong);
     }
 

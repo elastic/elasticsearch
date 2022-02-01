@@ -168,16 +168,8 @@ public class ServiceAccountIT extends ESRestTestCase {
                         "logs-workplace_search.content_events-default"
                     ],
                     "privileges": [
-                        "create",
-                        "create_index",
-                        "delete",
-                        "delete_index",
-                        "index",
                         "manage",
-                        "manage_ilm",
-                        "monitor",
                         "read",
-                        "view_index_metadata",
                         "write"
                     ],
                     "allow_restricted_indices": false

@@ -16,6 +16,12 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.DeleteDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.GetDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.TransportDeleteDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.TransportGetDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.TransportUpdateDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusAction;
@@ -281,9 +287,11 @@ import org.elasticsearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCreateSnapshotAction;
+import org.elasticsearch.rest.action.admin.cluster.RestDeleteDesiredNodesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.RestGetDesiredNodesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetFeatureUpgradeStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetScriptContextAction;
@@ -306,6 +314,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestResetFeatureStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshottableFeaturesAction;
+import org.elasticsearch.rest.action.admin.cluster.RestUpdateDesiredNodesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.dangling.RestDeleteDanglingIndexAction;
 import org.elasticsearch.rest.action.admin.cluster.dangling.RestImportDanglingIndexAction;
@@ -665,6 +674,11 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportShardFlushAction.TYPE, TransportShardFlushAction.class);
         actions.register(TransportShardRefreshAction.TYPE, TransportShardRefreshAction.class);
 
+        // desired nodes
+        actions.register(GetDesiredNodesAction.INSTANCE, TransportGetDesiredNodesAction.class);
+        actions.register(UpdateDesiredNodesAction.INSTANCE, TransportUpdateDesiredNodesAction.class);
+        actions.register(DeleteDesiredNodesAction.INSTANCE, TransportDeleteDesiredNodesAction.class);
+
         return unmodifiableMap(actions.getRegistry());
     }
 
@@ -841,6 +855,11 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestFieldUsageStatsAction());
 
         registerHandler.accept(new RestUpgradeActionDeprecated());
+
+        // Desired nodes
+        registerHandler.accept(new RestGetDesiredNodesAction());
+        registerHandler.accept(new RestUpdateDesiredNodesAction());
+        registerHandler.accept(new RestDeleteDesiredNodesAction());
 
         for (ActionPlugin plugin : actionPlugins) {
             for (RestHandler handler : plugin.getRestHandlers(

@@ -15,7 +15,7 @@ explicitly map all other data types.
 
 [[dynamic-field-mapping-types]]
 // tag::dynamic-field-mapping-types-tag[]
-[cols="3"]
+[cols="3",frame=all]
 |===
 h|                2+^h|{es} data type
 h| JSON data type h| `"dynamic":"true"` h| `"dynamic":"runtime"`
@@ -28,7 +28,6 @@ h| JSON data type h| `"dynamic":"true"` h| `"dynamic":"runtime"`
  |`string` that passes <<date-detection,date detection>> 2*| `date`
  |`string` that passes <<numeric-detection,numeric detection>> | `float` or `long` | `double` or `long`
  |`string` that doesn't pass `date` detection or `numeric` detection | `text` with a `.keyword` sub-field | `keyword`
-3+|
 |===
 // end::dynamic-field-mapping-types-tag[]
 

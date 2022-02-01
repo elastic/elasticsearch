@@ -253,6 +253,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83386")
     public void testUpdateDesiredNodesTasksAreBatchedCorrectly() throws Exception {
         final Runnable unblockClusterStateUpdateThread = blockClusterStateUpdateThread();
 
@@ -283,6 +284,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         assertThat(latestDesiredNodes, equalTo(latestProposedDesiredNodes));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83386")
     public void testDeleteDesiredNodesTasksAreBatchedCorrectly() throws Exception {
         if (randomBoolean()) {
             putRandomDesiredNodes();

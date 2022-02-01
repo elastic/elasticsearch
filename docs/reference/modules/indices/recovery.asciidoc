@@ -126,14 +126,15 @@ behaviour described above.
 2. They impose a node-wide limit on recovery bandwidth which is independent of
 the value of `indices.recovery.max_bytes_per_sec`.
 
-In more detail, if `indices.recovery.max_bytes_per_sec` is not set then the
-maximum recovery bandwidth is a proportion of the absolute maximum bandwidth,
-computed separately for read and write traffic. The service defines the
-absolute maximum bandwidths for disk reads, disk writes, and network transfers
-using `node.bandwidth.recovery.disk.read`, `node.bandwidth.recovery.disk.write`
-and `node.bandwidth.recovery.network` respectively, and you can set the
-proportion of the absolute maximum bandwidth that may be used for recoveries by
-adjusting `node.bandwidth.recovery.factor.read` and
+If you do not set `indices.recovery.max_bytes_per_sec` then the maximum
+recovery bandwidth is computed as a proportion of the absolute maximum
+bandwidth. The computation is performed separately for read and write traffic.
+The service defines the absolute maximum bandwidths for disk reads, disk
+writes, and network transfers using `node.bandwidth.recovery.disk.read`,
+`node.bandwidth.recovery.disk.write` and `node.bandwidth.recovery.network`
+respectively, and you can set the proportion of the absolute maximum bandwidth
+that may be used for recoveries by adjusting
+`node.bandwidth.recovery.factor.read` and
 `node.bandwidth.recovery.factor.write`. If the {operator-feature} is enabled
 then the service may also set default proportions using operator-only variants
 of these settings.

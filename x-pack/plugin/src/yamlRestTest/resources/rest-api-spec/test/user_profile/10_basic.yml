@@ -102,3 +102,11 @@ teardown:
   - is_true: "$profile_uid"
   - set: { $profile_uid: profile }
   - match: { $profile.data: { "app1": { "theme": "default" }, "app2": { "theme": "dark"} } }
+
+  # Attempting to get a non-existing profile leads to 404
+  - do:
+      catch: missing
+      security.get_user_profile:
+        uid: no_such_profile_uid
+
+  - length: { $body: 0 }

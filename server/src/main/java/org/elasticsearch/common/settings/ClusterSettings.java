@@ -424,6 +424,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER,
         SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING,
         Node.WRITE_PORTS_FILE_SETTING,
+        Node.NODE_EXTERNAL_ID_SETTING,
         Node.NODE_NAME_SETTING,
         Node.NODE_ATTRIBUTES,
         NodeRoleSettings.NODE_ROLES_SETTING,

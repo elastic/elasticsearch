@@ -11,13 +11,38 @@
 
     <!-- See CONTRIBUTING.md for our guidelines on Javadoc -->
 
-    <module name="MissingJavadocMethod">
+    <!-- The next few rules use our fork of this Checkstyle rule, so that we can -->
+    <!-- configure which classes are checked. -->
+
+    <!-- Check non-test code -->
+    <module name="org.elasticsearch.gradle.internal.checkstyle.MissingJavadocMethodCheck">
+        <property name="ignorePattern" value="^.*(Tests?|IT|TestCase)$"/>
+        <property name="severity" value="warning" />
+        <!-- Exclude short methods from this check - we don't want to have to document getters -->
+        <property name="minLineCount" value="2" />
+        <property name="allowedAnnotations" value="Override,Inject,TaskAction" />
+        <property name="ignoreMethodNamesRegex" value="^main$"/>
+        <message key="javadoc.missing" value="Public methods should be documented" />
+    </module>
+
+    <!-- Check test code, but not test case methods -->
+    <module name="org.elasticsearch.gradle.internal.checkstyle.MissingJavadocMethodCheck">
+        <property name="includePattern" value="^.*(Tests?|IT|TestCase)$"/>
         <property name="severity" value="warning" />
         <!-- Exclude short methods from this check - we don't want to have to document getters -->
         <property name="minLineCount" value="2" />
         <property name="allowedAnnotations" value="Override,Before,BeforeClass,After,AfterClass,Inject,TaskAction" />
-        <property name="ignoreMethodNamesRegex" value="^main$"/>
+        <property name="allowMissingPropertyJavadoc" value="true" />
+        <property name="ignoreMethodNamesRegex" value="^test.*$"/>
         <message key="javadoc.missing" value="Public methods should be documented" />
+    </module>
+
+    <!-- Check only test case methods. -->
+    <module name="org.elasticsearch.gradle.internal.checkstyle.MissingJavadocMethodCheck">
+        <property name="includePattern" value="^.*(Tests?|IT|TestCase)$"/>
+        <property name="severity" value="info" />
+        <property name="ignoreMethodNamesRegex" value="^(?!test)\\w+$"/>
+        <message key="javadoc.missing" value="Test cases should have descriptive Javadoc" />
     </module>
 
     <module name="MissingJavadocPackage">

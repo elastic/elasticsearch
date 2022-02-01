@@ -22,6 +22,9 @@ given {es} version.
 * <<autoscaling-put-autoscaling-policy>>
 * <<autoscaling-delete-autoscaling-policy>>
 * <<repo-analysis-api>>
+* <<update-desired-nodes>>
+* <<get-desired-nodes>>
+* <<delete-desired-nodes>>
 
 [[operator-only-dynamic-cluster-settings]]
 ==== Operator-only dynamic cluster settings

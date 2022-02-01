@@ -149,7 +149,7 @@ routing_path required:
       reason: introduced in 8.1.0
 
   - do:
-      catch: /\[index.mode=time_series\] requires \[index.routing_path\]/
+      catch: /\[index.mode=time_series\] requires a non-empty \[index.routing_path\]/
       indices.create:
           index: test_index
           body:
@@ -205,7 +205,7 @@ empty routing_path:
       reason: introduced in 8.1.0
 
   - do:
-      catch: /\[index.mode=time_series\] requires \[index.routing_path\]/
+      catch: /\[index.mode=time_series\] requires a non-empty \[index.routing_path\]/
       indices.create:
         index: test_index
         body:

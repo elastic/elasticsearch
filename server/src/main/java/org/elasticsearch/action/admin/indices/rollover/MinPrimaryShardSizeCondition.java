@@ -31,12 +31,12 @@ public class MinPrimaryShardSizeCondition extends Condition<ByteSizeValue> {
 
     public MinPrimaryShardSizeCondition(StreamInput in) throws IOException {
         super(NAME);
-        this.value = new ByteSizeValue(in.readVLong(), ByteSizeUnit.BYTES);
+        this.value = new ByteSizeValue(in);
     }
 
     @Override
     public Result evaluate(Stats stats) {
-        return new Result(this, stats.maxPrimaryShardSize.getBytes() >= value.getBytes());
+        return new Result(this, stats.maxPrimaryShardSize().getBytes() >= value.getBytes());
     }
 
     @Override
@@ -46,11 +46,7 @@ public class MinPrimaryShardSizeCondition extends Condition<ByteSizeValue> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // While we technically could serialize this with value.writeTo(...), that would
-        // require doing the song and dance around backwards compatibility for this value. Since
-        // in this case the deserialized version is not displayed to a user, it's okay to simply use
-        // bytes.
-        out.writeVLong(value.getBytes());
+        value.writeTo(out);
     }
 
     @Override

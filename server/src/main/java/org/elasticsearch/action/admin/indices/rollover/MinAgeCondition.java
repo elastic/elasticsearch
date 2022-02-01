@@ -17,11 +17,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * Condition for index maximum age. Evaluates to <code>true</code>
+ * Condition for index minimum age. Evaluates to <code>true</code>
  * when the index is at least {@link #value} old
  */
 public class MinAgeCondition extends Condition<TimeValue> {
-    public static final String NAME = "max_age";
+    public static final String NAME = "min_age";
 
     public MinAgeCondition(TimeValue value) {
         super(NAME);
@@ -35,7 +35,7 @@ public class MinAgeCondition extends Condition<TimeValue> {
 
     @Override
     public Result evaluate(final Stats stats) {
-        long indexAge = System.currentTimeMillis() - stats.indexCreated;
+        long indexAge = System.currentTimeMillis() - stats.indexCreated();
         return new Result(this, this.value.getMillis() <= indexAge);
     }
 

@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * Condition for maximum index docs. Evaluates to <code>true</code>
+ * Condition for minimum index docs. Evaluates to <code>true</code>
  * when the index has at least {@link #value} docs
  */
 public class MinDocsCondition extends Condition<Long> {
@@ -34,7 +34,7 @@ public class MinDocsCondition extends Condition<Long> {
 
     @Override
     public Result evaluate(final Stats stats) {
-        return new Result(this, this.value <= stats.numDocs);
+        return new Result(this, this.value <= stats.numDocs());
     }
 
     @Override

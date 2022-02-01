@@ -17,11 +17,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * Condition for index minimum age. Evaluates to <code>true</code>
+ * Condition for index maximum age. Evaluates to <code>true</code>
  * when the index is at least {@link #value} old
  */
 public class MaxAgeCondition extends Condition<TimeValue> {
-    public static final String NAME = "min_age";
+    public static final String NAME = "max_age";
 
     public MaxAgeCondition(TimeValue value) {
         super(NAME);
@@ -30,7 +30,7 @@ public class MaxAgeCondition extends Condition<TimeValue> {
 
     public MaxAgeCondition(StreamInput in) throws IOException {
         super(NAME);
-        this.value = in.readTimeValue();
+        this.value = TimeValue.timeValueMillis(in.readLong());
     }
 
     @Override
@@ -46,7 +46,13 @@ public class MaxAgeCondition extends Condition<TimeValue> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeTimeValue(value);
+        // While we technically could serialize this with out.writeTimeValue(...), that would
+        // require doing the song and dance around backwards compatibility for this value. Since
+        // in this case the deserialized version is not displayed to a user, it's okay to simply use
+        // milliseconds. It's possible to lose precision if someone were to say, specify 50
+        // nanoseconds, however, in that case, their max age is indistinguishable from 0
+        // milliseconds regardless.
+        out.writeLong(value.getMillis());
     }
 
     @Override

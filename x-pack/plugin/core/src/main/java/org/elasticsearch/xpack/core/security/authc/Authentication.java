@@ -436,7 +436,8 @@ public class Authentication implements ToXContentObject {
 
     public static class RealmRef implements Writeable {
 
-        record Domain(String name, Set<RealmConfig.RealmIdentifier> realms) implements Writeable {
+        // public for testing
+        public record Domain(String name, Set<RealmConfig.RealmIdentifier> realms) implements Writeable {
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {

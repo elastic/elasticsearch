@@ -23,6 +23,7 @@ import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -265,8 +266,8 @@ public class RealmsTests extends ESTestCase {
                 realmsForDomain.computeIfAbsent(domain, k -> new HashSet<>());
                 for (Map.Entry<Integer, String> indexAndDomain : indexToDomain.entrySet()) {
                     if (domain.equals(indexAndDomain.getValue())) {
-                        realmsForDomain.get(domain).add(new RealmConfig.RealmIdentifier("type_" + indexAndDomain.getKey(),
-                            "realm_" + indexAndDomain.getKey()));
+                        realmsForDomain.get(domain)
+                            .add(new RealmConfig.RealmIdentifier("type_" + indexAndDomain.getKey(), "realm_" + indexAndDomain.getKey()));
                     }
                 }
                 if (domain.equals(fileRealmDomain)) {
@@ -284,6 +285,9 @@ public class RealmsTests extends ESTestCase {
             }
         }
 
+        String nodeName = randomAlphaOfLength(10);
+        builder.put(Node.NODE_NAME_SETTING.getKey(), nodeName);
+
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
@@ -299,23 +303,27 @@ public class RealmsTests extends ESTestCase {
             assertThat(realm.type(), is(FileRealmSettings.TYPE));
             assertThat(realm.name(), is(FileRealmSettings.DEFAULT_NAME));
             assertThat(realm.domainName(), is(fileRealmDomain));
+            assertDomainForRealm(realm, nodeName, realmsForDomain);
             assertTrue(iterator.hasNext());
             realm = iterator.next();
             assertThat(realm.type(), is(NativeRealmSettings.TYPE));
             assertThat(realm.name(), is(NativeRealmSettings.DEFAULT_NAME));
             assertThat(realm.domainName(), is(nativeRealmDomain));
+            assertDomainForRealm(realm, nodeName, realmsForDomain);
         } else if (false == fileRealmDisabled) {
             assertTrue(iterator.hasNext());
             realm = iterator.next();
             assertThat(realm.type(), is(FileRealmSettings.TYPE));
             assertThat(realm.name(), is(FileRealmSettings.DEFAULT_NAME));
             assertThat(realm.domainName(), is(fileRealmDomain));
+            assertDomainForRealm(realm, nodeName, realmsForDomain);
         } else if (false == nativeRealmDisabled) {
             assertTrue(iterator.hasNext());
             realm = iterator.next();
             assertThat(realm.type(), is(NativeRealmSettings.TYPE));
             assertThat(realm.name(), is(NativeRealmSettings.DEFAULT_NAME));
             assertThat(realm.domainName(), is(nativeRealmDomain));
+            assertDomainForRealm(realm, nodeName, realmsForDomain);
         }
 
         while (iterator.hasNext()) {
@@ -326,6 +334,22 @@ public class RealmsTests extends ESTestCase {
             assertThat(realm.type(), is("type_" + index));
             assertThat(realm.name(), is("realm_" + index));
             assertThat(realm.domainName(), is(indexToDomain.get(index)));
+            assertDomainForRealm(realm, nodeName, realmsForDomain);
+        }
+    }
+
+    private void assertDomainForRealm(Realm realm, String nodeName, Map<String, Set<RealmConfig.RealmIdentifier>> realmsByDomainName) {
+        if (realm.domainName() == null) {
+            assertThat(
+                realm.realmRef(),
+                is(new Authentication.RealmRef(realm.name(), realm.type(), nodeName, null))
+            );
+        } else {
+            assertThat(
+                realm.realmRef(),
+                is(new Authentication.RealmRef(realm.name(), realm.type(), nodeName,
+                    new Authentication.RealmRef.Domain(realm.domainName(), realmsByDomainName.get(realm.domainName()))))
+            );
         }
     }
 
@@ -430,9 +454,7 @@ public class RealmsTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(settings);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> {
-                new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
-            }
+            () -> { new Realms(settings, env, factories, licenseState, threadContext, reservedRealm); }
         );
         assertThat(e.getMessage(), containsString("Found multiple realms configured with the same order"));
     }
@@ -462,9 +484,7 @@ public class RealmsTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(settings);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> {
-                new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
-            }
+            () -> { new Realms(settings, env, factories, licenseState, threadContext, reservedRealm); }
         );
         assertThat(e.getMessage(), containsString("Found multiple realms configured with the same name"));
     }

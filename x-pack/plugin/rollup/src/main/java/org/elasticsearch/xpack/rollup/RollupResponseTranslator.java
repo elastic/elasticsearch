@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
@@ -68,14 +67,16 @@ public class RollupResponseTranslator {
 
     /**
      * Translates a rollup-only search response back into the expected convention.  Similar to
-     * {@link #combineResponses(MultiSearchResponse.Item[], AggregationReduceContext)} except it only
+     * {@link #combineResponses} except it only
      * has to deal with the rollup response (no live response)
      *
-     * See {@link #combineResponses(MultiSearchResponse.Item[], AggregationReduceContext)} for more details
+     * See {@link #combineResponses} for more details
      * on the translation conventions
      */
-    public static SearchResponse translateResponse(MultiSearchResponse.Item[] rolledMsearch, AggregationReduceContext reduceContext)
-        throws Exception {
+    public static SearchResponse translateResponse(
+        MultiSearchResponse.Item[] rolledMsearch,
+        AggregationReduceContext.Builder reduceContextBuilder
+    ) throws Exception {
 
         assert rolledMsearch.length > 0;
         List<SearchResponse> responses = new ArrayList<>();
@@ -102,7 +103,7 @@ public class RollupResponseTranslator {
         }
 
         assert responses.size() > 0;
-        return doCombineResponse(null, responses, reduceContext);
+        return doCombineResponse(null, responses, reduceContextBuilder);
     }
 
     /**
@@ -201,8 +202,10 @@ public class RollupResponseTranslator {
      *
      * @param msearchResponses The responses from the msearch, where the first response is the live-index response
      */
-    public static SearchResponse combineResponses(MultiSearchResponse.Item[] msearchResponses, AggregationReduceContext reduceContext)
-        throws Exception {
+    public static SearchResponse combineResponses(
+        MultiSearchResponse.Item[] msearchResponses,
+        AggregationReduceContext.Builder reduceContextBuilder
+    ) throws Exception {
 
         assert msearchResponses.length >= 2;
 
@@ -245,13 +248,13 @@ public class RollupResponseTranslator {
             throw new ResourceNotFoundException("No indices (live or rollup) found during rollup search");
         }
 
-        return doCombineResponse(liveResponse, rolledResponses, reduceContext);
+        return doCombineResponse(liveResponse, rolledResponses, reduceContextBuilder);
     }
 
     private static SearchResponse doCombineResponse(
         SearchResponse liveResponse,
         List<SearchResponse> rolledResponses,
-        AggregationReduceContext reduceContext
+        AggregationReduceContext.Builder reduceContextBuilder
     ) {
 
         final InternalAggregations liveAggs = liveResponse != null
@@ -280,13 +283,7 @@ public class RollupResponseTranslator {
         // which means we can use aggregation's reduce method to combine, just as if
         // it was a result from another shard
         InternalAggregations currentTree = InternalAggregations.EMPTY;
-        AggregationReduceContext finalReduceContext = new AggregationReduceContext.ForFinal(
-            reduceContext.bigArrays(),
-            reduceContext.scriptService(),
-            b -> {},
-            PipelineTree.EMPTY,
-            reduceContext.isCanceled()
-        );
+        AggregationReduceContext finalReduceContext = reduceContextBuilder.forFinalReduction();
         for (SearchResponse rolledResponse : rolledResponses) {
             List<InternalAggregation> unrolledAggs = new ArrayList<>(rolledResponse.getAggregations().asList().size());
             for (Aggregation agg : rolledResponse.getAggregations()) {

@@ -26,31 +26,10 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.ilm.AbstractStepTestCase;
-import org.elasticsearch.xpack.core.ilm.ErrorStep;
-import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
-import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
-import org.elasticsearch.xpack.core.ilm.MockAction;
-import org.elasticsearch.xpack.core.ilm.MockStep;
-import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.core.ilm.Phase;
-import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
-import org.elasticsearch.xpack.core.ilm.RolloverAction;
-import org.elasticsearch.xpack.core.ilm.RolloverStep;
-import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
-import org.elasticsearch.xpack.core.ilm.Step;
-import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
+import org.elasticsearch.xpack.core.ilm.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -60,11 +39,7 @@ import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.refreshPhase
 import static org.elasticsearch.xpack.ilm.IndexLifecycleRunnerTests.createOneStepPolicyStepRegistry;
 import static org.elasticsearch.xpack.ilm.IndexLifecycleTransition.moveStateToNextActionAndUpdateCachedPhase;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public class IndexLifecycleTransitionTests extends ESTestCase {
 
@@ -382,7 +357,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         );
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
         Index index = clusterState.metadata().index(indexName).getIndex();
-        Index[] indices = new Index[] { index };
+        Index[] indices = new Index[]{index};
         List<String> failedIndexes = new ArrayList<>();
 
         ClusterState newClusterState = IndexLifecycleTransition.removePolicyForIndexes(indices, clusterState, failedIndexes);
@@ -401,7 +376,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             Collections.emptyList()
         );
         Index index = clusterState.metadata().index(indexName).getIndex();
-        Index[] indices = new Index[] { index };
+        Index[] indices = new Index[]{index};
         List<String> failedIndexes = new ArrayList<>();
 
         ClusterState newClusterState = IndexLifecycleTransition.removePolicyForIndexes(indices, clusterState, failedIndexes);
@@ -426,7 +401,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         );
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
         Index index = new Index("doesnt_exist", "im_not_here");
-        Index[] indices = new Index[] { index };
+        Index[] indices = new Index[]{index};
         List<String> failedIndexes = new ArrayList<>();
 
         ClusterState newClusterState = IndexLifecycleTransition.removePolicyForIndexes(indices, clusterState, failedIndexes);
@@ -452,7 +427,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         );
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
         Index index = clusterState.metadata().index(indexName).getIndex();
-        Index[] indices = new Index[] { index };
+        Index[] indices = new Index[]{index};
         List<String> failedIndexes = new ArrayList<>();
 
         ClusterState newClusterState = IndexLifecycleTransition.removePolicyForIndexes(indices, clusterState, failedIndexes);
@@ -479,7 +454,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         );
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
         Index index = clusterState.metadata().index(indexName).getIndex();
-        Index[] indices = new Index[] { index };
+        Index[] indices = new Index[]{index};
         List<String> failedIndexes = new ArrayList<>();
 
         ClusterState newClusterState = IndexLifecycleTransition.removePolicyForIndexes(indices, clusterState, failedIndexes);
@@ -603,7 +578,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         try (Client client = new NoOpClient(getTestName())) {
             Step.StepKey currentStepKey = new Step.StepKey("hot", RolloverAction.NAME, WaitForRolloverReadyStep.NAME);
             Step.StepKey nextStepKey = new Step.StepKey("hot", RolloverAction.NAME, RolloverStep.NAME);
-            Step currentStep = new WaitForRolloverReadyStep(currentStepKey, nextStepKey, client, null, null, null, 1L);
+            Step currentStep = new WaitForRolloverReadyStep(currentStepKey, nextStepKey, client, null, null, null, 1L, null, null, null);
             try {
                 IndexLifecycleTransition.validateTransition(
                     meta,
@@ -906,7 +881,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         String index = meta.getIndex().getName();
 
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("rollover", new RolloverAction(null, null, null, 1L));
+        actions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null));
         actions.put("set_priority", new SetPriorityAction(100));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -1057,7 +1032,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         IndexMetadata meta = buildIndexMetadata("my-policy", currentExecutionState);
 
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("rollover", new RolloverAction(null, null, null, 1L));
+        actions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null));
         actions.put("set_priority", new SetPriorityAction(100));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -1105,7 +1080,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             // the expected new state is that the index is moved into the next action (could be the complete one) and the cached phase
             // definition is updated
             Map<String, LifecycleAction> actionsWitoutSetPriority = new HashMap<>();
-            actionsWitoutSetPriority.put("rollover", new RolloverAction(null, null, null, 1L));
+            actionsWitoutSetPriority.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null));
             Phase hotPhaseNoSetPriority = new Phase("hot", TimeValue.ZERO, actionsWitoutSetPriority);
             Map<String, Phase> phasesWithoutSetPriority = Collections.singletonMap("hot", hotPhaseNoSetPriority);
             LifecyclePolicyMetadata updatedPolicyMetadata = new LifecyclePolicyMetadata(

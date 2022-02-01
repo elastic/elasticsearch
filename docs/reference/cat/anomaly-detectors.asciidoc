@@ -5,6 +5,14 @@
 <titleabbrev>cat anomaly detectors</titleabbrev>
 ++++
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the
+{kibana-ref}/console-kibana.html[Kibana console] or command line. They are _not_
+intended for use by applications. For application consumption, we recommend
+using the <<ml-get-job-stats>>.
+====
+
 Returns configuration and usage information about {anomaly-jobs}.
 
 [[cat-anomaly-detectors-request]]

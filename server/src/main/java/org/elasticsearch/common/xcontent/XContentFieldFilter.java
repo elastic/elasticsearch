@@ -53,7 +53,7 @@ public interface XContentFieldFilter {
             return bStream.bytes();
         };
         // Use the old map-based filtering mechanism if there are wildcards in the excludes.
-        // TODO: And remove this if block once: https://github.com/elastic/elasticsearch/pull/80160 is merged
+        // TODO: Remove this if block once: https://github.com/elastic/elasticsearch/pull/80160 is merged
         if ((CollectionUtils.isEmpty(excludes) == false) && Arrays.stream(excludes).filter(field -> field.contains("*")).count() > 0) {
             return (originalSource, contentType) -> {
                 if (originalSource == null || originalSource.length() <= 0) {

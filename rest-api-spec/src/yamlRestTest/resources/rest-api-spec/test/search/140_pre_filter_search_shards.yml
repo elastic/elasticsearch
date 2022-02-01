@@ -10,6 +10,10 @@ setup:
                 created_at:
                    type: date
                    format: "yyyy-MM-dd"
+                created_at_not_indexed:
+                   type: date
+                   index: false
+                   format: "yyyy-MM-dd"
   - do:
       indices.create:
           index: index_2
@@ -21,6 +25,10 @@ setup:
                 created_at:
                    type: date_nanos
                    format: "yyyy-MM-dd"
+                created_at_not_indexed:
+                   type: date
+                   index: false
+                   format: "yyyy-MM-dd"
   - do:
       indices.create:
           index: index_3
@@ -31,6 +39,10 @@ setup:
               properties:
                 created_at:
                    type: date
+                   format: "yyyy-MM-dd"
+                created_at_not_indexed:
+                   type: date
+                   index: false
                    format: "yyyy-MM-dd"
 
 
@@ -222,3 +234,53 @@ setup:
   - length: { hits.hits: 1 }
   - match: {hits.hits.0._id: "3" }
   - length: { aggregations.idx_terms.buckets: 3 }
+
+---
+"prefilter on non-indexed date fields":
+  - skip:
+      version: "- 8.0.99"
+      reason: "doc values search was added in 8.1.0"
+
+  - do:
+      index:
+        index: index_1
+        id: 1
+        body: { "created_at_not_indexed": "2016-01-01"}
+  - do:
+      index:
+        index: index_2
+        id: 2
+        body: { "created_at_not_indexed": "2017-01-01" }
+
+  - do:
+      index:
+        index: index_3
+        id: 3
+        body: { "created_at_not_indexed": "2018-01-01" }
+  - do:
+      indices.refresh: {}
+
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "query" : { "range" : { "created_at_not_indexed" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped: 0 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 2 }
+
+  # this is a case where we would normally skip due to rewrite but we can't because we only have doc values
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        pre_filter_shard_size: 1
+        body: { "size" : 0, "query" : { "range" : { "created_at_not_indexed" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.skipped : 0 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 2 }

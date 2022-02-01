@@ -241,7 +241,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
     }
 
     public void testPersistProgress_ProgressDocumentCreated() throws IOException {
-        testPersistProgress(SearchHits.empty(), ".ml-state-write");
+        testPersistProgress(SearchHits.EMPTY_WITH_TOTAL_HITS, ".ml-state-write");
     }
 
     public void testPersistProgress_ProgressDocumentUpdated() throws IOException {
@@ -285,7 +285,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         );
 
         SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(SearchHits.empty());
+        when(searchResponse.getHits()).thenReturn(SearchHits.EMPTY_WITH_TOTAL_HITS);
         doAnswer(withResponse(searchResponse)).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
 
         IndexResponse indexResponse = mock(IndexResponse.class);

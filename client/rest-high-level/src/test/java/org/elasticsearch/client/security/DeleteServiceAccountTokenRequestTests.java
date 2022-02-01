@@ -65,36 +65,32 @@ public class DeleteServiceAccountTokenRequestTests extends ESTestCase {
     }
 
     private DeleteServiceAccountTokenRequest mutateInstance(DeleteServiceAccountTokenRequest request) {
-        switch (randomIntBetween(0, 3)) {
-            case 0:
-                return new DeleteServiceAccountTokenRequest(
-                    randomValueOtherThan(request.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    request.getServiceName(),
-                    request.getTokenName(),
-                    request.getRefreshPolicy()
-                );
-            case 1:
-                return new DeleteServiceAccountTokenRequest(
-                    request.getNamespace(),
-                    randomValueOtherThan(request.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    request.getTokenName(),
-                    request.getRefreshPolicy()
-                );
-            case 2:
-                return new DeleteServiceAccountTokenRequest(
-                    request.getNamespace(),
-                    request.getServiceName(),
-                    randomValueOtherThan(request.getTokenName(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    request.getRefreshPolicy()
-                );
-            default:
-                return new DeleteServiceAccountTokenRequest(
-                    request.getNamespace(),
-                    request.getServiceName(),
-                    request.getTokenName(),
-                    randomValueOtherThan(request.getRefreshPolicy(), () -> randomFrom(RefreshPolicy.values()))
-                );
-        }
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> new DeleteServiceAccountTokenRequest(
+                randomValueOtherThan(request.getNamespace(), () -> randomAlphaOfLengthBetween(3, 8)),
+                request.getServiceName(),
+                request.getTokenName(),
+                request.getRefreshPolicy()
+            );
+            case 1 -> new DeleteServiceAccountTokenRequest(
+                request.getNamespace(),
+                randomValueOtherThan(request.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)),
+                request.getTokenName(),
+                request.getRefreshPolicy()
+            );
+            case 2 -> new DeleteServiceAccountTokenRequest(
+                request.getNamespace(),
+                request.getServiceName(),
+                randomValueOtherThan(request.getTokenName(), () -> randomAlphaOfLengthBetween(3, 8)),
+                request.getRefreshPolicy()
+            );
+            default -> new DeleteServiceAccountTokenRequest(
+                request.getNamespace(),
+                request.getServiceName(),
+                request.getTokenName(),
+                randomValueOtherThan(request.getRefreshPolicy(), () -> randomFrom(RefreshPolicy.values()))
+            );
+        };
     }
 
 }

@@ -39,17 +39,10 @@ public class StepKeyTests extends AbstractSerializingTestCase<StepKey> {
         String step = instance.getName();
 
         switch (between(0, 2)) {
-            case 0:
-                phase += randomAlphaOfLength(5);
-                break;
-            case 1:
-                action += randomAlphaOfLength(5);
-                break;
-            case 2:
-                step += randomAlphaOfLength(5);
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> phase += randomAlphaOfLength(5);
+            case 1 -> action += randomAlphaOfLength(5);
+            case 2 -> step += randomAlphaOfLength(5);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new StepKey(phase, action, step);

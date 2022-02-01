@@ -28,11 +28,19 @@ import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * A object encapsulating all necessary configuration for an SSL context (client or server).
- * The configuration itself is immutable, but the {@link #getKeyConfig() key config} and
- * {@link #getTrustConfig() trust config} may depend on reading key and certificate material
+ * The configuration itself is immutable, but the {@link #keyConfig() key config} and
+ * {@link #trustConfig() trust config} may depend on reading key and certificate material
  * from files (see {@link #getDependentFiles()}, and the content of those files may change.
  */
-public class SslConfiguration {
+public record SslConfiguration(
+    boolean explicitlyConfigured,
+    SslTrustConfig trustConfig,
+    SslKeyConfig keyConfig,
+    SslVerificationMode verificationMode,
+    SslClientAuthenticationMode clientAuth,
+    List<String> ciphers,
+    List<String> supportedProtocols
+) {
 
     /**
      * An ordered map of protocol algorithms to SSLContext algorithms. The map is ordered from most
@@ -41,6 +49,7 @@ public class SslConfiguration {
      * Java Security Standard Algorithm Names Documentation for Java 11</a>.
      */
     static final Map<String, String> ORDERED_PROTOCOL_ALGORITHM_MAP;
+
     static {
         LinkedHashMap<String, String> protocolAlgorithmMap = new LinkedHashMap<>();
         try {
@@ -57,14 +66,6 @@ public class SslConfiguration {
         protocolAlgorithmMap.put("SSLv2Hello", "SSL");
         ORDERED_PROTOCOL_ALGORITHM_MAP = Collections.unmodifiableMap(protocolAlgorithmMap);
     }
-
-    private final boolean explicitlyConfigured;
-    private final SslTrustConfig trustConfig;
-    private final SslKeyConfig keyConfig;
-    private final SslVerificationMode verificationMode;
-    private final SslClientAuthenticationMode clientAuth;
-    private final List<String> ciphers;
-    private final List<String> supportedProtocols;
 
     public SslConfiguration(
         boolean explicitlyConfigured,
@@ -90,28 +91,8 @@ public class SslConfiguration {
         this.supportedProtocols = Collections.unmodifiableList(supportedProtocols);
     }
 
-    public SslTrustConfig getTrustConfig() {
-        return trustConfig;
-    }
-
-    public SslKeyConfig getKeyConfig() {
-        return keyConfig;
-    }
-
-    public SslVerificationMode getVerificationMode() {
-        return verificationMode;
-    }
-
-    public SslClientAuthenticationMode getClientAuth() {
-        return clientAuth;
-    }
-
     public List<String> getCipherSuites() {
         return ciphers;
-    }
-
-    public List<String> getSupportedProtocols() {
-        return supportedProtocols;
     }
 
     /**
@@ -139,7 +120,7 @@ public class SslConfiguration {
 
     /**
      * Dynamically create a new SSL context based on the current state of the configuration.
-     * Because the {@link #getKeyConfig() key config} and {@link #getTrustConfig() trust config} may change based on the
+     * Because the {@link #keyConfig() key config} and {@link #trustConfig() trust config} may change based on the
      * contents of their referenced files (see {@link #getDependentFiles()}, consecutive calls to this method may
      * return ssl-contexts with different configurations.
      */
@@ -157,7 +138,7 @@ public class SslConfiguration {
 
     /**
      * Picks the best (highest security / most recent standard) SSL/TLS protocol (/version) that is supported by the
-     * {@link #getSupportedProtocols() configured protocols}.
+     * {@link #supportedProtocols() configured protocols}.
      */
     private String contextProtocol() {
         if (supportedProtocols.isEmpty()) {
@@ -173,25 +154,7 @@ public class SslConfiguration {
         );
     }
 
-    @Override
-    public String toString() {
-        return getClass().getSimpleName()
-            + '{'
-            + "trustConfig="
-            + trustConfig
-            + ", keyConfig="
-            + keyConfig
-            + ", verificationMode="
-            + verificationMode
-            + ", clientAuth="
-            + clientAuth
-            + ", ciphers="
-            + ciphers
-            + ", supportedProtocols="
-            + supportedProtocols
-            + '}';
-    }
-
+    // TODO Add explicitlyConfigured to equals&hashCode?
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -210,7 +173,4 @@ public class SslConfiguration {
         return Objects.hash(trustConfig, keyConfig, verificationMode, clientAuth, ciphers, supportedProtocols);
     }
 
-    public boolean isExplicitlyConfigured() {
-        return explicitlyConfigured;
-    }
 }

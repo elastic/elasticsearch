@@ -183,7 +183,7 @@ public class IndexModuleTests extends ESTestCase {
         return module.newIndexService(
             CREATE_INDEX,
             nodeEnvironment,
-            xContentRegistry(),
+            parserConfig(),
             deleter,
             circuitBreakerService,
             bigArrays,

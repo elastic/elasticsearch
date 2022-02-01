@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeReques
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -288,7 +289,12 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         assertThat(actualAliasNames, containsInAnyOrder(aliasNames.toArray()));
 
         IndicesStatsResponse indexStats = client().admin().indices().prepareStats(imd.getIndex().getName()).setDocs(true).get();
-        assertThat(indexStats.getIndex(imd.getIndex().getName()).getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
+        assertNotNull(indexStats);
+        final IndexStats thisIndexStats = indexStats.getIndex(imd.getIndex().getName());
+        assertNotNull(thisIndexStats);
+        assertNotNull(thisIndexStats.getTotal());
+        assertNotNull(thisIndexStats.getTotal().getDocs());
+        assertThat(thisIndexStats.getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
     }
 
     public void createSystemIndexForDescriptor(SystemIndexDescriptor descriptor) throws InterruptedException {

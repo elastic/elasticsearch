@@ -86,27 +86,22 @@ public class CreateApiKeyResponseTests extends ESTestCase {
     }
 
     private static CreateApiKeyResponse mutateTestItem(CreateApiKeyResponse original) {
-        switch (randomIntBetween(0, 3)) {
-            case 0:
-                return new CreateApiKeyResponse(randomAlphaOfLength(7), original.getId(), original.getKey(), original.getExpiration());
-            case 1:
-                return new CreateApiKeyResponse(
-                    original.getName(),
-                    randomAlphaOfLengthBetween(4, 8),
-                    original.getKey(),
-                    original.getExpiration()
-                );
-            case 2:
-                return new CreateApiKeyResponse(
-                    original.getName(),
-                    original.getId(),
-                    UUIDs.randomBase64UUIDSecureString(),
-                    original.getExpiration()
-                );
-            case 3:
-                return new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), Instant.ofEpochMilli(150000));
-            default:
-                return new CreateApiKeyResponse(randomAlphaOfLength(7), original.getId(), original.getKey(), original.getExpiration());
-        }
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> new CreateApiKeyResponse(randomAlphaOfLength(7), original.getId(), original.getKey(), original.getExpiration());
+            case 1 -> new CreateApiKeyResponse(
+                original.getName(),
+                randomAlphaOfLengthBetween(4, 8),
+                original.getKey(),
+                original.getExpiration()
+            );
+            case 2 -> new CreateApiKeyResponse(
+                original.getName(),
+                original.getId(),
+                UUIDs.randomBase64UUIDSecureString(),
+                original.getExpiration()
+            );
+            case 3 -> new CreateApiKeyResponse(original.getName(), original.getId(), original.getKey(), Instant.ofEpochMilli(150000));
+            default -> new CreateApiKeyResponse(randomAlphaOfLength(7), original.getId(), original.getKey(), original.getExpiration());
+        };
     }
 }

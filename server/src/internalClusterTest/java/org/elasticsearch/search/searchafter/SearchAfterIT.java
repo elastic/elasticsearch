@@ -185,27 +185,13 @@ public class SearchAfterIT extends ESIntegTestCase {
             List<Object> values = new ArrayList<>();
             for (int type : types) {
                 switch (type) {
-                    case 0:
-                        values.add(randomBoolean());
-                        break;
-                    case 1:
-                        values.add(randomByte());
-                        break;
-                    case 2:
-                        values.add(randomShort());
-                        break;
-                    case 3:
-                        values.add(randomInt());
-                        break;
-                    case 4:
-                        values.add(randomFloat());
-                        break;
-                    case 5:
-                        values.add(randomDouble());
-                        break;
-                    case 6:
-                        values.add(randomAlphaOfLengthBetween(5, 20));
-                        break;
+                    case 0 -> values.add(randomBoolean());
+                    case 1 -> values.add(randomByte());
+                    case 2 -> values.add(randomShort());
+                    case 3 -> values.add(randomInt());
+                    case 4 -> values.add(randomFloat());
+                    case 5 -> values.add(randomDouble());
+                    case 6 -> values.add(randomAlphaOfLengthBetween(5, 20));
                 }
             }
             values.add(UUIDs.randomBase64UUID());
@@ -411,14 +397,13 @@ public class SearchAfterIT extends ESIntegTestCase {
         List<Object> converted = new ArrayList<>();
         for (int i = 0; i < sortValues.size(); i++) {
             Object from = sortValues.get(i);
-            if (from instanceof Integer) {
-                converted.add(((Integer) from).longValue());
-            } else if (from instanceof Short) {
-                converted.add(((Short) from).longValue());
-            } else if (from instanceof Byte) {
-                converted.add(((Byte) from).longValue());
-            } else if (from instanceof Boolean) {
-                boolean b = (boolean) from;
+            if (from instanceof Integer integer) {
+                converted.add(integer.longValue());
+            } else if (from instanceof Short s) {
+                converted.add(s.longValue());
+            } else if (from instanceof Byte b) {
+                converted.add(b.longValue());
+            } else if (from instanceof Boolean b) {
                 if (b) {
                     converted.add(1L);
                 } else {

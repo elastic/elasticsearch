@@ -16,6 +16,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.cbor.CborXContent;
+import org.elasticsearch.xcontent.smile.SmileXContent;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -53,7 +55,16 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
      * concurrently.
      */
     public final void testConcurrentToXContent() throws IOException, InterruptedException, ExecutionException {
-        XContentType xContentType = randomFrom(XContentType.values());
+        XContentType xContentType = randomValueOtherThanMany(
+            /*
+             * SMILE will sometimes use the unicode marker for ascii strings
+             * if the it's internal buffer doeesn't have enough space for the
+             * whole string. That's fine for SMILE readers, but we're comparing
+             * bytes here so we can't use it.
+             */
+            type -> type.xContent() == SmileXContent.smileXContent,
+            () -> randomFrom(XContentType.values())
+        );
         T testInstance = createXContextTestInstance(xContentType);
         ToXContent.Params params = new ToXContent.DelegatingMapParams(
             singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"),
@@ -71,7 +82,20 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
         concurrentTest(() -> {
             try {
                 for (int r = 0; r < rounds; r++) {
-                    assertEquals(firstTimeBytes, toXContent(testInstance, xContentType, params, humanReadable).toBytesRef());
+                    BytesRef thisRoundBytes = toXContent(testInstance, xContentType, params, humanReadable).toBytesRef();
+                    if (firstTimeBytes.bytesEquals(thisRoundBytes)) {
+                        continue;
+                    }
+                    StringBuilder error = new StringBuilder("Failed to round trip over ");
+                    if (humanReadable) {
+                        error.append("human readable ");
+                    }
+                    error.append(xContentType);
+                    error.append("\nCanonical is:\n").append(Strings.toString(testInstance, true, true));
+                    boolean showBytes = xContentType.xContent() == CborXContent.cborXContent;
+                    error.append("\nWanted : ").append(showBytes ? firstTimeBytes : firstTimeBytes.utf8ToString());
+                    error.append("\nBut got: ").append(showBytes ? thisRoundBytes : thisRoundBytes.utf8ToString());
+                    fail(error.toString());
                 }
             } catch (IOException e) {
                 throw new AssertionError(e);

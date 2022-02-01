@@ -75,18 +75,13 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         }
 
         public static TestStep parse(String value) {
-            switch (value) {
-                case "step1":
-                    return STEP1_OLD_CLUSTER;
-                case "step2":
-                    return STEP2_NEW_CLUSTER;
-                case "step3":
-                    return STEP3_OLD_CLUSTER;
-                case "step4":
-                    return STEP4_NEW_CLUSTER;
-                default:
-                    throw new AssertionError("unknown test step: " + value);
-            }
+            return switch (value) {
+                case "step1" -> STEP1_OLD_CLUSTER;
+                case "step2" -> STEP2_NEW_CLUSTER;
+                case "step3" -> STEP3_OLD_CLUSTER;
+                case "step4" -> STEP4_NEW_CLUSTER;
+                default -> throw new AssertionError("unknown test step: " + value);
+            };
         }
     }
 
@@ -102,7 +97,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         return true;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80088")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82569")
     public void testCreateAndRestoreSnapshot() throws IOException {
         final String repoName = getTestName();
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {
@@ -126,20 +121,18 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             final List<Map<String, Object>> snapshots = listSnapshots(repoName);
             assertThat(snapshots, hasSize(TEST_STEP.ordinal() + 1));
             switch (TEST_STEP) {
-                case STEP2_NEW_CLUSTER:
-                case STEP4_NEW_CLUSTER:
-                    assertSnapshotStatusSuccessful(
-                        client,
-                        repoName,
-                        snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new)
-                    );
-                    break;
-                case STEP1_OLD_CLUSTER:
-                    assertSnapshotStatusSuccessful(client, repoName, "snapshot-" + TEST_STEP);
-                    break;
-                case STEP3_OLD_CLUSTER:
-                    assertSnapshotStatusSuccessful(client, repoName, "snapshot-" + TEST_STEP, "snapshot-" + TestStep.STEP3_OLD_CLUSTER);
-                    break;
+                case STEP2_NEW_CLUSTER, STEP4_NEW_CLUSTER -> assertSnapshotStatusSuccessful(
+                    client,
+                    repoName,
+                    snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new)
+                );
+                case STEP1_OLD_CLUSTER -> assertSnapshotStatusSuccessful(client, repoName, "snapshot-" + TEST_STEP);
+                case STEP3_OLD_CLUSTER -> assertSnapshotStatusSuccessful(
+                    client,
+                    repoName,
+                    "snapshot-" + TEST_STEP,
+                    "snapshot-" + TestStep.STEP3_OLD_CLUSTER
+                );
             }
             if (TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
                 ensureSnapshotRestoreWorks(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards, index);
@@ -153,7 +146,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80088")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82569")
     public void testReadOnlyRepo() throws IOException {
         final String repoName = getTestName();
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {
@@ -167,14 +160,8 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             }
             final List<Map<String, Object>> snapshots = listSnapshots(repoName);
             switch (TEST_STEP) {
-                case STEP1_OLD_CLUSTER:
-                    assertThat(snapshots, hasSize(1));
-                    break;
-                case STEP2_NEW_CLUSTER:
-                case STEP4_NEW_CLUSTER:
-                case STEP3_OLD_CLUSTER:
-                    assertThat(snapshots, hasSize(2));
-                    break;
+                case STEP1_OLD_CLUSTER -> assertThat(snapshots, hasSize(1));
+                case STEP2_NEW_CLUSTER, STEP4_NEW_CLUSTER, STEP3_OLD_CLUSTER -> assertThat(snapshots, hasSize(2));
             }
             if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER || TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
                 assertSnapshotStatusSuccessful(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER);
@@ -200,7 +187,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         ElasticsearchStatusException.class
     );
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80088")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82569")
     public void testUpgradeMovesRepoToNewMetaVersion() throws IOException {
         final String repoName = getTestName();
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {

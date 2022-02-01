@@ -329,17 +329,11 @@ public class JvmMonitorTests extends ESTestCase {
         final long expectedElapsed;
         if (randomBoolean()) {
             expectedThreshold = randomFrom(JvmGcMonitorService.JvmMonitor.Threshold.values());
-            switch (expectedThreshold) {
-                case WARN:
-                    fraction = randomIntBetween(warnThreshold, 100);
-                    break;
-                case INFO:
-                    fraction = randomIntBetween(infoThreshold, warnThreshold - 1);
-                    break;
-                case DEBUG:
-                    fraction = randomIntBetween(debugThreshold, infoThreshold - 1);
-                    break;
-            }
+            fraction = switch (expectedThreshold) {
+                case WARN -> randomIntBetween(warnThreshold, 100);
+                case INFO -> randomIntBetween(infoThreshold, warnThreshold - 1);
+                case DEBUG -> randomIntBetween(debugThreshold, infoThreshold - 1);
+            };
         } else {
             expectedThreshold = null;
             fraction = randomIntBetween(0, debugThreshold - 1);

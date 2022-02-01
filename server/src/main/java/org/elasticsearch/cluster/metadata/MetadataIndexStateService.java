@@ -34,6 +34,7 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -161,7 +162,7 @@ public class MetadataIndexStateService {
                 }
 
                 @Override
-                public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
+                public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
                     if (oldState == newState) {
                         assert blockedIndices.isEmpty() : "List of blocked indices is not empty but cluster state wasn't changed";
                         listener.onResponse(new CloseIndexResponse(true, false, Collections.emptyList()));
@@ -191,13 +192,12 @@ public class MetadataIndexStateService {
                                                 }
 
                                                 @Override
-                                                public void onFailure(final String source, final Exception e) {
+                                                public void onFailure(final Exception e) {
                                                     listener.onFailure(e);
                                                 }
 
                                                 @Override
                                                 public void clusterStateProcessed(
-                                                    final String source,
                                                     final ClusterState oldState,
                                                     final ClusterState newState
                                                 ) {
@@ -238,7 +238,8 @@ public class MetadataIndexStateService {
                                                         listener.onResponse(new CloseIndexResponse(acknowledged, false, indices));
                                                     }
                                                 }
-                                            }
+                                            },
+                                            ClusterStateTaskExecutor.unbatched()
                                         ),
                                         listener::onFailure
                                     )
@@ -248,10 +249,11 @@ public class MetadataIndexStateService {
                 }
 
                 @Override
-                public void onFailure(final String source, final Exception e) {
+                public void onFailure(final Exception e) {
                     listener.onFailure(e);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -462,7 +464,7 @@ public class MetadataIndexStateService {
                 }
 
                 @Override
-                public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
+                public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
                     if (oldState == newState) {
                         assert blockedIndices.isEmpty() : "List of blocked indices is not empty but cluster state wasn't changed";
                         listener.onResponse(new AddIndexBlockResponse(true, false, Collections.emptyList()));
@@ -497,13 +499,12 @@ public class MetadataIndexStateService {
                                                 }
 
                                                 @Override
-                                                public void onFailure(final String source, final Exception e) {
+                                                public void onFailure(final Exception e) {
                                                     listener.onFailure(e);
                                                 }
 
                                                 @Override
                                                 public void clusterStateProcessed(
-                                                    final String source,
                                                     final ClusterState oldState,
                                                     final ClusterState newState
                                                 ) {
@@ -511,7 +512,8 @@ public class MetadataIndexStateService {
                                                     final boolean acknowledged = indices.stream().noneMatch(AddBlockResult::hasFailures);
                                                     listener.onResponse(new AddIndexBlockResponse(acknowledged, acknowledged, indices));
                                                 }
-                                            }
+                                            },
+                                            ClusterStateTaskExecutor.unbatched()
                                         ),
                                         listener::onFailure
                                     )
@@ -521,10 +523,11 @@ public class MetadataIndexStateService {
                 }
 
                 @Override
-                public void onFailure(final String source, final Exception e) {
+                public void onFailure(final Exception e) {
                     listener.onFailure(e);
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 
@@ -921,7 +924,8 @@ public class MetadataIndexStateService {
                     // no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
                     return allocationService.reroute(updatedState, "indices opened [" + indicesAsString + "]");
                 }
-            }
+            },
+            ClusterStateTaskExecutor.unbatched()
         );
     }
 

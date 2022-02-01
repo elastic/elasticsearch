@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -12,6 +14,12 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   description 'The Mapper Annotated_text plugin adds support for text fields with markup used to inject annotation tokens into the index.'
   classname 'org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextPlugin'
+}
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("internalClusterTest").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
 }
 
 restResources {

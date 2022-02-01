@@ -149,6 +149,13 @@ will be - typically the first in natural ascending order) for fields with multip
 `index.include.frozen` (default `false`):: Whether to include frozen indices in the query execution or not (default).
 
 [discrete]
+==== Cluster
+`catalog`:: Default catalog (cluster) for queries. If unspecified, the
+queries execute on the data in the local cluster only.
++
+experimental:[] See <<modules-cross-cluster-search,{ccs}>>.
+
+[discrete]
 ==== Additional
 
 `validate.properties` (default `true`):: If disabled, it will ignore any misspellings or unrecognizable properties. When enabled, an exception

@@ -317,21 +317,17 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
         int size = instance.getSize();
         List<InternalTopMetrics.TopMetric> topMetrics = instance.getTopMetrics();
         switch (randomInt(4)) {
-            case 0:
-                name = randomAlphaOfLength(6);
-                break;
-            case 1:
+            case 0 -> name = randomAlphaOfLength(6);
+            case 1 -> {
                 instanceSortOrder = instanceSortOrder == SortOrder.ASC ? SortOrder.DESC : SortOrder.ASC;
                 Collections.reverse(topMetrics);
-                break;
-            case 2:
+            }
+            case 2 -> {
                 metricNames = new ArrayList<>(metricNames);
                 metricNames.set(randomInt(metricNames.size() - 1), randomAlphaOfLength(6));
-                break;
-            case 3:
-                size = randomValueOtherThan(size, () -> between(1, 100));
-                break;
-            case 4:
+            }
+            case 3 -> size = randomValueOtherThan(size, () -> between(1, 100));
+            case 4 -> {
                 int fixedSize = size;
                 int fixedMetricsSize = metricNames.size();
                 topMetrics = randomValueOtherThan(
@@ -343,9 +339,8 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
                         InternalTopMetricsTests::randomSortValue
                     )
                 );
-                break;
-            default:
-                throw new IllegalArgumentException("bad mutation");
+            }
+            default -> throw new IllegalArgumentException("bad mutation");
         }
         return new InternalTopMetrics(name, instanceSortOrder, metricNames, size, topMetrics, instance.getMetadata());
     }

@@ -156,6 +156,37 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(index)));
     }
 
+    public void testUpdatePolicyToNotContainFailedStep() throws Exception {
+        createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE);
+        createIndexWithSettings(
+            client(),
+            index,
+            alias,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_READ_ONLY, true)
+                .put("index.lifecycle.name", policy)
+        );
+
+        assertBusy(
+            () -> assertThat((Integer) explainIndex(client(), index).get(FAILED_STEP_RETRY_COUNT_FIELD), greaterThanOrEqualTo(1)),
+            30,
+            TimeUnit.SECONDS
+        );
+        assertTrue(indexExists(index));
+
+        // updating the policy to not contain the delete phase at all
+        createNewSingletonPolicy(client(), policy, "hot", new RolloverAction(null, null, null, 1L));
+
+        // ILM must honour the cached delete phase and eventually delete the index
+        Request request = new Request("PUT", index + "/_settings");
+        request.setJsonEntity("{\"index.blocks.read_only\":false}");
+        assertOK(client().performRequest(request));
+
+        assertBusy(() -> assertFalse(indexExists(index)));
+    }
+
     public void testFreezeNoop() throws Exception {
         createNewSingletonPolicy(client(), policy, "cold", FreezeAction.INSTANCE);
 

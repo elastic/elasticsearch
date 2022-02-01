@@ -29,6 +29,7 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -43,15 +44,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class MetadataIndexAliasesServiceTests extends ESTestCase {
-    private final AliasValidator aliasValidator = new AliasValidator();
     private final MetadataDeleteIndexService deleteIndexService = mock(MetadataDeleteIndexService.class);
-    private final MetadataIndexAliasesService service = new MetadataIndexAliasesService(
-        null,
-        null,
-        aliasValidator,
-        deleteIndexService,
-        xContentRegistry()
-    );
+    private final MetadataIndexAliasesService service = new MetadataIndexAliasesService(null, null, deleteIndexService, xContentRegistry());
 
     public MetadataIndexAliasesServiceTests() {
         // Mock any deletes so we don't need to worry about how MetadataDeleteIndexService does its job
@@ -587,7 +581,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), singletonList(indexMetadata.getIndex())))
+                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), singletonList(indexMetadata.getIndex())))
             )
             .build();
 

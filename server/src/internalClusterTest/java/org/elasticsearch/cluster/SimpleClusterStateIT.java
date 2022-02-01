@@ -464,11 +464,11 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                                 }
 
                                 @Override
-                                public void onFailure(String source, Exception e) {
+                                public void onFailure(Exception e) {
                                     throw new AssertionError(e);
                                 }
 
-                            });
+                            }, ClusterStateTaskExecutor.unbatched());
                         }
                     }
                 }

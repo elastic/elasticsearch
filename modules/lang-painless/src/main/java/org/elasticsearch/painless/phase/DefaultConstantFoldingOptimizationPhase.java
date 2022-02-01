@@ -1085,13 +1085,13 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
             irInvokeCallMemberNode.getArgumentNodes().get(i).visit(this, (e) -> irInvokeCallMemberNode.getArgumentNodes().set(j, e));
         }
         PainlessMethod method = irInvokeCallMemberNode.getDecorationValue(IRDMethod.class);
-        if (method != null && method.annotations.containsKey(CompileTimeOnlyAnnotation.class)) {
-            replaceCallWithConstant(irInvokeCallMemberNode, scope, method.javaMethod, null);
+        if (method != null && method.annotations().containsKey(CompileTimeOnlyAnnotation.class)) {
+            replaceCallWithConstant(irInvokeCallMemberNode, scope, method.javaMethod(), null);
             return;
         }
         PainlessInstanceBinding instanceBinding = irInvokeCallMemberNode.getDecorationValue(IRDInstanceBinding.class);
-        if (instanceBinding != null && instanceBinding.annotations.containsKey(CompileTimeOnlyAnnotation.class)) {
-            replaceCallWithConstant(irInvokeCallMemberNode, scope, instanceBinding.javaMethod, instanceBinding.targetInstance);
+        if (instanceBinding != null && instanceBinding.annotations().containsKey(CompileTimeOnlyAnnotation.class)) {
+            replaceCallWithConstant(irInvokeCallMemberNode, scope, instanceBinding.javaMethod(), instanceBinding.targetInstance());
             return;
         }
     }

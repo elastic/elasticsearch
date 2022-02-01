@@ -21,11 +21,11 @@ public class UpdateDesiredNodesResponseSerializationTests extends AbstractWireSe
 
     @Override
     protected UpdateDesiredNodesResponse createTestInstance() {
-        return new UpdateDesiredNodesResponse(randomBoolean(), randomBoolean());
+        return new UpdateDesiredNodesResponse(randomBoolean());
     }
 
     @Override
     protected UpdateDesiredNodesResponse mutateInstance(UpdateDesiredNodesResponse instance) throws IOException {
-        return new UpdateDesiredNodesResponse(instance.isAcknowledged(), instance.hasReplacedExistingHistoryId() == false);
+        return new UpdateDesiredNodesResponse(instance.hasReplacedExistingHistoryId() == false);
     }
 }

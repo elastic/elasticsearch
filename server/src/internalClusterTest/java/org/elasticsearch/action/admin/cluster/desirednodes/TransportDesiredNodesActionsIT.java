@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 
+import java.util.Locale;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
@@ -102,13 +103,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         }
 
         final DesiredNodes newDesiredNodes = randomDesiredNodes();
-        final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
-            newDesiredNodes.historyID(),
-            newDesiredNodes.version(),
-            newDesiredNodes.nodes()
-        );
-        final UpdateDesiredNodesResponse response = client().execute(UpdateDesiredNodesAction.INSTANCE, request).actionGet();
-        assertAcked(response);
+        final UpdateDesiredNodesResponse response = updateDesiredNodes(newDesiredNodes);
         assertThat(response.hasReplacedExistingHistoryId(), is(equalTo(true)));
 
         {
@@ -174,22 +169,58 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
     public void testNodeProcessorsGetValidatedWithDesiredNodeProcessors() {
         final int numProcessors = Math.max(Runtime.getRuntime().availableProcessors() + 1, 2048);
-        final Consumer<Settings.Builder> settingsConsumer = (settings) -> settings.put(NODE_PROCESSORS_SETTING.getKey(), numProcessors);
-        final DesiredNodes desiredNodes = new DesiredNodes(
-            UUIDs.randomBase64UUID(),
-            randomIntBetween(1, 20),
-            randomList(1, 20, () -> randomDesiredNode(Version.CURRENT, numProcessors, settingsConsumer))
-        );
 
-        updateDesiredNodes(desiredNodes);
+        {
+            final Consumer<Settings.Builder> settingsConsumer = (settings) -> settings.put(
+                NODE_PROCESSORS_SETTING.getKey(),
+                numProcessors + 1
+            );
+            final DesiredNodes desiredNodes = new DesiredNodes(
+                UUIDs.randomBase64UUID(),
+                randomIntBetween(1, 20),
+                randomList(1, 20, () -> randomDesiredNode(Version.CURRENT, numProcessors, settingsConsumer))
+            );
 
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final DesiredNodesMetadata metadata = state.metadata().custom(DesiredNodesMetadata.TYPE);
-        assertThat(metadata, is(notNullValue()));
-        final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
-        assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
-        assertThat(latestDesiredNodes.nodes().isEmpty(), is(equalTo(false)));
-        assertThat(latestDesiredNodes.nodes().get(0).settings().get(NODE_PROCESSORS_SETTING.getKey()), is(equalTo("2048")));
+            final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
+            assertThat(exception.getMessage(), containsString("Nodes with ids"));
+            assertThat(exception.getMessage(), containsString("contain invalid settings"));
+            assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
+            assertThat(
+                exception.getSuppressed()[0].getMessage(),
+                containsString(
+                    String.format(
+                        Locale.ROOT,
+                        "Failed to parse value [%d] for setting [node.processors] must be <= %d",
+                        numProcessors + 1,
+                        numProcessors
+                    )
+                )
+            );
+        }
+
+        {
+            // This test verifies that the validation doesn't throw on desired nodes
+            // with a higher number of available processors than the node running the tests.
+            final Consumer<Settings.Builder> settingsConsumer = (settings) -> settings.put(NODE_PROCESSORS_SETTING.getKey(), numProcessors);
+            final DesiredNodes desiredNodes = new DesiredNodes(
+                UUIDs.randomBase64UUID(),
+                randomIntBetween(1, 20),
+                randomList(1, 20, () -> randomDesiredNode(Version.CURRENT, numProcessors, settingsConsumer))
+            );
+
+            updateDesiredNodes(desiredNodes);
+
+            final ClusterState state = client().admin().cluster().prepareState().get().getState();
+            final DesiredNodesMetadata metadata = state.metadata().custom(DesiredNodesMetadata.TYPE);
+            assertThat(metadata, is(notNullValue()));
+            final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
+            assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
+            assertThat(latestDesiredNodes.nodes().isEmpty(), is(equalTo(false)));
+            assertThat(
+                latestDesiredNodes.nodes().get(0).settings().get(NODE_PROCESSORS_SETTING.getKey()),
+                is(equalTo(Integer.toString(numProcessors)))
+            );
+        }
     }
 
     public void testGetLatestDesiredNodes() {
@@ -240,13 +271,13 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         return desiredNodes;
     }
 
-    private void updateDesiredNodes(DesiredNodes desiredNodes) {
+    private UpdateDesiredNodesResponse updateDesiredNodes(DesiredNodes desiredNodes) {
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             desiredNodes.historyID(),
             desiredNodes.version(),
             desiredNodes.nodes()
         );
-        assertAcked(client().execute(UpdateDesiredNodesAction.INSTANCE, request).actionGet());
+        return client().execute(UpdateDesiredNodesAction.INSTANCE, request).actionGet();
     }
 
 }

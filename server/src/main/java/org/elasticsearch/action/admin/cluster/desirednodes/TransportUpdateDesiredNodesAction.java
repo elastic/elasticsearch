@@ -46,6 +46,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     ) {
         super(
             UpdateDesiredNodesAction.NAME,
+            false,
             transportService,
             clusterService,
             threadPool,
@@ -76,7 +77,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
 
             clusterService.submitStateUpdateTask(
                 "update-desired-nodes",
-                new ClusterStateUpdateTask(Priority.HIGH, request.masterNodeTimeout()) {
+                new ClusterStateUpdateTask(Priority.URGENT, request.masterNodeTimeout()) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         return updateDesiredNodes(currentState, request);
@@ -89,11 +90,12 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
 
                     @Override
                     public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                        // Relies on ClusterStateTaskExecutor.unbatched()
                         final DesiredNodes previousDesiredNodes = DesiredNodesMetadata.latestFromClusterState(oldState);
                         final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(newState);
                         boolean replacedExistingHistoryId = previousDesiredNodes != null
                             && previousDesiredNodes.hasSameHistoryId(latestDesiredNodes) == false;
-                        listener.onResponse(new UpdateDesiredNodesResponse(true, replacedExistingHistoryId));
+                        listener.onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId));
                     }
                 },
                 ClusterStateTaskExecutor.unbatched()

@@ -57,9 +57,10 @@ public class TransportGetDesiredNodesAction extends TransportMasterNodeReadActio
     ) throws Exception {
         final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(state);
         if (latestDesiredNodes == null) {
-            throw new ResourceNotFoundException("Desired nodes not found");
+            listener.onFailure(new ResourceNotFoundException("Desired nodes not found"));
+        } else {
+            listener.onResponse(new GetDesiredNodesAction.Response(latestDesiredNodes));
         }
-        listener.onResponse(new GetDesiredNodesAction.Response(latestDesiredNodes));
     }
 
     @Override

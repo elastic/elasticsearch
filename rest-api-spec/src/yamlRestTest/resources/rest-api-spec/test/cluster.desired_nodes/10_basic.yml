@@ -26,7 +26,6 @@ teardown:
         body:
             nodes:
               - { settings: { "node.name": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
-  - match: { acknowledged: true }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -46,7 +45,6 @@ teardown:
           nodes:
             - { settings: { "node.name": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
             - { settings: { "node.name": "instance-000188" }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version }
-  - match: { acknowledged: true }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -76,7 +74,6 @@ teardown:
         body:
           nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
-  - match: { acknowledged: true }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -96,7 +93,6 @@ teardown:
           nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
             - { settings: { "node.external_id": "instance-000188" }, processors: 16, memory: "128gb", storage: "1tb", node_version: $es_version }
-  - match: { acknowledged: true }
   - match: { replaced_existing_history_id: true }
 
   - do:
@@ -126,7 +122,6 @@ teardown:
         body:
           nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
-  - match: { acknowledged: true }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -163,7 +158,6 @@ teardown:
         body:
           nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
-  - match: { acknowledged: true }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -182,8 +176,7 @@ teardown:
         body:
           nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
-  - match: { acknowledged: true }
-  - match: { new_history_id: null }
+  - match: { replaced_existing_history_id: false }
 
   - do:
       desired_nodes.get_desired_nodes: {}
@@ -211,7 +204,6 @@ teardown:
         body:
           nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
-  - match: { acknowledged: true }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -252,7 +244,6 @@ teardown:
         body:
           nodes:
             - { settings: { "node.external_id": "instance-000187" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
-  - match: { acknowledged: true }
   - match: { replaced_existing_history_id: false }
 
   - do:
@@ -330,7 +321,6 @@ teardown:
         body:
           nodes:
             - { settings: { "node.external_id": "instance-000187", "unknown_setting": -1000 }, processors: 8, memory: "64gb", storage: "128gb", node_version: "99.1.0" }
-  - match: { acknowledged: true }
   - match: { replaced_existing_history_id: false }
 ---
 "Test some settings can be overridden":
@@ -350,7 +340,6 @@ teardown:
         body:
           nodes:
             - { settings: { "node.external_id": "instance-000187", node.processors: 2048 }, processors: 2048, memory: "64gb", storage: "128gb", node_version: $es_version }
-  - match: { acknowledged: true }
   - match: { replaced_existing_history_id: false }
 ---
 "Test external_id or node.name is required":

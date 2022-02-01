@@ -121,7 +121,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    public void testFloatRangeKeys() throws IOException {
+    public void testFloatRangeFromAndToValues() throws IOException {
         final String fieldName = "test";
         MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.FLOAT);
         testCase(
@@ -138,15 +138,14 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 assertEquals(2, ranges.size());
                 assertEquals("5.0-6.0", ranges.get(0).getKeyAsString());
                 assertEquals("6.0-10.6", ranges.get(1).getKeyAsString());
+                assertEquals(5.0D, ranges.get(0).getFrom());
+                assertEquals(6.0D, ranges.get(0).getTo());
+                assertEquals(6.0D, ranges.get(1).getFrom());
+                assertEquals(10.6D, ranges.get(1).getTo());
                 assertEquals("5.0", ranges.get(0).getFromAsString());
                 assertEquals("6.0", ranges.get(0).getToAsString());
                 assertEquals("6.0", ranges.get(1).getFromAsString());
                 assertEquals("10.6", ranges.get(1).getToAsString());
-                // NOTE: `getOriginalFrom` and `getOriginalTo` return double
-                assertEquals(5.0D, ranges.get(0).getOriginalFrom(), 0.0000000000001);
-                assertEquals(6.0D, ranges.get(0).getOriginalTo(), 0.0000000000001);
-                assertEquals(6.0D, ranges.get(1).getOriginalFrom(), 0.0000000000001);
-                assertEquals(10.6D, ranges.get(1).getOriginalTo(), 0.0000000000001);
                 assertEquals(1, ranges.get(0).getDocCount());
                 assertEquals(2, ranges.get(1).getDocCount());
             },
@@ -154,7 +153,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    public void testDoubleRangeKeys() throws IOException {
+    public void testDoubleRangeFromAndToValues() throws IOException {
         final String fieldName = "test";
         MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.DOUBLE);
         testCase(
@@ -171,14 +170,14 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 assertEquals(2, ranges.size());
                 assertEquals("5.0-6.0", ranges.get(0).getKeyAsString());
                 assertEquals("6.0-10.6", ranges.get(1).getKeyAsString());
+                assertEquals(5.0D, ranges.get(0).getFrom());
+                assertEquals(6.0D, ranges.get(0).getTo());
+                assertEquals(6.0D, ranges.get(1).getFrom());
+                assertEquals(10.6D, ranges.get(1).getTo());
                 assertEquals("5.0", ranges.get(0).getFromAsString());
                 assertEquals("6.0", ranges.get(0).getToAsString());
                 assertEquals("6.0", ranges.get(1).getFromAsString());
                 assertEquals("10.6", ranges.get(1).getToAsString());
-                assertEquals(5.0D, ranges.get(0).getOriginalFrom(), 0.0000000000001);
-                assertEquals(6.0D, ranges.get(0).getOriginalTo(), 0.0000000000001);
-                assertEquals(6.0D, ranges.get(1).getOriginalFrom(), 0.0000000000001);
-                assertEquals(10.6D, ranges.get(1).getOriginalTo(), 0.0000000000001);
                 assertEquals(1, ranges.get(0).getDocCount());
                 assertEquals(2, ranges.get(1).getDocCount());
             },
@@ -574,9 +573,11 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             }
         }, (InternalRange<?, ?> r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
             assertThat(
-                r.getBuckets().stream().map(InternalRange.Bucket::getKey).collect(toList()),
+                r.getBuckets().stream().map(InternalRange.Bucket::getKeyAsString).collect(toList()),
                 equalTo(List.of("0.0-1.0", "1.0-2.0", "2.0-3.0"))
             );
+            assertThat(r.getBuckets().stream().map(InternalRange.Bucket::getFrom).collect(toList()), equalTo(List.of(0.0, 1.0, 2.0)));
+            assertThat(r.getBuckets().stream().map(InternalRange.Bucket::getTo).collect(toList()), equalTo(List.of(1.0, 2.0, 3.0)));
             assertThat(
                 r.getBuckets().stream().map(InternalRange.Bucket::getDocCount).collect(toList()),
                 equalTo(List.of(totalDocs, 0L, 0L))
@@ -610,9 +611,11 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             },
             (InternalRange<?, ?> r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(
-                    r.getBuckets().stream().map(InternalRange.Bucket::getKey).collect(toList()),
+                    r.getBuckets().stream().map(InternalRange.Bucket::getKeyAsString).collect(toList()),
                     equalTo(List.of("0.0-1.0", "1.0-2.0", "2.0-3.0"))
                 );
+                assertThat(r.getBuckets().stream().map(InternalRange.Bucket::getFrom).collect(toList()), equalTo(List.of(0.0, 1.0, 2.0)));
+                assertThat(r.getBuckets().stream().map(InternalRange.Bucket::getTo).collect(toList()), equalTo(List.of(1.0, 2.0, 3.0)));
                 assertThat(
                     r.getBuckets().stream().map(InternalRange.Bucket::getDocCount).collect(toList()),
                     equalTo(List.of(totalDocs, 0L, 0L))

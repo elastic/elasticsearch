@@ -65,8 +65,6 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -568,8 +566,24 @@ class NodeDeprecationChecks {
             : deprecatedSetting.get(nodeSettings).toString();
         final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", deprecatedSettingKey);
         final String details = String.format(Locale.ROOT, "Remove the [%s] setting.", deprecatedSettingKey, value);
-        return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null,
-            canAutoRemoveSetting, Collections.singletonList(deprecatedSettingKey));
+        final Map<String, Object> meta = createMetaMapForRemovableSettings(canAutoRemoveSetting, deprecatedSettingKey);
+        return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, meta);
+    }
+
+    private static Map<String, Object> createMetaMapForRemovableSettings(boolean canAutoRemoveSetting, String removableSetting) {
+        return createMetaMapForRemovableSettings(canAutoRemoveSetting, Collections.singletonList(removableSetting));
+    }
+
+    private static Map<String, Object> createMetaMapForRemovableSettings(boolean canAutoRemoveSetting, List<String> removableSettings) {
+        final Map<String, Object> meta;
+        if (canAutoRemoveSetting) {
+            Map<String, List<String>> settingsMap = Collections.singletonMap("settings", removableSettings);
+            Map<String, Map<String, List<String>>> removeSettingsMap = Collections.singletonMap("remove_settings", settingsMap);
+            meta = Collections.singletonMap("actions", removeSettingsMap);
+        } else {
+            meta = null;
+        }
+        return meta;
     }
 
     static DeprecationIssue checkRemovedSetting(
@@ -1438,11 +1452,13 @@ class NodeDeprecationChecks {
         }
 
         List<String> deprecatedNodeSettingKeys = deprecatedConcreteNodeSettings.stream().map(Setting::getKey).collect(Collectors.toList());
-        List<String> deprecatedClusterSettingKeys =
-            deprecatedConcreteClusterSettings.stream().map(Setting::getKey).collect(Collectors.toList());
+        List<String> deprecatedClusterSettingKeys = deprecatedConcreteClusterSettings.stream()
+            .map(Setting::getKey)
+            .collect(Collectors.toList());
 
-        final String concatSettingNames =
-            Stream.concat(deprecatedNodeSettingKeys.stream(), deprecatedClusterSettingKeys.stream()).distinct().collect(Collectors.joining(","));
+        final String concatSettingNames = Stream.concat(deprecatedNodeSettingKeys.stream(), deprecatedClusterSettingKeys.stream())
+            .distinct()
+            .collect(Collectors.joining(","));
         final String message = String.format(
             Locale.ROOT,
             "The [%s] settings are deprecated and will be removed after 8.0",
@@ -1453,8 +1469,11 @@ class NodeDeprecationChecks {
         if (canBeFixedByRemovingDynamicSetting) {
             deprecatedClusterSettingKeys.removeAll(deprecatedNodeSettingKeys);
         }
-        return new DeprecationIssue(warningLevel, message, url, details, false, null, canBeFixedByRemovingDynamicSetting,
-            deprecatedClusterSettingKeys);
+        final Map<String, Object> meta = createMetaMapForRemovableSettings(
+            canBeFixedByRemovingDynamicSetting,
+            deprecatedClusterSettingKeys
+        );
+        return new DeprecationIssue(warningLevel, message, url, details, false, meta);
     }
 
     private static DeprecationIssue deprecatedAffixGroupedSetting(
@@ -1483,12 +1502,12 @@ class NodeDeprecationChecks {
             .map(key -> key + "*")
             .collect(Collectors.joining(","));
         // The actual group setting that are present in the settings object, with full setting name prepended.
-//        String allSubSettings = deprecatedConcreteSettings.stream().map(affixSetting -> {
-//            String groupPrefix = affixSetting.getKey();
-//            Settings groupSettings = affixSetting.get(settings);
-//            Set<String> subSettings = groupSettings.keySet();
-//            return subSettings.stream().map(key -> groupPrefix + key).collect(Collectors.joining(","));
-//        }).collect(Collectors.joining(";"));
+        // String allSubSettings = deprecatedConcreteSettings.stream().map(affixSetting -> {
+        // String groupPrefix = affixSetting.getKey();
+        // Settings groupSettings = affixSetting.get(settings);
+        // Set<String> subSettings = groupSettings.keySet();
+        // return subSettings.stream().map(key -> groupPrefix + key).collect(Collectors.joining(","));
+        // }).collect(Collectors.joining(";"));
 
         List<String> allNodeSubSettingKeys = deprecatedConcreteNodeSettings.stream().map(affixSetting -> {
             String groupPrefix = affixSetting.getKey();
@@ -1504,9 +1523,10 @@ class NodeDeprecationChecks {
             return subSettings.stream().map(key -> groupPrefix + key).collect(Collectors.toList());
         }).flatMap(List::stream).collect(Collectors.toList());
 
-        //TODO: This used to use commas and semicolons
-        final String allSubSettings =
-            Stream.concat(allNodeSubSettingKeys.stream(), allClusterSubSettingKeys.stream()).distinct().collect(Collectors.joining(","));
+        // TODO: This used to use commas and semicolons
+        final String allSubSettings = Stream.concat(allNodeSubSettingKeys.stream(), allClusterSubSettingKeys.stream())
+            .distinct()
+            .collect(Collectors.joining(","));
 
         final String message = String.format(
             Locale.ROOT,
@@ -1518,8 +1538,8 @@ class NodeDeprecationChecks {
         if (canBeFixedByRemovingDynamicSetting) {
             allClusterSubSettingKeys.removeAll(allNodeSubSettingKeys);
         }
-        return new DeprecationIssue(warningLevel, message, url, details, false, null, canBeFixedByRemovingDynamicSetting,
-            allClusterSubSettingKeys);
+        final Map<String, Object> meta = createMetaMapForRemovableSettings(canBeFixedByRemovingDynamicSetting, allClusterSubSettingKeys);
+        return new DeprecationIssue(warningLevel, message, url, details, false, meta);
     }
 
     private static final String MONITORING_SETTING_DEPRECATION_LINK = "https://ela.st/es-deprecation-7-monitoring-settings";
@@ -1532,8 +1552,11 @@ class NodeDeprecationChecks {
         return checkDeprecatedSetting(clusterState.metadata().settings(), nodeSettings, deprecated, MONITORING_SETTING_DEPRECATION_LINK);
     }
 
-    static DeprecationIssue genericMonitoringAffixSetting(final Settings clusterSettings, final Settings nodeSettings,
-                                                          final String deprecatedSuffix) {
+    static DeprecationIssue genericMonitoringAffixSetting(
+        final Settings clusterSettings,
+        final Settings nodeSettings,
+        final String deprecatedSuffix
+    ) {
         return deprecatedAffixSetting(
             Setting.affixKeySetting(
                 "xpack.monitoring.exporters.",
@@ -1548,8 +1571,11 @@ class NodeDeprecationChecks {
         );
     }
 
-    static DeprecationIssue genericMonitoringAffixSecureSetting(final Settings clusterSettings, final Settings nodeSettings,
-                                                                final String deprecatedSuffix) {
+    static DeprecationIssue genericMonitoringAffixSecureSetting(
+        final Settings clusterSettings,
+        final Settings nodeSettings,
+        final String deprecatedSuffix
+    ) {
         return deprecatedAffixSetting(
             Setting.affixKeySetting("xpack.monitoring.exporters.", deprecatedSuffix, k -> SecureSetting.secureString(k, null)),
             "Remove the following settings from the keystore: [%s]",
@@ -1560,8 +1586,11 @@ class NodeDeprecationChecks {
         );
     }
 
-    static DeprecationIssue genericMonitoringAffixGroupedSetting(final Settings clusterSettings, final Settings nodeSettings,
-                                                                 final String deprecatedSuffix) {
+    static DeprecationIssue genericMonitoringAffixGroupedSetting(
+        final Settings clusterSettings,
+        final Settings nodeSettings,
+        final String deprecatedSuffix
+    ) {
         return deprecatedAffixGroupedSetting(
             Setting.affixKeySetting("xpack.monitoring.exporters.", deprecatedSuffix, k -> Setting.groupSetting(k + ".")),
             "Remove the following settings: [%s]",
@@ -1930,8 +1959,8 @@ class NodeDeprecationChecks {
         final String deprecatedSettingKey = deprecatedSetting.getKey();
         final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", deprecatedSettingKey);
         final String details = String.format(Locale.ROOT, "Remove the [%s] setting.", deprecatedSetting.getKey());
-        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null, canAutoRemoveSetting,
-            Collections.singletonList(deprecatedSettingKey));
+        final Map<String, Object> meta = createMetaMapForRemovableSettings(canAutoRemoveSetting, deprecatedSettingKey);
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, meta);
     }
 
     static DeprecationIssue checkReroutePrioritySetting(

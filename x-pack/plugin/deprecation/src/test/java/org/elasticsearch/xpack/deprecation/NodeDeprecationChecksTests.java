@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -1849,7 +1852,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.WARNING,
                     "The [" + settingKey + "] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [" + settingKey + "]",
+                    "Remove the following settings: [" + settingKey + "]",
                     false,
                     null
                 )
@@ -1874,7 +1877,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.WARNING,
                     "The [" + settingKey + ".*] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [" + subSettingKey + "]",
+                    "Remove the following settings: [" + subSettingKey + "]",
                     false,
                     null
                 )
@@ -2047,7 +2050,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.WARNING,
                     "The [xpack.monitoring.exporters.test.use_ingest] settings are deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.use_ingest]",
+                    "Remove the following settings: [xpack.monitoring.exporters.test.use_ingest]",
                     false,
                     null
                 )
@@ -2073,7 +2076,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     "The [xpack.monitoring.exporters.test.index.pipeline.master_timeout] settings are"
                         + " deprecated and will be removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
+                    "Remove the following settings: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
                     false,
                     null
                 )
@@ -2097,8 +2100,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     "The [xpack.monitoring.exporters.test.index.template.create_legacy_templates] settings are deprecated and will be "
                         + "removed after 8.0",
                     expectedUrl,
-                    "Remove the following settings from elasticsearch.yml: "
-                        + "[xpack.monitoring.exporters.test.index.template.create_legacy_templates]",
+                    "Remove the following settings: " + "[xpack.monitoring.exporters.test.index.template.create_legacy_templates]",
                     false,
                     null
                 )
@@ -2207,7 +2209,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         }
     }
 
-    public void testDynamicSettings() {
+    @SuppressWarnings("unchecked")
+    public void testDynamicSettings() throws JsonProcessingException {
         Settings clusterSettings = Settings.builder()
             .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), randomInt())
             .build();
@@ -2230,6 +2233,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         Collection<Setting<?>> deprecatedSettings = Set.of(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING);
+        String metaString = "{\"actions\":{\"remove_settings\":{\"settings\":[\"discovery.zen.minimum_master_nodes\"]}}}";
+        Map<String, Object> meta = new ObjectMapper().readValue(metaString, Map.class);
         for (Setting<?> deprecatedSetting : deprecatedSettings) {
             final DeprecationIssue expected = new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
@@ -2237,7 +2242,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "https://ela.st/es-deprecation-7-unused_zen_settings",
                 "Remove the [" + deprecatedSetting.getKey() + "] setting.",
                 false,
-                null
+                meta
             );
             assertThat(issues, hasItem(expected));
         }

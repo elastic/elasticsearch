@@ -40,7 +40,7 @@ public class JavaModulesConsumerPlugin implements Plugin<Project> {
 
         SourceSet main = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().getByName("main");
         Configuration compileConfig = project.getConfigurations().getByName(main.getCompileClasspathConfigurationName());
-        Attribute<Boolean> javaModuleAttribute = Attribute.of("org.elasticsearch.java-module", Boolean.class);
+        Attribute<Boolean> javaModuleAttribute = Attribute.of("org.elasticsearch.java-module-api", Boolean.class);
         compileConfig.getAttributes().attribute(javaModuleAttribute, Boolean.TRUE);
         compileConfig.getAttributes()
             .attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objectFactory.named(LibraryElements.class, JAR));

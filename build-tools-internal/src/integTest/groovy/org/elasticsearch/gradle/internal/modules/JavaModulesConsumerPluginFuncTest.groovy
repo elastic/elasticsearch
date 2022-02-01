@@ -258,6 +258,5 @@ public class HelloWorld {
         result.output.contains("""ConsumingTransitiveInternal.java:4: error: package org.example.transitive.impl does not exist
 import org.example.transitive.impl.SomethingInternal;
                                   ^""")
-
     }
 }

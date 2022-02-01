@@ -37,7 +37,7 @@ import static org.gradle.api.attributes.LibraryElements.LIBRARY_ELEMENTS_ATTRIBU
  * from the module-info.java file.
  *
  * This variant is meant to replace apiElements variant for consuming. In addition to apiElements
- * this moduleApiElements variant exposes the attribute 'org.elasticsearch.java-module` of type
+ * this moduleApiElements variant exposes the attribute 'org.elasticsearch.java-module-api` of type
  * boolean value 'true'.
  *
  * See {@link JavaModulesConsumerPlugin} as an example how to request this variant.
@@ -91,10 +91,10 @@ public class JavaModulesPlugin implements Plugin<Project> {
     /**
      * creates a consumable configuration with similar attributes as gradles apiElements.
      *
-     * In addition we add an attribute 'org.elasticsearch.java-module` of type
+     * In addition we add an attribute 'org.elasticsearch.java-module-api` of type boolean
      * */
     private Configuration createModuleApisVariant(Project project, SourceSet sourceSet) {
-        Attribute<Boolean> javaModuleAttribute = Attribute.of("org.elasticsearch.java-module", Boolean.class);
+        Attribute<Boolean> javaModuleAttribute = Attribute.of("org.elasticsearch.java-module-api", Boolean.class);
 
         return project.getConfigurations().create("moduleApiElements", moduleApiElements -> {
             moduleApiElements.extendsFrom(project.getConfigurations().getByName(sourceSet.getApiConfigurationName()));
@@ -104,6 +104,7 @@ public class JavaModulesPlugin implements Plugin<Project> {
                 .attribute(Category.CATEGORY_ATTRIBUTE, objectFactory.named(Category.class, LIBRARY))
                 .attribute(LIBRARY_ELEMENTS_ATTRIBUTE, objectFactory.named(LibraryElements.class, JAR))
                 .attribute(Bundling.BUNDLING_ATTRIBUTE, objectFactory.named(Bundling.class, Bundling.EXTERNAL))
+                    // TODO rework hard coded jvm version
                 .attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 17)
                 .attribute(Usage.USAGE_ATTRIBUTE, objectFactory.named(Usage.class, Usage.JAVA_API))
                 .attribute(javaModuleAttribute, Boolean.TRUE);

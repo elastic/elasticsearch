@@ -179,7 +179,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         assertThat(cursor, Matchers.not(Matchers.emptyString()));
 
         Request scrollReq = new Request("POST", "_sql");
-        scrollReq.setJsonEntity("{\"cursor\": %s}".formatted(cursor));
+        scrollReq.setJsonEntity("{\"cursor\": \"%s\"}".formatted(cursor));
         ResponseException exception = expectThrows(ResponseException.class, () -> client2.performRequest(scrollReq));
 
         assertThat(

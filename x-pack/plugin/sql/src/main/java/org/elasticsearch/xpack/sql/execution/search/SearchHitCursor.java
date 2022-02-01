@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
+import org.elasticsearch.xpack.sql.util.Check;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,7 +38,7 @@ public class SearchHitCursor implements Cursor {
 
     private static final Logger log = LogManager.getLogger(SearchHitCursor.class);
 
-    public static final String NAME = "s";
+    public static final String NAME = "h";
 
     private final byte[] nextQuery;
     private final List<HitExtractor> extractors;
@@ -210,8 +211,16 @@ public class SearchHitCursor implements Cursor {
     }
 
     @Override
-    public void clear(Client client, ActionListener<Boolean> listener) {
-        listener.onResponse(true);
+    public void clear(Client client, NamedWriteableRegistry registry, ActionListener<Boolean> listener) {
+        SearchSourceBuilder query = null;
+        try {
+            query = deserializeQuery(registry, nextQuery);
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
+        Check.isTrue(query.pointInTimeBuilder() != null, "Expected cursor with point-in-time id but got null");
+        Querier.closePointInTime(client, query.pointInTimeBuilder().getEncodedId(), listener);
     }
 
     @Override

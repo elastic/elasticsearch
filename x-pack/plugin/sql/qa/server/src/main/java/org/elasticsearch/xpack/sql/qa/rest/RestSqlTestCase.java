@@ -1161,7 +1161,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             .toString();
 
         String cursor = null;
-        for (int i = 0; i < 20; i += 2) {
+        for (int i = 0; i <= 20; i += 2) {
             Tuple<String, String> response;
             if (i == 0) {
                 response = runSqlAsText(StringUtils.EMPTY, new StringEntity(request, ContentType.APPLICATION_JSON), format);
@@ -1180,25 +1180,17 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                     expected.append("---------------+---------------+---------------\n");
                 }
             }
-            expected.append(String.format(Locale.ROOT, expectedLineFormat, "text" + i, i, i + 5));
-            expected.append(String.format(Locale.ROOT, expectedLineFormat, "text" + (i + 1), i + 1, i + 6));
-            cursor = response.v2();
-            assertEquals(expected.toString(), response.v1());
-            assertNotNull(cursor);
-        }
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("rows", emptyList());
-        assertResponse(
-            expected,
-            runSql(new StringEntity(cursor(cursor).toString(), ContentType.APPLICATION_JSON), StringUtils.EMPTY, Mode.PLAIN.toString())
-        );
 
-        Map<String, Object> response = runSql(
-            new StringEntity(cursor(cursor).toString(), ContentType.APPLICATION_JSON),
-            "/close",
-            Mode.PLAIN.toString()
-        );
-        assertEquals(true, response.get("succeeded"));
+            cursor = response.v2();
+            if (i < 20) {
+                expected.append(String.format(Locale.ROOT, expectedLineFormat, "text" + i, i, i + 5));
+                expected.append(String.format(Locale.ROOT, expectedLineFormat, "text" + (i + 1), i + 1, i + 6));
+                assertEquals(expected.toString(), response.v1());
+                assertNotNull(cursor);
+            } else {
+                assertNull(cursor);
+            }
+        }
 
         assertEquals(0, getNumberOfSearchContexts(provisioningClient(), "test"));
     }

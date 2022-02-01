@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
@@ -164,6 +165,11 @@ public class Querier {
     }
 
     public static void closePointInTime(Client client, String pointInTimeId, ActionListener<Boolean> listener) {
+        // request should not be made with the parent task assigned because the parent task might already be canceled
+        if (client instanceof ParentTaskAssigningClient ptac) {
+            client = ptac.unwrap();
+        }
+
         if (pointInTimeId != null) {
             client.execute(
                 ClosePointInTimeAction.INSTANCE,
@@ -171,7 +177,7 @@ public class Querier {
                 wrap(clearPointInTimeResponse -> listener.onResponse(clearPointInTimeResponse.isSucceeded()), listener::onFailure)
             );
         } else {
-            listener.onResponse(false);
+            listener.onResponse(true);
         }
     }
 

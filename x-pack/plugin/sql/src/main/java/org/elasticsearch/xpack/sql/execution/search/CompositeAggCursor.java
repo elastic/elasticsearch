@@ -268,7 +268,7 @@ public class CompositeAggCursor implements Cursor {
     }
 
     @Override
-    public void clear(Client client, ActionListener<Boolean> listener) {
+    public void clear(Client client, NamedWriteableRegistry registry, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 

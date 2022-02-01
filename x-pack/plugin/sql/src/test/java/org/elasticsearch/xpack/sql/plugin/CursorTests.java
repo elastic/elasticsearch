@@ -37,7 +37,7 @@ public class CursorTests extends ESTestCase {
         Client clientMock = mock(Client.class);
         Cursor cursor = Cursor.EMPTY;
         PlainActionFuture<Boolean> future = newFuture();
-        cursor.clear(clientMock, future);
+        cursor.clear(clientMock, writableRegistry(), future);
         assertFalse(future.actionGet());
         verifyNoMoreInteractions(clientMock);
     }

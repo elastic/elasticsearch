@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -65,10 +66,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Fork(value = 1)
 public class TermsReduceBenchmark {
 
+    private final TermsAggregationBuilder builder = new TermsAggregationBuilder("terms");
+
     private final SearchPhaseController controller = new SearchPhaseController((task, req) -> new AggregationReduceContext.Builder() {
         @Override
         public AggregationReduceContext forPartialReduction() {
-            return new AggregationReduceContext.ForPartial(null, null, task);
+            return new AggregationReduceContext.ForPartial(null, null, task, builder);
         }
 
         @Override
@@ -77,7 +80,7 @@ public class TermsReduceBenchmark {
                 Integer.MAX_VALUE,
                 new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
             );
-            return new AggregationReduceContext.ForFinal(null, null, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY, task);
+            return new AggregationReduceContext.ForFinal(null, null, task, builder, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY);
         }
     });
 

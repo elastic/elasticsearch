@@ -1486,11 +1486,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return true;
         }
 
-        public Builder updateDataStreanTimeSeriesRange(String dataStreamName) {
-
-            return this;
-        }
-
         public Custom getCustom(String type) {
             return customs.get(type);
         }

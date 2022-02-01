@@ -100,7 +100,7 @@ public class JwtUtilTests extends JwtTestCase {
         // If type is None, verify null or empty is accepted
         JwtUtil.validateClientAuthorizationSettings(
             clientAuthorizationTypeKey,
-            JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_NONE,
+            JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_NONE,
             clientAuthorizationSharedSecretKey,
             sharedSecretNullOrEmpty
         );
@@ -109,7 +109,7 @@ public class JwtUtilTests extends JwtTestCase {
             SettingsException.class,
             () -> JwtUtil.validateClientAuthorizationSettings(
                 clientAuthorizationTypeKey,
-                JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_NONE,
+                JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_NONE,
                 clientAuthorizationSharedSecretKey,
                 sharedSecretNonEmpty
             )
@@ -123,7 +123,7 @@ public class JwtUtilTests extends JwtTestCase {
                         + "] is not supported, because setting ["
                         + clientAuthorizationTypeKey
                         + "] is ["
-                        + JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_NONE
+                        + JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_NONE
                         + "]"
                 )
             )
@@ -132,7 +132,7 @@ public class JwtUtilTests extends JwtTestCase {
         // If type is SharedSecret, verify non-empty is accepted
         JwtUtil.validateClientAuthorizationSettings(
             clientAuthorizationTypeKey,
-            JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
+            JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
             clientAuthorizationSharedSecretKey,
             sharedSecretNonEmpty
         );
@@ -141,7 +141,7 @@ public class JwtUtilTests extends JwtTestCase {
             SettingsException.class,
             () -> JwtUtil.validateClientAuthorizationSettings(
                 clientAuthorizationTypeKey,
-                JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
+                JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
                 clientAuthorizationSharedSecretKey,
                 sharedSecretNullOrEmpty
             )
@@ -155,7 +155,7 @@ public class JwtUtilTests extends JwtTestCase {
                         + "]. It is required when setting ["
                         + clientAuthorizationTypeKey
                         + "] is ["
-                        + JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET
+                        + JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET
                         + "]"
                 )
             )

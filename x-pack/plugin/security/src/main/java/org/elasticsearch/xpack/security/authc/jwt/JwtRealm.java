@@ -56,62 +56,62 @@ import java.util.concurrent.atomic.AtomicLong;
 public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private static final Logger LOGGER = LogManager.getLogger(JwtRealm.class);
 
-    /*package private*/ final ThreadPool threadPool;
-    /*package private*/ final SSLService sslService;
-    /*package private*/ final UserRoleMapper userRoleMapper;
-    /*package private*/ final ResourceWatcherService resourceWatcherService;
+    final ThreadPool threadPool;
+    final SSLService sslService;
+    final UserRoleMapper userRoleMapper;
+    final ResourceWatcherService resourceWatcherService;
 
     // JWT issuer settings
-    /*package private*/ final String allowedIssuer;
-    /*package private*/ final List<String> allowedSignatureAlgorithms;
-    /*package private*/ final TimeValue allowedClockSkew;
-    /*package private*/ final String jwkSetPath;
-    /*package private*/ final SecureString jwkSetContentsHmac;
-    /*package private*/ final List<String> allowedAudiences;
+    final String allowedIssuer;
+    final List<String> allowedSignatureAlgorithms;
+    final TimeValue allowedClockSkew;
+    final String jwkSetPath;
+    final SecureString jwkSetContentsHmac;
+    final List<String> allowedAudiences;
     // JWT end-user settings
-    /*package private*/ final Boolean populateUserMetadata;
-    /*package private*/ final ClaimParser claimParserPrincipal;
-    /*package private*/ final ClaimParser claimParserGroups;
+    final Boolean populateUserMetadata;
+    final ClaimParser claimParserPrincipal;
+    final ClaimParser claimParserGroups;
     // JWT client settings
-    /*package private*/ final String clientAuthorizationType;
-    /*package private*/ final SecureString clientAuthorizationSharedSecret;
+    final String clientAuthorizationType;
+    final SecureString clientAuthorizationSharedSecret;
     // JWT cache settings
-    /*package private*/ final TimeValue cacheTtl;
-    /*package private*/ final Integer cacheMaxUsers;
+    final TimeValue cacheTtl;
+    final Integer cacheMaxUsers;
     // Standard HTTP settings for outgoing connections to get JWT issuer jwkset_path
-    /*package private*/ final TimeValue httpConnectTimeout;
-    /*package private*/ final TimeValue httpConnectionReadTimeout;
-    /*package private*/ final TimeValue httpSocketTimeout;
-    /*package private*/ final Integer httpMaxConnections;
-    /*package private*/ final Integer httpMaxEndpointConnections;
+    final TimeValue httpConnectTimeout;
+    final TimeValue httpConnectionReadTimeout;
+    final TimeValue httpSocketTimeout;
+    final Integer httpMaxConnections;
+    final Integer httpMaxEndpointConnections;
     // Standard HTTP proxy settings for outgoing connections to get JWT issuer jwkset_path
-    /*package private*/ final String httpProxyScheme;
-    /*package private*/ final int httpProxyPort;
-    /*package private*/ final String httpProxyHost;
+    final String httpProxyScheme;
+    final int httpProxyPort;
+    final String httpProxyHost;
 
     // Helpers: Constructor creates these members
-    /*package private*/ final Hasher hasher;
-    /*package private*/ final Cache<String, CacheResult> cache;
-    /*package private*/ final CloseableHttpAsyncClient httpClient;
-    /*package private*/ final JWKSet jwkSetHmac;
-    /*package private*/ final JWKSet jwkSetPkc;
+    final Hasher hasher;
+    final Cache<String, CacheResult> cache;
+    final CloseableHttpAsyncClient httpClient;
+    final JWKSet jwkSetHmac;
+    final JWKSet jwkSetPkc;
 
     // initialize sets this value, not the constructor, because all realms objects need to be constructed before linking any delegates
-    /*package private*/ DelegatedAuthorizationSupport delegatedAuthorizationSupport;
+    DelegatedAuthorizationSupport delegatedAuthorizationSupport;
 
     // usage stats
-    /*package private*/ final AtomicLong counterTokenFail = new AtomicLong(0);
-    /*package private*/ final AtomicLong counterTokenSuccess = new AtomicLong(0);
-    /*package private*/ final AtomicLong counterAuthenticateFail = new AtomicLong(0);
-    /*package private*/ final AtomicLong counterAuthenticateSuccess = new AtomicLong(0);
-    /*package private*/ final AtomicLong counterCacheGetFail = new AtomicLong(0);
-    /*package private*/ final AtomicLong counterCacheGetOkWarning = new AtomicLong(0);
-    /*package private*/ final AtomicLong counterCacheGetOkNoWarning = new AtomicLong(0);
-    /*package private*/ final AtomicLong counterCacheAdd = new AtomicLong(0);
+    final AtomicLong counterTokenFail = new AtomicLong(0);
+    final AtomicLong counterTokenSuccess = new AtomicLong(0);
+    final AtomicLong counterAuthenticateFail = new AtomicLong(0);
+    final AtomicLong counterAuthenticateSuccess = new AtomicLong(0);
+    final AtomicLong counterCacheGetFail = new AtomicLong(0);
+    final AtomicLong counterCacheGetOkWarning = new AtomicLong(0);
+    final AtomicLong counterCacheGetOkNoWarning = new AtomicLong(0);
+    final AtomicLong counterCacheAdd = new AtomicLong(0);
 
     // Only JwtRealmTest.addJwtRealm() uses these package private members, to generate test JWTs from these test JWKs and Users.
-    /*package private*/ List<JWK> testIssuerJwks = null;
-    /*package private*/ Map<String, User> testIssuerUsers = null;
+    List<JWK> testIssuerJwks = null;
+    Map<String, User> testIssuerUsers = null;
 
     public JwtRealm(
         final RealmConfig realmConfig,
@@ -293,7 +293,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             final SecureString clientAuthorizationSharedSecretValue = JwtUtil.getHeaderSchemeParameters(
                 threadContext,
                 JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION,
-                JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
+                JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
                 true
             );
 

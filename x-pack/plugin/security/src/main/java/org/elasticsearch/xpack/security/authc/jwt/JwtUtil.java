@@ -229,7 +229,7 @@ public class JwtUtil {
         final SecureString clientAuthorizationSharedSecret
     ) throws SettingsException {
         switch (clientAuthorizationType) {
-            case JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET:
+            case JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET:
                 // If type is "SharedSecret", the shared secret value must be set
                 if (Strings.hasText(clientAuthorizationSharedSecret) == false) {
                     throw new SettingsException(
@@ -238,12 +238,12 @@ public class JwtUtil {
                             + "]. It is required when setting ["
                             + clientAuthorizationTypeConfigKey
                             + "] is ["
-                            + JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET
+                            + JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET
                             + "]"
                     );
                 }
                 break;
-            case JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_NONE:
+            case JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_NONE:
             default:
                 // If type is "None", the shared secret value must not be set
                 if (Strings.hasText(clientAuthorizationSharedSecret)) {
@@ -253,7 +253,7 @@ public class JwtUtil {
                             + "] is not supported, because setting ["
                             + clientAuthorizationTypeConfigKey
                             + "] is ["
-                            + JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_NONE
+                            + JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_NONE
                             + "]"
                     );
                 }
@@ -659,14 +659,14 @@ public class JwtUtil {
     public static boolean validateClientAuthorization(final String type, final SecureString expectedSecret, final SecureString actualSecret)
         throws Exception {
         switch (type) {
-            case JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET:
+            case JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET:
                 if (Strings.hasText(actualSecret) == false) {
                     throw new Exception("Rejected client authentication for type [" + type + "] due to no secret.");
                 } else if (expectedSecret.equals(actualSecret) == false) {
                     throw new Exception("Rejected client authentication for type [" + type + "] due to secret mismatch.");
                 }
                 break;
-            case JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_NONE:
+            case JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_NONE:
             default:
                 if (Strings.hasText(actualSecret)) {
                     throw new Exception("Rejected client authentication for type [" + type + "] due to present secret.");

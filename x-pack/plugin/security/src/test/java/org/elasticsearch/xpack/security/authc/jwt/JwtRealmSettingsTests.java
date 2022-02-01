@@ -240,7 +240,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
                         + settingKey
                         + "]."
                         + " Allowed values are "
-                        + JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPES
+                        + JwtRealmSettings.CLIENT_AUTHORIZATION_TYPES
                         + "."
                 )
             );

@@ -102,7 +102,7 @@ public abstract class JwtTestCase extends ESTestCase {
         if (jwkSetPath.equals("https://op.example.com/jwkset.json") == false) {
             Files.writeString(PathUtils.get(jwkSetPath), "Non-empty JWK Set Path contents");
         }
-        final String clientAuthorizationType = randomFrom(JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPES);
+        final String clientAuthorizationType = randomFrom(JwtRealmSettings.CLIENT_AUTHORIZATION_TYPES);
 
         final List<String> allowedSignatureAlgorithmsList = new ArrayList<>();
         if (includeRsa) {
@@ -199,7 +199,7 @@ public abstract class JwtTestCase extends ESTestCase {
                 randomAlphaOfLengthBetween(10, 20)
             );
         }
-        if (JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET.equals(clientAuthorizationType)) {
+        if (JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET.equals(clientAuthorizationType)) {
             secureSettings.setString(
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET),
                 randomAlphaOfLengthBetween(8, 12)
@@ -338,7 +338,7 @@ public abstract class JwtTestCase extends ESTestCase {
     }
 
     public static RSAKey randomJwkRsa(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
-        final int rsaLengthBits = randomFrom(2048, 3072);
+        final int rsaLengthBits = rarely() ? 3072 : 2048;
         final RSAKeyGenerator jwkGenerator = new RSAKeyGenerator(rsaLengthBits, false);
         JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm);
         return jwkGenerator.generate();
@@ -353,7 +353,7 @@ public abstract class JwtTestCase extends ESTestCase {
 
     public static OctetSequenceKey randomJwkHmac(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
         final int minHmacLengthBytes = MACSigner.getMinRequiredSecretLength(jwsAlgorithm) / 8;
-        final int hmacLengthBits = randomIntBetween(minHmacLengthBytes, minHmacLengthBytes * 2) * 8;
+        final int hmacLengthBits = scaledRandomIntBetween(minHmacLengthBytes, minHmacLengthBytes * 2) * 8;
         final OctetSequenceKeyGenerator jwkGenerator = new OctetSequenceKeyGenerator(hmacLengthBits);
         JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm);
         return jwkGenerator.generate();

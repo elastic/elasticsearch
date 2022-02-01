@@ -167,7 +167,7 @@ public class JwtRealmTests extends JwtTestCase {
                     + jwtRealm.allowedIssuer
                     + "], aud="
                     + jwtRealm.allowedAudiences
-                    + "], alg="
+                    + ", alg="
                     + jwtRealm.allowedSignatureAlgorithms
                     + ", client=["
                     + jwtRealm.clientAuthorizationType
@@ -227,7 +227,7 @@ public class JwtRealmTests extends JwtTestCase {
                 if (headerSecret != null) {
                     requestThreadContext.putHeader(
                         JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION,
-                        JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET + " " + headerSecret
+                        JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET + " " + headerSecret
                     );
                 }
 
@@ -377,7 +377,7 @@ public class JwtRealmTests extends JwtTestCase {
             .toArray(String[]::new);
 
         // These values are used for conditional settings below
-        final String clientAuthorizationType = randomFrom(JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPES);
+        final String clientAuthorizationType = randomFrom(JwtRealmSettings.CLIENT_AUTHORIZATION_TYPES);
         final String claimPrincipal = randomBoolean() ? "sub" : authcRealmName + "_sub";
         final String claimGroups = randomBoolean() ? null : authcRealmName + "_groups";
 
@@ -432,7 +432,7 @@ public class JwtRealmTests extends JwtTestCase {
         // RealmSettings.getFullSettingKey(authcRealmName, SSLConfigurationSettings.TRUSTSTORE_PASSWORD.realm(JwtRealmSettings.TYPE)),
         // randomAlphaOfLengthBetween(10, 10)
         // );
-        if (clientAuthorizationType.equals(JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET)) {
+        if (clientAuthorizationType.equals(JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET)) {
             final String clientAuthorizationSharedSecret = Base64.getUrlEncoder().encodeToString(randomByteArrayOfLength(32));
             secureSettings.setString(
                 RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET),

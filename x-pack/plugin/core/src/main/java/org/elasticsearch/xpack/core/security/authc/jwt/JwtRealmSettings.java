@@ -52,11 +52,11 @@ public class JwtRealmSettings {
     public static final String HEADER_END_USER_AUTHORIZATION = "Authorization";
     public static final String HEADER_CLIENT_AUTHORIZATION = "X-Client-Authorization";
     public static final String HEADER_END_USER_AUTHORIZATION_SCHEME = "Bearer";
-    public static final String HEADER_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET = "SharedSecret";
-    public static final String HEADER_CLIENT_AUTHORIZATION_TYPE_NONE = "None";
-    public static final List<String> HEADER_CLIENT_AUTHORIZATION_TYPES = List.of(
-        HEADER_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
-        HEADER_CLIENT_AUTHORIZATION_TYPE_NONE
+    public static final String CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET = "SharedSecret";
+    public static final String CLIENT_AUTHORIZATION_TYPE_NONE = "None";
+    public static final List<String> CLIENT_AUTHORIZATION_TYPES = List.of(
+        CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
+        CLIENT_AUTHORIZATION_TYPE_NONE
     );
 
     // Default values and min/max constraints
@@ -64,7 +64,7 @@ public class JwtRealmSettings {
     private static final TimeValue DEFAULT_ALLOWED_CLOCK_SKEW = TimeValue.timeValueSeconds(60);
     private static final List<String> DEFAULT_ALLOWED_SIGNATURE_ALGORITHMS = Collections.singletonList("RS256");
     private static final boolean DEFAULT_POPULATE_USER_METADATA = true;
-    private static final String DEFAULT_CLIENT_AUTHORIZATION_TYPE = HEADER_CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET;
+    private static final String DEFAULT_CLIENT_AUTHORIZATION_TYPE = CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET;
     private static final TimeValue DEFAULT_CACHE_TTL = TimeValue.timeValueMinutes(20);
     private static final int DEFAULT_CACHE_MAX_USERS = 100_000;
     private static final String DEFAULT_CACHE_HASH_ALGO = "ssha256";
@@ -204,9 +204,9 @@ public class JwtRealmSettings {
         RealmSettings.realmSettingPrefix(TYPE),
         "client_authentication.type",
         key -> Setting.simpleString(key, DEFAULT_CLIENT_AUTHORIZATION_TYPE, value -> {
-            if (HEADER_CLIENT_AUTHORIZATION_TYPES.contains(value) == false) {
+            if (CLIENT_AUTHORIZATION_TYPES.contains(value) == false) {
                 throw new IllegalArgumentException(
-                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + HEADER_CLIENT_AUTHORIZATION_TYPES + "."
+                    "Invalid value [" + value + "] for [" + key + "]. Allowed values are " + CLIENT_AUTHORIZATION_TYPES + "."
                 );
             }
         }, Setting.Property.NodeScope)

@@ -41,11 +41,7 @@ final class ElasticServiceAccounts {
                         "logs-workplace_search.analytics-default",
                         "logs-workplace_search.content_events-default"
                     )
-                    .privileges(
-                        "manage",
-                        "read",
-                        "write"
-                    )
+                    .privileges("manage", "read", "write")
                     .build() },
             null,
             null,

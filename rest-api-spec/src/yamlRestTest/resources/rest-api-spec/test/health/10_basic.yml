@@ -9,12 +9,12 @@
 
   - is_true: cluster_name
   - match:   { status: "GREEN" }
-  - gte:     { number_of_nodes: 1 }
-  - gte:     { number_of_data_nodes: 1 }
-  - is_true: master_node_id
   - match:   { impacts: [] }
   - match:   { components.controller.status: "GREEN" }
-  - match:   { components.controller.indicators.0.status: "GREEN" }
-  - match:   { components.controller.indicators.0.name: "instance_has_master" }
-  - match:   { components.controller.indicators.0.explain: "Health coordinating instance has a master node." }
+  - match:   { components.controller.indicators.instance_has_master.status: "GREEN" }
+  - match:   { components.controller.indicators.instance_has_master.summary: "Health coordinating instance has a master node." }
+  - is_true: components.controller.indicators.instance_has_master.details.coordinating_node.node_id
+  - is_true: components.controller.indicators.instance_has_master.details.coordinating_node.name
+  - is_true: components.controller.indicators.instance_has_master.details.master_node.node_id
+  - is_true: components.controller.indicators.instance_has_master.details.master_node.name
   - match:   { components.snapshots.status: "GREEN" }

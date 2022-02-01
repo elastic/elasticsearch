@@ -8,6 +8,8 @@ An experimental API that returns the health status of an {es} cluster.
 
 This API is currently experimental for internal use by Elastic software only.
 
+NOTE: {cloud-only}
+
 [[health-api-request]]
 ==== {api-request-title}
 
@@ -30,7 +32,7 @@ component.
 Each indicator has a health status of: `green`, `yellow` or `red`. The indicator will
 provide an explanation and metadata describing the reason for its current health status.
 
-A components status is controlled by the worst indicator status. The cluster's status
+A component's status is controlled by the worst indicator status. The cluster's status
 is controlled by the worst component status.
 
 [[health-api-query-params]]
@@ -48,15 +50,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `status`::
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
-
-`number_of_nodes`::
-    (integer) The number of nodes within the cluster.
-
-`number_of_data_nodes`::
-    (integer) The number of nodes that are dedicated data nodes.
-
-`master_node_id`::
-    (string) The current master node id. Can be null.
 
 `impacts`::
     (list) A list of current health impacts to the cluster.

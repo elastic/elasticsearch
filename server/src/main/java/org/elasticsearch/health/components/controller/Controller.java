@@ -9,10 +9,10 @@
 package org.elasticsearch.health.components.controller;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.health.GetHealthAction;
+import org.elasticsearch.health.HealthStatus;
 
 import java.util.Collections;
 
@@ -23,9 +23,9 @@ public final class Controller {
     public static GetHealthAction.Component createControllerComponent(final DiscoveryNode node, final ClusterState clusterState) {
         final DiscoveryNodes nodes = clusterState.nodes();
         final DiscoveryNode masterNode = nodes.getMasterNode();
-        NodeDoesNotHaveMaster nodeDoesNotHaveMaster = new NodeDoesNotHaveMaster(node, masterNode);
+        InstanceHasMaster instanceHasMaster = new InstanceHasMaster(node, masterNode);
         // Only a single indicator currently so it determines the status
-        final ClusterHealthStatus status = nodeDoesNotHaveMaster.getStatus();
-        return new GetHealthAction.Component("controller", status, Collections.singletonList(nodeDoesNotHaveMaster));
+        final HealthStatus status = instanceHasMaster.getStatus();
+        return new GetHealthAction.Component("controller", status, Collections.singletonList(instanceHasMaster));
     }
 }

@@ -11,10 +11,9 @@ package org.elasticsearch.health;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.health.components.controller.NodeDoesNotHaveMaster;
+import org.elasticsearch.health.components.controller.InstanceHasMaster;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -42,22 +41,15 @@ public class GetHealthActionIT extends ESIntegTestCase {
             .build();
     }
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-    }
-
     public void testGetHealth() throws Exception {
         GetHealthAction.Response response = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
         assertEquals(cluster().getClusterName(), response.getClusterName().value());
-        assertEquals(ClusterHealthStatus.GREEN, response.getStatus());
-        assertEquals(cluster().size(), response.getNumberOfNodes());
-        assertEquals(cluster().numDataNodes(), response.getNumberOfDataNodes());
+        assertEquals(HealthStatus.GREEN, response.getStatus());
 
         assertEquals(2, response.getComponents().size());
 
         for (GetHealthAction.Component component : response.getComponents()) {
-            assertEquals(ClusterHealthStatus.GREEN, component.status());
+            assertEquals(HealthStatus.GREEN, component.status());
         }
 
         GetHealthAction.Component controller = response.getComponents()
@@ -67,9 +59,9 @@ public class GetHealthActionIT extends ESIntegTestCase {
             .orElseThrow();
         assertEquals(1, controller.indicators().size());
         GetHealthAction.Indicator nodeDoesNotHaveMaster = controller.indicators().get(0);
-        assertEquals(NodeDoesNotHaveMaster.NAME, nodeDoesNotHaveMaster.getName());
-        assertEquals(ClusterHealthStatus.GREEN, nodeDoesNotHaveMaster.getStatus());
-        assertEquals(NodeDoesNotHaveMaster.GREEN_EXPLAIN, nodeDoesNotHaveMaster.getExplain());
+        assertEquals(InstanceHasMaster.NAME, nodeDoesNotHaveMaster.getName());
+        assertEquals(HealthStatus.GREEN, nodeDoesNotHaveMaster.getStatus());
+        assertEquals(InstanceHasMaster.GREEN_SUMMARY, nodeDoesNotHaveMaster.getSummary());
     }
 
     public void testGetHealthInstanceNoMaster() throws Exception {
@@ -88,8 +80,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
             GetHealthAction.Response response = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
-            assertNull(response.getMasterNodeId());
-            assertEquals(ClusterHealthStatus.RED, response.getStatus());
+            assertEquals(HealthStatus.RED, response.getStatus());
             assertEquals(2, response.getComponents().size());
             GetHealthAction.Component controller = response.getComponents()
                 .stream()
@@ -97,10 +88,10 @@ public class GetHealthActionIT extends ESIntegTestCase {
                 .findAny()
                 .orElseThrow();
             assertEquals(1, controller.indicators().size());
-            NodeDoesNotHaveMaster nodeDoesNotHaveMaster = (NodeDoesNotHaveMaster) controller.indicators().get(0);
-            assertEquals(NodeDoesNotHaveMaster.NAME, nodeDoesNotHaveMaster.getName());
-            assertEquals(ClusterHealthStatus.RED, nodeDoesNotHaveMaster.getStatus());
-            assertEquals(NodeDoesNotHaveMaster.RED_EXPLAIN, nodeDoesNotHaveMaster.getExplain());
+            InstanceHasMaster instanceHasMaster = (InstanceHasMaster) controller.indicators().get(0);
+            assertEquals(InstanceHasMaster.NAME, instanceHasMaster.getName());
+            assertEquals(HealthStatus.RED, instanceHasMaster.getStatus());
+            assertEquals(InstanceHasMaster.RED_SUMMARY, instanceHasMaster.getSummary());
         });
 
         internalCluster().clearDisruptionScheme(true);

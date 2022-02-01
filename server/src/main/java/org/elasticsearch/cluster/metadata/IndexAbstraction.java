@@ -11,6 +11,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -451,6 +452,7 @@ public interface IndexAbstraction {
             }
 
             Instant timestamp;
+            final var formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
             XContent xContent = request.getContentType().xContent();
             try (XContentParser parser = xContent.createParser(TS_EXTRACT_CONFIG, request.source().streamInput())) {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
@@ -460,7 +462,7 @@ public interface IndexAbstraction {
                         // TODO: deal with nanos too here.
                         // (the index hasn't been resolved yet, keep track of timestamp field metadata at data stream level,
                         // so we can use it here)
-                        timestamp = Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(parser.text()));
+                        timestamp = DateFormatters.from(formatter.parse(parser.text()), formatter.locale()).toInstant();
                         break;
                     case VALUE_NUMBER:
                         timestamp = Instant.ofEpochMilli(parser.longValue());

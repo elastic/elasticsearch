@@ -109,7 +109,7 @@ public class RecoverySettingsTests extends ESTestCase {
     public void testDefaultMaxBytesPerSecOnNonDataNode() {
         assertThat(
             "Non-data nodes have a default 40mb rate limit",
-            nodeRecoverySettings().withRole(randomFrom("master", "ingest", "ml")).withRandomMemory().build().getMaxBytesPerSec(),
+            nodeRecoverySettings().withRole(randomFrom("master", "ingest")).withRandomMemory().build().getMaxBytesPerSec(),
             equalTo(DEFAULT_MAX_BYTES_PER_SEC)
         );
     }
@@ -118,7 +118,7 @@ public class RecoverySettingsTests extends ESTestCase {
         final ByteSizeValue random = randomByteSizeValue();
         assertThat(
             "Non-data nodes should use the defined rate limit when set",
-            nodeRecoverySettings().withRole(randomFrom("master", "ingest", "ml"))
+            nodeRecoverySettings().withRole(randomFrom("master", "ingest"))
                 .withIndicesRecoveryMaxBytesPerSec(random)
                 .withRandomMemory()
                 .build()

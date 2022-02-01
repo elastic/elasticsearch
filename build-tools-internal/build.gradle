@@ -103,6 +103,10 @@ gradlePlugin {
       id = 'elasticsearch.java-modules'
       implementationClass = 'org.elasticsearch.gradle.internal.modules.JavaModulesPlugin'
     }
+    javaModulesConsumer {
+      id = 'elasticsearch.java-modules-consumer'
+      implementationClass = 'org.elasticsearch.gradle.internal.modules.JavaModulesConsumerPlugin'
+    }
     internalJavaRestTest {
       id = 'elasticsearch.internal-java-rest-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin'

@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.modules;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.Bundling;
 import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.LibraryElements;
@@ -55,7 +56,7 @@ public class JavaModulesPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getPluginManager().withPlugin("java-base", p -> {
-            Configuration moduleApiElements = project.getConfigurations().maybeCreate("moduleApiElements");
+            Configuration moduleApiElements = createModuleApisVariant(project);
 
             SourceSet main = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().getByName("main");
             SourceSetOutput mainOutput = main.getOutput();
@@ -82,7 +83,14 @@ public class JavaModulesPlugin implements Plugin<Project> {
                     return true;
                 });
             });
+            moduleApiElements.getOutgoing().artifact(moduleApiJar);
+        });
+    }
 
+    private Configuration createModuleApisVariant(Project project) {
+        Attribute<Boolean> javaModuleAttribute = Attribute.of("org.elasticsearch.java-module", Boolean.class);
+
+        return project.getConfigurations().create("moduleApiElements", moduleApiElements -> {
             moduleApiElements.setCanBeConsumed(true);
             moduleApiElements.setCanBeResolved(false);
             moduleApiElements.getAttributes()
@@ -90,13 +98,9 @@ public class JavaModulesPlugin implements Plugin<Project> {
                 .attribute(LIBRARY_ELEMENTS_ATTRIBUTE, objectFactory.named(LibraryElements.class, JAR))
                 .attribute(Bundling.BUNDLING_ATTRIBUTE, objectFactory.named(Bundling.class, Bundling.EXTERNAL))
                 .attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 17)
-                .attribute(Usage.USAGE_ATTRIBUTE, objectFactory.named(Usage.class, "java-module-api"));
-
-            moduleApiElements.getOutgoing().artifact(moduleApiJar);
-            Configuration compileConfig = project.getConfigurations().getByName(main.getCompileClasspathConfigurationName());
-            compileConfig.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, objectFactory.named(Usage.class, "java-module-api"));
-            compileConfig.getAttributes()
-                .attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objectFactory.named(LibraryElements.class, JAR));
+                .attribute(Usage.USAGE_ATTRIBUTE, objectFactory.named(Usage.class, "java-api"))
+                .attribute(javaModuleAttribute, Boolean.TRUE);
         });
+
     }
 }

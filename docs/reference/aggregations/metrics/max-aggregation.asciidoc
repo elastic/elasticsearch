@@ -145,7 +145,7 @@ PUT metrics_index/_doc/2
 POST /metrics_index/_search?size=0
 {
   "aggs" : {
-    "min_latency" : { "min" : { "field" : "latency_histo" } }
+    "max_latency" : { "max" : { "field" : "latency_histo" } }
   }
 }
 --------------------------------------------------
@@ -157,7 +157,7 @@ The `max` aggregation will return the maximum value of all histogram fields:
 {
   ...
   "aggregations": {
-    "min_latency": {
+    "max_latency": {
       "value": 0.5
     }
   }

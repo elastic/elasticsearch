@@ -45,10 +45,7 @@ public class ReadModuleExports extends DefaultTask {
             ClassReader classReader = new ClassReader(is);
             classReader.accept(classNode, 0);
         }
-        classNode.module.exports.forEach(n -> {
-            System.out.println(n.packaze);
-            exports.add(n.packaze);
-        });
+        classNode.module.exports.forEach(n -> { exports.add(n.packaze); });
     }
 
     @Internal

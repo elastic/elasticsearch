@@ -50,7 +50,7 @@ public class UpdateDesiredNodesResponse extends AcknowledgedResponse {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         UpdateDesiredNodesResponse that = (UpdateDesiredNodesResponse) o;
-        return Objects.equals(replacedExistingHistoryId, that.replacedExistingHistoryId);
+        return replacedExistingHistoryId == that.replacedExistingHistoryId;
     }
 
     @Override

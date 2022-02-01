@@ -237,6 +237,24 @@ setup:
   - length:   { hits.hits: 2  }
 
 ---
+"Test distance_feature query on date field where only doc values are enabled":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            bool:
+              should:
+                distance_feature:
+                  field: "date"
+                  pivot: "7d"
+                  origin: "now"
+  - length:   { hits.hits: 2  }
+  - match: {hits.hits.0._id: "2" }
+  - match: {hits.hits.1._id: "1" }
+
+---
 "Test match query on keyword field where only doc values are enabled":
 
   - do:

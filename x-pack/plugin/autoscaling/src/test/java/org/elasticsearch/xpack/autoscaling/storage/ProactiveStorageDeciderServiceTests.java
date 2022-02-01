@@ -223,8 +223,6 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
             org.elasticsearch.core.List.of(Tuple.tuple("test", indices)),
             org.elasticsearch.core.List.of(),
-            System.currentTimeMillis(),
-            Settings.EMPTY,
             shardCopies - 1,
             randomBoolean()
         );

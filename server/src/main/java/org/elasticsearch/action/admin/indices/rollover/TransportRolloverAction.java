@@ -183,22 +183,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         );
     }
 
-    private boolean areConditionsMet(RolloverRequest rolloverRequest, Map<String, Boolean> trialConditionResults) {
-        boolean allRequiredMet = rolloverRequest.getConditions()
-            .values()
-            .stream()
-            .filter(Condition::isRequired)
-            .allMatch(c -> trialConditionResults.get(c.toString()));
-
-        boolean anyNonRequiredMet = rolloverRequest.getConditions()
-            .values()
-            .stream()
-            .filter(Predicate.not(Condition::isRequired))
-            .anyMatch(c -> trialConditionResults.get(c.toString()));
-
-        return trialConditionResults.size() == 0 || (allRequiredMet && anyNonRequiredMet);
-    }
-
     static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions, @Nullable final Condition.Stats stats) {
         Objects.requireNonNull(conditions, "conditions must not be null");
 

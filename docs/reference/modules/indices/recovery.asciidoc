@@ -127,26 +127,29 @@ behaviour described above.
 the value of `indices.recovery.max_bytes_per_sec`.
 
 In more detail, if `indices.recovery.max_bytes_per_sec` is not set then the
-maximum recovery bandwidth is a proportion of the available bandwidth for both
-read and write traffic. The absolute maximum bandwidths for disk reads, disk
-writes, and network transfers are defined by
-`node.bandwidth.recovery.disk.read`, `node.bandwidth.recovery.disk.write` and
-`node.bandwidth.recovery.network` respectively, and the proportion of the
-absolute maximum bandwidth that is available for recoveries is defined by
-`node.bandwidth.recovery.factor.read` and
-`node.bandwidth.recovery.factor.write`. Operator-only variants of these
-settings are also available for use when the {operator-feature} is enabled.
+maximum recovery bandwidth is a proportion of the absolute maximum bandwidth,
+computed separately for read and write traffic. The service defines the
+absolute maximum bandwidths for disk reads, disk writes, and network transfers
+using `node.bandwidth.recovery.disk.read`, `node.bandwidth.recovery.disk.write`
+and `node.bandwidth.recovery.network` respectively, and you can set the
+proportion of the absolute maximum bandwidth that may be used for recoveries by
+adjusting `node.bandwidth.recovery.factor.read` and
+`node.bandwidth.recovery.factor.write`. If the {operator-feature} is enabled
+then the service may also set default proportions using operator-only variants
+of these settings.
 
-If `indices.recovery.max_bytes_per_sec` is set then {es} will use its value for
-the maximum recovery bandwidth, as long as it does not exceed the node-wide
-limit. The node-wide limit is the absolute maximum bandwidths multiplied by the
-`node.bandwidth.recovery.operator.factor.max_overcommit` factor. If
-`indices.recovery.max_bytes_per_sec` exceeds the node-wide limit then the
+If you set `indices.recovery.max_bytes_per_sec` then {es} will use its value
+for the maximum recovery bandwidth, as long as this does not exceed the
+node-wide limit. {es} computes the node-wide limit by multiplying the absolute
+maximum bandwidths by the
+`node.bandwidth.recovery.operator.factor.max_overcommit` factor. If you set
+`indices.recovery.max_bytes_per_sec` in excess of the node-wide limit then the
 node-wide limit takes precedence.
 
-The absolute maximum bandwidths should be determined by experiment for a
-recovery-like workload in which there are several concurrent workers each
-processing files sequentially in chunks of 512kiB.
+The service should determine values for the absolute maximum bandwidths
+settings by experiment, using a recovery-like workload in which there are
+several concurrent workers each processing files sequentially in chunks of
+512kiB.
 
 `node.bandwidth.recovery.disk.read`::
 (<<byte-units,byte value>> per second) The absolute maximum disk read speed for

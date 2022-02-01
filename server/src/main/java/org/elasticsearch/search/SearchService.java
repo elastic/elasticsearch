@@ -634,6 +634,23 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         threadPool.executor(executorName).execute(command);
     }
 
+    private <T> ActionListener<T> wrapFailureListener(ActionListener<T> listener, ReaderContext context, Releasable releasable) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(T resp) {
+                Releasables.close(releasable);
+                listener.onResponse(resp);
+            }
+
+            @Override
+            public void onFailure(Exception exc) {
+                processFailure(context, exc);
+                Releasables.close(releasable);
+                listener.onFailure(exc);
+            }
+        };
+    }
+
     private void doExecuteQueryPhase(
         IndexShard shard,
         ShardSearchRequest request,
@@ -714,12 +731,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             freeReaderContext(readerContext.id());
             throw e;
         }
-        runAsync(readerContext.indexShard(), new ActionRunnable<>(listener) {
-            @Override
-            public void onAfter() {
-                markAsUsed.close();
-            }
-
+        runAsync(readerContext.indexShard(), new ActionRunnable<>(wrapFailureListener(listener, readerContext, markAsUsed)) {
             @Override
             protected void doRun() throws Exception {
                 final ScrollQuerySearchResult queryResult;
@@ -737,13 +749,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     queryResult = new ScrollQuerySearchResult(searchContext.queryResult(), searchContext.shardTarget());
                 } catch (Exception e) {
                     logger.trace("Query phase failed", e);
-                    processFailure(readerContext, e);
                     throw e;
                 }
-                fetchLookupFields(task, queryResult, ActionListener.wrap(nil -> listener.onResponse(queryResult), e -> {
-                    processFailure(readerContext, e);
-                    listener.onFailure(e);
-                }));
+                fetchLookupFields(task, queryResult, listener.map(nil -> queryResult));
             }
         });
     }
@@ -752,11 +760,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ReaderContext readerContext = findReaderContext(request.contextId(), request.shardSearchRequest());
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.shardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
-        runAsync(readerContext.indexShard(), new ActionRunnable<>(listener) {
-            @Override
-            public void onAfter() {
-                markAsUsed.close();
-            }
+        runAsync(readerContext.indexShard(), new ActionRunnable<>(wrapFailureListener(listener, readerContext, markAsUsed)) {
 
             @Override
             protected void doRun() throws Exception {
@@ -784,13 +788,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 } catch (Exception e) {
                     assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                     logger.trace("Query phase failed", e);
-                    processFailure(readerContext, e);
                     throw e;
                 }
-                fetchLookupFields(task, queryResult, ActionListener.wrap(nil -> listener.onResponse(queryResult), e -> {
-                    processFailure(readerContext, e);
-                    listener.onFailure(e);
-                }));
+                fetchLookupFields(task, queryResult, listener.map(nil -> queryResult));
             }
         });
     }
@@ -809,11 +809,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             freeReaderContext(readerContext.id());
             throw e;
         }
-        runAsync(readerContext.indexShard(), new ActionRunnable<>(listener) {
-            @Override
-            public void onAfter() {
-                markAsUsed.close();
-            }
+        runAsync(readerContext.indexShard(), new ActionRunnable<>(wrapFailureListener(listener, readerContext, markAsUsed)) {
 
             @Override
             protected void doRun() throws Exception {
@@ -834,13 +830,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 } catch (Exception e) {
                     assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                     logger.trace("Fetch phase failed", e);
-                    processFailure(readerContext, e);
                     throw e;
                 }
-                fetchLookupFields(task, fetchResult, ActionListener.wrap(nil -> listener.onResponse(fetchResult), e -> {
-                    processFailure(readerContext, e);
-                    listener.onFailure(e);
-                }));
+                fetchLookupFields(task, fetchResult, listener.map(nil -> fetchResult));
             }
         });
     }
@@ -849,12 +841,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
-        runAsync(readerContext.indexShard(), new ActionRunnable<>(listener) {
-            @Override
-            public void onAfter() {
-                markAsUsed.close();
-            }
-
+        runAsync(readerContext.indexShard(), new ActionRunnable<>(wrapFailureListener(listener, readerContext, markAsUsed)) {
             @Override
             protected void doRun() throws Exception {
                 final FetchSearchResult fetchResult;
@@ -881,13 +868,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     fetchResult = searchContext.fetchResult();
                 } catch (Exception e) {
                     assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
-                    // we handle the failure in the failure listener below
                     throw e;
                 }
-                fetchLookupFields(task, fetchResult, ActionListener.wrap(nil -> listener.onResponse(fetchResult), e -> {
-                    processFailure(readerContext, e);
-                    listener.onFailure(e);
-                }));
+                fetchLookupFields(task, fetchResult, listener.map(nil -> fetchResult));
             }
         });
     }

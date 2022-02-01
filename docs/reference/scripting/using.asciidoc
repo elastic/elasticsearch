@@ -70,7 +70,7 @@ GET my-index-000001/_search
   "script_fields": {
     "my_doubled_field": {
       "script": { <1>
-        "source": "doc['my_field'].value * params['multiplier']", <2>
+        "source": "field('my_field').get(null) * params['multiplier']", <2>
         "params": {
           "multiplier": 2
         }
@@ -101,7 +101,7 @@ first value for `my_field` and then multiply it by `2`:
 
 [source,painless]
 ----
-"source": "return doc['my_field'].value * 2"
+"source": "return field('my_field').get(null) * 2"
 ----
 
 Though it works, this solution is pretty inflexible. We have to modify the
@@ -114,7 +114,7 @@ the `multiplier` parameter without {es} recompiling the script.
 
 [source,painless]
 ----
-"source": "doc['my_field'].value * params['multiplier']",
+"source": "field('my_field').get(null) * params['multiplier']",
 "params": {
   "multiplier": 2
 }
@@ -147,7 +147,7 @@ GET my-index-000001/_search
     "my_doubled_field": {
       "script": {
         "lang":   "painless",
-        "source": "return doc['my_field'].value * params.get('multiplier');",
+        "source": "return field('my_field').get(null) * params.get('multiplier');",
         "params": {
           "multiplier": 2
         }
@@ -168,7 +168,7 @@ GET my-index-000001/_search
   "script_fields": {
     "my_doubled_field": {
       "script": {
-        "source": "doc['my_field'].value * params['multiplier']",
+        "source": "field('my_field').get(null) * params['multiplier']",
         "params": {
           "multiplier": 2
         }
@@ -196,6 +196,86 @@ them in other cases to remove ambiguity.
 
 Use this abbreviated syntax anywhere that {es} supports scripts, such as
 when you're creating <<runtime-mapping-fields,runtime fields>>.
+
+[discrete]
+[[script-fields-api]]
+=== Access document fields
+The examples from previous sections use the `field` API to access document
+fields:
+
+[source,painless]
+----
+field('my_field').get(null)
+----
+
+The `field` API fundamentally changes how you access documents in Painless.
+Previously, you had to declare `doc` and the field name that you wanted to
+access:
+
+[source,painless]
+----
+doc['my_field'].value
+----
+
+Accessing document fields this way didn't handle missing values, which meant
+that your Painless scripts had to check that fields exist and create
+intermediary objects for handling such omissions.
+
+Instead, use the `field` API, which is the preferred approach to access
+documents in Painless. The `field` API abstracts access options (such as
+`_source` or `doc_values`) and provides a field-centric view of your documents.
+
+The `field` API always returns a non-null object that represents the given field,
+regardless of whether the field exists or has any values for the current
+document. This means that the `field` API can handle missing values without
+requiring additional logic.
+
+The `field` API returns a `Field` object that iterates over fields with 
+multiple values, providing access to the underlying value through the `get()` 
+method, as well as type conversion and helper methods. 
+
+[discrete]
+==== Convenient, simpler access
+Instead of explicitly calling the `field` API with the `get()` method, you can
+include the `$` shortcut. Just include the `$` symbol, field name, and value
+that you want to retrieve:
+
+[source,painless]
+----
+$(‘field’, null)
+----
+
+With these enhanced capabilities and simplified syntax, you can write scripts
+that are shorter, less complex, and easier to parse. For example, the following
+script uses the outdated syntax to determine the difference in milliseconds
+between two complex `datetime` values from an indexed document:
+
+[source,painless]
+----
+if (doc.containsKey('start') && doc.containsKey('end')) {
+   if (doc['start'].size() > 0 && doc['end'].size() > 0) {
+       ZonedDateTime start = doc['start'].value;
+       ZonedDateTime end = doc['end'].value;
+       return ChronoUnit.MILLIS.between(start, end);
+   } else {
+       return -1;
+   }
+} else {
+   return -1;
+}
+----
+
+Using the `field` API, you can write this same script much more succinctly,
+without requiring additional logic to determine whether fields exist before
+operating on them:
+
+[source,painless]
+----
+ZonedDateTime start = field('start').get(null);
+ZonedDateTime end = field('end').get(null);
+return start == null || end == null ? -1 : ChronoUnit.MILLIS.between(start, end)
+----
+
 
 [discrete]
 [[script-stored-scripts]]

@@ -83,6 +83,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -105,7 +106,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * Service responsible for submitting create index requests
@@ -846,6 +846,12 @@ public class MetadataCreateIndexService {
             final Settings.Builder additionalIndexSettings = Settings.builder();
             final Settings templateAndRequestSettings = Settings.builder().put(combinedTemplateSettings).put(request.settings()).build();
 
+            final IndexMode matchingIndexMode = Optional.of(request)
+                .map(CreateIndexClusterStateUpdateRequest::matchingTemplate)
+                .map(ComposableIndexTemplate::getDataStreamTemplate)
+                .map(ComposableIndexTemplate.DataStreamTemplate::getIndexMode)
+                .orElse(null);
+
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
             for (IndexSettingProvider provider : indexSettingProviders) {
@@ -853,6 +859,7 @@ public class MetadataCreateIndexService {
                     provider.getAdditionalIndexSettings(
                         request.index(),
                         request.dataStreamName(),
+                        matchingIndexMode,
                         currentState.getMetadata(),
                         request.getNameResolvedAt(),
                         templateAndRequestSettings
@@ -1307,7 +1314,7 @@ public class MetadataCreateIndexService {
      */
     static List<String> validateShrinkIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
-        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+        if (sourceMetadata.isSearchableSnapshot()) {
             throw new IllegalArgumentException("can't shrink searchable snapshot index [" + sourceIndex + ']');
         }
         assert INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings);
@@ -1340,7 +1347,7 @@ public class MetadataCreateIndexService {
 
     static void validateSplitIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
-        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+        if (sourceMetadata.isSearchableSnapshot()) {
             throw new IllegalArgumentException("can't split searchable snapshot index [" + sourceIndex + ']');
         }
         IndexMetadata.selectSplitShard(0, sourceMetadata, INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
@@ -1348,7 +1355,7 @@ public class MetadataCreateIndexService {
 
     static void validateCloneIndex(ClusterState state, String sourceIndex, String targetIndexName, Settings targetIndexSettings) {
         IndexMetadata sourceMetadata = validateResize(state, sourceIndex, targetIndexName, targetIndexSettings);
-        if (isSearchableSnapshotStore(sourceMetadata.getSettings())) {
+        if (sourceMetadata.isSearchableSnapshot()) {
             for (Setting<?> nonCloneableSetting : Arrays.asList(INDEX_STORE_TYPE_SETTING, INDEX_RECOVERY_TYPE_SETTING)) {
                 if (nonCloneableSetting.exists(targetIndexSettings) == false) {
                     throw new IllegalArgumentException(

@@ -46,6 +46,8 @@ import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.discovery.HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING;
 import static org.elasticsearch.discovery.HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
@@ -172,7 +174,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         try {
             handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
-            failureListener.assertFailure();
+            assertThat(failureListener.getFailureMessage(), containsString("simulated"));
             mockAppender.assertAllExpectationsMatched();
         } finally {
             Loggers.removeAppender(targetLogger, mockAppender);
@@ -187,7 +189,16 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         FailureListener failureListener = new FailureListener();
         handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
-        failureListener.assertFailure();
+        assertThat(
+            failureListener.getFailureMessage(),
+            allOf(
+                containsString("successfully discovered master-ineligible node"),
+                containsString(remoteNode.descriptionWithoutAttributes()),
+                containsString("to suppress this message"),
+                containsString("remove address [" + discoveryAddress + "] from your discovery configuration"),
+                containsString("ensure that traffic to this address is routed only to master-eligible nodes")
+            )
+        );
     }
 
     public void testDoesNotConnectToLocalNode() throws Exception {
@@ -197,7 +208,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         FailureListener failureListener = new FailureListener();
         handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
-        failureListener.assertFailure();
+        assertThat(failureListener.getFailureMessage(), containsString("successfully discovered local node"));
     }
 
     public void testDoesNotConnectToDifferentCluster() throws InterruptedException {
@@ -207,7 +218,10 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         FailureListener failureListener = new FailureListener();
         handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
-        failureListener.assertFailure();
+        assertThat(
+            failureListener.getFailureMessage(),
+            containsString("remote cluster name [another-cluster] does not match local cluster name [local-cluster]")
+        );
     }
 
     public void testTimeoutDefaults() {
@@ -223,7 +237,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         FailureListener failureListener = new FailureListener();
         handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
-        failureListener.assertFailure();
+        assertThat(failureListener.getFailureMessage(), containsString("timed out"));
     }
 
     private TransportAddress getDiscoveryAddress() {
@@ -232,6 +246,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
     private static class FailureListener implements ActionListener<ProbeConnectionResult> {
         final CountDownLatch completionLatch = new CountDownLatch(1);
+        String message;
 
         @Override
         public void onResponse(ProbeConnectionResult connectResult) {
@@ -240,11 +255,13 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         @Override
         public void onFailure(Exception e) {
+            message = e.getMessage();
             completionLatch.countDown();
         }
 
-        void assertFailure() throws InterruptedException {
-            assertTrue(completionLatch.await(15, TimeUnit.SECONDS));
+        String getFailureMessage() throws InterruptedException {
+            assertTrue("timed out waiting for listener to complete", completionLatch.await(15, TimeUnit.SECONDS));
+            return message;
         }
     }
 }

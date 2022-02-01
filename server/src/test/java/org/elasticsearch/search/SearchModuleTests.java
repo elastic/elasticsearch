@@ -10,6 +10,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -625,6 +626,11 @@ public class SearchModuleTests extends ESTestCase {
         public RescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException {
             return null;
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
+        }
     }
 
     private static class TestSuggester extends Suggester<SuggestionSearchContext.SuggestionContext> {
@@ -687,6 +693,11 @@ public class SearchModuleTests extends ESTestCase {
         @Override
         public String getWriteableName() {
             return "test";
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
         }
     }
 

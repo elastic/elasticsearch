@@ -66,7 +66,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
             org.elasticsearch.core.List.of(Tuple.tuple("test", between(1, 10))),
             org.elasticsearch.core.List.of(),
-            0
+            0,
+            randomBoolean()
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
@@ -162,7 +163,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
             org.elasticsearch.core.List.of(Tuple.tuple("test", between(1, 10))),
             org.elasticsearch.core.List.of(),
-            between(0, 4)
+            between(0, 4),
+            randomBoolean()
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         stateBuilder.routingTable(addRouting(originalState.metadata(), RoutingTable.builder()).build());
@@ -221,7 +223,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
             org.elasticsearch.core.List.of(Tuple.tuple("test", indices)),
             org.elasticsearch.core.List.of(),
-            shardCopies - 1
+            shardCopies - 1,
+            randomBoolean()
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         stateBuilder.routingTable(addRouting(originalState.metadata(), RoutingTable.builder()).build());

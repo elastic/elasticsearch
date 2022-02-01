@@ -24,6 +24,7 @@ import org.elasticsearch.health.components.controller.Controller;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
@@ -116,22 +118,22 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             final ClusterState clusterState = clusterService.state();
             final Component controller = Controller.createControllerComponent(clusterService.localNode(), clusterState);
-            final Component snapshots = new Component("snapshots", HealthStatus.GREEN, Collections.emptyList());
+            final Component snapshots = new Component("snapshots", HealthStatus.GREEN, Collections.emptyMap());
             final ClusterName clusterName = clusterService.getClusterName();
             listener.onResponse(new Response(clusterName, Arrays.asList(controller, snapshots)));
         }
     }
 
-    public record Component(String name, HealthStatus status, List<Indicator> indicators) implements ToXContentObject {
+    public record Component(String name, HealthStatus status, Map<String, Indicator> indicators) implements ToXContentObject {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("status", status);
             builder.startObject("indicators");
-            for (Indicator indicator : indicators) {
-                builder.field(indicator.getName());
-                indicator.toXContent(builder, params);
+            for (Map.Entry<String, Indicator> indicator : indicators.entrySet()) {
+                builder.field(indicator.getKey());
+                indicator.getValue().toXContent(builder, params);
             }
             builder.endObject();
             return builder.endObject();
@@ -139,16 +141,18 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
     }
 
-    public abstract static class Indicator implements ToXContentObject {
+    public static class Indicator implements ToXContentObject {
 
         private final String name;
         private final HealthStatus status;
         private final String summary;
+        private final ToXContentFragment details;
 
-        public Indicator(String name, HealthStatus status, String summary) {
+        public Indicator(String name, HealthStatus status, String summary, ToXContentFragment details) {
             this.name = name;
             this.status = status;
             this.summary = summary;
+            this.details = details;
         }
 
         public String getName() {
@@ -163,14 +167,16 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             return summary;
         }
 
-        public abstract void writeDetails(XContentBuilder builder, Params params) throws IOException;
+        public void writeDetails(XContentBuilder builder, Params params) throws IOException {
+
+        }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("status", status);
             builder.field("summary", summary);
-            builder.object("details", xContentBuilder -> writeDetails(builder, params));
+            builder.object("details", xContentBuilder -> details.toXContent(builder, params));
             // TODO: Add detail / documentation
             return builder.endObject();
         }

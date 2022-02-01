@@ -18,14 +18,45 @@ import java.util.Collections;
 
 public final class Controller {
 
+    public static final String INSTANCE_HAS_MASTER_NAME = "instance_has_master";
+    public static final String INSTANCE_HAS_MASTER_GREEN_SUMMARY = "Health coordinating instance has a master node.";
+    public static final String INSTANCE_HAS_MASTER_RED_SUMMARY = "Health coordinating instance does not have a master node.";
+
     private Controller() {}
 
-    public static GetHealthAction.Component createControllerComponent(final DiscoveryNode node, final ClusterState clusterState) {
+    public static GetHealthAction.Component createControllerComponent(
+        final DiscoveryNode coordinatingNode,
+        final ClusterState clusterState
+    ) {
         final DiscoveryNodes nodes = clusterState.nodes();
         final DiscoveryNode masterNode = nodes.getMasterNode();
-        InstanceHasMaster instanceHasMaster = new InstanceHasMaster(node, masterNode);
+
+        HealthStatus instanceHasMasterStatus = masterNode == null ? HealthStatus.RED : HealthStatus.GREEN;
+        String instanceHasMasterSummary = masterNode == null ? INSTANCE_HAS_MASTER_RED_SUMMARY : INSTANCE_HAS_MASTER_GREEN_SUMMARY;
+        GetHealthAction.Indicator instanceHasMaster = new GetHealthAction.Indicator(
+            INSTANCE_HAS_MASTER_NAME,
+            instanceHasMasterStatus,
+            instanceHasMasterSummary,
+            (builder, params) -> {
+                builder.object("coordinating_node", xContentBuilder -> {
+                    builder.field("node_id", coordinatingNode.getId());
+                    builder.field("name", coordinatingNode.getName());
+                });
+                builder.object("master_node", xContentBuilder -> {
+                    if (masterNode != null) {
+                        builder.field("node_id", masterNode.getId());
+                        builder.field("name", masterNode.getName());
+                    } else {
+                        builder.nullField("node_id");
+                        builder.nullField("name");
+                    }
+                });
+                return builder;
+            }
+        );
+
         // Only a single indicator currently so it determines the status
         final HealthStatus status = instanceHasMaster.getStatus();
-        return new GetHealthAction.Component("controller", status, Collections.singletonList(instanceHasMaster));
+        return new GetHealthAction.Component("controller", status, Collections.singletonMap(INSTANCE_HAS_MASTER_NAME, instanceHasMaster));
     }
 }

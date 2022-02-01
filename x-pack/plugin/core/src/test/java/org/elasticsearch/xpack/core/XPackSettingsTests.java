@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
@@ -19,7 +20,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class XPackSettingsTests extends ESTestCase {
@@ -112,11 +113,14 @@ public class XPackSettingsTests extends ESTestCase {
         assertThat(XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM.get(Settings.EMPTY), equalTo("PBKDF2_STRETCH"));
     }
 
-    // Ensure the setting for domain is not registered by default. The reverse, i.e., it is registered, is tested elsewhere
-    public void testRealmDomainSettingNotRegistered() {
+    // Whether the domain setting is registered by default depends on the build type
+    public void testRealmDomainSettingRegistrationDefault() {
         assertThat(
-            XPackSettings.getAllSettings().stream().noneMatch(setting -> setting.getKey().equals(DOMAIN_TO_REALM_ASSOC_SETTING.getKey())),
-            is(true)
+            XPackSettings.getAllSettings()
+                .stream()
+                .filter(setting -> setting.getKey().equals(DOMAIN_TO_REALM_ASSOC_SETTING.getKey()))
+                .toList(),
+            hasSize(Build.CURRENT.isSnapshot() ? 1 : 0)
         );
     }
 

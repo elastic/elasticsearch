@@ -459,6 +459,10 @@ public class RecoverySettings {
             INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING,
             this::setInternalActionLongTimeout
         );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING,
+            this::setInternalActionRetryTimeout
+        );
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_USE_SNAPSHOTS_SETTING, this::setUseSnapshotsDuringRecovery);
         clusterSettings.addSettingsUpdateConsumer(
@@ -597,6 +601,10 @@ public class RecoverySettings {
 
     public void setInternalActionLongTimeout(TimeValue internalActionLongTimeout) {
         this.internalActionLongTimeout = internalActionLongTimeout;
+    }
+
+    public void setInternalActionRetryTimeout(TimeValue internalActionRetryTimeout) {
+        this.internalActionRetryTimeout = internalActionRetryTimeout;
     }
 
     private void setMaxBytesPerSec(ByteSizeValue maxBytesPerSec) {

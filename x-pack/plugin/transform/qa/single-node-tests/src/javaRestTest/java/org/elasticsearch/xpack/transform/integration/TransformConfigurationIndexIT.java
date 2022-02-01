@@ -35,12 +35,19 @@ public class TransformConfigurationIndexIT extends TransformRestTestCase {
      */
     public void testDeleteConfigurationLeftOver() throws IOException {
         String fakeTransformName = randomAlphaOfLengthBetween(5, 20);
-        final RequestOptions expectWarningOptions = expectWarnings(
-            "this request accesses system indices: ["
+        final RequestOptions expectWarningOptions = expectVersionSpecificWarnings(v -> {
+            String newWarning = "this request accesses system indices: ["
+                + TransformInternalIndexConstants.LATEST_INDEX_NAME
+                + "], but in a future major version, direct access to system indices may "
+                + "be prevented by default";
+            String oldWarning = "this request accesses system indices: ["
                 + TransformInternalIndexConstants.LATEST_INDEX_NAME
                 + "], but in a future major version, direct access to system indices will "
-                + "be prevented by default"
-        );
+                + "be prevented by default";
+            v.current(newWarning);
+            v.compatible(newWarning);
+            v.compatible(oldWarning);
+        });
 
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();

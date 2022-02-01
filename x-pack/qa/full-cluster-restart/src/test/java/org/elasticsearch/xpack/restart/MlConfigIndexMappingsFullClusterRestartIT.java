@@ -95,10 +95,13 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     private Map<String, Object> getConfigIndexMappings() throws Exception {
         Request getIndexMappingsRequest = new Request("GET", ".ml-config/_mappings");
         getIndexMappingsRequest.setOptions(expectVersionSpecificWarnings(v -> {
-            final String systemIndexWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct "
+            final String newWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct "
                 + "access to system indices may be prevented by default";
-            v.current(systemIndexWarning);
-            v.compatible(systemIndexWarning);
+            v.current(newWarning);
+            v.compatible(newWarning);
+            final String oldWarning = "this request accesses system indices: [.ml-config], but in a future major version, direct "
+                + "access to system indices will be prevented by default";
+            v.compatible(oldWarning);
         }));
         Response getIndexMappingsResponse = client().performRequest(getIndexMappingsRequest);
         assertThat(getIndexMappingsResponse.getStatusLine().getStatusCode(), equalTo(200));

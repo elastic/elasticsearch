@@ -100,13 +100,21 @@ public class TransformAuditorIT extends TransformRestTestCase {
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
         // These indices should only exist if created in previous versions, ignore the deprecation warning for this test
-        RequestOptions options = expectWarnings(
-            "index name ["
+        RequestOptions options = expectVersionSpecificWarnings(v -> {
+            String newWarning = "index name ["
+                + TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED
+                + "] starts "
+                + "with a dot '.', index names starting with a dot are reserved for hidden indices and system indices and creating them " +
+                "will be blocked in a future version.";
+            String oldWarning = "index name ["
                 + TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED
                 + "] starts "
                 + "with a dot '.', in the next major version, index names starting with a dot are reserved for hidden indices "
-                + "and system indices"
-        );
+                + "and system indices";
+            v.current(newWarning);
+            v.compatible(newWarning);
+            v.compatible(oldWarning);
+        });
         Request request = new Request("PUT", "/" + TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED);
         String entity = "{\"settings\": " + Strings.toString(settings.build()) + "}";
         request.setJsonEntity(entity);

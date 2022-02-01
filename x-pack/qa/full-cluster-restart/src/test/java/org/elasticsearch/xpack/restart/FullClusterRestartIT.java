@@ -394,10 +394,12 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     }""");
                 if (getOldClusterVersion().onOrAfter(Version.V_7_10_0)) {
                     indexRequest.setOptions(
-                        expectWarnings(
-                            "this request accesses system indices: [.security-7], but in a future major "
-                                + "version, direct access to system indices may be prevented by default"
-                        ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
+                        expectVersionSpecificWarnings(v -> {
+                            v.compatible("this request accesses system indices: [.security-7], but in a future major "
+                                + "version, direct access to system indices will be prevented by default");
+                            v.compatible("this request accesses system indices: [.security-7], but in a future major "
+                                + "version, direct access to system indices may be prevented by default");
+                        }).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
                     );
                 } else {
                     indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader));

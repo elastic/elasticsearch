@@ -634,23 +634,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         threadPool.executor(executorName).execute(command);
     }
 
-    private <T> ActionListener<T> wrapFailureListener(ActionListener<T> listener, ReaderContext context, Releasable releasable) {
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(T resp) {
-                Releasables.close(releasable);
-                listener.onResponse(resp);
-            }
-
-            @Override
-            public void onFailure(Exception exc) {
-                processFailure(context, exc);
-                Releasables.close(releasable);
-                listener.onFailure(exc);
-            }
-        };
-    }
-
     private void doExecuteQueryPhase(
         IndexShard shard,
         ShardSearchRequest request,
@@ -1173,6 +1156,23 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     + "] cluster level setting."
             );
         }
+    }
+
+    private <T> ActionListener<T> wrapFailureListener(ActionListener<T> listener, ReaderContext context, Releasable releasable) {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(T resp) {
+                Releasables.close(releasable);
+                listener.onResponse(resp);
+            }
+
+            @Override
+            public void onFailure(Exception exc) {
+                processFailure(context, exc);
+                Releasables.close(releasable);
+                listener.onFailure(exc);
+            }
+        };
     }
 
     private boolean isScrollContext(ReaderContext context) {

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
@@ -42,6 +43,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DateMillisDocValuesField;
 import org.elasticsearch.script.field.DateNanosDocValuesField;
+import org.elasticsearch.script.field.LongDocValuesField;
 import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
@@ -367,6 +369,8 @@ public final class DateFieldMapper extends FieldMapper {
         protected final String nullValue;
         protected final FieldValues<Long> scriptValues;
 
+        protected final DateScriptFieldType docValueBasedScriptFieldType;
+
         public DateFieldType(
             String name,
             boolean isIndexed,
@@ -384,6 +388,49 @@ public final class DateFieldMapper extends FieldMapper {
             this.resolution = resolution;
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
+            docValueBasedScriptFieldType = new DateScriptFieldType(name, createDocValuesScriptFactory(), dateTimeFormatter, new Script(""), meta);
+        }
+
+        public DateFieldScript.Factory createDocValuesScriptFactory() {
+            return new DateFieldScript.Factory() {
+                @Override
+                public DateFieldScript.LeafFactory newFactory(String field, Map<String, Object> params,
+                                                              SearchLookup lookup, DateFormatter formatter) {
+                    return ctx -> new DateFieldScript(field, params, lookup, formatter, ctx) {
+
+                        final LongDocValuesField longDocValuesField;
+
+                        {
+                            try {
+                                longDocValuesField = new LongDocValuesField(DocValues.getSortedNumeric(ctx.reader(), field), field);
+                            } catch (IOException e) {
+                                throw new IllegalStateException("Cannot load doc values", e);
+                            }
+                        }
+
+                        @Override
+                        public void setDocument(int docID) {
+                            try {
+                                longDocValuesField.setNextDocId(docID);
+                            } catch (IOException e) {
+                                throw new IllegalStateException("Cannot load doc values", e);
+                            }
+                        }
+
+                        @Override
+                        public void execute() {
+                            for (long value : longDocValuesField) {
+                                emit(value);
+                            }
+                        }
+                    };
+                }
+
+                @Override
+                public boolean isResultDeterministic() {
+                    return true;
+                }
+            };
         }
 
         public DateFieldType(String name) {
@@ -520,7 +567,9 @@ public final class DateFieldMapper extends FieldMapper {
                         query = new IndexOrDocValuesQuery(query, dvQuery);
                     }
                 } else {
-                    query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                    query = docValueBasedScriptFieldType.rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, relation, timeZone,
+                        forcedDateParser, context);
+                    //query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                 }
                 if (hasDocValues() && context.indexSortedOnField(name())) {
                     query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);

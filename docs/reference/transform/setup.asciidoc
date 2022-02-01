@@ -33,6 +33,7 @@ the two main categories:
 {es} security privileges.
 * *<<transform-kib-security-privileges>>*: uses {transforms} in {kib}. This
 scenario requires {kib} feature privileges and {es} security privileges.
+Management features must also be visible in the relevant space.
 
 You can configure these privileges under **{stack-manage-app}** > **Security**
 in {kib} or via the respective {es} security APIs.
@@ -66,6 +67,8 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 Within a {kib} space, for full access to {transforms}, you must have:
 
 [%interactive]
+* [ ] Management features visible in the {kib} space, including
+`Data View Management` and `Stack Monitoring`
 * [ ] `Data Views Management: All` {kib} feature privileges
 //TBD Is this feature privilege required in order to create a data view for the destination indices?
 * [ ] `transform_admin` built-in role or `manage_transform` cluster privileges
@@ -85,15 +88,14 @@ Within a {kib} space, for read-only access to {transforms}, you must have:
 * [ ] `read`, and `view_index_metadata` index privileges on source indices and
 destination indices
 
-////
 [discrete]
-[[transform-kib-visibility-spaces]]
-==== Feature visibility in Spaces
+[[transform-kib-spaces]]
+==== {kib} spaces
 
 {kibana-ref}/xpack-spaces.html[Spaces] enable you to organize your source and 
 destination indices and other saved objects in {kib} and to see only the objects 
 that belong to your space. However, this limited scope does not apply to 
 {transforms}; they are visible in all spaces.
 
-//TBD: Does this mean that transforms have access to data that exists in any space or only that users in all spaces can access all transforms?
-////
+To successfully create {transforms} in {kib}, you must be logged into a space
+where the source indices are visible.

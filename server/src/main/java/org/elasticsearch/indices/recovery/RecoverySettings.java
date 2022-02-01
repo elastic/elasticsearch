@@ -441,6 +441,7 @@ public class RecoverySettings {
                     NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING,
                     NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_READ_SETTING,
                     NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING,
+                    NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING,
                     // non dynamic settings but they are used to update max bytes per sec
                     NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING,
                     NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING,

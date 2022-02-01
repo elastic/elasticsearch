@@ -34,6 +34,7 @@ import static java.lang.String.format;
 
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, UpdateDesiredNodesResponse> {
     private final DesiredNodesSettingsValidator settingsValidator;
+    private final ClusterStateTaskExecutor<ClusterStateUpdateTask> taskExecutor;
 
     @Inject
     public TransportUpdateDesiredNodesAction(
@@ -57,6 +58,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             ThreadPool.Names.SAME
         );
         this.settingsValidator = settingsValidator;
+        this.taskExecutor = new DesiredNodesClusterStateTaskExecutor();
     }
 
     @Override
@@ -78,9 +80,16 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             clusterService.submitStateUpdateTask(
                 "update-desired-nodes",
                 new ClusterStateUpdateTask(Priority.URGENT, request.masterNodeTimeout()) {
+                    volatile boolean replacedExistingHistoryId = false;
+
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        return updateDesiredNodes(currentState, request);
+                        final ClusterState updatedState = updateDesiredNodes(currentState, request);
+                        final DesiredNodes previousDesiredNodes = DesiredNodesMetadata.latestFromClusterState(currentState);
+                        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(updatedState);
+                        replacedExistingHistoryId = previousDesiredNodes != null
+                            && previousDesiredNodes.hasSameHistoryId(latestDesiredNodes) == false;
+                        return updatedState;
                     }
 
                     @Override
@@ -90,15 +99,10 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
 
                     @Override
                     public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                        // Relies on ClusterStateTaskExecutor.unbatched()
-                        final DesiredNodes previousDesiredNodes = DesiredNodesMetadata.latestFromClusterState(oldState);
-                        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(newState);
-                        boolean replacedExistingHistoryId = previousDesiredNodes != null
-                            && previousDesiredNodes.hasSameHistoryId(latestDesiredNodes) == false;
                         listener.onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId));
                     }
                 },
-                ClusterStateTaskExecutor.unbatched()
+                taskExecutor
             );
         } catch (Exception e) {
             listener.onFailure(e);

@@ -10,16 +10,26 @@ package org.elasticsearch.action.admin.cluster.desirednodes;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
+import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
@@ -28,11 +38,11 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSO
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_IDLE;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
@@ -243,6 +253,63 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         }
     }
 
+    public void testUpdateDesiredNodesTasksAreBatchedCorrectly() throws Exception {
+        final Runnable unblockClusterStateUpdateThread = blockClusterStateUpdateThread();
+
+        final List<DesiredNodes> proposedDesiredNodes = randomList(10, 20, DesiredNodesTestCase::randomDesiredNodes);
+        final List<ActionFuture<UpdateDesiredNodesResponse>> updateDesiredNodesFutures = new ArrayList<>();
+        for (DesiredNodes desiredNodes : proposedDesiredNodes) {
+            final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
+                desiredNodes.historyID(),
+                desiredNodes.version(),
+                desiredNodes.nodes()
+            );
+            updateDesiredNodesFutures.add(client().execute(UpdateDesiredNodesAction.INSTANCE, request));
+        }
+
+        for (ActionFuture<UpdateDesiredNodesResponse> future : updateDesiredNodesFutures) {
+            assertThat(future.isDone(), is(equalTo(false)));
+        }
+
+        unblockClusterStateUpdateThread.run();
+
+        for (ActionFuture<UpdateDesiredNodesResponse> future : updateDesiredNodesFutures) {
+            future.actionGet();
+        }
+
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(state);
+        final DesiredNodes latestProposedDesiredNodes = proposedDesiredNodes.get(proposedDesiredNodes.size() - 1);
+        assertThat(latestDesiredNodes, equalTo(latestProposedDesiredNodes));
+    }
+
+    public void testDeleteDesiredNodesTasksAreBatchedCorrectly() throws Exception {
+        if (randomBoolean()) {
+            putRandomDesiredNodes();
+        }
+
+        final Runnable unblockClusterStateUpdateThread = blockClusterStateUpdateThread();
+
+        final List<ActionFuture<ActionResponse.Empty>> deleteDesiredNodesFutures = new ArrayList<>(15);
+        for (int i = 0; i < 15; i++) {
+            deleteDesiredNodesFutures.add(client().execute(DeleteDesiredNodesAction.INSTANCE, new DeleteDesiredNodesAction.Request()));
+        }
+
+        for (ActionFuture<ActionResponse.Empty> future : deleteDesiredNodesFutures) {
+            assertThat(future.isDone(), is(equalTo(false)));
+        }
+
+        unblockClusterStateUpdateThread.run();
+
+        for (ActionFuture<ActionResponse.Empty> future : deleteDesiredNodesFutures) {
+            future.actionGet();
+        }
+
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(state);
+        assertThat(latestDesiredNodes, is(nullValue()));
+    }
+
     public void testGetLatestDesiredNodes() {
         expectThrows(ResourceNotFoundException.class, this::getLatestDesiredNodes);
 
@@ -276,7 +343,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
     private void deleteDesiredNodes() {
         final DeleteDesiredNodesAction.Request request = new DeleteDesiredNodesAction.Request();
-        assertAcked(client().execute(DeleteDesiredNodesAction.INSTANCE, request).actionGet());
+        client().execute(DeleteDesiredNodesAction.INSTANCE, request).actionGet();
     }
 
     private DesiredNodes getLatestDesiredNodes() {
@@ -298,6 +365,28 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             desiredNodes.nodes()
         );
         return client().execute(UpdateDesiredNodesAction.INSTANCE, request).actionGet();
+    }
+
+    private Runnable blockClusterStateUpdateThread() throws InterruptedException {
+        final CountDownLatch unblockClusterStateUpdateTask = new CountDownLatch(1);
+        final CountDownLatch blockingClusterStateUpdateTaskExecuting = new CountDownLatch(1);
+        final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+        clusterService.submitStateUpdateTask("blocking-task", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                blockingClusterStateUpdateTaskExecuting.countDown();
+                unblockClusterStateUpdateTask.await();
+                return currentState;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+
+            }
+        }, ClusterStateTaskExecutor.unbatched());
+
+        blockingClusterStateUpdateTaskExecuting.await();
+        return unblockClusterStateUpdateTask::countDown;
     }
 
 }

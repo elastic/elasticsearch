@@ -9,19 +9,19 @@
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class DeleteDesiredNodesAction extends ActionType<AcknowledgedResponse> {
+public class DeleteDesiredNodesAction extends ActionType<ActionResponse.Empty> {
     public static final DeleteDesiredNodesAction INSTANCE = new DeleteDesiredNodesAction();
     public static final String NAME = "cluster:admin/desired_nodes/delete";
 
     DeleteDesiredNodesAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

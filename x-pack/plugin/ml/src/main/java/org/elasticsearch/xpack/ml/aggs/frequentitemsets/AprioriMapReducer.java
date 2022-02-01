@@ -13,6 +13,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReducer;
 
@@ -43,7 +45,7 @@ public class AprioriMapReducer implements MapReducer {
     private Map<String, Long> itemSets = null;
 
     private StringBuilder stringBuilder = new StringBuilder();
-    private List<Tuple<String, Double>> frequentSets = null;
+    private List<FrequentItemSet> frequentSets = null;
 
     public AprioriMapReducer() {}
 
@@ -106,12 +108,7 @@ public class AprioriMapReducer implements MapReducer {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (frequentSets != null) {
-
-            builder.startObject("frequent_sets");
-            for (Tuple<String, Double> entry : frequentSets) {
-                builder.field(entry.v1(), entry.v2());
-            }
-            builder.endObject();
+            builder.field("frequent_sets", frequentSets);
         }
 
         builder.startObject("frequencies_debug");
@@ -127,6 +124,47 @@ public class AprioriMapReducer implements MapReducer {
         builder.endObject();
 
         return builder;
+    }
+
+    // todo: implements Writeable
+    static class FrequentItemSet implements ToXContent {
+
+        private final Map<String, List<String>> items;
+        private final long docCount;
+        private final double support;
+
+        FrequentItemSet(Map<String, List<String>> items, long docCount, double support) {
+            this.items = items;
+            this.docCount = docCount;
+            this.support = support;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            for (Entry<String, List<String>> item : items.entrySet()) {
+                // TODO: flatten single lists?
+                builder.field(item.getKey(), item.getValue());
+            }
+
+            builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
+            builder.field("support", support);
+            builder.endObject();
+            return builder;
+        }
+
+        public long getDocCount() {
+            return docCount;
+        }
+
+        public double getSupport() {
+            return support;
+        }
+
+        public Map<String, List<String>> getItems() {
+            return items;
+        }
+
     }
 
     private void apprioriSimple() {
@@ -155,7 +193,7 @@ public class AprioriMapReducer implements MapReducer {
         }
         // logger.info("create start set");
         // we iterate on a list of item sets, keys are flattened as in the global list
-        List<Tuple<String, Double>> startSet = new ArrayList<>();
+        List<Tuple<String, Long>> startSet = new ArrayList<>();
 
         // create a start set with single items that have at least minSupport
         for (Entry<String, Long> entry : frequentItems.entrySet()) {
@@ -163,26 +201,26 @@ public class AprioriMapReducer implements MapReducer {
             logger.info("item " + entry.getKey() + " support: " + support);
 
             if (support > minSupport) {
-                startSet.add(new Tuple<>(entry.getKey(), support));
+                startSet.add(new Tuple<>(entry.getKey(), entry.getValue()));
             }
         }
 
-        List<Tuple<String, Double>> lastIteration = startSet;
-        List<Tuple<String, Double>> closedSets = new ArrayList<>();
+        List<Tuple<String, Long>> lastIteration = startSet;
+        List<FrequentItemSet> closedSets = new ArrayList<>();
 
         // frequentSets
         for (int i = 0; i < maxSetSize; ++i) {
             logger.info("run " + i + " with " + lastIteration.size() + "sets");
             Set<String> lookedAt = new HashSet<>();
-            List<Tuple<String, Double>> newIteration = new ArrayList<>();
+            List<Tuple<String, Long>> newIteration = new ArrayList<>();
 
-            for (Tuple<String, Double> entry : lastIteration) {
+            for (Tuple<String, Long> entry : lastIteration) {
                 String[] itemsArray = Strings.tokenizeToStringArray(entry.v1(), "#");
                 List<String> items = itemsArray != null ? Arrays.asList(itemsArray) : Collections.singletonList(entry.v1());
 
                 boolean addAsClosedSet = items.size() > minSetSize;
                 // iterate over the start set and try to add items
-                for (Tuple<String, Double> item : startSet) {
+                for (Tuple<String, Long> item : startSet) {
 
                     // skip if already in the list
                     if (items.contains(item.v1())) {
@@ -225,7 +263,7 @@ public class AprioriMapReducer implements MapReducer {
                         logger.info("add item to forward set " + newItemSetKey + " support: " + support);
 
                         addAsClosedSet = false;
-                        newIteration.add(new Tuple<>(newItemSetKey, support));
+                        newIteration.add(new Tuple<>(newItemSetKey, occurences));
                     } else {
                         logger.info("drop " + newItemSetKey + " support: " + support);
                     }
@@ -233,17 +271,37 @@ public class AprioriMapReducer implements MapReducer {
 
                 if (addAsClosedSet) {
                     logger.info("add to closed set: " + entry);
-
-                    closedSets.add(entry);
+                    closedSets.add(toFrequentItemSet(totalItemCount, entry));
                 }
 
             }
             lastIteration = newIteration;
         }
 
-        closedSets.addAll(lastIteration);
-        closedSets.sort((e1, e2) -> e2.v2().compareTo(e1.v2()));
+        for (Tuple<String, Long> item : lastIteration) {
+            closedSets.add(toFrequentItemSet(totalItemCount, item));
+        }
+        closedSets.sort((e1, e2) -> Long.compare(e2.getDocCount(), e1.getDocCount()));
 
         this.frequentSets = closedSets;
+    }
+
+    private FrequentItemSet toFrequentItemSet(long totalItemCount, Tuple<String, Long> entry) {
+        Map<String, List<String>> frequentItemsKeyValues = new HashMap<>();
+        String[] closedSetItems = Strings.tokenizeToStringArray(entry.v1(), "#");
+
+        logger.info("toFrequentItem " + entry.v1());
+
+        for (String keyValue : closedSetItems) {
+            String[] closedSetKeyValue = Strings.tokenizeToStringArray(keyValue, "!");
+            if (frequentItemsKeyValues.containsKey(closedSetKeyValue[0])) {
+                frequentItemsKeyValues.get(closedSetKeyValue[0]).add(closedSetKeyValue[1]);
+            } else {
+                List<String> l = new ArrayList<>();
+                l.add(closedSetKeyValue[1]);
+                frequentItemsKeyValues.put(closedSetKeyValue[0], l);
+            }
+        }
+        return new FrequentItemSet(frequentItemsKeyValues, entry.v2(), (double) entry.v2() / totalItemCount);
     }
 }

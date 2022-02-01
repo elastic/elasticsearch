@@ -180,9 +180,4 @@ public final class LinearInterpolation extends SmoothingModel {
                 unigramLambda
             );
     }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
-    }
 }

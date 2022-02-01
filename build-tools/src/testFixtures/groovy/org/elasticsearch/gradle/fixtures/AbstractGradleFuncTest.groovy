@@ -46,10 +46,18 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     GradleRunner gradleRunner(String... arguments) {
+
         return gradleRunner(testProjectDir.root, arguments)
     }
 
     GradleRunner gradleRunner(File projectDir, String... arguments) {
+        if(arguments.contains('--scan')) {
+        settingsFile << """
+            gradleEnterprise {
+                server = "https://gradle-enterprise.elastic.co"
+            }
+            """
+        }
         return new NormalizeOutputGradleRunner(
             new InternalAwareGradleRunner(
                 GradleRunner.create()

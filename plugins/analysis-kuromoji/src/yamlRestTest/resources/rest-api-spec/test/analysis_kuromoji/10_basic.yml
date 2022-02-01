@@ -57,3 +57,41 @@
             filter:       [kuromoji_stemmer]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: サーバ }
+---
+"Completion analyzer":
+    - do:
+        indices.create:
+          index:  kuromoji_completion_sample
+          body:
+            settings:
+              index:
+                analysis:
+                  analyzer:
+                    completion_index:
+                      type: kuromoji_completion
+                      mode: index
+                    completion_query:
+                      type: kuromoji_completion
+                      mode: query
+
+    - do:
+        indices.analyze:
+          index: kuromoji_completion_sample
+          body:
+            text:         ｿｰｽｺｰﾄﾞ
+            analyzer:     completion_index
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: ソース }
+    - match:  { tokens.1.token: soーsu }
+    - match:  { tokens.2.token: コード }
+    - match:  { tokens.3.token: koーdo }
+
+    - do:
+        indices.analyze:
+          index: kuromoji_completion_sample
+          body:
+            text:         ｿｰｽｺｰﾄﾞ
+            analyzer:     completion_query
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: ソースコード }
+    - match:  { tokens.1.token: soーsukoーdo }

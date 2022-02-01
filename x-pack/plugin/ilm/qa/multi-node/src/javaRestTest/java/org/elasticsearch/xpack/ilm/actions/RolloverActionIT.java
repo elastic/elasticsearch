@@ -163,8 +163,12 @@ public class RolloverActionIT extends ESRestTestCase {
     public void testILMRolloverRetriesOnReadOnlyBlock() throws Exception {
         String firstIndex = index + "-000001";
 
-        createNewSingletonPolicy(client(), policy, "hot",
-            new RolloverAction(null, null, TimeValue.timeValueSeconds(1), null, null, null, null));
+        createNewSingletonPolicy(
+            client(),
+            policy,
+            "hot",
+            new RolloverAction(null, null, TimeValue.timeValueSeconds(1), null, null, null, null)
+        );
 
         // create the index as readonly and associate the ILM policy to it
         createIndexWithSettings(
@@ -262,8 +266,12 @@ public class RolloverActionIT extends ESRestTestCase {
         String index = this.index + "-000001";
         String rolledIndex = this.index + "-000002";
 
-        createNewSingletonPolicy(client(), policy, "hot",
-            new RolloverAction(null, null, TimeValue.timeValueSeconds(1), null, null, null, null));
+        createNewSingletonPolicy(
+            client(),
+            policy,
+            "hot",
+            new RolloverAction(null, null, TimeValue.timeValueSeconds(1), null, null, null, null)
+        );
 
         // create the rolled index so the rollover of the first index fails
         createIndexWithSettings(

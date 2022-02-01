@@ -382,7 +382,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         );
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
         Index index = clusterState.metadata().index(indexName).getIndex();
-        Index[] indices = new Index[]{index};
+        Index[] indices = new Index[] { index };
         List<String> failedIndexes = new ArrayList<>();
 
         ClusterState newClusterState = IndexLifecycleTransition.removePolicyForIndexes(indices, clusterState, failedIndexes);
@@ -401,7 +401,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             Collections.emptyList()
         );
         Index index = clusterState.metadata().index(indexName).getIndex();
-        Index[] indices = new Index[]{index};
+        Index[] indices = new Index[] { index };
         List<String> failedIndexes = new ArrayList<>();
 
         ClusterState newClusterState = IndexLifecycleTransition.removePolicyForIndexes(indices, clusterState, failedIndexes);
@@ -426,7 +426,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         );
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
         Index index = new Index("doesnt_exist", "im_not_here");
-        Index[] indices = new Index[]{index};
+        Index[] indices = new Index[] { index };
         List<String> failedIndexes = new ArrayList<>();
 
         ClusterState newClusterState = IndexLifecycleTransition.removePolicyForIndexes(indices, clusterState, failedIndexes);
@@ -452,7 +452,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         );
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
         Index index = clusterState.metadata().index(indexName).getIndex();
-        Index[] indices = new Index[]{index};
+        Index[] indices = new Index[] { index };
         List<String> failedIndexes = new ArrayList<>();
 
         ClusterState newClusterState = IndexLifecycleTransition.removePolicyForIndexes(indices, clusterState, failedIndexes);
@@ -479,7 +479,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         );
         ClusterState clusterState = buildClusterState(indexName, indexSettingsBuilder, lifecycleState.build(), policyMetadatas);
         Index index = clusterState.metadata().index(indexName).getIndex();
-        Index[] indices = new Index[]{index};
+        Index[] indices = new Index[] { index };
         List<String> failedIndexes = new ArrayList<>();
 
         ClusterState newClusterState = IndexLifecycleTransition.removePolicyForIndexes(indices, clusterState, failedIndexes);

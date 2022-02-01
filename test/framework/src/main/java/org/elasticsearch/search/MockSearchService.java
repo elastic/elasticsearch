@@ -9,7 +9,6 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.action.search.SearchShardTask;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.ExecutorSelector;

@@ -65,11 +65,13 @@ public final class TransformAggregations {
         "geotile_grid",
         "global",
         "histogram",
+        "ip_prefix",
         "ip_range",
         "matrix_stats",
         "nested",
         "percentile_ranks",
         "range",
+        "random_sampler",
         "reverse_nested",
         "sampler",
         "significant_terms", // https://github.com/elastic/elasticsearch/issues/51073

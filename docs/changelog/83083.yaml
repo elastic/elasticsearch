@@ -1,0 +1,6 @@
+pr: 83083
+summary: Expose 'features' option in Get Index API
+area: Indices APIs
+type: enhancement
+issues:
+ - 82948

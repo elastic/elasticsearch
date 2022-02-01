@@ -54,7 +54,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * This package private utility class encapsulates the logic to recover an index shard from either an existing index on
@@ -552,7 +551,7 @@ public final class StoreRecovery {
     }
 
     public static void bootstrap(final IndexShard indexShard, final Store store) throws IOException {
-        if (isSearchableSnapshotStore(indexShard.indexSettings().getSettings()) == false) {
+        if (indexShard.indexSettings.getIndexMetadata().isSearchableSnapshot() == false) {
             // not bootstrapping new history for searchable snapshots (which are read-only) allows sequence-number based peer recoveries
             store.bootstrapNewHistory();
         }

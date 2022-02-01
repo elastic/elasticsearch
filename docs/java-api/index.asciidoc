@@ -103,6 +103,7 @@ rootLogger.appenderRef.console.ref = console
 
 === Using another Logger
 
+
 If you want to use another logger than Log4j 2, you can use http://www.slf4j.org/[SLF4J] bridge to do that:
 
 ["source","xml",subs="attributes"]

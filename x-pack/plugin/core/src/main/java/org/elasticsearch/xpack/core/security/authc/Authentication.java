@@ -36,7 +36,6 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newAnonymousRealmRef;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef.newApiKeyRealmRef;
@@ -147,7 +146,7 @@ public class Authentication implements ToXContentObject {
      */
     public Authentication maybeRewriteForOlderVersion(Version olderVersion) {
         // TODO how can this not be true
-        //assert olderVersion.onOrBefore(getVersion());
+        // assert olderVersion.onOrBefore(getVersion());
         return new Authentication(
             getUser(),
             maybeRewriteRealmRef(olderVersion, getAuthenticatedBy()),
@@ -201,13 +200,13 @@ public class Authentication implements ToXContentObject {
     }
 
     /**
-     * Returns the {@link RealmRef.Domain} that the effective user belongs to.
+     * Returns the {@link RealmDomain} that the effective user belongs to.
      * A user belongs to a realm which in turn belongs to a domain.
      *
      * The same username can be authenticated by different realms (e.g. with different credential types),
      * but resources created across realms cannot be accessed unless the realms are also part of the same domain.
      */
-    public @Nullable RealmRef.Domain getDomain() {
+    public @Nullable RealmDomain getDomain() {
         return getSourceRealm().getDomain();
     }
 
@@ -436,32 +435,16 @@ public class Authentication implements ToXContentObject {
 
     public static class RealmRef implements Writeable {
 
-        // public for testing
-        public record Domain(String name, Set<RealmConfig.RealmIdentifier> realms) implements Writeable {
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeString(name);
-                out.writeCollection(realms);
-            }
-
-            static Domain readFrom(StreamInput in) throws IOException {
-                String domainName = in.readString();
-                Set<RealmConfig.RealmIdentifier> realms = in.readSet(RealmConfig.RealmIdentifier::new);
-                return new Domain(domainName, realms);
-            }
-        }
-
         private final String nodeName;
         private final String name;
         private final String type;
-        private final @Nullable Domain domain;
+        private final @Nullable RealmDomain domain;
 
         public RealmRef(String name, String type, String nodeName) {
             this(name, type, nodeName, null);
         }
 
-        public RealmRef(String name, String type, String nodeName, @Nullable Domain domain) {
+        public RealmRef(String name, String type, String nodeName, @Nullable RealmDomain domain) {
             this.nodeName = Objects.requireNonNull(nodeName, "node name cannot be null");
             this.name = Objects.requireNonNull(name, "realm name cannot be null");
             this.type = Objects.requireNonNull(type, "realm type cannot be null");
@@ -473,7 +456,7 @@ public class Authentication implements ToXContentObject {
             this.name = in.readString();
             this.type = in.readString();
             if (in.getVersion().onOrAfter(VERSION_REALM_DOMAINS)) {
-                this.domain = in.readOptionalWriteable(Domain::readFrom);
+                this.domain = in.readOptionalWriteable(RealmDomain::readFrom);
             } else {
                 this.domain = null;
             }
@@ -505,7 +488,7 @@ public class Authentication implements ToXContentObject {
          * Returns the domain assignment for the realm, if one assigned, or {@code null} otherwise, as per the
          * {@code RealmSettings#DOMAIN_TO_REALM_ASSOC_SETTING} setting.
          */
-        public @Nullable Domain getDomain() {
+        public @Nullable RealmDomain getDomain() {
             return domain;
         }
 

@@ -152,13 +152,54 @@ public class RealmSettings {
         return null;
     }
 
+    public static Map<String, String> getRealmNameToDomainNameMap(Settings globalSettings) {
+        final Map<String, Set<String>> realmToDomainsMap = new HashMap<>();
+        for (String domainName : DOMAIN_TO_REALM_ASSOC_SETTING.getNamespaces(globalSettings)) {
+            if (domainName.startsWith(RESERVED_REALM_AND_DOMAIN_NAME_PREFIX)) {
+                throw new IllegalArgumentException(
+                    "Security domain name must not start with \"" + RESERVED_REALM_AND_DOMAIN_NAME_PREFIX + "\""
+                );
+            }
+            Setting<List<String>> realmsByDomainSetting = DOMAIN_TO_REALM_ASSOC_SETTING.getConcreteSettingForNamespace(domainName);
+            for (String realmName : realmsByDomainSetting.get(globalSettings)) {
+                realmToDomainsMap.computeIfAbsent(realmName, k -> new TreeSet<>()).add(domainName);
+            }
+        }
+        final StringBuilder realmToMultipleDomainsErrorMessageBuilder = new StringBuilder(
+            "Realms can be associated to at most one domain, but"
+        );
+        boolean realmToMultipleDomains = false;
+        for (Map.Entry<String, Set<String>> realmToDomains : realmToDomainsMap.entrySet()) {
+            if (realmToDomains.getValue().size() > 1) {
+                if (realmToMultipleDomains) {
+                    realmToMultipleDomainsErrorMessageBuilder.append(" and");
+                }
+                realmToMultipleDomainsErrorMessageBuilder.append(" realm [")
+                    .append(realmToDomains.getKey())
+                    .append("] is associated to domains ")
+                    .append(realmToDomains.getValue());
+                realmToMultipleDomains = true;
+            }
+        }
+        if (realmToMultipleDomains) {
+            throw new IllegalArgumentException(realmToMultipleDomainsErrorMessageBuilder.toString());
+        }
+        return realmToDomainsMap.entrySet().stream().map(e -> Map.entry(e.getKey(), e.getValue().stream().findAny().get()))
+            .collect(Collectors.toUnmodifiableMap(e -> e.getKey(), e -> e.getValue()));
+    }
+
+    public static Map<RealmConfig.RealmIdentifier, RealmDomain> getRealmDomains(Set<RealmConfig.RealmIdentifier> allRealmIdentifiers,
+                                                                                Map<String, String> realmNameToDomainName) {
+        return null;
+    }
+
     /**
      * Verifies that realms are assigned to at most one domain and that domains do not refer to undefined realms.
      * Must be invoked once on node start-up (and usually not by cmd line tools).
      */
     public static void verifyRealmNameToDomainNameAssociation(
         Settings globalSettings,
-        Collection<RealmConfig.RealmIdentifier> allRealmIdentifiers
+        Set<RealmConfig.RealmIdentifier> allRealmIdentifiers
     ) {
         final Map<String, Set<String>> realmToDomainsMap = new HashMap<>();
         for (String domainName : DOMAIN_TO_REALM_ASSOC_SETTING.getNamespaces(globalSettings)) {
@@ -192,6 +233,7 @@ public class RealmSettings {
             throw new IllegalArgumentException(realmToMultipleDomainsErrorMessageBuilder.toString());
         }
         // default file and native realm names can be used in domain association
+        Map<RealmConfig.RealmIdentifier, > x;
         boolean fileRealmConfigured = false;
         boolean nativeRealmConfigured = false;
         for (RealmConfig.RealmIdentifier identifier : allRealmIdentifiers) {

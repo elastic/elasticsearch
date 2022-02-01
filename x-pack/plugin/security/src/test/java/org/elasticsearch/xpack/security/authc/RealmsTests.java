@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
@@ -340,15 +341,18 @@ public class RealmsTests extends ESTestCase {
 
     private void assertDomainForRealm(Realm realm, String nodeName, Map<String, Set<RealmConfig.RealmIdentifier>> realmsByDomainName) {
         if (realm.domainName() == null) {
-            assertThat(
-                realm.realmRef(),
-                is(new Authentication.RealmRef(realm.name(), realm.type(), nodeName, null))
-            );
+            assertThat(realm.realmRef(), is(new Authentication.RealmRef(realm.name(), realm.type(), nodeName, null)));
         } else {
             assertThat(
                 realm.realmRef(),
-                is(new Authentication.RealmRef(realm.name(), realm.type(), nodeName,
-                    new Authentication.RealmRef.Domain(realm.domainName(), realmsByDomainName.get(realm.domainName()))))
+                is(
+                    new Authentication.RealmRef(
+                        realm.name(),
+                        realm.type(),
+                        nodeName,
+                        new RealmDomain(realm.domainName(), realmsByDomainName.get(realm.domainName()))
+                    )
+                )
             );
         }
     }

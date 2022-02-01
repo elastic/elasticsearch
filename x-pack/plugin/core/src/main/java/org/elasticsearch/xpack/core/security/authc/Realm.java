@@ -34,7 +34,7 @@ public abstract class Realm implements Comparable<Realm> {
 
     protected final Logger logger = LogManager.getLogger(getClass());
 
-    protected RealmConfig config;
+    protected final RealmConfig config;
     private final SetOnce<RealmRef> realmRef = new SetOnce<>();
 
     public Realm(RealmConfig config) {
@@ -44,21 +44,21 @@ public abstract class Realm implements Comparable<Realm> {
     /**
      * @return The type of this realm
      */
-    public String type() {
+    public final String type() {
         return config.type();
     }
 
     /**
      * @return The name of this realm.
      */
-    public String name() {
+    public final String name() {
         return config.name();
     }
 
     /**
      * @return The order of this realm within the executing realm chain.
      */
-    public int order() {
+    public final int order() {
         return config.order;
     }
 
@@ -197,7 +197,7 @@ public abstract class Realm implements Comparable<Realm> {
                 }
             }
             assert domainBuilder.contains(config.identifier());
-            RealmRef.Domain domain = new RealmRef.Domain(domainName(), Set.copyOf(domainBuilder));
+            RealmDomain domain = new RealmDomain(domainName(), Set.copyOf(domainBuilder));
             this.realmRef.set(new RealmRef(config.name(), config.type(), nodeName, domain));
         }
     }

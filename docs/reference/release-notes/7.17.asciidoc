@@ -4,8 +4,6 @@
 
 Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
 
-coming::[7.17.0]
-
 [[deprecation-7.17.0]]
 [float]
 === Deprecations
@@ -143,4 +141,3 @@ Stats::
 
 Search::
 * Upgrade to Lucene 8.11.1 {es-pull}81900[#81900]
-

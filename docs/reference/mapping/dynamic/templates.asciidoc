@@ -118,7 +118,10 @@ to map `string` fields as either indexed fields or runtime fields.
 [[match-mapping-type]]
 ==== `match_mapping_type`
 
-The `match_mapping_type` is the data type detected by the JSON parser.
+The `match_mapping_type` is the data type detected by the JSON parser. Because
+JSON doesn't distinguish a `long` from an `integer` or a `double` from
+a `float`, any parsed floating point number is considered a `double` JSON data
+type, while any parsed `integer` number is considered a `long`.
 
 NOTE: With dynamic mappings, {es} will always choose the wider data type. The
 one exception is `float`, which requires less storage space than `double` and

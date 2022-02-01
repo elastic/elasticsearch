@@ -14,13 +14,16 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.Set;
 
@@ -56,7 +59,9 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         ClusterState in = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
         ClusterState result = instance.updateTimeSeriesTemporalRange(in, now);
         assertThat(result, sameInstance(in));
+        Instant previousStartTime1 = getStartTime(result, dataStreamName, 0);
         Instant previousEndTime1 = getEndTime(result, dataStreamName, 0);
+        Instant previousStartTime2 = getStartTime(result, dataStreamName, 1);
         Instant previousEndTime2 = getEndTime(result, dataStreamName, 1);
 
         // updates end time of most recent backing index only, because current time is passed current end_time + look_a_head_time and
@@ -65,9 +70,45 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         in = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
         result = instance.updateTimeSeriesTemporalRange(in, now);
         assertThat(result, not(sameInstance(in)));
+        assertThat(getStartTime(result, dataStreamName, 0), equalTo(previousStartTime1));
         assertThat(getEndTime(result, dataStreamName, 0), equalTo(previousEndTime1));
+        assertThat(getStartTime(result, dataStreamName, 1), equalTo(previousStartTime2));
         assertThat(getEndTime(result, dataStreamName, 1), not(equalTo(previousEndTime2)));
         assertThat(getEndTime(result, dataStreamName, 1), equalTo(now.plus(2, ChronoUnit.HOURS).plus(5, ChronoUnit.MINUTES)));
+    }
+
+    public void testUpdateTimeSeriesTemporalRange_customLookAHeadTime() {
+        int lookAHeadTimeMinutes = randomIntBetween(30, 180);
+        TemporalAmount lookAHeadTime = Duration.ofMinutes(lookAHeadTimeMinutes);
+        int timeSeriesPollIntervalMinutes = randomIntBetween(1, 10);
+        TemporalAmount timeSeriesPollInterval = Duration.ofMinutes(timeSeriesPollIntervalMinutes);
+        instance.setPollInterval(TimeValue.timeValueMinutes(timeSeriesPollIntervalMinutes));
+
+        String dataStreamName = "logs-app1";
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        Instant start = now.minus(2, ChronoUnit.HOURS);
+        Instant end = now.plus(1, ChronoUnit.HOURS);
+        Metadata metadata = DataStreamTestHelper.getClusterStateWithDataStream(
+            dataStreamName,
+            List.of(new Tuple<>(start.minus(4, ChronoUnit.HOURS), start), new Tuple<>(start, end))
+        ).getMetadata();
+        metadata = Metadata.builder(metadata)
+            .updateSettings(Settings.builder().put(IndexSettings.LOOK_AHEAD_TIME.getKey(), lookAHeadTimeMinutes + "m").build())
+            .build();
+
+        var in = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
+        Instant previousStartTime1 = getStartTime(in, dataStreamName, 0);
+        Instant previousEndTime1 = getEndTime(in, dataStreamName, 0);
+        Instant previousStartTime2 = getStartTime(in, dataStreamName, 1);
+        Instant previousEndTime2 = getEndTime(in, dataStreamName, 1);
+
+        now = now.plus(1, ChronoUnit.HOURS);
+        var result = instance.updateTimeSeriesTemporalRange(in, now);
+        assertThat(result, not(sameInstance(in)));
+        assertThat(getStartTime(result, dataStreamName, 0), equalTo(previousStartTime1));
+        assertThat(getEndTime(result, dataStreamName, 0), equalTo(previousEndTime1));
+        assertThat(getStartTime(result, dataStreamName, 1), equalTo(previousStartTime2));
+        assertThat(getEndTime(result, dataStreamName, 1), equalTo(now.plus(lookAHeadTime).plus(timeSeriesPollInterval)));
     }
 
     public void testUpdateTimeSeriesTemporalRange_NoUpdateBecauseReplicated() {
@@ -142,6 +183,12 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         DataStream dataStream = state.getMetadata().dataStreams().get(dataStreamName);
         Settings indexSettings = state.getMetadata().index(dataStream.getIndices().get(index)).getSettings();
         return IndexSettings.TIME_SERIES_END_TIME.get(indexSettings);
+    }
+
+    static Instant getStartTime(ClusterState state, String dataStreamName, int index) {
+        DataStream dataStream = state.getMetadata().dataStreams().get(dataStreamName);
+        Settings indexSettings = state.getMetadata().index(dataStream.getIndices().get(index)).getSettings();
+        return IndexSettings.TIME_SERIES_START_TIME.get(indexSettings);
     }
 
 }

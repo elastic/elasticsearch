@@ -52,7 +52,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL, this::setPollInterval);
     }
 
-    void perform() {
+    void perform(Runnable onComplete) {
         job = null;
         clusterService.submitStateUpdateTask("update_tsdb_data_stream_end_times", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
@@ -62,13 +62,13 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                scheduleTask();
+                onComplete.run();
             }
 
             @Override
             public void onFailure(Exception e) {
                 LOGGER.warn("failed to update tsdb data stream end times", e);
-                scheduleTask();
+                onComplete.run();
             }
 
         }, ClusterStateTaskExecutor.unbatched());
@@ -107,7 +107,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
                 Settings settings = Settings.builder()
                     .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DEFAULT_DATE_TIME_FORMATTER.format(newEnd))
                     .build();
-                LOGGER.info(
+                LOGGER.debug(
                     "updating [{}] setting from [{}] to [{}] for index [{}]",
                     IndexSettings.TIME_SERIES_END_TIME.getKey(),
                     currentEnd,
@@ -118,6 +118,9 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
                     mBuilder = Metadata.builder(current.metadata());
                 }
                 mBuilder.updateSettings(settings, head);
+                Metadata.Builder finalMBuilder = mBuilder;
+                // Verify that all temporal ranges of each backing index is still valid:
+                dataStream.validate(finalMBuilder::get);
             }
         }
 
@@ -130,8 +133,8 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
 
     void scheduleTask() {
         if (job == null) {
-            LOGGER.info("schedule tsdb update task");
-            job = threadPool.schedule(this::perform, pollInterval, ThreadPool.Names.SAME);
+            LOGGER.debug("schedule tsdb update task");
+            job = threadPool.schedule(() -> perform(this::scheduleTask), pollInterval, ThreadPool.Names.SAME);
         }
     }
 
@@ -153,9 +156,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
     }
 
     @Override
-    protected void doClose() throws IOException {
-
-    }
+    protected void doClose() throws IOException {}
 
     @Override
     public void onMaster() {

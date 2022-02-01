@@ -1486,6 +1486,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return true;
         }
 
+        public Builder updateDataStreanTimeSeriesRange(String dataStreamName) {
+
+            return this;
+        }
+
         public Custom getCustom(String type) {
             return customs.get(type);
         }
@@ -1529,6 +1534,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 if (indexMetadata == null) {
                     throw new IndexNotFoundException(index);
                 }
+                // Updating version is required when updating settings.
+                // Otherwise, settings changes may not be replicated to remote clusters.
                 long newVersion = indexMetadata.getSettingsVersion() + 1;
                 put(
                     IndexMetadata.builder(indexMetadata)

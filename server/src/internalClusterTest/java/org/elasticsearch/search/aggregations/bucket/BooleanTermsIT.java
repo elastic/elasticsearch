@@ -71,6 +71,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
         indexRandom(true, builders);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83351")
     public void testSingleValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
             .addAggregation(
@@ -105,6 +106,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83351")
     public void testMultiValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
             .addAggregation(

@@ -21,7 +21,7 @@ PUT /_internal/desired_nodes/my_history/1
             "settings" : {
                  "node.name" : "instance-000187",
                  "node.external_id": "instance-000187",
-                 "node.roles" : ["data_hot"],
+                 "node.roles" : ["data_hot", "master"],
                  "node.attr.data" : "hot",
                  "node.attr.logical_availability_zone" : "zone-0"
             },

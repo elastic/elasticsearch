@@ -84,6 +84,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -1569,7 +1570,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         CountDownLatch latch2 = new CountDownLatch(1);
         service.executeDfsPhase(request, task, new ActionListener<>() {
             @Override
-            public void onResponse(SearchPhaseResult searchPhaseResult) {
+            public void onResponse(DfsSearchResult searchPhaseResult) {
                 service.freeReaderContext(searchPhaseResult.getContextId());
                 latch2.countDown();
             }
@@ -1615,7 +1616,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         CountDownLatch latch4 = new CountDownLatch(1);
         service.executeDfsPhase(request, task, new ActionListener<>() {
             @Override
-            public void onResponse(SearchPhaseResult searchPhaseResult) {
+            public void onResponse(DfsSearchResult searchPhaseResult) {
                 try {
                     fail("Search not cancelled early");
                 } finally {

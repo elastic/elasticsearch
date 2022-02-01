@@ -43,8 +43,7 @@ public interface XContentFieldFilter {
      *
      * @param includes fields to keep, wildcard supported
      * @param excludes fields to remove, wildcard supported
-     * @return filter using {@link XContentMapValues#filter(String[], String[])} if wildcard found in excludes
-     *         , otherwise return filter using {@link XContentParser}
+     * @return filter that filter {@link org.elasticsearch.xcontent.XContent} with given includes and excludes
      */
     static XContentFieldFilter newFieldFilter(String[] includes, String[] excludes) {
         final CheckedFunction<XContentType, BytesReference, IOException> emptyValueSupplier = xContentType -> {
@@ -53,6 +52,8 @@ public interface XContentFieldFilter {
             builder.close();
             return bStream.bytes();
         };
+        // Use the old map-based filtering mechanism if there are wildcards in the excludes.
+        // TODO: And remove this if block once: https://github.com/elastic/elasticsearch/pull/80160 is merged
         if ((CollectionUtils.isEmpty(excludes) == false) && Arrays.stream(excludes).filter(field -> field.contains("*")).count() > 0) {
             return (originalSource, contentType) -> {
                 if (originalSource == null || originalSource.length() <= 0) {

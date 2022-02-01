@@ -18,6 +18,8 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -54,180 +56,256 @@ public class XContentFieldFilterTests extends AbstractFilteringTestCase {
         assertMap(XContentHelper.convertToMap(ref, true, xContentType).v2(), matchesMap(toMap(expected, xContentType, humanReadable)));
     }
 
+    private void testFilter(String expectedJson, String actualJson, Set<String> includes, Set<String> excludes) throws IOException {
+        CheckedFunction<String, Builder, IOException> toBuilder = json -> {
+            XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, new BytesArray(json), XContentType.JSON);
+            if ((parser.currentToken() == null) && (parser.nextToken() == null)) {
+                return builder -> builder;
+            }
+            return builder -> builder.copyCurrentStructure(parser);
+        };
+        testFilter(toBuilder.apply(expectedJson), toBuilder.apply(actualJson), includes, excludes);
+    }
+
     public void testPrefixedNamesFilteringTest() throws IOException {
-        Builder actual = builder -> builder.startObject().field("obj", "value").field("obj_name", "value_name").endObject();
-        Builder expected = builder -> builder.startObject().field("obj_name", "value_name").endObject();
+        String actual = """
+            {
+                "obj": "value",
+                "obj_name": "value_name"
+            }
+            """;
+        String expected = """
+            {
+                "obj_name": "value_name"
+            }
+            """;
         testFilter(expected, actual, singleton("obj_name"), emptySet());
     }
 
     public void testNestedFiltering() throws IOException {
-        Builder actual = builder -> builder.startObject()
-            .field("field", "value")
-            .startArray("array")
-            .startObject()
-            .field("nested", 2)
-            .field("nested_2", 3)
-            .endObject()
-            .endArray()
-            .endObject();
-        Builder expected = builder -> builder.startObject()
-            .startArray("array")
-            .startObject()
-            .field("nested", 2)
-            .endObject()
-            .endArray()
-            .endObject();
+        String actual = """
+            {
+                "field": "value",
+                "array": [{
+                    "nested": 2,
+                    "nested_2": 3
+                }]
+            }
+            """;
+        String expected = """
+            {
+                "array": [{
+                    "nested": 2
+                }]
+            }
+            """;
         testFilter(expected, actual, singleton("array.nested"), emptySet());
 
-        expected = builder -> builder.startObject()
-            .startArray("array")
-            .startObject()
-            .field("nested", 2)
-            .field("nested_2", 3)
-            .endObject()
-            .endArray()
-            .endObject();
+        expected = """
+            {
+                "array": [{
+                    "nested": 2,
+                    "nested_2": 3
+                }]
+            }
+            """;
         testFilter(expected, actual, singleton("array.*"), emptySet());
 
-        actual = builder -> builder.startObject()
-            .field("field", "value")
-            .startObject("obj")
-            .field("field", "value")
-            .field("field2", "value2")
-            .endObject()
-            .endObject();
+        actual = """
+            {
+                "field": "value",
+                "obj": {
+                    "field": "value",
+                    "field2": "value2"
+                }
+            }
+            """;
 
-        expected = builder -> builder.startObject().startObject("obj").field("field", "value").endObject().endObject();
+        expected = """
+            {
+                "obj": {
+                    "field": "value"
+                }
+            }
+            """;
         testFilter(expected, actual, singleton("obj.field"), emptySet());
 
-        expected = builder -> builder.startObject()
-            .startObject("obj")
-            .field("field", "value")
-            .field("field2", "value2")
-            .endObject()
-            .endObject();
+        expected = """
+            {
+                "obj": {
+                    "field": "value",
+                    "field2": "value2"
+                }
+            }
+            """;
         testFilter(expected, actual, singleton("obj.*"), emptySet());
     }
 
     public void testCompleteObjectFiltering() throws IOException {
-
-        Builder actual = builder -> builder.startObject()
-            .field("field", "value")
-            .startObject("obj")
-            .field("field", "value")
-            .field("field2", "value2")
-            .endObject()
-            .startArray("array")
-            .startObject()
-            .field("field", "value")
-            .field("field2", "value2")
-            .endObject()
-            .endArray()
-            .endObject();
-        Builder expected = builder -> builder.startObject()
-            .startObject("obj")
-            .field("field", "value")
-            .field("field2", "value2")
-            .endObject()
-            .endObject();
+        String actual = """
+            {
+                "field": "value",
+                "obj": {
+                    "field": "value",
+                    "field2": "value2"
+                },
+                "array": [{
+                    "field": "value",
+                    "field2": "value2"
+                }]
+            }
+            """;
+        String expected = """
+            {
+                "obj": {
+                    "field": "value",
+                    "field2": "value2"
+                }
+            }
+            """;
         testFilter(expected, actual, singleton("obj"), emptySet());
 
-        expected = builder -> builder.startObject().startObject("obj").field("field", "value").endObject().endObject();
+        expected = """
+            {
+                "obj": {
+                    "field": "value"
+                }
+            }
+            """;
         testFilter(expected, actual, singleton("obj"), singleton("*.field2"));
 
-        expected = builder -> builder.startObject()
-            .startArray("array")
-            .startObject()
-            .field("field", "value")
-            .field("field2", "value2")
-            .endObject()
-            .endArray()
-            .endObject();
+        expected = """
+            {
+                "array": [{
+                    "field": "value",
+                    "field2": "value2"
+                }]
+            }
+            """;
         testFilter(expected, actual, singleton("array"), emptySet());
 
-        expected = builder -> builder.startObject()
-            .startArray("array")
-            .startObject()
-            .field("field", "value")
-            .endObject()
-            .endArray()
-            .endObject();
+        expected = """
+            {
+                "array": [{
+                    "field": "value"
+                }]
+            }
+            """;
         testFilter(expected, actual, singleton("array"), singleton("*.field2"));
     }
 
     public void testFilterIncludesUsingStarPrefix() throws IOException {
-        Builder actual = builder -> builder.startObject()
-            .field("field", "value")
-            .startObject("obj")
-            .field("field", "value")
-            .field("field2", "value2")
-            .endObject()
-            .startObject("n_obj")
-            .field("n_field", "value")
-            .field("n_field2", "value2")
-            .endObject()
-            .endObject();
-        Builder expected = builder -> builder.startObject().startObject("obj").field("field2", "value2").endObject().endObject();
+        String actual = """
+            {
+                "field": "value",
+                "obj": {
+                    "field": "value",
+                    "field2": "value2"
+                },
+                "n_obj": {
+                    "n_field": "value",
+                    "n_field2": "value2"
+                }
+            }
+            """;
+        String expected = """
+            {
+                "obj": {
+                    "field2": "value2"
+                }
+            }
+            """;
         testFilter(expected, actual, singleton("*.field2"), emptySet());
 
         // only objects
-        expected = builder -> builder.startObject()
-            .startObject("obj")
-            .field("field", "value")
-            .field("field2", "value2")
-            .endObject()
-            .startObject("n_obj")
-            .field("n_field", "value")
-            .field("n_field2", "value2")
-            .endObject()
-            .endObject();
+        expected = """
+            {
+                "obj": {
+                    "field": "value",
+                    "field2": "value2"
+                },
+                "n_obj": {
+                    "n_field": "value",
+                    "n_field2": "value2"
+                }
+            }
+            """;
         testFilter(expected, actual, singleton("*.*"), emptySet());
 
-        expected = builder -> builder.startObject()
-            .field("field", "value")
-            .startObject("obj")
-            .field("field", "value")
-            .endObject()
-            .startObject("n_obj")
-            .field("n_field", "value")
-            .endObject()
-            .endObject();
+        expected = """
+            {
+                "field": "value",
+                "obj": {
+                    "field": "value"
+                },
+                "n_obj": {
+                    "n_field": "value"
+                }
+            }
+            """;
         testFilter(expected, actual, singleton("*"), singleton("*.*2"));
     }
 
     public void testFilterWithEmptyIncludesExcludes() throws IOException {
-        Builder actual = builder -> builder.startObject().field("field", "value").endObject();
+        String actual = """
+            {
+                "field": "value"
+            }
+            """;
         testFilter(actual, actual, emptySet(), emptySet());
     }
 
     public void testThatFilterIncludesEmptyObjectWhenUsingIncludes() throws IOException {
-        Builder actual = builder -> builder.startObject().startObject("obj").endObject().endObject();
+        String actual = """
+            {
+                "obj": {}
+            }
+            """;
         testFilter(actual, actual, singleton("obj"), emptySet());
     }
 
     public void testThatFilterIncludesEmptyObjectWhenUsingExcludes() throws IOException {
-        Builder actual = builder -> builder.startObject().startObject("obj").endObject().endObject();
+        String actual = """
+            {
+                "obj": {}
+            }
+            """;
         testFilter(actual, actual, emptySet(), singleton("nonExistingField"));
     }
 
     // wait for PR https://github.com/FasterXML/jackson-core/pull/729 to be introduced
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
     public void testNotOmittingObjectsWithExcludedProperties() throws IOException {
-        Builder actual = builder -> builder.startObject().startObject("obj").field("f1", "f2").endObject().endObject();
-        Builder expected = builder -> builder.startObject().startObject("obj").endObject().endObject();
+        String actual = """
+            {
+                "obj": {
+                    "f1": "f2"
+                }
+            }
+            """;
+        String expected = """
+            {
+                "obj": {}
+            }
+            """;
         testFilter(expected, actual, emptySet(), singleton("obj.f1"));
     }
 
     public void testNotOmittingObjectWithNestedExcludedObject() throws IOException {
-        Builder actual = builder -> builder.startObject()
-            .startObject("obj1")
-            .startObject("obj2")
-            .startObject("obj3")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        Builder expected = builder -> builder.startObject().startObject("obj1").endObject().endObject();
+        String actual = """
+            {
+                "obj1": {
+                    "obj2": {
+                        "obj3": {}
+                    }
+                }
+            }
+            """;
+        String expected = """
+            {
+                "obj1": {}
+            }
+            """;
         // implicit include
         testFilter(expected, actual, emptySet(), singleton("*.obj2"));
 
@@ -235,28 +313,53 @@ public class XContentFieldFilterTests extends AbstractFilteringTestCase {
         testFilter(expected, actual, singleton("obj1"), singleton("*.obj2"));
 
         // wildcard include
-        expected = builder -> builder.startObject().startObject("obj1").startObject("obj2").endObject().endObject().endObject();
+        expected = """
+            {
+                "obj1": {
+                    "obj2": {}
+                }
+            }
+            """;
         testFilter(expected, actual, singleton("*.obj2"), singleton("*.obj3"));
     }
 
     public void testIncludingObjectWithNestedIncludedObject() throws IOException {
-        Builder actual = builder -> builder.startObject().startObject("obj1").startObject("obj2").endObject().endObject().endObject();
+        String actual = """
+            {
+                "obj1": {
+                    "obj2": {}
+                }
+            }
+            """;
         testFilter(actual, actual, singleton("*.obj2"), emptySet());
     }
 
     public void testDotsInFieldNames() throws IOException {
-        Builder actual = builder -> builder.startObject()
-            .field("foo.bar", 2)
-            .startObject("foo")
-            .field("baz", 3)
-            .endObject()
-            .field("quux", 5)
-            .endObject();
-        Builder expected = builder -> builder.startObject().field("foo.bar", 2).startObject("foo").field("baz", 3).endObject().endObject();
+        String actual = """
+            {
+                "foo.bar": 2,
+                "foo": {
+                    "baz": 3
+                },
+                "quux": 5
+            }
+            """;
+        String expected = """
+            {
+                "foo.bar": 2,
+                "foo": {
+                    "baz": 3
+                }
+            }
+            """;
         testFilter(expected, actual, singleton("foo"), emptySet());
 
         // dots in field names in excludes
-        expected = builder -> builder.startObject().field("quux", 5).endObject();
+        expected = """
+            {
+                "quux": 5
+            }
+            """;
         testFilter(expected, actual, emptySet(), singleton("foo"));
     }
 
@@ -266,10 +369,23 @@ public class XContentFieldFilterTests extends AbstractFilteringTestCase {
     * for a similar test but for XContent.
     */
     public void testSupplementaryCharactersInPaths() throws IOException {
-        Builder actual = builder -> builder.startObject().field("搜索", 2).field("指数", 3).endObject();
-        Builder expected = builder -> builder.startObject().field("搜索", 2).endObject();
+        String actual = """
+            {
+                "搜索": 2,
+                "指数": 3
+            }
+            """;
+        String expected = """
+            {
+                "搜索": 2
+            }
+            """;
         testFilter(expected, actual, singleton("搜索"), emptySet());
-        expected = builder -> builder.startObject().field("指数", 3).endObject();
+        expected = """
+            {
+                "指数": 3
+            }
+            """;
         testFilter(expected, actual, emptySet(), singleton("搜索"));
     }
 
@@ -279,51 +395,91 @@ public class XContentFieldFilterTests extends AbstractFilteringTestCase {
     * for a similar test but for XContent.
     */
     public void testSharedPrefixes() throws IOException {
-        Builder actual = builder -> builder.startObject().field("foobar", 2).field("foobaz", 3).endObject();
-        Builder expected = builder -> builder.startObject().field("foobar", 2).endObject();
+        String actual = """
+            {
+                "foobar": 2,
+                "foobaz": 3
+            }
+            """;
+        String expected = """
+            {
+                "foobar": 2
+            }
+            """;
         testFilter(expected, actual, singleton("foobar"), emptySet());
-
-        expected = builder -> builder.startObject().field("foobaz", 3).endObject();
+        expected = """
+            {
+                "foobaz": 3
+            }
+            """;
         testFilter(expected, actual, emptySet(), singleton("foobar"));
     }
 
     // wait for PR https://github.com/FasterXML/jackson-core/pull/729 to be introduced
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
     public void testArraySubFieldExclusion() throws IOException {
-        Builder actual = builder -> builder.startObject()
-            .field("field", "value")
-            .startArray("array")
-            .startObject()
-            .field("exclude", "bar")
-            .endObject()
-            .endArray()
-            .endObject();
-        Builder expected = builder -> builder.startObject().field("field", "value").startArray("array").endArray().endObject();
+        String actual = """
+            {
+                "field": "value",
+                "array": [{
+                    "exclude": "bar"
+                }]
+            }
+            """;
+        String expected = """
+            {
+                "field": "value",
+                "array": []
+            }
+            """;
         testFilter(expected, actual, emptySet(), singleton("array.exclude"));
     }
 
     // wait for PR https://github.com/FasterXML/jackson-core/pull/729 to be introduced
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
     public void testEmptyArraySubFieldsExclusion() throws IOException {
-        Builder actual = builder -> builder.startObject().field("field", "value").startArray("array").endArray().endObject();
+        String actual = """
+            {
+                "field": "value",
+                "array": []
+            }
+            """;
         testFilter(actual, actual, emptySet(), singleton("array.exclude"));
     }
 
     public void testEmptyArraySubFieldsInclusion() throws IOException {
-        Builder actual = builder -> builder.startObject().field("field", "value").startArray("array").endArray().endObject();
-        Builder expected = builder -> builder.startObject().endObject();
+        String actual = """
+            {
+                "field": "value",
+                "array": []
+            }
+            """;
+        String expected = "{}";
         testFilter(expected, actual, singleton("array.include"), emptySet());
 
-        expected = builder -> builder.startObject().startArray("array").endArray().endObject();
+        expected = """
+            {
+                "array": []
+            }
+            """;
         testFilter(expected, actual, Set.of("array", "array.include"), emptySet());
     }
 
     public void testEmptyObjectsSubFieldsInclusion() throws IOException {
-        Builder actual = builder -> builder.startObject().field("field", "value").startObject("object").endObject().endObject();
-        Builder expected = builder -> builder.startObject().endObject();
+        String actual = """
+            {
+                "field": "value",
+                "object": {}
+            }
+            """;
+        String expected = "{}";
         testFilter(expected, actual, singleton("object.include"), emptySet());
 
-        expected = builder -> builder.startObject().startObject("object").endObject().endObject();
+        expected = """
+            {
+                "object": {}
+            }
+            """;
         testFilter(expected, actual, Set.of("object", "object.include"), emptySet());
     }
 
@@ -333,8 +489,17 @@ public class XContentFieldFilterTests extends AbstractFilteringTestCase {
     * for a similar test but for XContent.
     */
     public void testPrefix() throws IOException {
-        Builder actual = builder -> builder.startObject().array("photos", "foo", "bar").field("photosCount", 2).endObject();
-        Builder expected = builder -> builder.startObject().field("photosCount", 2).endObject();
+        String actual = """
+            {
+                "photos": ["foo", "bar"],
+                "photosCount": 2
+            }
+            """;
+        String expected = """
+            {
+                "photosCount": 2
+            }
+            """;
         testFilter(expected, actual, singleton("photosCount"), emptySet());
     }
 

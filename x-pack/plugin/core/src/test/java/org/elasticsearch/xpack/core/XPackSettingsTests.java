@@ -118,7 +118,6 @@ public class XPackSettingsTests extends ESTestCase {
             XPackSettings.getAllSettings().stream().noneMatch(setting -> setting.getKey().equals(DOMAIN_TO_REALM_ASSOC_SETTING.getKey())),
             is(true)
         );
-
     }
 
     private boolean isSecretkeyFactoryAlgoAvailable(String algorithmId) {

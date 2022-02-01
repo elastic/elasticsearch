@@ -12,8 +12,7 @@ import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 
 class AbstractJavaModulesPluginFuncTest extends AbstractGradleFuncTest {
 
-    void writeModuleInfo(File root = testProjectDir.root) {
-        def name = root.getName()
+    void writeModuleInfo(File root = testProjectDir.root, String name = root.name) {
         file(root,'src/main/java/module-info.java') << """
 module org.example.${name} {
     exports org.example.${name}.api;
@@ -23,8 +22,7 @@ module org.example.${name} {
 
     }
 
-    void writeProducingJavaSource(File root = testProjectDir.root) {
-        def cName = root.name
+    void writeProducingJavaSource(File root = testProjectDir.root, String cName = root.name) {
         println "cName = $cName"
         file(root, "src/main/java/org/example/${cName}/impl/SomethingInternal.java") << """package org.example.${cName}.impl;
 
@@ -53,12 +51,14 @@ public class Component {
 
     void writeConsumingInternalJavaSource(File root = testProjectDir.root, String providingModuleName = 'producing') {
         def cName = root.name
-        file(root,"src/main/java/org/${cName}/ConsumingInternal.java") << """package org.${cName};
+        def clazzName = "Consuming${providingModuleName.capitalize()}Internal"
+
+        file(root,"src/main/java/org/${cName}/${clazzName}.java") << """package org.${cName};
 
 import org.example.${providingModuleName}.api.Component;
 import org.example.${providingModuleName}.impl.SomethingInternal;
 
-public class ConsumingInternal {
+public class $clazzName {
     Component c = new Component();
     
     public void run() {
@@ -72,11 +72,12 @@ public class ConsumingInternal {
 
     void writeConsumingJavaSource(File root = testProjectDir.root, String providingModuleName = 'producing') {
         String name = root.name;
-        file(root,"src/main/java/org/${name}/Consuming.java") << """package org.${name};
+        def clazzName = "Consuming${providingModuleName.capitalize()}"
+        file(root, "src/main/java/org/${name}/" + clazzName + ".java") << """package org.${name};
 
 import org.example.${providingModuleName}.api.Component;
 
-public class Consuming {
+public class $clazzName {
     Component c = new Component();
     
     public void run() {

@@ -21,6 +21,10 @@ import javax.inject.Inject;
 
 import static org.gradle.api.attributes.LibraryElements.JAR;
 
+/**
+ * This plugin tweaks the compile classpath of a project to request module api jars that do not
+ * expose internal api of a dependent project and its transitive api.
+ * */
 public class JavaModulesConsumerPlugin implements Plugin<Project> {
 
     private final ObjectFactory objectFactory;

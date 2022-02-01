@@ -18,8 +18,8 @@ class JavaModulesPluginFuncTest extends AbstractJavaModulesPluginFuncTest {
 
     def "can read module export"() {
         when:
-        writeProducingJavaSource()
-        writeModuleInfo()
+        writeProducingJavaSource(testProjectDir.root, 'root')
+        writeModuleInfo(testProjectDir.root,'root')
         buildFile.text = """
             plugins {
              id 'elasticsearch.java'
@@ -30,7 +30,7 @@ class JavaModulesPluginFuncTest extends AbstractJavaModulesPluginFuncTest {
         then:
         gradleRunner("modulesApiJar").build()
         file('build/distributions/hello-world-api.jar').exists()
-        assertApiJar(['org/example/server/api/Component.class'])
+        assertApiJar(['org/example/root/api/Component.class'])
     }
 
     private boolean assertApiJar(List<String> expectedEntries) {
@@ -39,6 +39,7 @@ class JavaModulesPluginFuncTest extends AbstractJavaModulesPluginFuncTest {
         while (entries.hasMoreElements()) {
             ZipEntry e = entries.nextElement();
             if (e.getName().endsWith(".class")) {
+                println "e.getName() = ${e.getName()}"
                 Assertions.assertTrue(expectedEntries.remove(e.getName()))
             }
         }

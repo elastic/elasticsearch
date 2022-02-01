@@ -17,10 +17,8 @@ import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.attributes.Usage;
 import org.gradle.api.attributes.java.TargetJvmVersion;
-import org.gradle.api.component.SoftwareComponentFactory;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.JavaPluginExtension;
-import org.gradle.api.plugins.jvm.internal.JvmEcosystemUtilities;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetOutput;
 import org.gradle.api.tasks.TaskProvider;
@@ -34,31 +32,34 @@ import static org.gradle.api.attributes.Category.LIBRARY;
 import static org.gradle.api.attributes.LibraryElements.JAR;
 import static org.gradle.api.attributes.LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE;
 
+/**
+ * This plugin provides an outgoing variant that only exposes public api classes that are calculated
+ * from the module-info.java file.
+ *
+ * This variant is meant to replace apiElements variant for consuming. In addition to apiElements
+ * this moduleApiElements variant exposes the attribute 'org.elasticsearch.java-module` of type
+ * boolean value 'true'.
+ *
+ * See {@link JavaModulesConsumerPlugin} as an example how to request this variant.
+ *
+ * TODO: provide a plain classes variant in addition to jar variant
+ * */
 public class JavaModulesPlugin implements Plugin<Project> {
 
-    private static final String API_CLASSES = "api-classes";
-
-    private final JvmEcosystemUtilities jvmEcosystemUtilities;
     private ObjectFactory objectFactory;
-    private SoftwareComponentFactory softwareComponentFactory;
 
     @Inject
-    public JavaModulesPlugin(
-        JvmEcosystemUtilities jvmEcosystemUtilities,
-        ObjectFactory objectFactory,
-        SoftwareComponentFactory softwareComponentFactory
-    ) {
-        this.jvmEcosystemUtilities = jvmEcosystemUtilities;
+    public JavaModulesPlugin(ObjectFactory objectFactory) {
         this.objectFactory = objectFactory;
-        this.softwareComponentFactory = softwareComponentFactory;
     }
 
     @Override
     public void apply(Project project) {
         project.getPluginManager().withPlugin("java-base", p -> {
-            Configuration moduleApiElements = createModuleApisVariant(project);
-
+            // TODO handle all sourceSets
             SourceSet main = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().getByName("main");
+            Configuration moduleApiElements = createModuleApisVariant(project, main);
+
             SourceSetOutput mainOutput = main.getOutput();
             TaskProvider<ReadModuleExports> exportModuleInfo = project.getTasks().register("exportModuleInfo", ReadModuleExports.class);
             exportModuleInfo.configure(e -> { e.setClassFiles(mainOutput.getClassesDirs()); });
@@ -87,10 +88,16 @@ public class JavaModulesPlugin implements Plugin<Project> {
         });
     }
 
-    private Configuration createModuleApisVariant(Project project) {
+    /**
+     * creates a consumable configuration with similar attributes as gradles apiElements.
+     *
+     * In addition we add an attribute 'org.elasticsearch.java-module` of type
+     * */
+    private Configuration createModuleApisVariant(Project project, SourceSet sourceSet) {
         Attribute<Boolean> javaModuleAttribute = Attribute.of("org.elasticsearch.java-module", Boolean.class);
 
         return project.getConfigurations().create("moduleApiElements", moduleApiElements -> {
+            moduleApiElements.extendsFrom(project.getConfigurations().getByName(sourceSet.getApiConfigurationName()));
             moduleApiElements.setCanBeConsumed(true);
             moduleApiElements.setCanBeResolved(false);
             moduleApiElements.getAttributes()
@@ -98,7 +105,7 @@ public class JavaModulesPlugin implements Plugin<Project> {
                 .attribute(LIBRARY_ELEMENTS_ATTRIBUTE, objectFactory.named(LibraryElements.class, JAR))
                 .attribute(Bundling.BUNDLING_ATTRIBUTE, objectFactory.named(Bundling.class, Bundling.EXTERNAL))
                 .attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 17)
-                .attribute(Usage.USAGE_ATTRIBUTE, objectFactory.named(Usage.class, "java-api"))
+                .attribute(Usage.USAGE_ATTRIBUTE, objectFactory.named(Usage.class, Usage.JAVA_API))
                 .attribute(javaModuleAttribute, Boolean.TRUE);
         });
 

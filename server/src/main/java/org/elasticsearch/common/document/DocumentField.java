@@ -70,7 +70,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
         this.values = Objects.requireNonNull(values, "values must not be null");
         this.ignoredValues = Objects.requireNonNull(ignoredValues, "ignoredValues must not be null");
         this.lookupFields = Objects.requireNonNull(lookupFields, "lookupFields must not be null");
-        assert lookupFields.isEmpty() == false && (values.isEmpty() == false || ignoredValues.isEmpty() == false)
+        assert lookupFields.isEmpty() || (values.isEmpty() && ignoredValues.isEmpty())
             : "DocumentField can't have both lookup fields and values";
     }
 

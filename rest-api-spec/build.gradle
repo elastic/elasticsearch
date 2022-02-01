@@ -85,6 +85,19 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search.aggregation/20_terms/numeric profiler", "The profiler results aren't backwards compatible.")
   task.skipTest("migration/10_get_feature_upgrade_status/Get feature upgrade status", "Awaits backport")
 
+  // All of these are just waiting for 83117 to get backported
+  task.skipTest("delete_by_query/80_slices/Multiple slices with wait_for_completion=false", "warning wording doesn't match until #83117 is merged + backedported")
+  task.skipTest("delete_by_query/80_slices/Multiple slices with rethrottle", "warning wording doesn't match until #83117 is merged + backedported")
+  task.skipTest("reindex/70_slices/Multiple slices with wait_for_completion=false", "warning wording doesn't match until #83117 is merged + backedported")
+  task.skipTest("reindex/70_slices/Multiple slices with rethrottle", "warning wording doesn't match until #83117 is merged + backedported")
+  task.skipTest("update_by_query/70_slices/Multiple slices with wait_for_completion=false", "warning wording doesn't match until #83117 is merged + backedported")
+  task.skipTest("update_by_query/70_slices/Multiple slices with rethrottle", "warning wording doesn't match until #83117 is merged + backedported")
+  task.skipTest("upgraded_cluster/10_basic/Find a task result record from the old cluster", "warning wording doesn't match until #83117 is merged + backedported")
+  task.skipTest("upgraded_cluster/80_transform_jobs_crud/Test index mappings for latest internal index and audit index", "warning wording doesn't match until #83117 is merged + backedported")
+  task.skipTest("change_password/10_basic/Test changing users password with prehashed password", "warning wording doesn't match until #83117 is merged + backedported")
+  task.skipTest("users/10_basic/Test put user with password hash", "warning wording doesn't match until #83117 is merged + backedported")
+  // End of the mutes for 83117 backports
+
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
   task.replaceValueInMatch("nodes.\$node_id.roles.8", "ml", "node_info role test")

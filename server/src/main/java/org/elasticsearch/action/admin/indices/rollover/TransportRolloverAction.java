@@ -322,7 +322,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 assert conditionResults.get() != null : "matching rollover conditions missing on successful rollover";
 
                 activeShardsObserver.waitForActiveShards(
-                    new String[]{rolloverIndex.get()},
+                    new String[] { rolloverIndex.get() },
                     rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
                     rolloverRequest.masterNodeTimeout(),
                     isShardsAcknowledged -> listener.onResponse(

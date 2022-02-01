@@ -105,7 +105,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             if (includeTypeName) {
                 // expecting one type only
                 for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
-                    @SuppressWarnings("unchecked") final Map<String, Object> value = (Map<String, Object>) mappingsEntry.getValue();
+                    @SuppressWarnings("unchecked")
+                    final Map<String, Object> value = (Map<String, Object>) mappingsEntry.getValue();
                     request.createIndexRequest.mapping(value);
                 }
             } else {
@@ -159,8 +160,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         createIndexRequest = new CreateIndexRequest(in);
     }
 
-    RolloverRequest() {
-    }
+    RolloverRequest() {}
 
     public RolloverRequest(String rolloverTarget, String newIndexName) {
         this.rolloverTarget = rolloverTarget;
@@ -191,7 +191,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     @Override
     public String[] indices() {
-        return new String[]{rolloverTarget};
+        return new String[] { rolloverTarget };
     }
 
     @Override

@@ -299,8 +299,11 @@ public class RolloverRequestTests extends ESTestCase {
         MinAgeCondition minAgeCondition = new MinAgeCondition(age);
         rolloverRequest.addMinIndexAgeCondition(age);
         assertFalse(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), true, minDocsCondition.toString(), true)));
-        assertTrue(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), true, minDocsCondition.toString(),
-            true, minAgeCondition.toString(), true)));
+        assertTrue(
+            rolloverRequest.areConditionsMet(
+                Map.of(maxAgeCondition.toString(), true, minDocsCondition.toString(), true, minAgeCondition.toString(), true)
+            )
+        );
     }
 
     private static final List<Consumer<RolloverRequest>> conditionsGenerator = Arrays.asList(

@@ -25,7 +25,11 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
-import org.elasticsearch.xcontent.*;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
@@ -283,13 +287,20 @@ public class RolloverRequestTests extends ESTestCase {
         assertFalse(rolloverRequest.areConditionsMet(Map.of(maxDocsCondition.toString(), false)));
         assertTrue(rolloverRequest.areConditionsMet(Map.of(maxDocsCondition.toString(), true)));
 
-        MaxDocsCondition minDocsCondition = new MaxDocsCondition(1L);
+        MinDocsCondition minDocsCondition = new MinDocsCondition(1L);
         rolloverRequest.addMinIndexDocsCondition(1L);
         assertFalse(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), false)));
         assertFalse(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), true)));
         assertFalse(rolloverRequest.areConditionsMet(Map.of(maxDocsCondition.toString(), false)));
         assertFalse(rolloverRequest.areConditionsMet(Map.of(maxDocsCondition.toString(), true)));
         assertFalse(rolloverRequest.areConditionsMet(Map.of(minDocsCondition.toString(), true)));
+        assertTrue(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), true, minDocsCondition.toString(), true)));
+
+        MinAgeCondition minAgeCondition = new MinAgeCondition(age);
+        rolloverRequest.addMinIndexAgeCondition(age);
+        assertFalse(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), true, minDocsCondition.toString(), true)));
+        assertTrue(rolloverRequest.areConditionsMet(Map.of(maxAgeCondition.toString(), true, minDocsCondition.toString(),
+            true, minAgeCondition.toString(), true)));
     }
 
     private static final List<Consumer<RolloverRequest>> conditionsGenerator = Arrays.asList(

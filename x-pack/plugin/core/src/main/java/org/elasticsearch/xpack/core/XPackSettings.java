@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
@@ -36,9 +37,8 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_T
  */
 public class XPackSettings {
 
-    public static final boolean USER_PROFILE_FEATURE_FLAG_ENABLED = "true".equals(
-        System.getProperty("es.user_profile_feature_flag_enabled")
-    );
+    public static final boolean USER_PROFILE_FEATURE_FLAG_ENABLED = Build.CURRENT.isSnapshot()
+        || "true".equals(System.getProperty("es.user_profile_feature_flag_enabled"));
 
     private static final boolean IS_DARWIN_AARCH64;
     static {

@@ -57,12 +57,3 @@ This example deletes the current desired nodes.
 DELETE /_internal/desired_nodes
 --------------------------------------------------
 // TEST
-
-The API returns the following result:
-
-[source,console-result]
---------------------------------------------------
-{
-  "acknowledged": true
-}
---------------------------------------------------

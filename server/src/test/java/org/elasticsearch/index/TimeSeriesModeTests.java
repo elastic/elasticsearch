@@ -70,14 +70,14 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         Settings s = Settings.builder().put(IndexSettings.MODE.getKey(), "time_series").build();
         IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
         Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
-        assertThat(e.getMessage(), equalTo("[index.mode=time_series] requires [index.routing_path]"));
+        assertThat(e.getMessage(), equalTo("[index.mode=time_series] requires a non-empty [index.routing_path]"));
     }
 
     public void testWithEmptyRoutingPath() {
         Settings s = getSettings("");
         IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
         Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
-        assertThat(e.getMessage(), equalTo("[index.mode=time_series] requires [index.routing_path]"));
+        assertThat(e.getMessage(), equalTo("[index.mode=time_series] requires a non-empty [index.routing_path]"));
     }
 
     public void testWithoutStartTime() {

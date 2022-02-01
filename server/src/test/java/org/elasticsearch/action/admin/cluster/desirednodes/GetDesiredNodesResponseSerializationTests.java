@@ -23,7 +23,7 @@ public class GetDesiredNodesResponseSerializationTests extends AbstractWireSeria
 
     @Override
     protected GetDesiredNodesAction.Response createTestInstance() {
-        return new GetDesiredNodesAction.Response(randomBoolean() ? null : randomDesiredNodes());
+        return new GetDesiredNodesAction.Response(randomDesiredNodes());
     }
 
     @Override

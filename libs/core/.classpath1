@@ -289,13 +289,13 @@
 			<attribute name="test" value="true"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry sourcepath="/home/alpar/.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-api/2.11.1/acf35297ef03716fc14e11e2978d7c749ed3f7e5/log4j-api-2.11.1-sources.jar" kind="lib" path="/home/alpar/.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-api/2.11.1/268f0fe4df3eefe052b57c87ec48517d64fb2a10/log4j-api-2.11.1.jar">
+	<classpathentry sourcepath="/home/alpar/.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-api/2.17.1/acf35297ef03716fc14e11e2978d7c749ed3f7e5/log4j-api-2.17.1-sources.jar" kind="lib" path="/home/alpar/.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-api/2.17.1/268f0fe4df3eefe052b57c87ec48517d64fb2a10/log4j-api-2.17.1.jar">
 		<attributes>
 			<attribute name="gradle_used_by_scope" value="test"/>
 			<attribute name="test" value="true"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry sourcepath="/home/alpar/.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-core/2.11.1/23bef4ea0494ba9fb9835df0e3e23c6883d8d545/log4j-core-2.11.1-sources.jar" kind="lib" path="/home/alpar/.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-core/2.11.1/592a48674c926b01a9a747c7831bcd82a9e6d6e4/log4j-core-2.11.1.jar">
+	<classpathentry sourcepath="/home/alpar/.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-core/2.17.1/23bef4ea0494ba9fb9835df0e3e23c6883d8d545/log4j-core-2.17.1-sources.jar" kind="lib" path="/home/alpar/.gradle/caches/modules-2/files-2.1/org.apache.logging.log4j/log4j-core/2.17.1/592a48674c926b01a9a747c7831bcd82a9e6d6e4/log4j-core-2.17.1.jar">
 		<attributes>
 			<attribute name="gradle_used_by_scope" value="test"/>
 			<attribute name="test" value="true"/>

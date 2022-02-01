@@ -82,7 +82,7 @@ You need to also include Log4j 2 dependencies:
 <dependency>
     <groupId>org.apache.logging.log4j</groupId>
     <artifactId>log4j-core</artifactId>
-    <version>2.11.1</version>
+    <version>2.17.1</version>
 </dependency>
 --------------------------------------------------
 
@@ -110,7 +110,7 @@ If you want to use another logger than Log4j 2, you can use http://www.slf4j.org
 <dependency>
     <groupId>org.apache.logging.log4j</groupId>
     <artifactId>log4j-to-slf4j</artifactId>
-    <version>2.11.1</version>
+    <version>2.17.1</version>
 </dependency>
 <dependency>
     <groupId>org.slf4j</groupId>

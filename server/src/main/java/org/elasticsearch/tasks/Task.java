@@ -50,7 +50,8 @@ public class Task {
     public static final Set<String> HEADERS_TO_COPY = org.elasticsearch.core.Set.of(
         X_OPAQUE_ID_HTTP_HEADER,
         TRACE_ID,
-        X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+        X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER
+    );
 
     private final long id;
 

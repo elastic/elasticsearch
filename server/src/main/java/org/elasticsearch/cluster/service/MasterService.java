@@ -588,7 +588,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         void notifySuccessfulTasksOnUnchangedClusterState() {
-            nonFailedTasks.forEach(task -> { task.clusterStateUnchanged(newClusterState); });
+            nonFailedTasks.forEach(task -> task.clusterStateUnchanged(newClusterState));
         }
     }
 

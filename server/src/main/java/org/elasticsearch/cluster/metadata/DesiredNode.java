@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
+import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public record DesiredNode(Settings settings, int processors, ByteSizeValue memory, ByteSizeValue storage, Version version)
     implements
@@ -121,5 +123,9 @@ public record DesiredNode(Settings settings, int processors, ByteSizeValue memor
     public String externalId() {
         String externalId = NODE_EXTERNAL_ID_SETTING.get(settings);
         return externalId.isBlank() ? null : externalId;
+    }
+
+    public boolean hasMasterRole() {
+        return NODE_ROLES_SETTING.get(settings).contains(DiscoveryNodeRole.MASTER_ROLE);
     }
 }

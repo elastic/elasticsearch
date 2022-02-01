@@ -27,6 +27,7 @@ import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesi
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_IDLE;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
+import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -112,6 +113,25 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             assertThat(metadata, is(notNullValue()));
             final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
             assertThat(latestDesiredNodes, is(equalTo(newDesiredNodes)));
+        }
+    }
+
+    public void testAtLeastOneMaterNodeIsExpected() {
+        {
+            final DesiredNodes desiredNodes = randomDesiredNodes(settings -> settings.put(NODE_ROLES_SETTING.getKey(), "data_hot"));
+
+            final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> updateDesiredNodes(desiredNodes));
+            assertThat(exception.getMessage(), containsString("nodes must contain at least one master node"));
+        }
+
+        {
+            final DesiredNodes desiredNodes = randomDesiredNodes(settings -> {
+                if (randomBoolean()) {
+                    settings.put(NODE_ROLES_SETTING.getKey(), "master");
+                }
+            });
+
+            updateDesiredNodes(desiredNodes);
         }
     }
 

@@ -105,8 +105,8 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
             validationException = ValidateActions.addValidationError("version must be positive", validationException);
         }
 
-        if (nodes.isEmpty()) {
-            validationException = ValidateActions.addValidationError("nodes must contain at least one node", validationException);
+        if (nodes.stream().anyMatch(DesiredNode::hasMasterRole) == false) {
+            validationException = ValidateActions.addValidationError("nodes must contain at least one master node", validationException);
         }
 
         return validationException;

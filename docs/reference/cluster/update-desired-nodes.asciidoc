@@ -73,7 +73,7 @@ PUT /_internal/desired_nodes/Ywkh3INLQcuPT49f6kcppA/100
             "settings" : {
                  "node.name" : "instance-000187",
                  "node.external_id": "instance-000187",
-                 "node.roles" : ["data_hot"],
+                 "node.roles" : ["data_hot", "master"],
                  "node.attr.data" : "hot",
                  "node.attr.logical_availability_zone" : "zone-0"
             },
@@ -92,7 +92,6 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-  "acknowledged": true,
   "replaced_existing_history_id": false
 }
 --------------------------------------------------

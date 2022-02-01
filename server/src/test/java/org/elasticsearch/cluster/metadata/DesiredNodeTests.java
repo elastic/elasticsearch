@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -29,12 +30,40 @@ public class DesiredNodeTests extends ESTestCase {
     }
 
     public void testDesiredNodeMustHaveAtLeastOneProcessor() {
-        final String nodeName = randomAlphaOfLength(10);
-        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeName).build();
+        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10)).build();
 
         expectThrows(
             IllegalArgumentException.class,
             () -> new DesiredNode(settings, -1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT)
         );
+    }
+
+    public void testHasMasterRole() {
+        {
+            final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10)).build();
+
+            DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+            assertTrue(desiredNode.hasMasterRole());
+        }
+
+        {
+            final Settings settings = Settings.builder()
+                .put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10))
+                .put(NODE_ROLES_SETTING.getKey(), "master")
+                .build();
+
+            DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+            assertTrue(desiredNode.hasMasterRole());
+        }
+
+        {
+            final Settings settings = Settings.builder()
+                .put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10))
+                .put(NODE_ROLES_SETTING.getKey(), "data_hot")
+                .build();
+
+            DesiredNode desiredNode = new DesiredNode(settings, 1, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
+            assertFalse(desiredNode.hasMasterRole());
+        }
     }
 }

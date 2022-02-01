@@ -502,7 +502,29 @@ teardown:
           nodes: []
   - match: { status: 400 }
   - match: { error.type: action_request_validation_exception }
-  - match: { error.reason: "Validation Failed: 1: nodes must contain at least one node;" }
+  - match: { error.reason: "Validation Failed: 1: nodes must contain at least one master node;" }
+---
+"Test at least one master node is present ":
+  - do:
+      cluster.state: {}
+
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.version: es_version }
+
+  - do:
+      catch: bad_request
+      desired_nodes.update_desired_nodes:
+        history_id: "test"
+        version: 1
+        body:
+          nodes:
+            - { settings: { "node.external_id": "instance-000187", "node.roles": "data_hot" }, processors: 8, memory: "64gb", storage: "128gb", node_version: $es_version }
+  - match: { status: 400 }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "Validation Failed: 1: nodes must contain at least one master node;" }
 ---
 "Test node settings are required":
   - do:

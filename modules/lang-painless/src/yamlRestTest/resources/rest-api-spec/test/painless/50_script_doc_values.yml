@@ -211,7 +211,6 @@ setup:
                             source: "field('boolean').size()"
     - match: { hits.hits.0.fields.field.0: 0 }
 
-
 ---
 "date":
     - skip:

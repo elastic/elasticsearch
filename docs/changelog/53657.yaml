@@ -1,0 +1,6 @@
+pr: 53657
+summary: Change response codes if allocation fails
+area: Transform
+type: bug
+issues:
+ - 52825

@@ -50,7 +50,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
         } else {
             ignoredValues = Collections.emptyList();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
             lookupFields = in.readList(LookupField::new);
         } else {
             lookupFields = List.of();
@@ -118,7 +118,7 @@ public class DocumentField implements Writeable, Iterable<Object> {
         if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
             out.writeList(lookupFields);
         } else {
             if (lookupFields.isEmpty() == false) {

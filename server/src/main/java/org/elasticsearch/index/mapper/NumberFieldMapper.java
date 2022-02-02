@@ -1064,8 +1064,6 @@ public class NumberFieldMapper extends FieldMapper {
             return builder.apply(l, u);
         }
 
-        public abstract IndexFieldData.Builder getFieldDataBuilder(String name);
-
         /**
          * Adjusts a value to the value it would have been had it been parsed by that mapper
          * and then cast up to a double. This is meant to be an entry point to manipulate values

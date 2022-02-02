@@ -115,6 +115,11 @@ the resources available to handle the extra load that will result.
 
 NOTE: {cloud-only}
 
+WARNING: This feature is available in {es} 7.17.1 and 8.0.1 onwards but is not
+supported in {es} 8.0.0. As such the recovery settings for managed services should
+be removed before upgrading to 8.0.0. It is possible to configure the settings in
+7.17.1 and then upgrade to 8.0.1 directly.
+
 When running {es} as a managed service, the following settings allow the
 service to specify absolute maximum bandwidths for disk reads, disk writes, and
 network traffic on each node, and permit you to control the maximum recovery
@@ -136,10 +141,8 @@ writes, and network transfers using `node.bandwidth.recovery.disk.read`,
 `node.bandwidth.recovery.disk.write` and `node.bandwidth.recovery.network`
 respectively, and you can set the proportion of the absolute maximum bandwidth
 that may be used for recoveries by adjusting
-`node.bandwidth.recovery.factor.read` and
-`node.bandwidth.recovery.factor.write`. If the {operator-feature} is enabled
-then the service may also set default proportions using operator-only variants
-of these settings.
+`node.bandwidth.recovery.operator.factor.read` and
+`node.bandwidth.recovery.operator.factor.write`.
 
 If you set `indices.recovery.max_bytes_per_sec` then {es} will use its value
 for the maximum recovery bandwidth, as long as this does not exceed the
@@ -172,51 +175,27 @@ for a recovery-like workload on the node, which applies to both reads and
 writes. If set, `node.bandwidth.recovery.disk.read` and
 `node.bandwidth.recovery.disk.write` must also be set.
 
-`node.bandwidth.recovery.factor.read`::
-(float, <<dynamic-cluster-setting,dynamic>>) The proportion of the maximum read
-bandwidth that may be used for recoveries if
-`indices.recovery.max_bytes_per_sec` is not set. Must be greater than `0` and
-not greater than `1`. If not set, the value of
-`node.bandwidth.recovery.operator.factor.read` is used. If no factor settings
-are set then the value `0.4` is used.
-
-`node.bandwidth.recovery.factor.write`::
-(float, <<dynamic-cluster-setting,dynamic>>) The proportion of the maximum
-write bandwidth that may be used for recoveries if
-`indices.recovery.max_bytes_per_sec` is not set. Must be greater than `0` and
-not greater than `1`. If not set, the value of
-`node.bandwidth.recovery.operator.factor.write` is used. If no factor settings
-are set then the value `0.4` is used.
-
 `node.bandwidth.recovery.operator.factor.read`::
-(float, <<dynamic-cluster-setting,dynamic>>) The proportion of the maximum read
-bandwidth that may be used for recoveries if
-`indices.recovery.max_bytes_per_sec` and `node.bandwidth.recovery.factor.read`
-are not set. Must be greater than `0` and not greater than `1`. If not set, the
+(float) The proportion of the maximum read
+bandwidth that may be used for recoveries if `indices.recovery.max_bytes_per_sec`
+is not set. Must be greater than `0` and not greater than `1`. If not set, the
 value of `node.bandwidth.recovery.operator.factor` is used. If no factor
-settings are set then the value `0.4` is used. When the {operator-feature} is
-enabled, this setting can be updated only by operator users.
+settings are set then the value `0.4` is used.
 
 `node.bandwidth.recovery.operator.factor.write`::
-(float, <<dynamic-cluster-setting,dynamic>>) The proportion of the maximum
-write bandwidth that may be used for recoveries if
-`indices.recovery.max_bytes_per_sec` and `node.bandwidth.recovery.factor.write`
-are not set. Must be greater than `0` and not greater than `1`. If not set, the
+(float) The proportion of the maximum
+write bandwidth that may be used for recoveries if `indices.recovery.max_bytes_per_sec`
+is not set. Must be greater than `0` and not greater than `1`. If not set, the
 value of `node.bandwidth.recovery.operator.factor` is used. If no factor
-settings are set then the value `0.4` is used. When the {operator-feature} is
-enabled, this setting can be updated only by operator users.
+settings are set then the value `0.4` is used.
 
 `node.bandwidth.recovery.operator.factor`::
-(float, <<dynamic-cluster-setting,dynamic>>) The proportion of the maximum
+(float) The proportion of the maximum
 bandwidth that may be used for recoveries if neither
 `indices.recovery.max_bytes_per_sec` nor any other factor settings are set.
-Must be greater than `0` and not greater than `1`. Defaults to `0.4`. When the
-{operator-feature} is enabled, this setting can be updated only by operator
-users.
+Must be greater than `0` and not greater than `1`. Defaults to `0.4`.
 
 `node.bandwidth.recovery.operator.factor.max_overcommit`::
-(float, <<dynamic-cluster-setting,dynamic>>) The proportion of the absolute
+(float) The proportion of the absolute
 maximum bandwidth that may be used for recoveries regardless of any other
-settings. Must be greater than `0`. Defaults to `100`. When the
-{operator-feature} is enabled, this setting can be updated only by operator
-users.
+settings. Must be greater than `0`. Defaults to `100`.

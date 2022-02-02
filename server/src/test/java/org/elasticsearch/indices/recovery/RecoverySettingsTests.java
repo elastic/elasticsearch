@@ -231,17 +231,13 @@ public class RecoverySettingsTests extends ESTestCase {
                 .withRandomMemory()
                 .build()
                 .getMaxBytesPerSec(),
-            equalTo(
-                ByteSizeValue.ofBytes(
-                    Math.round(requireNonNullElse(maxOvercommitFactor, 100.d) * ByteSizeValue.ofMb(250).getBytes())
-                )
-            )
+            equalTo(ByteSizeValue.ofBytes(Math.round(requireNonNullElse(maxOvercommitFactor, 100.d) * ByteSizeValue.ofMb(250).getBytes())))
         );
     }
 
     public void testMaxBytesPerSecOnDataNodeWithAvailableBandwidths() {
         assertThat(
-            "Data node should use pre 8.1.0 default because available bandwidths are lower",
+            "Data node should use default because available bandwidths are lower",
             nodeRecoverySettings().withRoles(randomDataNodeRoles())
                 .withRandomMemory()
                 .withNetworkBandwidth(ByteSizeValue.ofGb(between(1, 10)))
@@ -279,9 +275,7 @@ public class RecoverySettingsTests extends ESTestCase {
                 .withOperatorDefaultFactor(factor)
                 .build()
                 .getMaxBytesPerSec(),
-            equalTo(
-                ByteSizeValue.ofBytes(Math.round(requireNonNullElse(factor, DEFAULT_FACTOR_VALUE) * networkBandwidth.getBytes()))
-            )
+            equalTo(ByteSizeValue.ofBytes(Math.round(requireNonNullElse(factor, DEFAULT_FACTOR_VALUE) * networkBandwidth.getBytes())))
         );
 
         final ByteSizeValue diskReadBandwidth = ByteSizeValue.ofMb(randomFrom(100, 250));
@@ -295,9 +289,7 @@ public class RecoverySettingsTests extends ESTestCase {
                 .withOperatorDefaultFactor(factor)
                 .build()
                 .getMaxBytesPerSec(),
-            equalTo(
-                ByteSizeValue.ofBytes(Math.round(requireNonNullElse(factor, DEFAULT_FACTOR_VALUE) * diskReadBandwidth.getBytes()))
-            )
+            equalTo(ByteSizeValue.ofBytes(Math.round(requireNonNullElse(factor, DEFAULT_FACTOR_VALUE) * diskReadBandwidth.getBytes())))
         );
 
         final ByteSizeValue diskWriteBandwidth = ByteSizeValue.ofMb(randomFrom(100, 250));
@@ -311,9 +303,7 @@ public class RecoverySettingsTests extends ESTestCase {
                 .withOperatorDefaultFactor(factor)
                 .build()
                 .getMaxBytesPerSec(),
-            equalTo(
-                ByteSizeValue.ofBytes(Math.round(requireNonNullElse(factor, DEFAULT_FACTOR_VALUE) * diskWriteBandwidth.getBytes()))
-            )
+            equalTo(ByteSizeValue.ofBytes(Math.round(requireNonNullElse(factor, DEFAULT_FACTOR_VALUE) * diskWriteBandwidth.getBytes())))
         );
     }
 
@@ -421,8 +411,7 @@ public class RecoverySettingsTests extends ESTestCase {
         if (randomBoolean()) {
             roles.addAll(
                 randomSubsetOf(
-                    DiscoveryNodeRole.BUILT_IN_ROLES
-                        .stream()
+                    DiscoveryNodeRole.BUILT_IN_ROLES.stream()
                         .filter(role -> role.canContainData() == false)
                         .map(DiscoveryNodeRole::roleName)
                         .collect(Collectors.toSet())

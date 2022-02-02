@@ -41,7 +41,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.Setting.parseInt;
-import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public class RecoverySettings {
     public static final Version SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = Version.V_7_15_0;
@@ -117,18 +116,7 @@ public class RecoverySettings {
         100d, // high default overcommit
         1d,
         Double.MAX_VALUE,
-        Property.NodeScope,
-        Property.OperatorDynamic
-    );
-
-    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_FACTOR_WRITE_SETTING = factorSetting(
-        "node.bandwidth.recovery.factor.write",
-        NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING
-    );
-
-    public static final Setting<Double> NODE_BANDWIDTH_RECOVERY_FACTOR_READ_SETTING = factorSetting(
-        "node.bandwidth.recovery.factor.read",
-        NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_READ_SETTING
+        Property.NodeScope
     );
 
     static final List<Setting<?>> NODE_BANDWIDTH_RECOVERY_SETTINGS = Arrays.asList(
@@ -180,7 +168,7 @@ public class RecoverySettings {
             if (v == 0d) {
                 throw new IllegalArgumentException("Failed to validate value [" + v + "] for factor setting [" + key + "] must be > [0]");
             }
-        }, Property.NodeScope, Property.OperatorDynamic);
+        }, Property.NodeScope);
     }
 
     private static Setting<Double> operatorFactorSetting(String key) {
@@ -188,18 +176,7 @@ public class RecoverySettings {
             if (v == 0d) {
                 throw new IllegalArgumentException("Failed to validate value [" + v + "] for factor setting [" + key + "] must be > [0]");
             }
-        }, Property.NodeScope, Property.OperatorDynamic);
-    }
-
-    /**
-     * User-defined factors have a value in (0.0, 1.0] and fall back to a corresponding operator factor setting.
-     */
-    private static Setting<Double> factorSetting(String key, Setting<Double> operatorFallback) {
-        return new Setting<>(key, operatorFallback, s -> Setting.parseDouble(s, 0d, 1d, key), v -> {
-            if (v == 0d) {
-                throw new IllegalArgumentException("Failed to validate value [" + v + "] for factor setting [" + key + "] must be > [0]");
-            }
-        }, Property.NodeScope, Property.Dynamic);
+        }, Property.NodeScope);
     }
 
     static final ByteSizeValue DEFAULT_MAX_BYTES_PER_SEC = new ByteSizeValue(40L, ByteSizeUnit.MB);
@@ -443,17 +420,14 @@ public class RecoverySettings {
                 this::computeMaxBytesPerSec,
                 Arrays.asList(
                     INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
-                    NODE_BANDWIDTH_RECOVERY_FACTOR_READ_SETTING,
-                    NODE_BANDWIDTH_RECOVERY_FACTOR_WRITE_SETTING,
+                    // non dynamic settings but they are used to update max bytes per sec
                     NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_SETTING,
                     NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_READ_SETTING,
                     NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING,
                     NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_MAX_OVERCOMMIT_SETTING,
-                    // non dynamic settings but they are used to update max bytes per sec
                     NODE_BANDWIDTH_RECOVERY_DISK_WRITE_SETTING,
                     NODE_BANDWIDTH_RECOVERY_DISK_READ_SETTING,
-                    NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING,
-                    NODE_ROLES_SETTING
+                    NODE_BANDWIDTH_RECOVERY_NETWORK_SETTING
                 )
             );
         }
@@ -483,7 +457,7 @@ public class RecoverySettings {
     }
 
     private void computeMaxBytesPerSec(Settings settings) {
-        // limit as computed before 8.1.0
+        // limit as computed before node bandwidth recovery settings were introduced
         final long defaultBytesPerSec = Math.max(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings).getBytes(), 0L);
 
         // available network bandwidth
@@ -492,7 +466,7 @@ public class RecoverySettings {
         // read bandwidth
         final long readBytesPerSec;
         if (availableDiskReadBandwidth.getBytes() > 0L && networkBandwidthBytesPerSec > 0L) {
-            double readFactor = NODE_BANDWIDTH_RECOVERY_FACTOR_READ_SETTING.get(settings);
+            double readFactor = NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_READ_SETTING.get(settings);
             readBytesPerSec = Math.round(Math.min(availableDiskReadBandwidth.getBytes(), networkBandwidthBytesPerSec) * readFactor);
         } else {
             readBytesPerSec = 0L;
@@ -501,7 +475,7 @@ public class RecoverySettings {
         // write bandwidth
         final long writeBytesPerSec;
         if (availableDiskWriteBandwidth.getBytes() > 0L && networkBandwidthBytesPerSec > 0L) {
-            double writeFactor = NODE_BANDWIDTH_RECOVERY_FACTOR_WRITE_SETTING.get(settings);
+            double writeFactor = NODE_BANDWIDTH_RECOVERY_OPERATOR_FACTOR_WRITE_SETTING.get(settings);
             writeBytesPerSec = Math.round(Math.min(availableDiskWriteBandwidth.getBytes(), networkBandwidthBytesPerSec) * writeFactor);
         } else {
             writeBytesPerSec = 0L;

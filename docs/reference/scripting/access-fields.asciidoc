@@ -30,7 +30,8 @@ documents in Painless. The `field` API abstracts access options (such as
 `_source` or `doc_values`) and provides a field-centric view of your documents.
 
 NOTE: Some fields aren't yet compatible with the `fields` API, such as `text` or
-`geo` fields. since we are still trying to figure out the best values there to return, so continued use of doc there is what is available.
+`geo` fields. Continue using `doc['my_field'].value` to access field types that
+aren't supported yet.
 
 The `field` API returns a `Field` object that iterates over fields with 
 multiple values, providing access to the underlying value through the `get()` 

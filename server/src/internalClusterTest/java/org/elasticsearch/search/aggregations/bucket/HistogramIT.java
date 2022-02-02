@@ -450,7 +450,7 @@ public class HistogramIT extends ESIntegTestCase {
                     s += j + 1;
                 }
             }
-            assertThat(sum.getValue(), equalTo((double) s));
+            assertThat(sum.value(), equalTo((double) s));
             assertEquals(propertiesKeys[i], (double) i * interval);
             assertThat(propertiesDocCounts[i], equalTo(valueCounts[i]));
             assertThat(propertiesCounts[i], equalTo((double) s));
@@ -493,8 +493,8 @@ public class HistogramIT extends ESIntegTestCase {
                     s += j + 1;
                 }
             }
-            assertThat(sum.getValue(), equalTo((double) s));
-            assertThat(sum.getValue(), greaterThanOrEqualTo(previousSum));
+            assertThat(sum.value(), equalTo((double) s));
+            assertThat(sum.value(), greaterThanOrEqualTo(previousSum));
             previousSum = s;
         }
     }
@@ -535,8 +535,8 @@ public class HistogramIT extends ESIntegTestCase {
                     s += j + 1;
                 }
             }
-            assertThat(sum.getValue(), equalTo((double) s));
-            assertThat(sum.getValue(), lessThanOrEqualTo(previousSum));
+            assertThat(sum.value(), equalTo((double) s));
+            assertThat(sum.value(), lessThanOrEqualTo(previousSum));
             previousSum = s;
         }
     }
@@ -1394,7 +1394,7 @@ public class HistogramIT extends ESIntegTestCase {
             assertThat(avg.getValue(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("avg_l")));
             Sum sum = bucket.getAggregations().get("sum_d");
             assertThat(sum, notNullValue());
-            assertThat(sum.getValue(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("sum_d")));
+            assertThat(sum.value(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("sum_d")));
             i++;
         }
     }

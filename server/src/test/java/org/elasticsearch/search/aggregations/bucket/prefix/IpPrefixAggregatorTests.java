@@ -25,7 +25,7 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 
 import java.io.IOException;
@@ -1061,9 +1061,9 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             assertTrue(ipAddressesAsString.containsAll(expectedSubnets));
             assertTrue(expectedSubnets.containsAll(ipAddressesAsString));
 
-            assertEquals(210, ((InternalSum) ipPrefix.getBuckets().get(0).getAggregations().get(subAggregationName)).getValue(), 0);
-            assertEquals(200, ((InternalSum) ipPrefix.getBuckets().get(1).getAggregations().get(subAggregationName)).getValue(), 0);
-            assertEquals(300, ((InternalSum) ipPrefix.getBuckets().get(2).getAggregations().get(subAggregationName)).getValue(), 0);
+            assertEquals(210, ((Sum) ipPrefix.getBuckets().get(0).getAggregations().get(subAggregationName)).value(), 0);
+            assertEquals(200, ((Sum) ipPrefix.getBuckets().get(1).getAggregations().get(subAggregationName)).value(), 0);
+            assertEquals(300, ((Sum) ipPrefix.getBuckets().get(2).getAggregations().get(subAggregationName)).value(), 0);
         }, fieldTypes);
     }
 

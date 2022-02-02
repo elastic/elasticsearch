@@ -1,0 +1,16 @@
+pr: 43252
+summary: Custom analysis can't have same names as built-in
+area: Analysis
+type: breaking
+issues:
+ - 22263
+breaking:
+  title: Custom analysis can't have same names as built-in
+  area: Analysis
+  details: |-
+    Do not allow custom analysis components to have the same names as
+    built-in components
+
+    Closes #22263
+  impact: Please describe the impact of this change to users
+  notable: false

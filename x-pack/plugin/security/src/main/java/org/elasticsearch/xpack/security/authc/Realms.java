@@ -19,12 +19,14 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -89,8 +92,8 @@ public class Realms implements Iterable<Realm> {
         assert XPackSettings.SECURITY_ENABLED.get(settings) : "security must be enabled";
         assert factories.get(ReservedRealm.TYPE) == null;
 
-        final List<RealmConfig> realmConfigs = buildRealmConfigs();
-        final List<Realm> initialRealms = initRealms(realmConfigs);
+        final List<Tuple<RealmConfig, RealmDomain>> realmConfigsAndDomains = buildConfigsAndDomains();
+        final List<Realm> initialRealms = initRealms(realmConfigsAndDomains);
         this.allConfiguredRealms = initialRealms;
         assert this.allConfiguredRealms.get(0) == reservedRealm : "the first realm must be reserved realm";
         // first configure all the realms
@@ -210,14 +213,12 @@ public class Realms implements Iterable<Realm> {
         return factories.get(type);
     }
 
-    protected List<Realm> initRealms(List<RealmConfig> realmConfigs) throws Exception {
+    protected List<Realm> initRealms(List<Tuple<RealmConfig, RealmDomain>> realmConfigsAndDomains) throws Exception {
         List<Realm> realms = new ArrayList<>();
         Map<String, Set<String>> nameToRealmIdentifier = new HashMap<>();
-        Map<Integer, Set<String>> orderToRealmName = new HashMap<>();
         List<RealmConfig.RealmIdentifier> reservedPrefixedRealmIdentifiers = new ArrayList<>();
-        for (RealmConfig config : realmConfigs) {
-            Realm.Factory factory = factories.get(config.identifier().getType());
-            assert factory != null : "unknown realm type [" + config.identifier().getType() + "]";
+        for (Tuple<RealmConfig, RealmDomain> configAndDomain : realmConfigsAndDomains) {
+            RealmConfig config = configAndDomain.v1();
             if (config.identifier().getName().startsWith(RESERVED_REALM_AND_DOMAIN_NAME_PREFIX)) {
                 reservedPrefixedRealmIdentifiers.add(config.identifier());
             }
@@ -227,17 +228,15 @@ public class Realms implements Iterable<Realm> {
                 }
                 continue;
             }
-            Realm realm = factory.create(config);
+            Realm realm = newRealm(config, configAndDomain.v2());
             nameToRealmIdentifier.computeIfAbsent(realm.name(), k -> new HashSet<>())
                 .add(RealmSettings.realmSettingPrefix(realm.type()) + realm.name());
-            orderToRealmName.computeIfAbsent(realm.order(), k -> new HashSet<>()).add(realm.name());
             realms.add(realm);
         }
 
-        checkUniqueOrders(orderToRealmName);
         Collections.sort(realms);
 
-        maybeAddBasicRealms(realms, findDisabledBasicRealmTypes(realmConfigs));
+        maybeAddBasicRealms(realms, findDisabledBasicRealmTypes(realmConfigsAndDomains));
         // always add built in first!
         realms.add(0, reservedRealm);
         String duplicateRealms = nameToRealmIdentifier.entrySet()
@@ -354,6 +353,14 @@ public class Realms implements Iterable<Realm> {
         }
     }
 
+    private Realm newRealm(RealmConfig config, RealmDomain domain) throws Exception {
+        Realm.Factory factory = factories.get(config.identifier().getType());
+        assert factory != null : "unknown realm type [" + config.identifier().getType() + "]";
+        Realm realm = factory.create(config);
+        realm.initDomain(domain);
+        return realm;
+    }
+
     private static Map<String, String> getRealmNameToDomainNameMap(Settings globalSettings) {
         final Map<String, Set<String>> realmToDomainsMap = new HashMap<>();
         for (String domainName : DOMAIN_TO_REALM_ASSOC_SETTING.getNamespaces(globalSettings)) {
@@ -390,19 +397,63 @@ public class Realms implements Iterable<Realm> {
             .collect(Collectors.toUnmodifiableMap(e -> e.getKey(), e -> e.getValue()));
     }
 
-    private List<RealmConfig> buildRealmConfigs() {
+    private static Map<String, Set<RealmConfig.RealmIdentifier>> getDomainSets(Collection<RealmConfig.RealmIdentifier> realmIdentifiers,
+                                                                               Map<String, String> realmNameToDomainName) {
+        Map<String, Set<RealmConfig.RealmIdentifier>> domainSet = new HashMap<>();
+        Set<String> unreferencedRealms = new HashSet<>(realmNameToDomainName.keySet());
+        boolean fileRealmExplicitlyConfigured = false;
+        boolean nativeRealmExplicitlyConfigured = false;
+        for (RealmConfig.RealmIdentifier realmIdentifier : realmIdentifiers) {
+            if (realmIdentifier.getType().equals(FileRealmSettings.TYPE)) {
+                fileRealmExplicitlyConfigured = true;
+            } else if (realmIdentifier.getType().equals(NativeRealmSettings.TYPE)) {
+                nativeRealmExplicitlyConfigured = true;
+            }
+            final String domainName = realmNameToDomainName.get(realmIdentifier.getName());
+            if (domainName != null) {
+                domainSet.computeIfAbsent(domainName, k -> new HashSet<>()).add(realmIdentifier);
+            }
+            unreferencedRealms.remove(realmIdentifier.getName());
+        }
+        if (false == fileRealmExplicitlyConfigured) {
+            final String domainName = realmNameToDomainName.get(FileRealmSettings.DEFAULT_NAME);
+            if (domainName != null) {
+                domainSet.computeIfAbsent(domainName, k -> new HashSet<>()).add(new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE,
+                    FileRealmSettings.DEFAULT_NAME));
+            }
+            unreferencedRealms.remove(FileRealmSettings.DEFAULT_NAME);
+        }
+        if (false == nativeRealmExplicitlyConfigured) {
+            final String domainName = realmNameToDomainName.get(NativeRealmSettings.DEFAULT_NAME);
+            if (domainName != null) {
+                domainSet.computeIfAbsent(domainName, k -> new HashSet<>()).add(new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE,
+                    NativeRealmSettings.DEFAULT_NAME));
+            }
+            unreferencedRealms.remove(NativeRealmSettings.DEFAULT_NAME);
+        }
+        if (false == unreferencedRealms.isEmpty()) {
+            throw new IllegalArgumentException("Undefined realms " + unreferencedRealms + " cannot be assigned to domains");
+        }
+        return domainSet;
+    }
+
+    private List<Tuple<RealmConfig, RealmDomain>> buildConfigsAndDomains() {
         final Map<RealmConfig.RealmIdentifier, Settings> realmsSettings = RealmSettings.getRealmSettings(settings);
         final Map<String, String> realmNameToDomainName = getRealmNameToDomainNameMap(settings);
-        RealmSettings.verifyRealmNameToDomainNameAssociation(settings, realmsSettings.keySet());
+        final Map<String, Set<RealmConfig.RealmIdentifier>> domainSets = getDomainSets(realmsSettings.keySet(), realmNameToDomainName);
         final Set<String> internalTypes = new HashSet<>();
         final List<String> kerberosRealmNames = new ArrayList<>();
-        final List<RealmConfig> realmConfigs = new ArrayList<>();
+        final List<Tuple<RealmConfig, RealmDomain>> realmConfigs = new ArrayList<>();
+        final Map<Integer, Set<String>> orderToRealmName = new HashMap<>();
         for (RealmConfig.RealmIdentifier identifier : realmsSettings.keySet()) {
             Realm.Factory factory = factories.get(identifier.getType());
             if (factory == null) {
                 throw new IllegalArgumentException("unknown realm type [" + identifier.getType() + "] for realm [" + identifier + "]");
             }
             RealmConfig config = new RealmConfig(identifier, settings, env, threadContext);
+            if (config.enabled()) {
+                orderToRealmName.computeIfAbsent(config.order(), k -> new HashSet<>()).add(identifier.getName());
+            }
             if (InternalRealms.isBuiltinRealm(identifier.getType())) {
                 // this is an internal realm factory, let's make sure we didn't already registered one
                 // (there can only be one instance of an internal realm)
@@ -432,13 +483,20 @@ public class Realms implements Iterable<Realm> {
                     );
                 }
             }
-            realmConfigs.add(config);
+            RealmDomain  domain = null;
+            String domainName = realmNameToDomainName.get(identifier.getName());
+            if (domainName != null) {
+                 domain = new RealmDomain(domainName, domainSets.get(domainName));
+            }
+            realmConfigs.add(new Tuple<>(config, domain));
         }
+        checkUniqueOrders(orderToRealmName);
         return realmConfigs;
     }
 
-    private Set<String> findDisabledBasicRealmTypes(List<RealmConfig> realmConfigs) {
-        return realmConfigs.stream()
+    private Set<String> findDisabledBasicRealmTypes(List<Tuple<RealmConfig, RealmDomain>> realmConfigsAndDomains) {
+        return realmConfigsAndDomains.stream()
+            .map(Tuple::v1)
             .filter(rc -> InternalRealms.isBuiltinRealm(rc.type()))
             .filter(rc -> false == rc.enabled())
             .map(RealmConfig::type)

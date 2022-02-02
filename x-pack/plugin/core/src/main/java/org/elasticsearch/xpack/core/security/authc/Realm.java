@@ -11,10 +11,12 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -63,14 +65,6 @@ public abstract class Realm implements Comparable<Realm> {
     }
 
     /**
-     * The domain name of this realm, if set, or {@code null} otherwise. Identical usernames under different
-     * realms are considered to be the same end-user person iff the realms are under the same domain.
-     */
-    public String domainName() {
-        return config.domain();
-    }
-
-    /**
      * Each realm can define response headers to be sent on failure.
      * <p>
      * By default it adds 'WWW-Authenticate' header with auth scheme 'Basic'.
@@ -85,9 +79,17 @@ public abstract class Realm implements Comparable<Realm> {
     }
 
     @Override
-    public int compareTo(Realm other) {
+    public final int compareTo(Realm other) {
+        if ("reserved".equals(config.type()) && "reserved".equals(config.name())) {
+            // there can only be one reserved realm
+            assert false == "reserved".equals(other.type()) && false == "reserved".equals(other.name());
+            return -1;
+        } else if (NativeRealmSettings.TYPE.equals()) {
+
+        }
         int result = Integer.compare(config.order, other.config.order);
         if (result == 0) {
+            if ()
             // If same order, compare based on the realm name
             result = config.name().compareTo(other.config.name());
         }
@@ -154,19 +156,23 @@ public abstract class Realm implements Comparable<Realm> {
         listener.onResponse(stats);
     }
 
+    public void initDomain(@Nullable RealmDomain domain) {
+        final String nodeName = Node.NODE_NAME_SETTING.get(config.settings());
+        this.realmRef.set(new RealmRef(config.name(), config.type(), nodeName, domain));
+    }
+
     public RealmRef realmRef() {
         RealmRef realmRef = this.realmRef.get();
         if (realmRef == null) {
             throw new IllegalStateException("Realm [" + this + "] not fully configured");
         }
-        assert domainName() == null || (realmRef.getDomain() != null && domainName().equals(realmRef.getDomain().name()));
         return realmRef;
     }
 
     @Override
     public String toString() {
-        if (domainName() != null) {
-            return config.type() + "/" + config.name() + "/" + config.domain();
+        if (realmRef.get() != null && realmRef.get().getDomain() != null) {
+            return config.type() + "/" + config.name() + "/" + realmRef.get().getDomain().name();
         } else {
             return config.type() + "/" + config.name();
         }
@@ -174,33 +180,10 @@ public abstract class Realm implements Comparable<Realm> {
 
     /**
      * This allows realms to be aware of what other realms are configured.
-     * All realms are completely configured (see {{@link #configure(Iterable, XPackLicenseState)}}) when this is invoked.
      *
      * @see DelegatedAuthorizationSettings
      */
     public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {}
-
-    /**
-     * This finishes the realm's configuration, in the cases where configuration needs to account for the other realms as well.
-     * This runs before {{@link #initialize(Iterable, XPackLicenseState)}}.
-     * WARNING The other realms might/might not be completely configured when this is invoked.
-     */
-    public void configure(Iterable<Realm> realms, XPackLicenseState licenseState) {
-        final String nodeName = Node.NODE_NAME_SETTING.get(config.settings());
-        if (null == domainName()) {
-            this.realmRef.set(new RealmRef(config.name(), config.type(), nodeName, null));
-        } else {
-            final Set<RealmConfig.RealmIdentifier> domainBuilder = new HashSet<>();
-            for (Realm otherRealm : realms) {
-                if (domainName().equals(otherRealm.domainName())) {
-                    domainBuilder.add(otherRealm.config.identifier());
-                }
-            }
-            assert domainBuilder.contains(config.identifier());
-            RealmDomain domain = new RealmDomain(domainName(), Set.copyOf(domainBuilder));
-            this.realmRef.set(new RealmRef(config.name(), config.type(), nodeName, domain));
-        }
-    }
 
     /**
      * A factory interface to construct a security realm.

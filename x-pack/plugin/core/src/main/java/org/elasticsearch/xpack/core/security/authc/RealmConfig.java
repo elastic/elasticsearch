@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -23,7 +22,6 @@ import java.util.function.Supplier;
 public class RealmConfig {
 
     final RealmIdentifier identifier;
-    final @Nullable String domain;
     final boolean enabled;
     final int order;
     private final Environment env;
@@ -32,7 +30,6 @@ public class RealmConfig {
 
     public RealmConfig(RealmIdentifier identifier, Settings settings, Environment env, ThreadContext threadContext) {
         this.identifier = identifier;
-        this.domain = RealmSettings.getDomainForRealm(settings, identifier);
         this.settings = settings;
         this.env = env;
         this.threadContext = threadContext;
@@ -51,10 +48,6 @@ public class RealmConfig {
 
     public RealmIdentifier identifier() {
         return identifier;
-    }
-
-    public @Nullable String domain() {
-        return domain;
     }
 
     public String name() {

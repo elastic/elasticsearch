@@ -267,7 +267,7 @@ public class ElasticsearchJavaModulePlugin implements Plugin<Project> {
                 String mp = compileModulePath.getAsPath();
                 extraArgs.add("--module-path=" + mp);
             }
-            if (modularPaths.hasModuleDescriptor() == false) {
+            if (modularPaths.hasModuleDescriptor()) {
                 extraArgs.add("--module-version=" + VersionProperties.getElasticsearch());
             }
             // if (logger.isInfoEnabled()) { // TODO: should be task path ??

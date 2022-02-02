@@ -23,7 +23,7 @@ Engine::
 * Deprecate setting `max_merge_at_once_explicit` {es-pull}80574[#80574]
 
 Search::
-* Configure `IndexSearcher.maxClauseCount()` based on Node characteristics {es-pull}81525[#81525] (issue: {es-issue}46433[#46433])
+* Configure `IndexSearcher.maxClauseCount()` based on node characteristics {es-pull}81525[#81525] (issue: {es-issue}46433[#46433])
 
 
 [[feature-8.0.0-rc2]]
@@ -34,7 +34,7 @@ Snapshot/Restore::
 * Support IAM roles for Kubernetes service accounts {es-pull}81255[#81255] (issue: {es-issue}52625[#52625])
 
 Watcher::
-* Using `startsWith` rather than exact matches for watcher history template names {es-pull}82396[#82396]
+* Use `startsWith` rather than exact matches for Watcher history template names {es-pull}82396[#82396]
 
 
 [[enhancement-8.0.0-rc2]]
@@ -49,14 +49,14 @@ ILM+SLM::
 * Make unchanged ILM policy updates into no-op {es-pull}82240[#82240] (issue: {es-issue}82065[#82065])
 
 Infra/Core::
-* Prevent upgrades to 8.0 from 7.non-last {es-pull}82321[#82321] (issue: {es-issue}81865[#81865])
+* Prevent upgrades to 8.0 without first upgrading to the last 7.x release {es-pull}82321[#82321] (issue: {es-issue}81865[#81865])
 
 Machine Learning::
 * Add `deployment_stats` to trained model stats {es-pull}80531[#80531]
-* Setting `use_auto_machine_memory_percent` now defaults to `max_model_memory_limit` {es-pull}80532[#80532] (issue: {es-issue}80415[#80415])
+* The setting `use_auto_machine_memory_percent` now defaults to `max_model_memory_limit` {es-pull}80532[#80532] (issue: {es-issue}80415[#80415])
 
 Network::
-* Improve slow inbound Handling to include response type {es-pull}80425[#80425]
+* Improve slow inbound handling to include response type {es-pull}80425[#80425]
 
 Search::
 * Check nested fields earlier in kNN search {es-pull}80516[#80516] (issue: {es-issue}78473[#78473])
@@ -76,12 +76,12 @@ Ingest::
 * Adjust default geoip logging to be less verbose {es-pull}81404[#81404] (issue: {es-issue}81356[#81356])
 
 Machine Learning::
-* Check `total_definition_length` is consistent on start deployment {es-pull}80553[#80553]
+* Check that `total_definition_length` is consistent before starting a deployment {es-pull}80553[#80553]
 * Fail inference processor more consistently on certain error types {es-pull}81475[#81475]
 * Optimize the job stats call to do fewer searches {es-pull}82362[#82362] (issue: {es-issue}82255[#82255])
 
 Recovery::
-* Make shard started response handling only return after the CS update completes {es-pull}82790[#82790] (issue: {es-issue}81628[#81628])
+* Make shard started response handling only return after the cluster state update completes {es-pull}82790[#82790] (issue: {es-issue}81628[#81628])
 
 Search::
 * Reject zero-length vectors when using cosine similarity {es-pull}82241[#82241] (issue: {es-issue}81167[#81167])

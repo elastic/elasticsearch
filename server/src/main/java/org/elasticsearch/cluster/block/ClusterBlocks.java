@@ -8,8 +8,8 @@
 
 package org.elasticsearch.cluster.block;
 
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -35,7 +35,7 @@ import static java.util.stream.Collectors.toSet;
 /**
  * Represents current cluster level blocks to block dirty operations done against the cluster.
  */
-public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
+public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
     public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(emptySet(), ImmutableOpenMap.of());
 
     private final Set<ClusterBlock> global;
@@ -291,7 +291,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
     }
 
     public static Diff<ClusterBlocks> readDiffFrom(StreamInput in) throws IOException {
-        return AbstractDiffable.readDiffFrom(ClusterBlocks::readFrom, in);
+        return SimpleDiffable.readDiffFrom(ClusterBlocks::readFrom, in);
     }
 
     record ImmutableLevelHolder(Set<ClusterBlock> global, ImmutableOpenMap<String, Set<ClusterBlock>> indices) {}

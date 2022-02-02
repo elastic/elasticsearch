@@ -82,6 +82,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRequest, TermsEnumResponse> {
@@ -98,6 +99,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
     private final String shardExecutor;
     private final XPackLicenseState licenseState;
     private final Settings settings;
+    private final boolean ccsCheckCompatibility;
 
     @Inject
     public TransportTermsEnumAction(
@@ -125,6 +127,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         this.licenseState = licenseState;
         this.settings = settings;
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
+        this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
 
         transportService.registerRequestHandler(
             transportShardAction,
@@ -137,6 +140,9 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
     @Override
     protected void doExecute(Task task, TermsEnumRequest request, ActionListener<TermsEnumResponse> listener) {
+        if (ccsCheckCompatibility) {
+            checkCCSVersionCompatibility(request);
+        }
         new AsyncBroadcastAction(task, request, listener).start();
     }
 

@@ -170,9 +170,12 @@ to change index settings or to read or update data stream or index data.
 [[built-in-roles-superuser]] `superuser`::
 Grants full access to cluster management and data indices. This role also grants
 direct read-only access to restricted indices like `.security`. A user with the
-`superuser` role can <<run-as-privilege, impersonate>> any other user in the system. 
+`superuser` role can <<run-as-privilege, impersonate>> any other user in the system.
 +
-NOTE: This role can manage security and create roles with unlimited privileges.
+On {ecloud}, all standard users, including those with the `superuser` role are 
+restricted from performing <<operator-only-functionality,operator-only>> actions.
++
+IMPORTANT: This role can manage security and create roles with unlimited privileges.
 Take extra care when assigning it to a user.
 
 [[built-in-roles-transform-admin]] `transform_admin`::

@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.DummyQueryBuilder;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -87,6 +90,14 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             reqs.add(client().prepareIndex(indexName).setSource("terms", keyword, "metric", metric));
         }
         indexRandom(true, true, reqs);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
+            .build();
     }
 
     public void testMaxMinAggregation() throws Exception {
@@ -506,5 +517,20 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+    }
+
+    public void testCCSCheckCompatibility() throws Exception {
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(new SearchSourceBuilder().query(new DummyQueryBuilder() {
+            @Override
+            public Version getMinimalSupportedVersion() {
+                return Version.CURRENT;
+            }
+        }), indexName);
+
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertFalse(response.isRunning());
+        Exception failure = response.getFailure();
+        assertThat(failure.getMessage(), containsString("error while executing search"));
+        assertThat(failure.getCause().getMessage(), containsString("the 'search.check_ccs_compatibility' setting is enabled"));
     }
 }

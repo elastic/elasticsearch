@@ -13,6 +13,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,6 +25,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.CSV;
+import static org.elasticsearch.xpack.sql.plugin.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.TSV;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
 import static org.hamcrest.CoreMatchers.is;
@@ -157,9 +159,23 @@ public class TextFormatTests extends ESTestCase {
         }
     }
 
+    public void testPlainTextEmptyCursorWithColumns() {
+        assertEquals("     name      \n---------------\n", PLAIN_TEXT.format(req(), emptyData()));
+    }
+
+    public void testPlainTextEmptyCursorWithoutColumns() {
+        assertEquals(
+            StringUtils.EMPTY,
+            PLAIN_TEXT.format(
+                req(),
+                new SqlQueryResponse(StringUtils.EMPTY, Mode.JDBC, DATE_NANOS_SUPPORT_VERSION, false, null, emptyList())
+            )
+        );
+    }
+
     private static SqlQueryResponse emptyData() {
         return new SqlQueryResponse(
-            null,
+            StringUtils.EMPTY,
             Mode.JDBC,
             DATE_NANOS_SUPPORT_VERSION,
             false,

@@ -1,0 +1,5 @@
+pr: 73946
+summary: Make `GeometryCollection` Immutable
+area: Geo
+type: bug
+issues: []

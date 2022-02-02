@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 
 import java.io.IOException;
@@ -64,7 +65,11 @@ public class SecuritySystemIndices {
     }
 
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return List.of(mainDescriptor, tokenDescriptor, profileDescriptor);
+        if (XPackSettings.USER_PROFILE_FEATURE_FLAG_ENABLED) {
+            return List.of(mainDescriptor, tokenDescriptor, profileDescriptor);
+        } else {
+            return List.of(mainDescriptor, tokenDescriptor);
+        }
     }
 
     public void init(Client client, ClusterService clusterService) {

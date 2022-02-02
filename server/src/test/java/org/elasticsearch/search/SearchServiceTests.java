@@ -1241,7 +1241,10 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     public void testCreateReduceContext() {
         SearchService service = getInstanceFromNode(SearchService.class);
-        AggregationReduceContext.Builder reduceContextBuilder = service.aggReduceContextBuilder(() -> false, new SearchRequest());
+        AggregationReduceContext.Builder reduceContextBuilder = service.aggReduceContextBuilder(
+            () -> false,
+            new SearchRequest().source(new SearchSourceBuilder())
+        );
         {
             AggregationReduceContext reduceContext = reduceContextBuilder.forFinalReduction();
             expectThrows(

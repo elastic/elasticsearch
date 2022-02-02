@@ -29,6 +29,9 @@
   <!-- Intentionally has long example curl commands to coincide with sibling Painless tests. -->
   <suppress files="modules[/\\]lang-painless[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]painless[/\\]ContextExampleTests.java" checks="LineLength" />
 
+  <!-- Intentionally has multi line string for a bulk request, otherwise this needs to fallback to string concatenation  -->
+  <suppress files="modules[/\\]data-streams[/\\]src[/\\]javaRestTest[/\\]java[/\\]org[/\\]elasticsearch[/\\]datastreams[/\\]TsdbDataStreamRestIT.java" checks="LineLength" />
+
   <!--
     Truly temporary suppressions suppression of snippets included in
     documentation that are so wide that they scroll.

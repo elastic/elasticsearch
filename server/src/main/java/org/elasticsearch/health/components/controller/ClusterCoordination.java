@@ -11,12 +11,15 @@ package org.elasticsearch.health.components.controller;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.health.GetHealthAction;
+import org.elasticsearch.health.HealthComponent;
+import org.elasticsearch.health.HealthIndicator;
 import org.elasticsearch.health.HealthStatus;
 
 import java.util.Collections;
 
 public final class ClusterCoordination {
+
+    public static final String NAME = "cluster_coordination";
 
     public static final String INSTANCE_HAS_MASTER_NAME = "instance_has_master";
     public static final String INSTANCE_HAS_MASTER_GREEN_SUMMARY = "Health coordinating instance has a master node.";
@@ -24,7 +27,7 @@ public final class ClusterCoordination {
 
     private ClusterCoordination() {}
 
-    public static GetHealthAction.Component createClusterCoordinationComponent(
+    public static HealthComponent createClusterCoordinationComponent(
         final DiscoveryNode coordinatingNode,
         final ClusterState clusterState
     ) {
@@ -33,8 +36,9 @@ public final class ClusterCoordination {
 
         HealthStatus instanceHasMasterStatus = masterNode == null ? HealthStatus.RED : HealthStatus.GREEN;
         String instanceHasMasterSummary = masterNode == null ? INSTANCE_HAS_MASTER_RED_SUMMARY : INSTANCE_HAS_MASTER_GREEN_SUMMARY;
-        GetHealthAction.Indicator instanceHasMaster = new GetHealthAction.Indicator(
+        HealthIndicator instanceHasMaster = new HealthIndicator(
             INSTANCE_HAS_MASTER_NAME,
+            NAME,
             instanceHasMasterStatus,
             instanceHasMasterSummary,
             (builder, params) -> {
@@ -56,8 +60,7 @@ public final class ClusterCoordination {
         );
 
         // Only a single indicator currently so it determines the status
-        final HealthStatus status = instanceHasMaster.getStatus();
-        return new GetHealthAction.Component("cluster_coordination", status,
-            Collections.singletonMap(INSTANCE_HAS_MASTER_NAME, instanceHasMaster));
+        final HealthStatus status = instanceHasMaster.status();
+        return new HealthComponent(NAME, status, Collections.singletonMap(INSTANCE_HAS_MASTER_NAME, instanceHasMaster));
     }
 }

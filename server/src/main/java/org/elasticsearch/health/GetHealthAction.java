@@ -24,7 +24,6 @@ import org.elasticsearch.health.components.controller.ClusterCoordination;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -32,7 +31,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
@@ -47,16 +45,16 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         private final ClusterName clusterName;
         private final HealthStatus status;
-        private final List<Component> components;
+        private final List<HealthComponent> components;
 
         public Response(StreamInput in) {
             throw new AssertionError("GetHealthAction should not be sent over the wire.");
         }
 
-        public Response(final ClusterName clusterName, final List<Component> components) {
+        public Response(final ClusterName clusterName, final List<HealthComponent> components) {
             this.clusterName = clusterName;
             this.components = components;
-            this.status = HealthStatus.aggregate(components.stream().map(Component::status));
+            this.status = HealthStatus.merge(components.stream().map(HealthComponent::status));
         }
 
         public ClusterName getClusterName() {
@@ -67,7 +65,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             return status;
         }
 
-        public List<Component> getComponents() {
+        public List<HealthComponent> getComponents() {
             return components;
         }
 
@@ -83,7 +81,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             builder.field("cluster_name", clusterName.value());
             builder.array("impacts");
             builder.startObject("components");
-            for (Component component : components) {
+            for (HealthComponent component : components) {
                 builder.field(component.name());
                 component.toXContent(builder, params);
             }
@@ -117,52 +115,13 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             final ClusterState clusterState = clusterService.state();
-            final Component controller = ClusterCoordination.createClusterCoordinationComponent(clusterService.localNode(), clusterState);
-            final Component snapshots = new Component("snapshots", HealthStatus.GREEN, Collections.emptyMap());
+            final HealthComponent controller = ClusterCoordination.createClusterCoordinationComponent(
+                clusterService.localNode(),
+                clusterState
+            );
+            final HealthComponent snapshots = new HealthComponent("snapshots", HealthStatus.GREEN, Collections.emptyMap());
             final ClusterName clusterName = clusterService.getClusterName();
             listener.onResponse(new Response(clusterName, Arrays.asList(controller, snapshots)));
-        }
-    }
-
-    public record Component(String name, HealthStatus status, Map<String, Indicator> indicators) implements ToXContentObject {
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("status", status);
-            builder.startObject("indicators");
-            for (Map.Entry<String, Indicator> indicator : indicators.entrySet()) {
-                builder.field(indicator.getKey());
-                indicator.getValue().toXContent(builder, params);
-            }
-            builder.endObject();
-            return builder.endObject();
-        }
-
-    }
-
-    public record Indicator(String name, HealthStatus status, String summary, ToXContentFragment details) implements ToXContentObject {
-
-        public String getName() {
-            return name;
-        }
-
-        public HealthStatus getStatus() {
-            return status;
-        }
-
-        public String getSummary() {
-            return summary;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("status", status);
-            builder.field("summary", summary);
-            builder.object("details", xContentBuilder -> details.toXContent(builder, params));
-            // TODO: Add detail / documentation
-            return builder.endObject();
         }
     }
 }

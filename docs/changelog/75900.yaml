@@ -1,0 +1,5 @@
+pr: 75900
+summary: Adds new `metric_correlation` function to `bucket_correlation` pipeline agg
+area: Machine Learning
+type: enhancement
+issues: []

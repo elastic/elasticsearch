@@ -75,15 +75,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
     }
 
     void setPollInterval(TimeValue newValue) {
-        LOGGER.info(
-            "updating ["
-                + DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL.getKey()
-                + "] setting from ["
-                + pollInterval
-                + "] to ["
-                + newValue
-                + "]"
-        );
+        LOGGER.info("updating [{}] setting from [{}] to [{}]", DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL.getKey(), pollInterval, newValue);
         this.pollInterval = newValue;
     }
 

@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
@@ -375,7 +376,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 blockingClusterStateUpdateTaskExecuting.countDown();
-                unblockClusterStateUpdateTask.await();
+                assertTrue(unblockClusterStateUpdateTask.await(10, TimeUnit.SECONDS));
                 return currentState;
             }
 
@@ -386,7 +387,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             }
         }, ClusterStateTaskExecutor.unbatched());
 
-        blockingClusterStateUpdateTaskExecuting.await();
+        assertTrue(blockingClusterStateUpdateTaskExecuting.await(10, TimeUnit.SECONDS));
         return unblockClusterStateUpdateTask::countDown;
     }
 

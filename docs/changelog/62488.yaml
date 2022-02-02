@@ -1,0 +1,6 @@
+pr: 62488
+summary: Replace the scroll with PIT for data batching
+area: SQL
+type: enhancement
+issues:
+ - 61873

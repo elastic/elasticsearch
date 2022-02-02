@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 
 import java.util.Locale;
 

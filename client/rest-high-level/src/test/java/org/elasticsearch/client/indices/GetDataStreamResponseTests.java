@@ -15,8 +15,8 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.action.GetDataStreamAction;
-import org.elasticsearch.xpack.core.action.GetDataStreamAction.Response.DataStreamInfo;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.DataStreamInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;

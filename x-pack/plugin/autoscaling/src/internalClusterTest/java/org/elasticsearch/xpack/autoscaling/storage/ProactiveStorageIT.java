@@ -20,8 +20,8 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
-import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.hamcrest.Matchers;
 import org.junit.After;
 

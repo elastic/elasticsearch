@@ -33,7 +33,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;

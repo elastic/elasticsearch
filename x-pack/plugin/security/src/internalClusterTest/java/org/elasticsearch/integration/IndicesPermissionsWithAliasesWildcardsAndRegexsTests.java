@@ -23,8 +23,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 
 import java.io.IOException;

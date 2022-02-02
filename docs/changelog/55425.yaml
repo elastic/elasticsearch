@@ -1,0 +1,6 @@
+pr: 55425
+summary: Properly handle common fields in index aliases
+area: Query Languages
+type: bug
+issues:
+ - 53445

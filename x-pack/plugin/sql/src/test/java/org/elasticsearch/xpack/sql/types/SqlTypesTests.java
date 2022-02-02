@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.sql.types;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
@@ -89,10 +88,6 @@ public class SqlTypesTests extends ESTestCase {
     }
 
     public static Map<String, EsField> loadMapping(String name, boolean ordered) {
-        return loadMapping(name, ordered, Version.CURRENT);
-    }
-
-    public static Map<String, EsField> loadMapping(String name, boolean ordered, Version version) {
-        return TypesTests.loadMapping(SqlDataTypeRegistry.INSTANCE, name, ordered, version);
+        return TypesTests.loadMapping(SqlDataTypeRegistry.INSTANCE, name, ordered);
     }
 }

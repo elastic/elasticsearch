@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -17,12 +19,15 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexCompatibility;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.type.Types;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
@@ -30,6 +35,7 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.stats.Metrics;
+import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 
 import java.util.Collections;
 import java.util.List;
@@ -39,13 +45,12 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
@@ -65,7 +70,7 @@ public class FieldAttributeTests extends ESTestCase {
         functionRegistry = new SqlFunctionRegistry();
         verifier = new Verifier(new Metrics());
 
-        Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json");
+        Map<String, EsField> mapping = SqlTypesTests.loadMapping("mapping-multi-field-variation.json");
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
@@ -304,10 +309,6 @@ public class FieldAttributeTests extends ESTestCase {
     }
 
     public void testUnsignedLongVersionCompatibility() {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-numeric.json");
-        EsIndex index = new EsIndex("test", mapping);
-        getIndexResult = IndexResolution.valid(index);
-
         String query = "SELECT unsigned_long FROM test";
         String queryWithLiteral = "SELECT 18446744073709551615 AS unsigned_long";
         String queryWithCastLiteral = "SELECT '18446744073709551615'::unsigned_long AS unsigned_long";
@@ -315,24 +316,27 @@ public class FieldAttributeTests extends ESTestCase {
         String queryWithArithmetic = "SELECT unsigned_long + 1 AS unsigned_long FROM test";
         String queryWithCast = "SELECT long + 1::unsigned_long AS unsigned_long FROM test";
 
-        SqlVersion preUnsignedLong = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER);
-        SqlVersion postUnsignedLong = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER);
+        Version preUnsignedLong = Version.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER);
+        Version postUnsignedLong = Version.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER);
+        SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(SqlVersion.fromId(preUnsignedLong.id));
 
         for (String sql : List.of(query, queryWithLiteral, queryWithCastLiteral, queryWithAlias, queryWithArithmetic, queryWithCast)) {
-            SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(preUnsignedLong);
-            analyzer = new Analyzer(sqlConfig, functionRegistry, getIndexResult, new Verifier(new Metrics()));
-            VerificationException ex = expectThrows(VerificationException.class, () -> plan(sql));
-            assertEquals(
-                "Found 1 problem\nline 1:8: Cannot use field [unsigned_long] with type [UNSIGNED_LONG] unsupported in version ["
-                    + preUnsignedLong
-                    + "], upgrade required (to version ["
-                    + INTRODUCING_UNSIGNED_LONG
-                    + "] or higher)",
-                ex.getMessage()
+            analyzer = new Analyzer(
+                sqlConfig,
+                functionRegistry,
+                loadCompatibleMapping("mapping-numeric.json", preUnsignedLong),
+                new Verifier(new Metrics())
             );
+            VerificationException ex = expectThrows(VerificationException.class, () -> plan(sql));
+            assertThat(ex.getMessage(), containsString("Found 1 problem\nline 1:8: Cannot use field [unsigned_long]"));
 
-            for (SqlVersion v : List.of(SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id), postUnsignedLong)) {
-                analyzer = new Analyzer(SqlTestUtils.randomConfiguration(v), functionRegistry, getIndexResult, verifier);
+            for (Version v : List.of(INTRODUCING_UNSIGNED_LONG, postUnsignedLong)) {
+                analyzer = new Analyzer(
+                    SqlTestUtils.randomConfiguration(SqlVersion.fromId(v.id)),
+                    functionRegistry,
+                    loadCompatibleMapping("mapping-numeric.json", v),
+                    verifier
+                );
                 LogicalPlan plan = plan(sql);
                 assertThat(plan, instanceOf(Project.class));
                 Project p = (Project) plan;
@@ -346,59 +350,91 @@ public class FieldAttributeTests extends ESTestCase {
     }
 
     public void testNonProjectedUnsignedLongVersionCompatibility() {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-numeric.json");
-        EsIndex index = new EsIndex("test", mapping);
-        getIndexResult = IndexResolution.valid(index);
-        SqlVersion preUnsignedLong = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER);
-        SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(preUnsignedLong);
-        analyzer = new Analyzer(sqlConfig, functionRegistry, getIndexResult, new Verifier(new Metrics()));
+        Version preUnsignedLong = Version.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER);
+        SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(SqlVersion.fromId(preUnsignedLong.id));
+        analyzer = new Analyzer(
+            sqlConfig,
+            functionRegistry,
+            loadCompatibleMapping("mapping-numeric.json", preUnsignedLong),
+            new Verifier(new Metrics())
+        );
 
         String query = "SELECT unsigned_long = 1, unsigned_long::double FROM test";
         String queryWithSubquery = "SELECT l = 1, SQRT(ul) FROM "
             + "(SELECT unsigned_long AS ul, long AS l FROM test WHERE ul > 10) WHERE l < 100 ";
 
         for (String sql : List.of(query, queryWithSubquery)) {
+            VerificationException ex = expectThrows(VerificationException.class, () -> plan(sql));
+            assertThat(ex.getMessage(), containsString("Cannot use field [unsigned_long] with unsupported type [UNSIGNED_LONG]"));
+        }
+    }
+
+    public void testNestedUnsignedLongVersionCompatibility() {
+        String props = """
+            {
+                "properties": {
+                    "container": {
+                        "properties": {
+                            "ul": {
+                                "type": "unsigned_long"
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+        String sql = "SELECT container.ul as unsigned_long FROM test";
+
+        Version preUnsignedLong = Version.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER);
+        analyzer = new Analyzer(
+            SqlTestUtils.randomConfiguration(SqlVersion.fromId(preUnsignedLong.id)),
+            functionRegistry,
+            compatibleMapping(props, preUnsignedLong),
+            new Verifier(new Metrics())
+        );
+        VerificationException ex = expectThrows(VerificationException.class, () -> plan(sql));
+        assertThat(ex.getMessage(), containsString("Cannot use field [container.ul] with unsupported type [UNSIGNED_LONG]"));
+
+        Version postUnsignedLong = Version.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER);
+        for (Version v : List.of(INTRODUCING_UNSIGNED_LONG, postUnsignedLong)) {
+            analyzer = new Analyzer(
+                SqlTestUtils.randomConfiguration(SqlVersion.fromId(v.id)),
+                functionRegistry,
+                compatibleMapping(props, v),
+                verifier
+            );
             LogicalPlan plan = plan(sql);
             assertThat(plan, instanceOf(Project.class));
             Project p = (Project) plan;
             List<? extends NamedExpression> projections = p.projections();
-            assertThat(projections, hasSize(2));
-            assertEquals(projections.get(0).dataType(), BOOLEAN);
-            assertEquals(projections.get(1).dataType(), DOUBLE);
+            assertThat(projections, hasSize(1));
+            Attribute attribute = projections.get(0).toAttribute();
+            assertThat(attribute.dataType(), is(UNSIGNED_LONG));
+            assertThat(attribute.name(), is("unsigned_long"));
         }
     }
 
     public void testUnsignedLongStarExpandedVersionControlled() {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-numeric.json");
-        EsIndex index = new EsIndex("test", mapping);
-        getIndexResult = IndexResolution.valid(index);
-
         SqlVersion preUnsignedLong = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER);
         SqlVersion postUnsignedLong = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER);
         String query = "SELECT * FROM test";
 
         for (SqlVersion version : List.of(preUnsignedLong, SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id), postUnsignedLong)) {
             SqlConfiguration config = SqlTestUtils.randomConfiguration(version);
-            analyzer = new Analyzer(config, functionRegistry, getIndexResult, new Verifier(new Metrics()));
+            analyzer = new Analyzer(config, functionRegistry, loadMapping("mapping-numeric.json"), new Verifier(new Metrics()));
 
             LogicalPlan plan = plan(query);
             assertThat(plan, instanceOf(Project.class));
             Project p = (Project) plan;
 
-            List<DataType> projectedDataTypes = p.projections().stream().map(Expression::dataType).collect(Collectors.toList());
-            assertEquals(
-                isTypeSupportedInVersion(UNSIGNED_LONG, Version.fromId(config.version().id)),
-                projectedDataTypes.contains(UNSIGNED_LONG)
-            );
+            List<DataType> projectedDataTypes = p.projections().stream().map(Expression::dataType).toList();
+            assertEquals(isTypeSupportedInVersion(UNSIGNED_LONG, Version.fromId(version.id)), projectedDataTypes.contains(UNSIGNED_LONG));
         }
 
     }
 
     public void testFunctionOverNonExistingFieldAsArgumentAndSameAlias() throws Exception {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-basic.json");
-        EsIndex index = new EsIndex("test", mapping);
-        getIndexResult = IndexResolution.valid(index);
-        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, loadMapping("mapping-basic.json"), verifier);
 
         VerificationException ex = expectThrows(
             VerificationException.class,
@@ -408,10 +444,7 @@ public class FieldAttributeTests extends ESTestCase {
     }
 
     public void testFunctionWithExpressionOverNonExistingFieldAsArgumentAndSameAlias() throws Exception {
-        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-basic.json");
-        EsIndex index = new EsIndex("test", mapping);
-        getIndexResult = IndexResolution.valid(index);
-        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, loadMapping("mapping-basic.json"), verifier);
 
         VerificationException ex = expectThrows(
             VerificationException.class,
@@ -431,4 +464,22 @@ public class FieldAttributeTests extends ESTestCase {
         assertTrue(((Project) plan).projections().isEmpty());
     }
 
+    private static IndexResolution loadMapping(String mappingName) {
+        Map<String, EsField> mapping = TypesTests.loadMapping(mappingName);
+        EsIndex index = new EsIndex("test", mapping);
+        return IndexResolution.valid(index);
+    }
+
+    private static IndexResolution loadCompatibleMapping(String mappingName, Version version) {
+        return IndexCompatibility.compatible(loadMapping(mappingName), version);
+    }
+
+    private static IndexResolution compatibleMapping(String properties, Version version) {
+        Map<String, EsField> mapping = Types.fromEs(
+            DefaultDataTypeRegistry.INSTANCE,
+            XContentHelper.convertToMap(JsonXContent.jsonXContent, properties, randomBoolean())
+        );
+        EsIndex index = new EsIndex("test", mapping);
+        return IndexCompatibility.compatible(IndexResolution.valid(index), version);
+    }
 }

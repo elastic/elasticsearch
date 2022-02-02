@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.index.IndexCompatibility;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
@@ -87,8 +88,9 @@ public class ShowColumnsTests extends ESTestCase {
         List<?> rowUnsupported = List.of("unsigned_long", "OTHER", "unsupported");
         for (SqlVersion version : UNSIGNED_LONG_TEST_VERSIONS) {
             List<List<?>> rows = new ArrayList<>();
-            Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true, Version.fromId(version.id));
-            ShowColumns.fillInRows(mapping, null, rows);
+            // mapping's mutated by IndexCompatibility.compatible, needs to stay in the loop
+            Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
+            ShowColumns.fillInRows(IndexCompatibility.compatible(mapping, Version.fromId(version.id)), null, rows);
             assertTrue((supportsUnsignedLong(Version.fromId(version.id)) && rows.contains(rowSupported)) || rows.contains(rowUnsupported));
         }
     }

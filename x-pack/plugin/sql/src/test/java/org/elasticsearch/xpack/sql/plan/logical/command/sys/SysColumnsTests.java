@@ -12,6 +12,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexCompatibility;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.EsField;
@@ -149,8 +150,17 @@ public class SysColumnsTests extends ESTestCase {
         for (Mode mode : List.of(Mode.JDBC, Mode.ODBC)) {
             for (SqlVersion version : UNSIGNED_LONG_TEST_VERSIONS) {
                 List<List<?>> rows = new ArrayList<>();
-                Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true, Version.fromId(version.id));
-                SysColumns.fillInRows("test", "index", mapping, null, rows, null, mode);
+                // mapping's mutated by IndexCompatibility.compatible, needs to stay in the loop
+                Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
+                SysColumns.fillInRows(
+                    "test",
+                    "index",
+                    IndexCompatibility.compatible(mapping, Version.fromId(version.id)),
+                    null,
+                    rows,
+                    null,
+                    mode
+                );
                 List<String> types = rows.stream().map(row -> name(row).toString()).collect(Collectors.toList());
                 assertEquals(
                     isTypeSupportedInVersion(UNSIGNED_LONG, Version.fromId(version.id)),
@@ -354,13 +364,13 @@ public class SysColumnsTests extends ESTestCase {
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
         when(resolver.remoteClusters()).thenReturn(Set.of(CLUSTER_NAME));
         doAnswer(invocation -> {
-            ((ActionListener<IndexResolution>) invocation.getArguments()[4]).onResponse(IndexResolution.valid(test));
+            ((ActionListener<IndexResolution>) invocation.getArguments()[3]).onResponse(IndexResolution.valid(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsMergedMapping(any(), anyBoolean(), any(), any(), any());
+        }).when(resolver).resolveAsMergedMapping(any(), anyBoolean(), any(), any());
         doAnswer(invocation -> {
-            ((ActionListener<List<EsIndex>>) invocation.getArguments()[5]).onResponse(singletonList(test));
+            ((ActionListener<List<EsIndex>>) invocation.getArguments()[4]).onResponse(singletonList(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsSeparateMappings(any(), any(), anyBoolean(), any(), any(), any());
+        }).when(resolver).resolveAsSeparateMappings(any(), any(), anyBoolean(), any(), any());
 
         SqlSession session = new SqlSession(config, null, null, resolver, null, null, null, null, null);
         return new Tuple<>(cmd, session);

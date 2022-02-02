@@ -34,6 +34,8 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy
 import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
+import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexCompatibility;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -78,7 +80,6 @@ import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AnalyzerRule;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
@@ -330,8 +331,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     "invalid [" + table + "] resolution to [" + indexResolution + "]"
                 );
             }
-            LogicalPlan logicalPlan = new EsRelation(plan.source(), indexResolution.get(), plan.frozen());
-            SubQueryAlias sa = new SubQueryAlias(plan.source(), logicalPlan, indexResolution.get().toString());
+            EsIndex esIndex = IndexCompatibility.compatible(indexResolution.get(), Version.fromId(configuration.version().id));
+            LogicalPlan logicalPlan = new EsRelation(plan.source(), esIndex, plan.frozen());
+            SubQueryAlias sa = new SubQueryAlias(plan.source(), logicalPlan, esIndex.toString());
 
             if (plan.alias() != null) {
                 sa = new SubQueryAlias(plan.source(), sa, plan.alias());
@@ -447,13 +449,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
             }
 
-            return filterUnsupportedProjections(result);
-        }
-
-        private List<NamedExpression> filterUnsupportedProjections(List<NamedExpression> projections) {
-            return projections.stream()
-                .filter(p -> p.resolved() == false || isTypeSupportedInVersion(p.dataType(), Version.fromId(configuration.version().id)))
-                .collect(toList());
+            return result;
         }
 
         private List<NamedExpression> expandStar(UnresolvedStar us, List<Attribute> output) {

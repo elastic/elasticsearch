@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
 
@@ -16,34 +15,32 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.supportsUnsignedLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 
 public abstract class Types {
 
     @SuppressWarnings("unchecked")
-    public static Map<String, EsField> fromEs(DataTypeRegistry typeRegistry, Map<String, Object> asMap, Version version) {
+    public static Map<String, EsField> fromEs(DataTypeRegistry typeRegistry, Map<String, Object> asMap) {
         Map<String, Object> props = null;
         if (asMap != null && asMap.isEmpty() == false) {
             props = (Map<String, Object>) asMap.get("properties");
         }
-        return props == null || props.isEmpty() ? emptyMap() : startWalking(typeRegistry, props, version);
+        return props == null || props.isEmpty() ? emptyMap() : startWalking(typeRegistry, props);
     }
 
-    private static Map<String, EsField> startWalking(DataTypeRegistry typeRegistry, Map<String, Object> mapping, Version version) {
+    private static Map<String, EsField> startWalking(DataTypeRegistry typeRegistry, Map<String, Object> mapping) {
         Map<String, EsField> types = new LinkedHashMap<>();
 
         if (mapping == null) {
             return emptyMap();
         }
         for (Entry<String, Object> entry : mapping.entrySet()) {
-            walkMapping(typeRegistry, entry.getKey(), entry.getValue(), types, version);
+            walkMapping(typeRegistry, entry.getKey(), entry.getValue(), types);
         }
 
         return types;
@@ -68,13 +65,7 @@ public abstract class Types {
     }
 
     @SuppressWarnings("unchecked")
-    private static void walkMapping(
-        DataTypeRegistry typeRegistry,
-        String name,
-        Object value,
-        Map<String, EsField> mapping,
-        Version version
-    ) {
+    private static void walkMapping(DataTypeRegistry typeRegistry, String name, Object value, Map<String, EsField> mapping) {
         // object type - only root or nested docs supported
         if (value instanceof Map) {
             Map<String, Object> content = (Map<String, Object>) value;
@@ -83,17 +74,17 @@ public abstract class Types {
             DataType esDataType = getType(typeRegistry, content);
             final Map<String, EsField> properties;
             if (esDataType == OBJECT || esDataType == NESTED) {
-                properties = fromEs(typeRegistry, content, version);
+                properties = fromEs(typeRegistry, content);
             } else if (content.containsKey("fields")) {
                 // Check for multifields
                 Object fields = content.get("fields");
                 if (fields instanceof Map) {
-                    properties = startWalking(typeRegistry, (Map<String, Object>) fields, version);
+                    properties = startWalking(typeRegistry, (Map<String, Object>) fields);
                 } else {
                     properties = Collections.emptyMap();
                 }
             } else {
-                properties = fromEs(typeRegistry, content, version);
+                properties = fromEs(typeRegistry, content);
             }
             boolean docValues = boolSetting(content.get("doc_values"), esDataType.hasDocValues());
             final EsField field;
@@ -105,7 +96,7 @@ public abstract class Types {
                 field = new KeywordEsField(name, properties, docValues, length, normalized);
             } else if (esDataType == DATETIME) {
                 field = DateEsField.dateEsField(name, properties, docValues);
-            } else if (esDataType == UNSUPPORTED || (esDataType == UNSIGNED_LONG && supportsUnsignedLong(version) == false)) {
+            } else if (esDataType == UNSUPPORTED) {
                 String type = content.get("type").toString();
                 field = new UnsupportedEsField(name, type, null, properties);
                 propagateUnsupportedType(name, type, properties);
@@ -130,7 +121,7 @@ public abstract class Types {
         return value == null ? defaultValue : Integer.parseInt(value.toString());
     }
 
-    private static void propagateUnsupportedType(String inherited, String originalType, Map<String, EsField> properties) {
+    public static void propagateUnsupportedType(String inherited, String originalType, Map<String, EsField> properties) {
         if (properties != null && properties.isEmpty() == false) {
             for (Entry<String, EsField> entry : properties.entrySet()) {
                 EsField field = entry.getValue();

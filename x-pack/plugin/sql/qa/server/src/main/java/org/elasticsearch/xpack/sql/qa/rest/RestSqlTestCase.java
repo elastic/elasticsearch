@@ -1161,7 +1161,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         String query = query("SELECT unsigned_long::STRING FROM " + indexPattern("test")).version(version.toString()).toString();
         expectBadRequest(
             () -> runSql(new StringEntity(query, ContentType.APPLICATION_JSON), "", randomMode()),
-            containsString("Cannot use field [unsigned_long] with unsupported type [unsigned_long]")
+            containsString("Cannot use field [unsigned_long] with unsupported type [UNSIGNED_LONG]")
         );
     }
 

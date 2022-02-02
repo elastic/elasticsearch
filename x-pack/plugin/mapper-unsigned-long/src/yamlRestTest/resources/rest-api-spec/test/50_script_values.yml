@@ -203,8 +203,8 @@ setup:
 ---
 "Scripted Metric":
   - skip:
-      version: " - 7.99.99"
-      reason: "context for scripted metric was added in 8.0"
+      version: " - 8.0.99"
+      reason: "context for scripted metric was added in 8.1"
 
   - do:
       search:

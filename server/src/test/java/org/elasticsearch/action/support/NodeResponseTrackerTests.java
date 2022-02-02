@@ -36,7 +36,7 @@ public class NodeResponseTrackerTests extends ESTestCase {
         NodeResponseTracker intermediateNodeResponses = new NodeResponseTracker(size);
         for (int i = 0; i < size; i++) {
             if (i == cancelAt) {
-                intermediateNodeResponses.discardIntermediateResponses();
+                intermediateNodeResponses.discardIntermediateResponses(new Exception("simulated"));
             }
             boolean added = intermediateNodeResponses.maybeAddResponse(i, randomBoolean() ? i : new Exception("from node " + i));
             if (i < cancelAt) {

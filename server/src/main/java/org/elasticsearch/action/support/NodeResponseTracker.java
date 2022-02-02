@@ -18,12 +18,11 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class NodeResponseTracker {
 
-    private static final DiscardedResponsesException DISCARDED_RESPONSES_EXCEPTION = new DiscardedResponsesException();
-
     private final int expectedResponses;
     private final AtomicInteger counter = new AtomicInteger();
     private final AtomicReferenceArray<Boolean> receivedResponseFromNode;
     private volatile AtomicReferenceArray<Object> responses;
+    private volatile Exception causeOfDiscarding;
 
     public NodeResponseTracker(int size) {
         this.expectedResponses = size;
@@ -38,10 +37,11 @@ public class NodeResponseTracker {
     }
 
     /**
-     * This method discards the results collected to free up the resources
+     * This method discards the results collected to free up the resources.
      */
-    public void discardIntermediateResponses() {
+    public void discardIntermediateResponses(Exception cause) {
         if (responses != null) {
+            this.causeOfDiscarding = cause;
             responses = null;
         }
     }
@@ -79,17 +79,26 @@ public class NodeResponseTracker {
     public Object getResponse(int nodeIndex) throws DiscardedResponsesException {
         AtomicReferenceArray<Object> responses = this.responses;
         if (responsesDiscarded()) {
-            throw DISCARDED_RESPONSES_EXCEPTION;
+            throw new DiscardedResponsesException(causeOfDiscarding);
         }
         return responses.get(nodeIndex);
     }
 
     public int size() throws DiscardedResponsesException {
         if (responsesDiscarded()) {
-            throw DISCARDED_RESPONSES_EXCEPTION;
+            throw new DiscardedResponsesException(causeOfDiscarding);
         }
         return expectedResponses;
     }
 
-    public static class DiscardedResponsesException extends Exception {}
+    /**
+     * This exception is thrown when the {@link NodeResponseTracker} is asked to give information about the responses after they have been
+     * discarded.
+     */
+    public static class DiscardedResponsesException extends Exception {
+
+        public DiscardedResponsesException(Exception cause) {
+            super(cause);
+        }
+    }
 }

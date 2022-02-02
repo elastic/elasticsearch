@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -208,7 +209,6 @@ public abstract class TransportNodesAction<
         private final ActionListener<NodesResponse> listener;
         private final NodeResponseTracker nodeResponseTracker;
         private final Task task;
-        private volatile boolean cancelled;
 
         AsyncAction(Task task, NodesRequest request, ActionListener<NodesResponse> listener) {
             this.task = task;
@@ -293,8 +293,7 @@ public abstract class TransportNodesAction<
         }
 
         private void finishHim() {
-            if (cancelled) {
-                ((CancellableTask) task).notifyIfCancelled(listener);
+            if ((task instanceof CancellableTask t) && t.notifyIfCancelled(listener)) {
                 return;
             }
 
@@ -303,17 +302,22 @@ public abstract class TransportNodesAction<
                 try {
                     newResponse(task, request, nodeResponseTracker, listener);
                 } catch (NodeResponseTracker.DiscardedResponsesException e) {
-                    if (cancelled) {
-                        ((CancellableTask) task).notifyIfCancelled(listener);
-                    }
+                    // We propagate the reason that the results, in this case the task cancellation, in case the listener needs to take
+                    // follow-up actions
+                    listener.onFailure((Exception) e.getCause());
                 }
             });
         }
 
         @Override
         public void onCancelled() {
-            cancelled = (task instanceof CancellableTask t) && t.isCancelled();
-            nodeResponseTracker.discardIntermediateResponses();
+            try {
+                if (task instanceof CancellableTask t) {
+                    t.ensureNotCancelled();
+                }
+            } catch (TaskCancelledException e) {
+                nodeResponseTracker.discardIntermediateResponses(e);
+            }
         }
     }
 

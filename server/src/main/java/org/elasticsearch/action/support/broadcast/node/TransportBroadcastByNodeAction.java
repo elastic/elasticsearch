@@ -122,44 +122,40 @@ public abstract class TransportBroadcastByNodeAction<
         int unavailableShardCount,
         Map<String, List<ShardRouting>> nodes,
         ClusterState clusterState
-    ) {
+    ) throws NodeResponseTracker.DiscardedResponsesException {
         int totalShards = 0;
         int successfulShards = 0;
         List<ShardOperationResult> broadcastByNodeResponses = new ArrayList<>();
         List<DefaultShardOperationFailedException> exceptions = new ArrayList<>();
-        try {
-            for (int i = 0; i < nodeResponseTracker.size(); i++) {
-                Object response = nodeResponseTracker.getResponse(i);
-                if (response instanceof FailedNodeException exception) {
-                    totalShards += nodes.get(exception.nodeId()).size();
-                    for (ShardRouting shard : nodes.get(exception.nodeId())) {
-                        exceptions.add(new DefaultShardOperationFailedException(shard.getIndexName(), shard.getId(), exception));
-                    }
-                } else {
-                    @SuppressWarnings("unchecked")
-                    NodeResponse nodeResponse = (NodeResponse) response;
-                    broadcastByNodeResponses.addAll(nodeResponse.results);
-                    totalShards += nodeResponse.getTotalShards();
-                    successfulShards += nodeResponse.getSuccessfulShards();
-                    for (BroadcastShardOperationFailedException throwable : nodeResponse.getExceptions()) {
-                        if (TransportActions.isShardNotAvailableException(throwable) == false) {
-                            exceptions.add(
-                                new DefaultShardOperationFailedException(
-                                    throwable.getShardId().getIndexName(),
-                                    throwable.getShardId().getId(),
-                                    throwable
-                                )
-                            );
-                        }
+        for (int i = 0; i < nodeResponseTracker.size(); i++) {
+            Object response = nodeResponseTracker.getResponse(i);
+            if (response instanceof FailedNodeException exception) {
+                totalShards += nodes.get(exception.nodeId()).size();
+                for (ShardRouting shard : nodes.get(exception.nodeId())) {
+                    exceptions.add(new DefaultShardOperationFailedException(shard.getIndexName(), shard.getId(), exception));
+                }
+            } else {
+                @SuppressWarnings("unchecked")
+                NodeResponse nodeResponse = (NodeResponse) response;
+                broadcastByNodeResponses.addAll(nodeResponse.results);
+                totalShards += nodeResponse.getTotalShards();
+                successfulShards += nodeResponse.getSuccessfulShards();
+                for (BroadcastShardOperationFailedException throwable : nodeResponse.getExceptions()) {
+                    if (TransportActions.isShardNotAvailableException(throwable) == false) {
+                        exceptions.add(
+                            new DefaultShardOperationFailedException(
+                                throwable.getShardId().getIndexName(),
+                                throwable.getShardId().getId(),
+                                throwable
+                            )
+                        );
                     }
                 }
             }
-            totalShards += unavailableShardCount;
-            int failedShards = exceptions.size();
-            return newResponse(request, totalShards, successfulShards, failedShards, broadcastByNodeResponses, exceptions, clusterState);
-        } catch (NodeResponseTracker.DiscardedResponsesException exception) {
-            return null;
         }
+        totalShards += unavailableShardCount;
+        int failedShards = exceptions.size();
+        return newResponse(request, totalShards, successfulShards, failedShards, broadcastByNodeResponses, exceptions, clusterState);
     }
 
     /**
@@ -270,7 +266,6 @@ public abstract class TransportBroadcastByNodeAction<
         private final Map<String, List<ShardRouting>> nodeIds;
         private final int unavailableShardCount;
         private final NodeResponseTracker nodeResponseTracker;
-        private volatile boolean cancelled;
 
         protected AsyncAction(Task task, Request request, ActionListener<Response> listener) {
             this.task = task;
@@ -400,14 +395,17 @@ public abstract class TransportBroadcastByNodeAction<
         }
 
         protected void onCompletion() {
-            if (cancelled) {
-                ((CancellableTask) task).notifyIfCancelled(listener);
+            if ((task instanceof CancellableTask t) && t.notifyIfCancelled(listener)) {
                 return;
             }
 
             Response response = null;
             try {
                 response = newResponse(request, nodeResponseTracker, unavailableShardCount, nodeIds, clusterState);
+            } catch (NodeResponseTracker.DiscardedResponsesException e) {
+                // We propagate the reason that the results, in this case the task cancellation, in case the listener needs to take
+                // follow-up actions
+                listener.onFailure((Exception) e.getCause());
             } catch (Exception e) {
                 logger.debug("failed to combine responses from nodes", e);
                 listener.onFailure(e);
@@ -423,8 +421,13 @@ public abstract class TransportBroadcastByNodeAction<
 
         @Override
         public void onCancelled() {
-            cancelled = (task instanceof CancellableTask t) && t.isCancelled();
-            nodeResponseTracker.discardIntermediateResponses();
+            try {
+                if (task instanceof CancellableTask t) {
+                    t.ensureNotCancelled();
+                }
+            } catch (TaskCancelledException e) {
+                nodeResponseTracker.discardIntermediateResponses(e);
+            }
         }
 
         // For testing purposes

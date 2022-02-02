@@ -41,8 +41,8 @@ setup:
 ---
 "Create a snapshot and clean up repository":
   - skip:
-      version: " - 7.3.99"
-      reason:  cleanup introduced in 7.4
+      version: " - 7.17.1"
+      reason:  "cleanup introduced in 7.4, Pause BWC tests until #83290 is backported"
 
   - do:
       snapshot.cleanup_repository:

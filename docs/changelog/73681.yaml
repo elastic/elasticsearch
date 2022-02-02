@@ -1,0 +1,5 @@
+pr: 73681
+summary: Disallow comparison between fields in combination with arithmetic operations
+area: Query Languages
+type: bug
+issues: []

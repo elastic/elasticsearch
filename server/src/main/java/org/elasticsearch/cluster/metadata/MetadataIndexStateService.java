@@ -128,13 +128,13 @@ public class MetadataIndexStateService {
         NodeClient client,
         ThreadPool threadPool
     ) {
-        this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        this.threadPool = threadPool;
-        this.client = client;
         this.indexMetadataVerifier = indexMetadataVerifier;
+        this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
+        this.client = client;
+        this.threadPool = threadPool;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
     }
 

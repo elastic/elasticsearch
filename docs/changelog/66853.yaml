@@ -1,0 +1,6 @@
+pr: 66853
+summary: Search during index create
+area: Search
+type: enhancement
+issues:
+ - 65846

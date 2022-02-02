@@ -220,8 +220,8 @@ setup:
 ---
 "Double range on long field":
   - skip:
-      version: " - 8.0.99"
-      reason: Bug fixed in 8.1.0
+      version: " - 7.17.0"
+      reason: Bug fixed in 8.1.0 and backported to 7.17.1
   - do:
       search:
         index: test

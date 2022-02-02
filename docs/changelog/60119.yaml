@@ -1,0 +1,5 @@
+pr: 60119
+summary: New hll++ field type to store `HyperLogLogPlusPlus` sketches
+area: Aggregations
+type: feature
+issues: []

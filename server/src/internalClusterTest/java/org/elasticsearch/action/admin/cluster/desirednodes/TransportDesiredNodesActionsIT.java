@@ -253,7 +253,6 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83386")
     public void testUpdateDesiredNodesTasksAreBatchedCorrectly() throws Exception {
         final Runnable unblockClusterStateUpdateThread = blockClusterStateUpdateThread();
 
@@ -284,7 +283,6 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         assertThat(latestDesiredNodes, equalTo(latestProposedDesiredNodes));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83386")
     public void testDeleteDesiredNodesTasksAreBatchedCorrectly() throws Exception {
         if (randomBoolean()) {
             putRandomDesiredNodes();
@@ -372,7 +370,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
     private Runnable blockClusterStateUpdateThread() throws InterruptedException {
         final CountDownLatch unblockClusterStateUpdateTask = new CountDownLatch(1);
         final CountDownLatch blockingClusterStateUpdateTaskExecuting = new CountDownLatch(1);
-        final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         clusterService.submitStateUpdateTask("blocking-task", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
@@ -383,7 +381,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(Exception e) {
-
+                blockingClusterStateUpdateTaskExecuting.countDown();
+                assert false : e.getMessage();
             }
         }, ClusterStateTaskExecutor.unbatched());
 

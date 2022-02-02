@@ -12,25 +12,33 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
+import java.util.TreeMap;
 
+import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toList;
 
 public record Component(String name, HealthStatus status, List<HealthIndicator> indicators) implements ToXContentObject {
 
-    public static List<Component> createFrom(List<HealthIndicator> indicators) {
+    public static Collection<Component> createComponentsFromIndicators(Collection<HealthIndicator> indicators) {
         return indicators.stream()
-            .collect(groupingBy(HealthIndicator::component))
-            .entrySet()
-            .stream()
-            .map(
-                entry -> new Component(
-                    entry.getKey(),
-                    HealthStatus.merge(entry.getValue().stream().map(HealthIndicator::status)),
-                    entry.getValue()
-                )
+            .collect(
+                groupingBy(HealthIndicator::component, TreeMap::new, collectingAndThen(toList(), Component::createComponentFromIndicators))
             )
-            .toList();
+            .values();
+    }
+
+    private static Component createComponentFromIndicators(List<HealthIndicator> indicators) {
+        assert indicators.size() > 0 : "Component should not be non empty";
+        assert indicators.stream().map(HealthIndicator::component).distinct().count() == 1L
+            : "Should not mix indicators from different components";
+        return new Component(
+            indicators.get(0).component(),
+            HealthStatus.merge(indicators.stream().map(HealthIndicator::status)),
+            indicators
+        );
     }
 
     @Override

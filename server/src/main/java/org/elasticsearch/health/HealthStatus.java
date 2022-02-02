@@ -8,14 +8,25 @@
 
 package org.elasticsearch.health;
 
+import java.util.Comparator;
 import java.util.stream.Stream;
 
 public enum HealthStatus {
-    GREEN,
-    YELLOW,
-    RED;
+    GREEN((byte) 0),
+    YELLOW((byte) 1),
+    RED((byte) 2);
+
+    private final byte value;
+
+    HealthStatus(byte value) {
+        this.value = value;
+    }
+
+    public byte value() {
+        return value;
+    }
 
     public static HealthStatus merge(Stream<HealthStatus> statuses) {
-        return statuses.max(HealthStatus::compareTo).orElse(GREEN);
+        return statuses.max(Comparator.comparing(HealthStatus::value)).orElse(GREEN);
     }
 }

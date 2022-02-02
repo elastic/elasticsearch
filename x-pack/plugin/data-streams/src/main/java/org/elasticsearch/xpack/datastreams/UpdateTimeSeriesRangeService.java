@@ -90,8 +90,8 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
             }
 
             // getWriteIndex() selects the latest added index:
-            String head = dataStream.getWriteIndex().getName();
-            IndexMetadata im = current.metadata().getIndices().get(head);
+            Index head = dataStream.getWriteIndex();
+            IndexMetadata im = current.metadata().getIndexSafe(head);
             Instant currentEnd = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
             TimeValue lookAheadTime = IndexSettings.LOOK_AHEAD_TIME.get(im.getSettings());
             Instant newEnd = now.plus(lookAheadTime.getMillis(), ChronoUnit.MILLIS).plus(pollInterval.getMillis(), ChronoUnit.MILLIS);

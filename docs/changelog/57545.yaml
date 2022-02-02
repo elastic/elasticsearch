@@ -1,0 +1,5 @@
+pr: 57545
+summary: Log repository stats on a configurable interval
+area: Snapshot/Restore
+type: enhancement
+issues: []

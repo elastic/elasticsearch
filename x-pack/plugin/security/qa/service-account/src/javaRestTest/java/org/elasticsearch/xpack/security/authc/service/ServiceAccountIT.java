@@ -148,10 +148,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         {
             "cluster": [
                 "manage",
-                "manage_ilm",
-                "manage_index_templates",
-                "manage_security",
-                "monitor"
+                "manage_security"
             ],
             "indices": [
                 {

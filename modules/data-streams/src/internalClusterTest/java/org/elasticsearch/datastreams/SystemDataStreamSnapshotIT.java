@@ -26,7 +26,6 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.junit.After;
 
 import java.nio.file.Path;

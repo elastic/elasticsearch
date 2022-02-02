@@ -40,7 +40,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.junit.After;
 import org.junit.BeforeClass;
 

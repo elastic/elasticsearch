@@ -28,7 +28,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.junit.After;
 
 import java.util.Collection;

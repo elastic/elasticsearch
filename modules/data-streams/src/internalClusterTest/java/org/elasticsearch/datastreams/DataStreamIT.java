@@ -75,7 +75,6 @@ import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.junit.After;
 
 import java.io.IOException;

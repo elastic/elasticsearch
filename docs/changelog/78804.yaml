@@ -1,0 +1,5 @@
+pr: 78804
+summary: Add LZ4 as an option for cluster state compression
+area: Cluster Coordination
+type: enhancement
+issues: []

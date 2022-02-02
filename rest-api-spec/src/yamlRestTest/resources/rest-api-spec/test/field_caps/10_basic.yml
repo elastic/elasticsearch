@@ -95,6 +95,9 @@ setup:
                   non_indexed_ip:
                     type:     ip
                     index:    false
+                  non_indexed_geo_point:
+                    type:     geo_point
+                    index:    false
                   geo:
                     type:     keyword
                   object:
@@ -269,6 +272,19 @@ setup:
         fields: non_indexed_ip
 
   - match: {fields.non_indexed_ip.ip.searchable:                          true}
+
+---
+"Field caps for geo_point field with only doc values":
+  - skip:
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: non_indexed_geo_point
+
+  - match: {fields.non_indexed_geo_point.geo_point.searchable:            true}
+
 
 ---
 "Get object and nested field caps":

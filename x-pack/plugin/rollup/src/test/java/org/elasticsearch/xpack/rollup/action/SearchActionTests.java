@@ -41,8 +41,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -723,16 +723,14 @@ public class SearchActionTests extends ESTestCase {
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
-        InternalSum sum = mock(InternalSum.class);
-        when(sum.getValue()).thenReturn(10.0);
+        Sum sum = mock(Sum.class);
         when(sum.value()).thenReturn(10.0);
         when(sum.getName()).thenReturn("foo");
         when(sum.getMetadata()).thenReturn(metadata);
         when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(sum);
 
-        InternalSum count = mock(InternalSum.class);
-        when(count.getValue()).thenReturn(2.0);
+        Sum count = mock(Sum.class);
         when(count.value()).thenReturn(2.0);
         when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
         when(count.getMetadata()).thenReturn(null);
@@ -859,16 +857,14 @@ public class SearchActionTests extends ESTestCase {
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
-        InternalSum sum = mock(InternalSum.class);
-        when(sum.getValue()).thenReturn(10.0);
+        Sum sum = mock(Sum.class);
         when(sum.value()).thenReturn(10.0);
         when(sum.getName()).thenReturn("foo");
         when(sum.getMetadata()).thenReturn(metadata);
         when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(sum);
 
-        InternalSum count = mock(InternalSum.class);
-        when(count.getValue()).thenReturn(2.0);
+        Sum count = mock(Sum.class);
         when(count.value()).thenReturn(2.0);
         when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
         when(count.getMetadata()).thenReturn(null);

@@ -160,10 +160,7 @@ public class TextFormatTests extends ESTestCase {
     }
 
     public void testPlainTextEmptyCursorWithColumns() {
-        assertEquals("""
-                 name     \s
-            ---------------
-            """, PLAIN_TEXT.format(req(), emptyData()));
+        assertEquals("     name      \n---------------\n", PLAIN_TEXT.format(req(), emptyData()));
     }
 
     public void testPlainTextEmptyCursorWithoutColumns() {

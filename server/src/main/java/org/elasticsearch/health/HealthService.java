@@ -8,12 +8,12 @@
 
 package org.elasticsearch.health;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
+/**
+ * This service collects health indicators from all modules and plugins of elasticsearch
+ */
 public class HealthService {
 
     private final List<HealthIndicatorService> healthIndicatorServices;
@@ -22,13 +22,7 @@ public class HealthService {
         this.healthIndicatorServices = healthIndicatorServices;
     }
 
-    public Map<String, List<HealthIndicator>> getHealthIndicators() {
-        final Map<String, List<HealthIndicator>> map = new HashMap<>();
-        for (HealthIndicatorService healthIndicatorService : healthIndicatorServices) {
-            for (HealthIndicator healthIndicator : healthIndicatorService.getIndicators()) {
-                map.computeIfAbsent(healthIndicator.getComponent(), s -> new ArrayList<>()).add(healthIndicator);
-            }
-        }
-        return Collections.unmodifiableMap(map);
+    public Collection<HealthIndicatorResult> getHealthIndicators() {
+        return healthIndicatorServices.stream().map(HealthIndicatorService::calculate).toList();
     }
 }

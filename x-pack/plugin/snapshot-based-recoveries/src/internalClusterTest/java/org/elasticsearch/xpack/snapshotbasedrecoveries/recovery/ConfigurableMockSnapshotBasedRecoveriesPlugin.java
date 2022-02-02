@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.snapshotbasedrecoveries.recovery;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.xpack.snapshotbasedrecoveries.SnapshotBasedRecoveriesPlugin;
 
@@ -16,9 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ConfigurableMockSnapshotBasedRecoveriesPlugin extends SnapshotBasedRecoveriesPlugin {
     private static final AtomicBoolean recoveryFromSnapshotAllowed = new AtomicBoolean(true);
 
-    public ConfigurableMockSnapshotBasedRecoveriesPlugin(Settings settings) {
-        super(settings);
-    }
+    public ConfigurableMockSnapshotBasedRecoveriesPlugin() {}
 
     @Override
     public boolean isLicenseEnabled() {

@@ -10,9 +10,12 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.health.HealthIndicatorService;
 
-import java.util.List;
+import java.util.stream.Stream;
 
+/**
+ * An additional extension point for {@link Plugin}s that extends Elasticsearch's health indicators functionality.
+ */
 public interface HealthIndicatorPlugin {
 
-    List<HealthIndicatorService> getHealthIndicatorServices();
+    Stream<HealthIndicatorService> getHealthIndicatorServices();
 }

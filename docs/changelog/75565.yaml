@@ -1,0 +1,5 @@
+pr: 75565
+summary: Delete backing snapshot when searchable snapshot index is deleted
+area: Snapshot/Restore
+type: enhancement
+issues: []

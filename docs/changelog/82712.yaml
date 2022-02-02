@@ -1,0 +1,6 @@
+pr: 82712
+summary: Exclude doc-value-only fields from all fields queries
+area: Search
+type: enhancement
+issues:
+ - 82710

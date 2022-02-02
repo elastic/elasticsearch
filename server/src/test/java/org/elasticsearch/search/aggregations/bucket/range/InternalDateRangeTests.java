@@ -81,7 +81,7 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
             int docCount = randomIntBetween(0, 1000);
             double from = range.v1();
             double to = range.v2();
-            buckets.add(new InternalDateRange.Bucket("range_" + i, from, from, to, to, docCount, aggregations, keyed, format));
+            buckets.add(new InternalDateRange.Bucket("range_" + i, from, to, docCount, aggregations, keyed, format));
         }
         return new InternalDateRange(name, buckets, format, keyed, metadata);
     }
@@ -116,17 +116,7 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
                 double from = randomDouble();
                 double to = from + randomDouble();
                 buckets.add(
-                    new InternalDateRange.Bucket(
-                        "range_a",
-                        from,
-                        from,
-                        to,
-                        to,
-                        randomNonNegativeLong(),
-                        InternalAggregations.EMPTY,
-                        false,
-                        format
-                    )
+                    new InternalDateRange.Bucket("range_a", from, to, randomNonNegativeLong(), InternalAggregations.EMPTY, false, format)
                 );
             }
             case 3 -> {

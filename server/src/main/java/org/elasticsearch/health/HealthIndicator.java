@@ -8,13 +8,12 @@
 
 package org.elasticsearch.health;
 
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public record HealthIndicator(String name, String component, HealthStatus status, String summary, ToXContentFragment details)
+public record HealthIndicator(String name, String component, HealthStatus status, String summary, ToXContentObject details)
     implements
         ToXContentObject {
 

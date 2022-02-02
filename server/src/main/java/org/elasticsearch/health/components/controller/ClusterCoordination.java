@@ -42,6 +42,7 @@ public final class ClusterCoordination {
             instanceHasMasterStatus,
             instanceHasMasterSummary,
             (builder, params) -> {
+                builder.startObject();
                 builder.object("coordinating_node", xContentBuilder -> {
                     builder.field("node_id", coordinatingNode.getId());
                     builder.field("name", coordinatingNode.getName());
@@ -55,7 +56,7 @@ public final class ClusterCoordination {
                         builder.nullField("name");
                     }
                 });
-                return builder;
+                return builder.endObject();
             }
         );
 

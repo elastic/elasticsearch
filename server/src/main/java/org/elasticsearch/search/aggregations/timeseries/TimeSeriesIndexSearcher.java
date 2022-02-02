@@ -27,6 +27,9 @@ import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * An IndexSearcher wrapper that executes the searches in time-series indices by traversing them by tsid and timestamp
@@ -45,36 +48,66 @@ public class TimeSeriesIndexSearcher {
     public void search(Query query, BucketCollector bucketCollector) throws IOException {
         query = searcher.rewrite(query);
         Weight weight = searcher.createWeight(query, bucketCollector.scoreMode(), 1);
-        PriorityQueue<LeafWalker> queue = new PriorityQueue<>(searcher.getIndexReader().leaves().size()) {
-            @Override
-            protected boolean lessThan(LeafWalker a, LeafWalker b) {
-                int res = a.tsid.compareTo(b.tsid);
-                if (res == 0) {
-                    return a.timestamp < b.timestamp;
-                } else {
-                    return res < 0;
-                }
-            }
-        };
+
+        // Create LeafWalker for each subreader
+        List<LeafWalker> leafWalkers = new ArrayList<>();
         for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
             LeafBucketCollector leafCollector = bucketCollector.getLeafCollector(leaf);
             Scorer scorer = weight.scorer(leaf);
             if (scorer != null) {
-                LeafWalker walker = new LeafWalker(leaf, scorer, leafCollector);
-                if (walker.next()) {
-                    queue.add(walker);
+                LeafWalker leafWalker = new LeafWalker(leaf, scorer, leafCollector);
+                if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                    leafWalkers.add(leafWalker);
                 }
             }
         }
-        while (queue.top() != null) {
-            LeafWalker walker = queue.top();
-            walker.collectCurrent();
-            if (walker.next()) {
-                queue.updateTop();
-            } else {
-                queue.pop();
+
+        PriorityQueue<LeafWalker> queue = new PriorityQueue<>(searcher.getIndexReader().leaves().size()) {
+            @Override
+            protected boolean lessThan(LeafWalker a, LeafWalker b) {
+                return a.timestamp < b.timestamp;
+            }
+        };
+
+        while (populateQueue(leafWalkers, queue)) {
+            do {
+                LeafWalker walker = queue.top();
+                walker.collectCurrent();
+                if (walker.nextDoc() == DocIdSetIterator.NO_MORE_DOCS || walker.shouldPop()) {
+                    queue.pop();
+                }
+                else {
+                    queue.updateTop();
+                }
+            } while (queue.size() > 0);
+        }
+    }
+
+    private boolean populateQueue(List<LeafWalker> leafWalkers, PriorityQueue<LeafWalker> queue) throws IOException {
+        BytesRef currentTsid = null;
+        assert queue.size() == 0;
+        Iterator<LeafWalker> it = leafWalkers.iterator();
+        while (it.hasNext()) {
+            LeafWalker leafWalker = it.next();
+            if (leafWalker.docId == DocIdSetIterator.NO_MORE_DOCS) {
+                it.remove();
+                continue;
+            }
+            BytesRef tsid = leafWalker.tsids.lookupOrd(leafWalker.tsids.ordValue());
+            if (currentTsid == null) {
+                currentTsid = tsid;
+            }
+            int comp = tsid.compareTo(currentTsid);
+            if (comp < 0) {
+                queue.clear();
+                queue.add(leafWalker);
+                currentTsid = tsid;
+            }
+            if (comp == 0) {
+                queue.add(leafWalker);
             }
         }
+        return queue.size() > 0;
     }
 
     private static class LeafWalker {
@@ -83,9 +116,8 @@ public class TimeSeriesIndexSearcher {
         private final DocIdSetIterator iterator;
         private final SortedDocValues tsids;
         private final SortedNumericDocValues timestamps;
-        final int docBase;
         int docId;
-        BytesRef tsid;
+        int tsidOrd;
         long timestamp;
 
         LeafWalker(LeafReaderContext context, Scorer scorer, LeafCollector collector) throws IOException {
@@ -93,7 +125,6 @@ public class TimeSeriesIndexSearcher {
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
             iterator = scorer.iterator();
-            docBase = context.docBase;
             tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
             timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
         }
@@ -102,22 +133,30 @@ public class TimeSeriesIndexSearcher {
             collector.collect(docId);
         }
 
-        boolean next() throws IOException {
+        int nextDoc() throws IOException {
+            if (docId == DocIdSetIterator.NO_MORE_DOCS) {
+                return DocIdSetIterator.NO_MORE_DOCS;
+            }
             do {
                 docId = iterator.nextDoc();
-                if (docId != DocIdSetIterator.NO_MORE_DOCS && (liveDocs == null || liveDocs.get(docId))) {
-                    if (tsids.advanceExact(docId)) {
-                        BytesRef tsid = tsids.lookupOrd(tsids.ordValue());
-                        if (timestamps.advanceExact(docId)) {
-                            this.timestamp = timestamps.nextValue();
-                            if (tsid.equals(this.tsid) == false) {
-                                this.tsid = BytesRef.deepCopyOf(tsid);
-                            }
-                            return true;
-                        }
-                    }
-                }
-            } while (docId != DocIdSetIterator.NO_MORE_DOCS);
+            }
+            while (docId != DocIdSetIterator.NO_MORE_DOCS && isInvalidDoc(docId));
+            return docId;
+        }
+
+        private boolean isInvalidDoc(int docId) throws IOException {
+            return (liveDocs == null || liveDocs.get(docId) == false)
+                || tsids.advanceExact(docId) == false
+                || timestamps.advanceExact(docId) == false;
+        }
+
+        boolean shouldPop() throws IOException {
+            if (tsidOrd == -1) {
+                tsidOrd = tsids.ordValue();
+            } else if (tsidOrd != tsids.ordValue()) {
+                tsidOrd = tsids.ordValue();
+                return true;
+            }
             return false;
         }
     }

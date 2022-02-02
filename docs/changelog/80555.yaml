@@ -1,0 +1,6 @@
+pr: 80555
+summary: Retain pipeline information for indexing requests that are retried
+area: Ingest
+type: bug
+issues:
+ - 78792

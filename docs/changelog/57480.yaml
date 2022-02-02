@@ -1,0 +1,6 @@
+pr: 57480
+summary: Avoid unnecessary Caching Realm invalidations
+area: Authentication
+type: enhancement
+issues:
+ - 57364

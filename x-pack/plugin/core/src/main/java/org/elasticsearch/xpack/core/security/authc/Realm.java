@@ -79,9 +79,9 @@ public abstract class Realm implements Comparable<Realm> {
 
     @Override
     public final int compareTo(Realm other) {
-        // TODO first order by type then by order
         int result = Integer.compare(config.order, other.config.order);
         if (result == 0) {
+            // no two user-defined realms can have the same order parameter, but internal realms, which are implicitly enabled, can
             // order by realm type, internal realms have priority
             result = Integer.compare(internalTypePriority(config.type()), internalTypePriority(other.config.type()));
             if (result == 0) {

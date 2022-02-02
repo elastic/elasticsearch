@@ -137,7 +137,9 @@ The following parameters are accepted by `geo_point` fields:
 
 <<mapping-index,`index`>>::
 
-    Should the field be searchable? Accepts `true` (default) and `false`.
+    Should the field be quickly searchable? Accepts `true` (default) and
+    `false`. Fields that only have <<doc-values,`doc_values`>>
+    enabled can still be queried, albeit slower.
 
 <<null-value,`null_value`>>::
 

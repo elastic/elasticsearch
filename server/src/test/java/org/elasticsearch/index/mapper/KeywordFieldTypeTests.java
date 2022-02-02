@@ -167,12 +167,12 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new KeywordFieldType("field");
         assertEquals(new RegexpQuery(new Term("field", "foo.*")), ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT));
 
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> unsearchable.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,
@@ -188,12 +188,12 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
         );
 
-        MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
+        MappedFieldType unsearchable = new KeywordFieldType("field", false, false, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> unsearchable.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
 
         ElasticsearchException ee = expectThrows(
             ElasticsearchException.class,

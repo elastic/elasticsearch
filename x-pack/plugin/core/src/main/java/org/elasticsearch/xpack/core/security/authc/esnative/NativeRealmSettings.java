@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.authc.esnative;
 
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 

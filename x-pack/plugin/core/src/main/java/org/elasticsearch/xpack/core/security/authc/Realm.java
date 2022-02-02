@@ -17,15 +17,14 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * An authentication mechanism to which the default authentication org.elasticsearch.xpack.security.authc.AuthenticationService
@@ -61,7 +60,7 @@ public abstract class Realm implements Comparable<Realm> {
      * @return The order of this realm within the executing realm chain.
      */
     public final int order() {
-        return config.order;
+        return config.order();
     }
 
     /**
@@ -80,20 +79,27 @@ public abstract class Realm implements Comparable<Realm> {
 
     @Override
     public final int compareTo(Realm other) {
-        if ("reserved".equals(config.type()) && "reserved".equals(config.name())) {
-            // there can only be one reserved realm
-            assert false == "reserved".equals(other.type()) && false == "reserved".equals(other.name());
-            return -1;
-        } else if (NativeRealmSettings.TYPE.equals()) {
-
-        }
+        // TODO first order by type then by order
         int result = Integer.compare(config.order, other.config.order);
         if (result == 0) {
-            if ()
-            // If same order, compare based on the realm name
-            result = config.name().compareTo(other.config.name());
+            // order by realm type, internal realms have priority
+            result = Integer.compare(internalTypePriority(config.type()), internalTypePriority(other.config.type()));
+            if (result == 0) {
+                // If same order, compare based on the realm name
+                result = config.name().compareTo(other.config.name());
+            }
         }
         return result;
+    }
+
+    private int internalTypePriority(String realmType) {
+        // "reserved", then "file", then "native"
+        return switch (realmType) {
+            case "reserved" -> 0;
+            case FileRealmSettings.TYPE -> 10;
+            case NativeRealmSettings.TYPE -> 20;
+            default -> 100;
+        };
     }
 
     /**

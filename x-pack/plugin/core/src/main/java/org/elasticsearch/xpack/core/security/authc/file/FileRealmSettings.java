@@ -7,9 +7,7 @@
 package org.elasticsearch.xpack.core.security.authc.file;
 
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 
 import java.util.HashSet;

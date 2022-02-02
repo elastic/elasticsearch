@@ -116,8 +116,6 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
         licenseState.update(License.OperationMode.PLATINUM, true, null);
 
-        realm.configure(List.of(realm), licenseState);
-
         final Clock clock = Clock.systemUTC();
 
         final ClusterService clusterService = mock(ClusterService.class);

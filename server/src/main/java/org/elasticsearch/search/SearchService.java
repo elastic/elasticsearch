@@ -432,18 +432,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         keepAliveReaper.cancel();
     }
 
-    public void executeDfsPhase(ShardSearchRequest request, SearchShardTask task, ActionListener<DfsSearchResult> listener) {
-        final IndexShard shard = getShard(request);
-        rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, rewritten) -> {
-            ensureAfterSeqNoRefreshed(
-                shard,
-                request,
-                ActionListener.wrap(nil -> runAsync(getExecutor(shard), () -> executeDfsPhase(request, task), l), l::onFailure)
-            );
-        }));
+    public void executeDfsPhase(ShardSearchRequest orig, SearchShardTask task, ActionListener<DfsSearchResult> listener) {
+        final IndexShard shard = getShard(orig);
+        rewriteAndFetchShardRequest(
+            shard,
+            orig,
+            listener.delegateFailure(
+                (l, request) -> ensureAfterSeqNoRefreshed(
+                    shard,
+                    request,
+                    ActionListener.wrap(nil -> runAsync(getExecutor(shard), () -> doExecuteDfsPhase(request, task), l), l::onFailure)
+                )
+            )
+        );
     }
 
-    private DfsSearchResult executeDfsPhase(ShardSearchRequest request, SearchShardTask task) throws IOException {
+    private DfsSearchResult doExecuteDfsPhase(ShardSearchRequest request, SearchShardTask task) throws IOException {
         ReaderContext readerContext = createOrGetReaderContext(request);
         try (
             Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
@@ -471,17 +475,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public void executeQueryPhase(ShardSearchRequest request, SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
-        assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
+    public void executeQueryPhase(ShardSearchRequest orig, SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
+        assert orig.canReturnNullResponseIfMatchNoDocs() == false || orig.numberOfShards() > 1
             : "empty responses require more than one shard";
-        final IndexShard shard = getShard(request);
-        rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, orig) -> {
+        final IndexShard shard = getShard(orig);
+        rewriteAndFetchShardRequest(shard, orig, listener.delegateFailure((l, request) -> {
             // check if we can shortcut the query phase entirely.
-            if (orig.canReturnNullResponseIfMatchNoDocs()) {
-                assert orig.scroll() == null;
+            if (request.canReturnNullResponseIfMatchNoDocs()) {
+                assert request.scroll() == null;
                 final CanMatchShardResponse canMatchResp;
                 try {
-                    ShardSearchRequest clone = new ShardSearchRequest(orig);
+                    ShardSearchRequest clone = new ShardSearchRequest(request);
                     canMatchResp = canMatch(clone, false);
                 } catch (Exception exc) {
                     l.onFailure(exc);
@@ -492,7 +496,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return;
                 }
             }
-            ensureAfterSeqNoRefreshed(shard, orig, l.delegateFailure((l2, nil) -> doExecuteQueryPhase(shard, request, task, l2)));
+            ensureAfterSeqNoRefreshed(
+                shard,
+                request,
+                ActionListener.wrap(nil -> doExecuteQueryPhase(shard, request, task, l), l::onFailure)
+            );
         }));
     }
 
@@ -626,11 +634,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             @Override
             protected void doRun() throws Exception {
                 final ReaderContext readerContext = createOrGetReaderContext(request);
-                final ActionListener<SearchPhaseResult> listener = wrapLookupFieldsListener(
-                    wrapFailureListener(this.listener, readerContext, () -> {}),
-                    task
-                );
-
                 final SearchPhaseResult queryResult;
                 try (
                     Releasable ignored = readerContext.markAsUsed(getKeepAlive(request));
@@ -666,7 +669,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     processFailure(readerContext, e);
                     throw e;
                 }
-                listener.onResponse(queryResult);
+                final ActionListener<SearchPhaseResult> fetchLookupFieldsListener = wrapLookupFieldsListener(
+                    wrapFailureListener(this.listener, readerContext, () -> {}),
+                    task
+                );
+                fetchLookupFieldsListener.onResponse(queryResult);
             }
         });
     }
@@ -697,7 +704,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             freeReaderContext(readerContext.id());
             throw e;
         }
-
         runAsync(getExecutor(readerContext.indexShard()), () -> {
             final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(null);
             try (

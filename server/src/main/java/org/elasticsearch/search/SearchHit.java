@@ -484,13 +484,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     }
 
     /**
-     * Returns true if this hit has unresolved lookup fields; otherwise, returns false
-     */
-    public boolean hasLookupFields() {
-        return documentFields.values().stream().anyMatch(doc -> doc.getLookupFields().isEmpty() == false);
-    }
-
-    /**
      * Resolve the lookup fields with the given results and merge them as regular fetch fields.
      */
     public void resolveLookupFields(Map<LookupField, List<Object>> lookupResults) {

@@ -179,7 +179,6 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         }
     }
 
-    private static final ValueFetcher EMPTY_VALUE_FETCHER = (lookup, ignoredValues) -> List.of();
     private final String lookupIndex;
     private final String queryInputField;
     private final String queryTargetField;

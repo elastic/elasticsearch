@@ -427,11 +427,17 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return totalHits;
     }
 
+    /**
+     * This method must be called only on data nodes to collect search hits of the top hits aggregations in this query result.
+     */
     public List<SearchHit> getTopHitsFromAggregations() {
         if (aggregations == null) {
             return List.of();
         }
-        assert aggregations.isSerialized() == false : "Aggregations on data nodes must not be delayed";
+        if (aggregations.isSerialized()) {
+            assert false : "Aggregations on data nodes must not be serialized";
+            throw new IllegalStateException("Aggregations on data nodes must not be serialized");
+        }
         final List<SearchHit> hits = new ArrayList<>();
         aggregations.expand().visit(agg -> {
             if (agg instanceof TopHits topHits) {

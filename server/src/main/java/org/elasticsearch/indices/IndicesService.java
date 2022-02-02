@@ -1778,10 +1778,6 @@ public class IndicesService extends AbstractLifecycleComponent
         this.allowExpensiveQueries = allowExpensiveQueries;
     }
 
-    public boolean isAllowExpensiveQueries() {
-        return allowExpensiveQueries;
-    }
-
     // visible for testing
     public boolean allPendingDanglingIndicesWritten() {
         return nodeWriteDanglingIndicesInfo == false

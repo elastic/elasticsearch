@@ -75,8 +75,7 @@ public class TimeSeriesIndexSearcher {
                 walker.collectCurrent();
                 if (walker.nextDoc() == DocIdSetIterator.NO_MORE_DOCS || walker.shouldPop()) {
                     queue.pop();
-                }
-                else {
+                } else {
                     queue.updateTop();
                 }
             } while (queue.size() > 0);
@@ -139,8 +138,7 @@ public class TimeSeriesIndexSearcher {
             }
             do {
                 docId = iterator.nextDoc();
-            }
-            while (docId != DocIdSetIterator.NO_MORE_DOCS && isInvalidDoc(docId));
+            } while (docId != DocIdSetIterator.NO_MORE_DOCS && isInvalidDoc(docId));
             return docId;
         }
 

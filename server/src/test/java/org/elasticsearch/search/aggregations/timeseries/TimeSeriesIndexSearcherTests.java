@@ -49,10 +49,12 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(new Sort(
-            new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING),
-            new SortField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, SortField.Type.LONG)
-        ));
+        iwc.setIndexSort(
+            new Sort(
+                new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING),
+                new SortField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, SortField.Type.LONG)
+            )
+        );
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         AtomicInteger clock = new AtomicInteger(0);

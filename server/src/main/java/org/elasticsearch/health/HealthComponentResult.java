@@ -20,23 +20,27 @@ import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
 
-public record Component(String name, HealthStatus status, List<HealthIndicator> indicators) implements ToXContentObject {
+public record HealthComponentResult(String name, HealthStatus status, List<HealthIndicatorResult> indicators) implements ToXContentObject {
 
-    public static Collection<Component> createComponentsFromIndicators(Collection<HealthIndicator> indicators) {
+    public static Collection<HealthComponentResult> createComponentsFromIndicators(Collection<HealthIndicatorResult> indicators) {
         return indicators.stream()
             .collect(
-                groupingBy(HealthIndicator::component, TreeMap::new, collectingAndThen(toList(), Component::createComponentFromIndicators))
+                groupingBy(
+                    HealthIndicatorResult::component,
+                    TreeMap::new,
+                    collectingAndThen(toList(), HealthComponentResult::createComponentFromIndicators)
+                )
             )
             .values();
     }
 
-    private static Component createComponentFromIndicators(List<HealthIndicator> indicators) {
+    private static HealthComponentResult createComponentFromIndicators(List<HealthIndicatorResult> indicators) {
         assert indicators.size() > 0 : "Component should not be non empty";
-        assert indicators.stream().map(HealthIndicator::component).distinct().count() == 1L
+        assert indicators.stream().map(HealthIndicatorResult::component).distinct().count() == 1L
             : "Should not mix indicators from different components";
-        return new Component(
+        return new HealthComponentResult(
             indicators.get(0).component(),
-            HealthStatus.merge(indicators.stream().map(HealthIndicator::status)),
+            HealthStatus.merge(indicators.stream().map(HealthIndicatorResult::status)),
             indicators
         );
     }
@@ -46,9 +50,8 @@ public record Component(String name, HealthStatus status, List<HealthIndicator> 
         builder.startObject();
         builder.field("status", status);
         builder.startObject("indicators");
-        for (HealthIndicator indicator : indicators) {
-            builder.field(indicator.name());
-            indicator.toXContent(builder, params);
+        for (HealthIndicatorResult indicator : indicators) {
+            builder.field(indicator.name(), indicator, params);
         }
         builder.endObject();
         return builder.endObject();

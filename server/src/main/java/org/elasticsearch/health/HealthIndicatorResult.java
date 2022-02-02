@@ -14,7 +14,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public record HealthIndicator(String name, String component, HealthStatus status, String summary, ToXContentFragment details)
+public record HealthIndicatorResult(String name, String component, HealthStatus status, String summary, ToXContentFragment details)
     implements
         ToXContentObject {
 
@@ -23,7 +23,7 @@ public record HealthIndicator(String name, String component, HealthStatus status
         builder.startObject();
         builder.field("status", status);
         builder.field("summary", summary);
-        builder.object("details", xContentBuilder -> details.toXContent(builder, params));
+        builder.field("details", details, params);
         // TODO 83303: Add detail / documentation
         return builder.endObject();
     }

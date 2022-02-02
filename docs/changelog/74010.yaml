@@ -1,0 +1,5 @@
+pr: 74010
+summary: Record aggregation field usage stats
+area: Search
+type: enhancement
+issues: []

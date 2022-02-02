@@ -1,0 +1,17 @@
+pr: 75556
+summary: Reject paginated search request exceeds rescore window
+area: Search
+type: "bug, breaking"
+issues:
+ - 75363
+breaking:
+  title: Reject paginated search request exceeds rescore window
+  area: Search
+  details: |-
+    A search request with a positive `from` and the sum of `from` and `size`
+    that exceeds the window size of rescorers can return inconsistent
+    results. I think we should reject such a request.
+
+    Closes #75363
+  impact: Please describe the impact of this change to users
+  notable: false

@@ -96,11 +96,11 @@ public class GeoHexCellIdSource extends ValuesSource.Numeric {
         }
 
         private boolean validPoint(double lat, double lon) {
-            if (bbox.top() >= lat && bbox.bottom() <= lat) {
+            if (bbox.top() > lat && bbox.bottom() < lat) {
                 if (crossesDateline) {
-                    return bbox.left() <= lon || bbox.right() >= lon;
+                    return bbox.left() < lon || bbox.right() > lon;
                 } else {
-                    return bbox.left() <= lon && bbox.right() >= lon;
+                    return bbox.left() < lon && bbox.right() > lon;
                 }
             }
             return false;
@@ -120,6 +120,14 @@ public class GeoHexCellIdSource extends ValuesSource.Numeric {
                 minLat = Math.min(minLat, boundaryLat);
                 maxLat = Math.max(maxLat, boundaryLat);
             }
+            if (maxLon - minLon > 180) {
+                return intersects(-180, minLon, minLat, maxLat) || intersects(maxLon, 180, minLat, maxLat);
+            } else {
+                return intersects(minLon, maxLon, minLat, maxLat);
+            }
+        }
+
+        private boolean intersects(double minLon, double maxLon, double minLat, double maxLat) {
             if (bbox.top() > minLat && bbox.bottom() < maxLat) {
                 if (crossesDateline) {
                     return bbox.left() < maxLon || bbox.right() > minLon;

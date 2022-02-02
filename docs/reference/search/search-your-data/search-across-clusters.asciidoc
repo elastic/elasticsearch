@@ -434,9 +434,9 @@ include::{es-repo-dir}/modules/remote-clusters-shared.asciidoc[tag=remote-cluste
 IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
 clusters must use the same {es} version.
 
-For example, a local 8.0 cluster can search a remote 7.17, 8.0, or 8.1 cluster.
-However, a search from a local 8.0 cluster to a remote 7.16 or 6.8 cluster is
-not supported.
+For example, a local 8.0 cluster can search a remote {prev-major-last}, 8.0, or
+8.1 cluster. However, a search from a local 8.0 cluster to a remote 7.16 or 6.8
+cluster is not supported.
 
 A {ccs} using an unsupported configuration may still work. However, such
 searches aren't tested by Elastic, and their behavior isn't guaranteed.
@@ -451,8 +451,8 @@ versions, you can:
 
 * Maintain a dedicated cluster for {ccs}. Keep this cluster on the earliest
 version needed to search the other clusters. For example, if you have 6.8, 7.14,
-and 7.17 clusters, you can maintain a dedicated 6.8 cluster to use as the local
-cluster for {ccs}.
+and {prev-major-last} clusters, you can maintain a dedicated 6.8 cluster to use
+as the local cluster for {ccs}.
 
 * Keep each cluster no more than one minor version apart. This lets you use any
 cluster as the local cluster when running a {ccs}.

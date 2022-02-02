@@ -1,0 +1,6 @@
+pr: 83432
+summary: "Batch cluster state tasks for index opening, closing, and blocks"
+area: Indices APIs
+type: enhancement
+issues:
+ - 81627

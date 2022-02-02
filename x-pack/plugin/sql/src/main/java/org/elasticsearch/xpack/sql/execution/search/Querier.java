@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.Strings;
@@ -25,7 +24,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -156,14 +154,22 @@ public class Querier {
             String pitId = openPointInTimeResponse.getPointInTimeId();
             search.indices(Strings.EMPTY_ARRAY);
             search.source().pointInTimeBuilder(new PointInTimeBuilder(pitId));
-            ActionListener<SearchResponse> closePitOnErrorListener = wrap(listener::onResponse, (searchError) -> {
-                closePointInTime(client, pitId, wrap((r) -> listener.onFailure(searchError), (closeError) -> {
-                    searchError.addSuppressed(closeError);
-                    listener.onFailure(searchError);
-                }));
-            });
+            ActionListener<SearchResponse> closePitOnErrorListener = wrap((searchResponse) -> {
+                try {
+                    listener.onResponse(searchResponse);
+                } catch (Exception e) {
+                    closePointInTimeAfterError(client, pitId, e, listener);
+                }
+            }, (searchError) -> closePointInTimeAfterError(client, pitId, searchError, listener));
             client.search(search, closePitOnErrorListener);
         }, listener::onFailure));
+    }
+
+    private static void closePointInTimeAfterError(Client client, String pointInTimeId, Exception e, ActionListener<?> listener) {
+        closePointInTime(client, pointInTimeId, wrap((r) -> listener.onFailure(e), (closeError) -> {
+            e.addSuppressed(closeError);
+            listener.onFailure(e);
+        }));
     }
 
     public static void closePointInTime(Client client, String pointInTimeId, ActionListener<Boolean> listener) {
@@ -662,47 +668,13 @@ public class Querier {
             this.schema = Rows.schema(output);
         }
 
-        // TODO: need to handle rejections plus check failures (shard size, etc...)
         @Override
         public void onResponse(final SearchResponse response) {
-            try {
-                ShardSearchFailure[] failure = response.getShardFailures();
-                if (CollectionUtils.isEmpty(failure) == false) {
-                    cleanup(response, new SqlIllegalArgumentException(failure[0].reason(), failure[0].getCause()));
-                } else {
-                    handleResponse(response, wrap(delegate::onResponse, e -> cleanup(response, e)));
-                }
-            } catch (Exception ex) {
-                cleanup(response, ex);
-            }
+            handleResponse(response, delegate);
         }
 
         protected abstract void handleResponse(SearchResponse response, ActionListener<Page> listener);
 
-        // clean-up the scroll in case of exception
-        protected final void cleanup(SearchResponse response, Exception ex) {
-            if (response != null && response.getScrollId() != null) {
-                client.prepareClearScroll()
-                    .addScrollId(response.getScrollId())
-                    // in case of failure, report the initial exception instead of the one resulting from cleaning the scroll
-                    .execute(wrap(r -> delegate.onFailure(ex), e -> {
-                        ex.addSuppressed(e);
-                        delegate.onFailure(ex);
-                    }));
-            } else {
-                delegate.onFailure(ex);
-            }
-        }
-
-        protected final void clear(String scrollId, ActionListener<Boolean> listener) {
-            if (scrollId != null) {
-                client.prepareClearScroll()
-                    .addScrollId(scrollId)
-                    .execute(wrap(clearScrollResponse -> listener.onResponse(clearScrollResponse.isSucceeded()), listener::onFailure));
-            } else {
-                listener.onResponse(false);
-            }
-        }
     }
 
     @SuppressWarnings("rawtypes")

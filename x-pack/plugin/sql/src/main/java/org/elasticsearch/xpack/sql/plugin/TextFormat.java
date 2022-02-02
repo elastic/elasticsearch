@@ -79,6 +79,9 @@ enum TextFormat implements MediaType {
             } else if (response.hasId()) {
                 // an async request has no results yet
                 return StringUtils.EMPTY;
+            } else if (response.rows().isEmpty()) {
+                // no data and no headers to return
+                return StringUtils.EMPTY;
             }
             // if this code is reached, it means it's a next page without cursor wrapping
             throw new SqlIllegalArgumentException("Cannot find text formatter - this is likely a bug");

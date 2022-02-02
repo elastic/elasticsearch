@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action.privilege;
@@ -26,14 +27,18 @@ import static org.hamcrest.Matchers.notNullValue;
 public class PutPrivilegesRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        final PutPrivilegesRequest original = request(randomArray(8, ApplicationPrivilegeDescriptor[]::new,
-            () -> new ApplicationPrivilegeDescriptor(
-                randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT),
-                randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT),
-                Sets.newHashSet(randomArray(3, String[]::new, () -> randomAlphaOfLength(3).toLowerCase(Locale.ROOT) + "/*")),
-                Collections.emptyMap()
+        final PutPrivilegesRequest original = request(
+            randomArray(
+                8,
+                ApplicationPrivilegeDescriptor[]::new,
+                () -> new ApplicationPrivilegeDescriptor(
+                    randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT),
+                    randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT),
+                    Sets.newHashSet(randomArray(3, String[]::new, () -> randomAlphaOfLength(3).toLowerCase(Locale.ROOT) + "/*")),
+                    Collections.emptyMap()
+                )
             )
-        ));
+        );
         original.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
 
         final BytesStreamOutput out = new BytesStreamOutput();
@@ -61,8 +66,11 @@ public class PutPrivilegesRequestTests extends ESTestCase {
         assertValidationFailure(request(nothing), "Application privileges must have at least one action");
 
         // reserved metadata
-        final ApplicationPrivilegeDescriptor reservedMetadata = new ApplicationPrivilegeDescriptor("app", "all",
-            Collections.emptySet(), Collections.singletonMap("_notAllowed", true)
+        final ApplicationPrivilegeDescriptor reservedMetadata = new ApplicationPrivilegeDescriptor(
+            "app",
+            "all",
+            Collections.emptySet(),
+            Collections.singletonMap("_notAllowed", true)
         );
         assertValidationFailure(request(reservedMetadata), "metadata keys may not start");
 
@@ -70,9 +78,13 @@ public class PutPrivilegesRequestTests extends ESTestCase {
         assertValidationFailure(request(badAction), "must contain one of");
 
         // mixed
-        assertValidationFailure(request(wildcardApp, numericName, reservedMetadata, badAction),
-            "Application names may not contain", "Application privilege names must match", "metadata keys may not start",
-            "must contain one of");
+        assertValidationFailure(
+            request(wildcardApp, numericName, reservedMetadata, badAction),
+            "Application names may not contain",
+            "Application privilege names must match",
+            "metadata keys may not start",
+            "must contain one of"
+        );
 
         // Empty request
         assertValidationFailure(new PutPrivilegesRequest(), "At least one application privilege must be provided");

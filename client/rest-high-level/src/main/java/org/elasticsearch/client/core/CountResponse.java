@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.core;
 
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -107,7 +96,7 @@ public final class CountResponse {
         String currentName = parser.currentName();
         Boolean terminatedEarly = null;
         long count = 0;
-        ShardStats shardStats = new ShardStats(-1, -1,0, ShardSearchFailure.EMPTY_ARRAY);
+        ShardStats shardStats = new ShardStats(-1, -1, 0, ShardSearchFailure.EMPTY_ARRAY);
 
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -133,11 +122,13 @@ public final class CountResponse {
 
     @Override
     public String toString() {
-        String s = "{" +
-            "count=" + count +
-            (isTerminatedEarly() != null ? ", terminatedEarly=" + terminatedEarly : "") +
-            ", " + shardStats +
-            '}';
+        String s = "{"
+            + "count="
+            + count
+            + (isTerminatedEarly() != null ? ", terminatedEarly=" + terminatedEarly : "")
+            + ", "
+            + shardStats
+            + '}';
         return s;
     }
 
@@ -187,7 +178,7 @@ public final class CountResponse {
         static ShardStats fromXContent(XContentParser parser) throws IOException {
             int successfulShards = -1;
             int totalShards = -1;
-            int skippedShards = 0; //BWC @see org.elasticsearch.action.search.SearchResponse
+            int skippedShards = 0; // BWC @see org.elasticsearch.action.search.SearchResponse
             List<ShardSearchFailure> failures = new ArrayList<>();
             XContentParser.Token token;
             String currentName = parser.currentName();
@@ -223,13 +214,17 @@ public final class CountResponse {
 
         @Override
         public String toString() {
-            return "_shards : {" +
-                "total=" + totalShards +
-                ", successful=" + successfulShards +
-                ", skipped=" + skippedShards +
-                ", failed=" + (shardFailures != null && shardFailures.length > 0 ? shardFailures.length : 0 ) +
-                (shardFailures != null && shardFailures.length > 0 ? ", failures: " + Arrays.asList(shardFailures): "") +
-                '}';
+            return "_shards : {"
+                + "total="
+                + totalShards
+                + ", successful="
+                + successfulShards
+                + ", skipped="
+                + skippedShards
+                + ", failed="
+                + (shardFailures != null && shardFailures.length > 0 ? shardFailures.length : 0)
+                + (shardFailures != null && shardFailures.length > 0 ? ", failures: " + Arrays.asList(shardFailures) : "")
+                + '}';
         }
     }
 }

@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.job.stats;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -43,30 +32,30 @@ public class ForecastStats implements ToXContentObject {
     public static final ParseField STATUS = new ParseField("status");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ForecastStats, Void> PARSER =
-        new ConstructingObjectParser<>("forecast_stats",
-            true,
-            (a) -> {
-                int i = 0;
-                long total = (long)a[i++];
-                SimpleStats memoryStats = (SimpleStats)a[i++];
-                SimpleStats recordStats = (SimpleStats)a[i++];
-                SimpleStats runtimeStats = (SimpleStats)a[i++];
-                Map<String, Long> statusCounts = (Map<String, Long>)a[i];
-                return new ForecastStats(total, memoryStats, recordStats, runtimeStats, statusCounts);
-            });
+    public static final ConstructingObjectParser<ForecastStats, Void> PARSER = new ConstructingObjectParser<>(
+        "forecast_stats",
+        true,
+        (a) -> {
+            int i = 0;
+            long total = (long) a[i++];
+            SimpleStats memoryStats = (SimpleStats) a[i++];
+            SimpleStats recordStats = (SimpleStats) a[i++];
+            SimpleStats runtimeStats = (SimpleStats) a[i++];
+            Map<String, Long> statusCounts = (Map<String, Long>) a[i];
+            return new ForecastStats(total, memoryStats, recordStats, runtimeStats, statusCounts);
+        }
+    );
 
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SimpleStats.PARSER, MEMORY_BYTES);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SimpleStats.PARSER, RECORDS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SimpleStats.PARSER, PROCESSING_TIME_MS);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            p -> {
-                Map<String, Long> counts = new HashMap<>();
-                p.map().forEach((key, value) -> counts.put(key, ((Number)value).longValue()));
-                return counts;
-            }, STATUS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
+            Map<String, Long> counts = new HashMap<>();
+            p.map().forEach((key, value) -> counts.put(key, ((Number) value).longValue()));
+            return counts;
+        }, STATUS, ObjectParser.ValueType.OBJECT);
     }
 
     private final long total;
@@ -76,11 +65,13 @@ public class ForecastStats implements ToXContentObject {
     private SimpleStats runtimeStats;
     private Map<String, Long> statusCounts;
 
-    public ForecastStats(long total,
-                         SimpleStats memoryStats,
-                         SimpleStats recordStats,
-                         SimpleStats runtimeStats,
-                         Map<String, Long> statusCounts) {
+    public ForecastStats(
+        long total,
+        SimpleStats memoryStats,
+        SimpleStats recordStats,
+        SimpleStats runtimeStats,
+        Map<String, Long> statusCounts
+    ) {
         this.total = total;
         this.forecastedJobs = total > 0 ? 1 : 0;
         if (total > 0) {
@@ -164,11 +155,11 @@ public class ForecastStats implements ToXContentObject {
         }
 
         ForecastStats other = (ForecastStats) obj;
-        return Objects.equals(total, other.total) &&
-            Objects.equals(forecastedJobs, other.forecastedJobs) &&
-            Objects.equals(memoryStats, other.memoryStats) &&
-            Objects.equals(recordStats, other.recordStats) &&
-            Objects.equals(runtimeStats, other.runtimeStats) &&
-            Objects.equals(statusCounts, other.statusCounts);
+        return Objects.equals(total, other.total)
+            && Objects.equals(forecastedJobs, other.forecastedJobs)
+            && Objects.equals(memoryStats, other.memoryStats)
+            && Objects.equals(recordStats, other.recordStats)
+            && Objects.equals(runtimeStats, other.runtimeStats)
+            && Objects.equals(statusCounts, other.statusCounts);
     }
 }

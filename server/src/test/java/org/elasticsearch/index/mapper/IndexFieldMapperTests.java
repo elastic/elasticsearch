@@ -1,23 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
+
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.SearchLookup;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -33,9 +32,30 @@ public class IndexFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testIndexNotConfigurable() {
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> createMapperService(topMapping(b -> b.startObject("_index").endObject())));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(topMapping(b -> b.startObject("_index").endObject()))
+        );
         assertThat(e.getMessage(), containsString("_index is not configurable"));
+    }
+
+    public void testFetchFieldValue() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
+        String index = mapperService.index().getName();
+        withLuceneIndex(mapperService, iw -> {
+            SourceToParse source = source(index, "id", b -> b.field("field", "value"), "", Map.of());
+            iw.addDocument(mapperService.documentMapper().parse(source).rootDoc());
+        }, iw -> {
+            IndexFieldMapper.IndexFieldType ft = (IndexFieldMapper.IndexFieldType) mapperService.fieldType("_index");
+            SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+            SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
+            ValueFetcher valueFetcher = ft.valueFetcher(searchExecutionContext, null);
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+            lookup.source().setSegmentAndDocument(context, 0);
+            valueFetcher.setNextReader(context);
+            assertEquals(List.of(index), valueFetcher.fetchValues(lookup.source(), Collections.emptyList()));
+        });
     }
 
 }

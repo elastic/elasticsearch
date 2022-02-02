@@ -1,6 +1,9 @@
 [role="xpack"]
 [[actions-email]]
-=== Email action
+=== Watcher email action
+++++
+<titleabbrev>Email action</titleabbrev>
+++++
 
 Use the `email` action to send email notifications. To send email, you must
 <<configuring-email, configure at least one email account>> in

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.template;
 
@@ -10,18 +11,18 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,11 +42,19 @@ public class TemplateUtils {
     /**
      * Loads a JSON template as a resource and puts it into the provided map
      */
-    public static void loadTemplateIntoMap(String resource, Map<String, IndexTemplateMetadata> map, String templateName, String version,
-                                           String versionProperty, Logger logger) {
+    public static void loadLegacyTemplateIntoMap(
+        String resource,
+        Map<String, IndexTemplateMetadata> map,
+        String templateName,
+        String version,
+        String versionProperty,
+        Logger logger
+    ) {
         final String template = loadTemplate(resource, version, versionProperty);
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template)) {
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template)
+        ) {
             map.put(templateName, IndexTemplateMetadata.Builder.fromXContent(parser, templateName));
         } catch (IOException e) {
             // TODO: should we handle this with a thrown exception?
@@ -75,7 +84,7 @@ public class TemplateUtils {
     }
 
     /**
-     * Loads a resource from the classpath and returns it as a {@link BytesReference}
+     * Loads a resource from the classpath and returns it as a {@link String}
      */
     public static String load(String name) throws IOException {
         return Streams.readFully(TemplateUtils.class.getResourceAsStream(name)).utf8ToString();
@@ -108,12 +117,10 @@ public class TemplateUtils {
     }
 
     /**
-     * Replaces all occurences of given variable with the value
+     * Replaces all occurrences of given variable with the value
      */
     public static String replaceVariable(String input, String variable, String value) {
-        return Pattern.compile("${" + variable + "}", Pattern.LITERAL)
-                .matcher(input)
-                .replaceAll(value);
+        return Pattern.compile("${" + variable + "}", Pattern.LITERAL).matcher(input).replaceAll(value);
     }
 
     /**
@@ -122,7 +129,7 @@ public class TemplateUtils {
      * @param state Cluster state
      */
     public static boolean checkTemplateExistsAndVersionIsGTECurrentVersion(String templateName, ClusterState state) {
-        IndexTemplateMetadata templateMetadata = state.metadata().templates().get(templateName);
+        ComposableIndexTemplate templateMetadata = state.metadata().templatesV2().get(templateName);
         if (templateMetadata == null) {
             return false;
         }
@@ -136,12 +143,25 @@ public class TemplateUtils {
      * @param templateName Name of the index template
      * @param state Cluster state
      * @param logger Logger
+     * @param versionComposableTemplateExpected In which version of Elasticsearch did this template switch to being a composable template?
+     *                                          <code>null</code> means the template hasn't been switched yet.
      */
     public static boolean checkTemplateExistsAndIsUpToDate(
-        String templateName, String versionKey, ClusterState state, Logger logger) {
+        String templateName,
+        String versionKey,
+        ClusterState state,
+        Logger logger,
+        Version versionComposableTemplateExpected
+    ) {
 
-        return checkTemplateExistsAndVersionMatches(templateName, versionKey, state, logger,
-            Version.CURRENT::equals);
+        return checkTemplateExistsAndVersionMatches(
+            templateName,
+            versionKey,
+            state,
+            logger,
+            Version.CURRENT::equals,
+            versionComposableTemplateExpected
+        );
     }
 
     /**
@@ -151,15 +171,33 @@ public class TemplateUtils {
      * @param state Cluster state
      * @param logger Logger
      * @param predicate Predicate to execute on version check
+     * @param versionComposableTemplateExpected In which version of Elasticsearch did this template switch to being a composable template?
+     *                                          <code>null</code> means the template hasn't been switched yet.
      */
     public static boolean checkTemplateExistsAndVersionMatches(
-        String templateName, String versionKey, ClusterState state, Logger logger, Predicate<Version> predicate) {
+        String templateName,
+        String versionKey,
+        ClusterState state,
+        Logger logger,
+        Predicate<Version> predicate,
+        Version versionComposableTemplateExpected
+    ) {
 
-        IndexTemplateMetadata templateMeta = state.metadata().templates().get(templateName);
-        if (templateMeta == null) {
-            return false;
+        CompressedXContent mappings;
+        if (versionComposableTemplateExpected != null && state.nodes().getMinNodeVersion().onOrAfter(versionComposableTemplateExpected)) {
+            ComposableIndexTemplate templateMeta = state.metadata().templatesV2().get(templateName);
+            if (templateMeta == null) {
+                return false;
+            }
+            mappings = templateMeta.template().mappings();
+        } else {
+            IndexTemplateMetadata templateMeta = state.metadata().templates().get(templateName);
+            if (templateMeta == null) {
+                return false;
+            }
+            mappings = templateMeta.getMappings();
         }
-        CompressedXContent mappings = templateMeta.getMappings();
+
         // check all mappings contain correct version in _meta
         // we have to parse the source here which is annoying
         if (mappings != null) {
@@ -175,16 +213,14 @@ public class TemplateUtils {
                     return false;
                 }
             } catch (ElasticsearchParseException e) {
-                logger.error(new ParameterizedMessage(
-                    "Cannot parse the template [{}]", templateName), e);
+                logger.error(new ParameterizedMessage("Cannot parse the template [{}]", templateName), e);
                 throw new IllegalStateException("Cannot parse the template " + templateName, e);
             }
         }
         return true;
     }
 
-    private static boolean containsCorrectVersion(String versionKey, Map<String, Object> typeMappingMap,
-                                                  Predicate<Version> predicate) {
+    private static boolean containsCorrectVersion(String versionKey, Map<String, Object> typeMappingMap, Predicate<Version> predicate) {
         @SuppressWarnings("unchecked")
         Map<String, Object> meta = (Map<String, Object>) typeMappingMap.get("_meta");
         if (meta == null) {
@@ -193,5 +229,4 @@ public class TemplateUtils {
         }
         return predicate.test(Version.fromString((String) meta.get(versionKey)));
     }
-
 }

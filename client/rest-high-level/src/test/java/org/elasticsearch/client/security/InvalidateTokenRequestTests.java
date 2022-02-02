@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.security;
 
@@ -71,30 +60,30 @@ public class InvalidateTokenRequestTests extends ESTestCase {
         assertThat(request.getRefreshToken(), nullValue());
         assertThat(request.getRealmName(), equalTo(realmName));
         assertThat(request.getUsername(), equalTo(username));
-        assertThat(Strings.toString(request), equalTo("{\"realm_name\":\"native\",\"username\":\"user\"}"));
+        assertThat(Strings.toString(request), equalTo("""
+            {"realm_name":"native","username":"user"}"""));
     }
 
     public void testEqualsAndHashCode() {
         final String token = randomAlphaOfLength(8);
         final boolean accessToken = randomBoolean();
-        final InvalidateTokenRequest request = accessToken ? InvalidateTokenRequest.accessToken(token)
+        final InvalidateTokenRequest request = accessToken
+            ? InvalidateTokenRequest.accessToken(token)
             : InvalidateTokenRequest.refreshToken(token);
         final EqualsHashCodeTestUtils.MutateFunction<InvalidateTokenRequest> mutate = r -> {
             int randomCase = randomIntBetween(1, 4);
-            switch (randomCase) {
-                case 1:
-                    return InvalidateTokenRequest.refreshToken(randomAlphaOfLength(5));
-                case 2:
-                    return InvalidateTokenRequest.accessToken(randomAlphaOfLength(5));
-                case 3:
-                    return InvalidateTokenRequest.realmTokens(randomAlphaOfLength(5));
-                case 4:
-                    return InvalidateTokenRequest.userTokens(randomAlphaOfLength(5));
-                default:
-                    return new InvalidateTokenRequest(null, null, randomAlphaOfLength(5), randomAlphaOfLength(5));
-            }
+            return switch (randomCase) {
+                case 1 -> InvalidateTokenRequest.refreshToken(randomAlphaOfLength(5));
+                case 2 -> InvalidateTokenRequest.accessToken(randomAlphaOfLength(5));
+                case 3 -> InvalidateTokenRequest.realmTokens(randomAlphaOfLength(5));
+                case 4 -> InvalidateTokenRequest.userTokens(randomAlphaOfLength(5));
+                default -> new InvalidateTokenRequest(null, null, randomAlphaOfLength(5), randomAlphaOfLength(5));
+            };
         };
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(request,
-            r -> new InvalidateTokenRequest(r.getAccessToken(), r.getRefreshToken()), mutate);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            request,
+            r -> new InvalidateTokenRequest(r.getAccessToken(), r.getRefreshToken()),
+            mutate
+        );
     }
 }

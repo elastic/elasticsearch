@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -49,10 +38,9 @@ final class TransformRequestConverters {
     private TransformRequestConverters() {}
 
     static Request putTransform(PutTransformRequest putRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-                .addPathPartAsIs("_transform")
-                .addPathPart(putRequest.getConfig().getId())
-                .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_transform")
+            .addPathPart(putRequest.getConfig().getId())
+            .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putRequest, REQUEST_BODY_CONTENT_TYPE));
         if (putRequest.getDeferValidation() != null) {
@@ -61,25 +49,23 @@ final class TransformRequestConverters {
         return request;
     }
 
-    static Request updateTransform(UpdateTransformRequest updateDataFrameTransformRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_transform")
-            .addPathPart(updateDataFrameTransformRequest.getId())
+    static Request updateTransform(UpdateTransformRequest updateTransformRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_transform")
+            .addPathPart(updateTransformRequest.getId())
             .addPathPart("_update")
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(updateDataFrameTransformRequest, REQUEST_BODY_CONTENT_TYPE));
-        if (updateDataFrameTransformRequest.getDeferValidation() != null) {
-            request.addParameter(DEFER_VALIDATION, Boolean.toString(updateDataFrameTransformRequest.getDeferValidation()));
+        request.setEntity(createEntity(updateTransformRequest, REQUEST_BODY_CONTENT_TYPE));
+        if (updateTransformRequest.getDeferValidation() != null) {
+            request.addParameter(DEFER_VALIDATION, Boolean.toString(updateTransformRequest.getDeferValidation()));
         }
         return request;
     }
 
     static Request getTransform(GetTransformRequest getRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-                .addPathPartAsIs("_transform")
-                .addPathPart(Strings.collectionToCommaDelimitedString(getRequest.getId()))
-                .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_transform")
+            .addPathPart(Strings.collectionToCommaDelimitedString(getRequest.getId()))
+            .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         if (getRequest.getPageParams() != null && getRequest.getPageParams().getFrom() != null) {
             request.addParameter(PageParams.FROM.getPreferredName(), getRequest.getPageParams().getFrom().toString());
@@ -97,10 +83,7 @@ final class TransformRequestConverters {
     }
 
     static Request deleteTransform(DeleteTransformRequest deleteRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-                .addPathPartAsIs("_transform")
-                .addPathPart(deleteRequest.getId())
-                .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_transform").addPathPart(deleteRequest.getId()).build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         if (deleteRequest.getForce() != null) {
             request.addParameter(FORCE, Boolean.toString(deleteRequest.getForce()));
@@ -109,11 +92,10 @@ final class TransformRequestConverters {
     }
 
     static Request startTransform(StartTransformRequest startRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-                .addPathPartAsIs("_transform")
-                .addPathPart(startRequest.getId())
-                .addPathPartAsIs("_start")
-                .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_transform")
+            .addPathPart(startRequest.getId())
+            .addPathPartAsIs("_start")
+            .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
         if (startRequest.getTimeout() != null) {
@@ -124,8 +106,7 @@ final class TransformRequestConverters {
     }
 
     static Request stopTransform(StopTransformRequest stopRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_transform")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_transform")
             .addPathPart(stopRequest.getId())
             .addPathPartAsIs("_stop")
             .build();
@@ -148,20 +129,24 @@ final class TransformRequestConverters {
     }
 
     static Request previewTransform(PreviewTransformRequest previewRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-                .addPathPartAsIs("_transform", "_preview")
-                .build();
+        RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder().addPathPartAsIs("_transform");
+        if (previewRequest.getTransformId() != null) {
+            endpointBuilder.addPathPart(previewRequest.getTransformId());
+        }
+        endpointBuilder.addPathPartAsIs("_preview");
+        String endpoint = endpointBuilder.build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        request.setEntity(createEntity(previewRequest, REQUEST_BODY_CONTENT_TYPE));
+        if (previewRequest.getTransformId() == null) {
+            request.setEntity(createEntity(previewRequest, REQUEST_BODY_CONTENT_TYPE));
+        }
         return request;
     }
 
     static Request getTransformStats(GetTransformStatsRequest statsRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-                .addPathPartAsIs("_transform")
-                .addPathPart(statsRequest.getId())
-                .addPathPartAsIs("_stats")
-                .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_transform")
+            .addPathPart(statsRequest.getId())
+            .addPathPartAsIs("_stats")
+            .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         if (statsRequest.getPageParams() != null && statsRequest.getPageParams().getFrom() != null) {
             request.addParameter(PageParams.FROM.getPreferredName(), statsRequest.getPageParams().getFrom().toString());

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.security;
@@ -23,9 +12,9 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.client.security.user.privileges.GlobalPrivileges;
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -34,7 +23,7 @@ import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The response for the {@link org.elasticsearch.client.SecurityClient#getUserPrivileges(RequestOptions)} API.
@@ -43,7 +32,10 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 public class GetUserPrivilegesResponse {
 
     private static final ConstructingObjectParser<GetUserPrivilegesResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "get_user_privileges_response", true, GetUserPrivilegesResponse::buildResponseFromParserArgs);
+        "get_user_privileges_response",
+        true,
+        GetUserPrivilegesResponse::buildResponseFromParserArgs
+    );
 
     @SuppressWarnings("unchecked")
     private static GetUserPrivilegesResponse buildResponseFromParserArgs(Object[] args) {
@@ -58,12 +50,17 @@ public class GetUserPrivilegesResponse {
 
     static {
         PARSER.declareStringArray(constructorArg(), new ParseField("cluster"));
-        PARSER.declareObjectArray(constructorArg(), (parser, ignore) -> GlobalPrivileges.fromXContent(parser),
-            new ParseField("global"));
-        PARSER.declareObjectArray(constructorArg(), (parser, ignore) -> UserIndicesPrivileges.fromXContent(parser),
-            new ParseField("indices"));
-        PARSER.declareObjectArray(constructorArg(), (parser, ignore) -> ApplicationResourcePrivileges.fromXContent(parser),
-            new ParseField("applications"));
+        PARSER.declareObjectArray(constructorArg(), (parser, ignore) -> GlobalPrivileges.fromXContent(parser), new ParseField("global"));
+        PARSER.declareObjectArray(
+            constructorArg(),
+            (parser, ignore) -> UserIndicesPrivileges.fromXContent(parser),
+            new ParseField("indices")
+        );
+        PARSER.declareObjectArray(
+            constructorArg(),
+            (parser, ignore) -> ApplicationResourcePrivileges.fromXContent(parser),
+            new ParseField("applications")
+        );
         PARSER.declareStringArray(constructorArg(), new ParseField("run_as"));
     }
 
@@ -77,9 +74,13 @@ public class GetUserPrivilegesResponse {
     private Set<ApplicationResourcePrivileges> applicationPrivileges;
     private Set<String> runAsPrivilege;
 
-    public GetUserPrivilegesResponse(Collection<String> clusterPrivileges, Collection<GlobalPrivileges> globalPrivileges,
-                                     Collection<UserIndicesPrivileges> indicesPrivileges,
-                                     Collection<ApplicationResourcePrivileges> applicationPrivileges, Collection<String> runAsPrivilege) {
+    public GetUserPrivilegesResponse(
+        Collection<String> clusterPrivileges,
+        Collection<GlobalPrivileges> globalPrivileges,
+        Collection<UserIndicesPrivileges> indicesPrivileges,
+        Collection<ApplicationResourcePrivileges> applicationPrivileges,
+        Collection<String> runAsPrivilege
+    ) {
         this.clusterPrivileges = Collections.unmodifiableSet(new LinkedHashSet<>(clusterPrivileges));
         this.globalPrivileges = Collections.unmodifiableSet(new LinkedHashSet<>(globalPrivileges));
         this.indicesPrivileges = Collections.unmodifiableSet(new LinkedHashSet<>(indicesPrivileges));
@@ -109,13 +110,18 @@ public class GetUserPrivilegesResponse {
 
     @Override
     public String toString() {
-        return "GetUserPrivilegesResponse{" +
-            "clusterPrivileges=" + clusterPrivileges +
-            ", globalPrivileges=" + globalPrivileges +
-            ", indicesPrivileges=" + indicesPrivileges +
-            ", applicationPrivileges=" + applicationPrivileges +
-            ", runAsPrivilege=" + runAsPrivilege +
-            '}';
+        return "GetUserPrivilegesResponse{"
+            + "clusterPrivileges="
+            + clusterPrivileges
+            + ", globalPrivileges="
+            + globalPrivileges
+            + ", indicesPrivileges="
+            + indicesPrivileges
+            + ", applicationPrivileges="
+            + applicationPrivileges
+            + ", runAsPrivilege="
+            + runAsPrivilege
+            + '}';
     }
 
     @Override
@@ -127,11 +133,11 @@ public class GetUserPrivilegesResponse {
             return false;
         }
         final GetUserPrivilegesResponse that = (GetUserPrivilegesResponse) o;
-        return Objects.equals(this.clusterPrivileges, that.clusterPrivileges) &&
-            Objects.equals(this.globalPrivileges, that.globalPrivileges) &&
-            Objects.equals(this.indicesPrivileges, that.indicesPrivileges) &&
-            Objects.equals(this.applicationPrivileges, that.applicationPrivileges) &&
-            Objects.equals(this.runAsPrivilege, that.runAsPrivilege);
+        return Objects.equals(this.clusterPrivileges, that.clusterPrivileges)
+            && Objects.equals(this.globalPrivileges, that.globalPrivileges)
+            && Objects.equals(this.indicesPrivileges, that.indicesPrivileges)
+            && Objects.equals(this.applicationPrivileges, that.applicationPrivileges)
+            && Objects.equals(this.runAsPrivilege, that.runAsPrivilege);
     }
 
     @Override

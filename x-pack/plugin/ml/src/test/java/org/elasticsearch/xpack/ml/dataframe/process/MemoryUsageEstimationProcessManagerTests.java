@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
@@ -28,8 +29,8 @@ import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -43,10 +44,11 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
     private static final String CONFIG_ID = "dummy";
     private static final int NUM_ROWS = 100;
     private static final int NUM_COLS = 4;
-    private static final MemoryUsageEstimationResult PROCESS_RESULT =
-        new MemoryUsageEstimationResult(ByteSizeValue.parseBytesSizeValue("20kB", ""), ByteSizeValue.parseBytesSizeValue("10kB", ""));
+    private static final MemoryUsageEstimationResult PROCESS_RESULT = new MemoryUsageEstimationResult(
+        ByteSizeValue.parseBytesSizeValue("20kB", ""),
+        ByteSizeValue.parseBytesSizeValue("10kB", "")
+    );
 
-    private ExecutorService executorServiceForJob;
     private ExecutorService executorServiceForProcess;
     private AnalyticsProcess<MemoryUsageEstimationResult> process;
     private AnalyticsProcessFactory<MemoryUsageEstimationResult> processFactory;
@@ -61,7 +63,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     @Before
     public void setUpMocks() {
-        executorServiceForJob = EsExecutors.newDirectExecutorService();
         executorServiceForProcess = mock(ExecutorService.class);
         process = mock(AnalyticsProcess.class);
         when(process.readAnalyticsResults()).thenReturn(List.of(PROCESS_RESULT).iterator());
@@ -77,7 +78,11 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
         resultCaptor = ArgumentCaptor.forClass(MemoryUsageEstimationResult.class);
         exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
 
-        processManager = new MemoryUsageEstimationProcessManager(executorServiceForJob, executorServiceForProcess, processFactory);
+        processManager = new MemoryUsageEstimationProcessManager(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            executorServiceForProcess,
+            processFactory
+        );
     }
 
     public void testRunJob_EmptyDataFrame() {
@@ -108,7 +113,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
         InOrder inOrder = inOrder(process);
         inOrder.verify(process).readAnalyticsResults();
         inOrder.verify(process).readError();
-        inOrder.verify(process).consumeAndCloseOutputStream();
         inOrder.verify(process).close();
         verifyNoMoreInteractions(process, listener);
     }
@@ -127,7 +131,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
         InOrder inOrder = inOrder(process);
         inOrder.verify(process).readAnalyticsResults();
         inOrder.verify(process).readError();
-        inOrder.verify(process).consumeAndCloseOutputStream();
         inOrder.verify(process).close();
         verifyNoMoreInteractions(process, listener);
     }
@@ -146,7 +149,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
         InOrder inOrder = inOrder(process);
         inOrder.verify(process).readAnalyticsResults();
         inOrder.verify(process).readError();
-        inOrder.verify(process).consumeAndCloseOutputStream();
         inOrder.verify(process).close();
         verifyNoMoreInteractions(process, listener);
     }
@@ -164,7 +166,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
 
         InOrder inOrder = inOrder(process);
         inOrder.verify(process).readAnalyticsResults();
-        inOrder.verify(process).consumeAndCloseOutputStream();
         inOrder.verify(process).close();
         inOrder.verify(process).readError();
         verifyNoMoreInteractions(process, listener);
@@ -186,7 +187,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
 
         InOrder inOrder = inOrder(process);
         inOrder.verify(process).readAnalyticsResults();
-        inOrder.verify(process).consumeAndCloseOutputStream();
         inOrder.verify(process).close();
         inOrder.verify(process).readError();
         verifyNoMoreInteractions(process, listener);
@@ -201,7 +201,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
 
         InOrder inOrder = inOrder(process);
         inOrder.verify(process).readAnalyticsResults();
-        inOrder.verify(process).consumeAndCloseOutputStream();
         inOrder.verify(process).close();
         verifyNoMoreInteractions(process, listener);
     }

@@ -1,0 +1,181 @@
+setup:
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                num:
+                  type: integer
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body: |
+          { "index": {"_id": "1"}}
+          { "num": [1, 2] }
+          { "index": {"_id": "2"}}
+          { "num": [2, 3] }
+          { "index": {"_id": "3"}}
+          { "num": [3, 4] }
+
+---
+"Filters intersections":
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            conns:
+              adjacency_matrix:
+                filters:
+                  1:
+                    term:
+                      num: 1
+                  2:
+                    term:
+                      num: 2
+                  4:
+                    term:
+                      num: 4
+
+  - match: { hits.total.value: 3 }
+
+  - length: { aggregations.conns.buckets: 4 }
+
+  - match: { aggregations.conns.buckets.0.doc_count: 1 }
+  - match: { aggregations.conns.buckets.0.key: "1" }
+
+  - match: { aggregations.conns.buckets.1.doc_count: 1 }
+  - match: { aggregations.conns.buckets.1.key: "1&2" }
+
+  - match: { aggregations.conns.buckets.2.doc_count: 2 }
+  - match: { aggregations.conns.buckets.2.key: "2" }
+
+  - match: { aggregations.conns.buckets.3.doc_count: 1 }
+  - match: { aggregations.conns.buckets.3.key: "4" }
+
+
+---
+"Terms lookup":
+  - skip:
+      version: " - 7.8.99"
+      reason:  fixed in 7.9.0
+      features: node_selector
+
+  - do:
+      indices.create:
+          index: lookup
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                num:
+                  type: long
+  - do:
+      bulk:
+        index: lookup
+        refresh: true
+        body: |
+          { "index": {"_id": 1} }
+          { "num": [1] }
+          { "index": {"_id": 2} }
+          { "num": [2] }
+          { "index": {"_id": 4} }
+          { "num": [4] }
+
+  - do:
+      node_selector:
+        version: current # the version of the node that parsed the request is part of the cache key.
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            conns:
+              adjacency_matrix:
+                filters:
+                  1:
+                    terms:
+                      num:
+                        index: lookup
+                        id: "1"
+                        path: num
+                  2:
+                    terms:
+                      num:
+                        index: lookup
+                        id: "2"
+                        path: num
+                  4:
+                    terms:
+                      num:
+                        index: lookup
+                        id: "4"
+                        path: num
+
+  - match: { hits.total.value: 3 }
+
+  - length: { aggregations.conns.buckets: 4 }
+
+  - match: { aggregations.conns.buckets.0.doc_count: 1 }
+  - match: { aggregations.conns.buckets.0.key: "1" }
+
+  - match: { aggregations.conns.buckets.1.doc_count: 1 }
+  - match: { aggregations.conns.buckets.1.key: "1&2" }
+
+  - match: { aggregations.conns.buckets.2.doc_count: 2 }
+  - match: { aggregations.conns.buckets.2.key: "2" }
+
+  - match: { aggregations.conns.buckets.3.doc_count: 1 }
+  - match: { aggregations.conns.buckets.3.key: "4" }
+
+  - do:
+      indices.stats: { index: test, metric: request_cache}
+  - match: { _shards.total: 1 }
+  - match: { indices.test.total.request_cache.hit_count: 0 }
+  - match: { indices.test.total.request_cache.miss_count: 1 }
+
+  # The second request should hit the cache
+  - do:
+      node_selector:
+        version: current # the version of the node that parsed the request is part of the cache key.
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            conns:
+              adjacency_matrix:
+                filters:
+                  1:
+                    terms:
+                      num:
+                        index: lookup
+                        id: "1"
+                        path: num
+                  2:
+                    terms:
+                      num:
+                        index: lookup
+                        id: "2"
+                        path: num
+                  4:
+                    terms:
+                      num:
+                        index: lookup
+                        id: "4"
+                        path: num
+  - do:
+      indices.stats: { index: test, metric: request_cache}
+  - match: { _shards.total: 1 }
+  - match: { indices.test.total.request_cache.hit_count: 1 }
+  - match: { indices.test.total.request_cache.miss_count: 1 }

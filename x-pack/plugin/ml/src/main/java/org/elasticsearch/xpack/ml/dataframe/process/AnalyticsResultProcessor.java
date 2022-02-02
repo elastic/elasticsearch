@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
@@ -23,8 +25,8 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefinitionChunk;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsPersister;
-import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
@@ -61,9 +63,15 @@ public class AnalyticsResultProcessor {
 
     private volatile String latestModelId;
 
-    public AnalyticsResultProcessor(DataFrameAnalyticsConfig analytics, DataFrameRowsJoiner dataFrameRowsJoiner,
-                                    StatsHolder statsHolder, TrainedModelProvider trainedModelProvider,
-                                    DataFrameAnalyticsAuditor auditor, StatsPersister statsPersister, ExtractedFields extractedFields) {
+    public AnalyticsResultProcessor(
+        DataFrameAnalyticsConfig analytics,
+        DataFrameRowsJoiner dataFrameRowsJoiner,
+        StatsHolder statsHolder,
+        TrainedModelProvider trainedModelProvider,
+        DataFrameAnalyticsAuditor auditor,
+        StatsPersister statsPersister,
+        ExtractedFields extractedFields
+    ) {
         this.analytics = Objects.requireNonNull(analytics);
         this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner);
         this.statsHolder = Objects.requireNonNull(statsHolder);
@@ -117,7 +125,6 @@ public class AnalyticsResultProcessor {
                 completeResultsProgress();
             }
             completionLatch.countDown();
-            process.consumeAndCloseOutputStream();
         }
     }
 
@@ -136,13 +143,17 @@ public class AnalyticsResultProcessor {
         }
         PhaseProgress phaseProgress = result.getPhaseProgress();
         if (phaseProgress != null) {
-            LOGGER.debug("[{}] progress for phase [{}] updated to [{}]", analytics.getId(), phaseProgress.getPhase(),
-                phaseProgress.getProgressPercent());
+            LOGGER.debug(
+                "[{}] progress for phase [{}] updated to [{}]",
+                analytics.getId(),
+                phaseProgress.getPhase(),
+                phaseProgress.getProgressPercent()
+            );
             statsHolder.getProgressTracker().updatePhase(phaseProgress);
         }
         ModelSizeInfo modelSize = result.getModelSizeInfo();
         if (modelSize != null) {
-            latestModelId = chunkedTrainedModelPersister.createAndIndexInferenceModelConfig(modelSize);
+            latestModelId = chunkedTrainedModelPersister.createAndIndexInferenceModelConfig(modelSize, TrainedModelType.TREE_ENSEMBLE);
         }
         TrainedModelDefinitionChunk trainedModelDefinitionChunk = result.getTrainedModelDefinitionChunk();
         if (trainedModelDefinitionChunk != null && isCancelled == false) {

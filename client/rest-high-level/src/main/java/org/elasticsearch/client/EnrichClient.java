@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client;
 
@@ -38,7 +27,13 @@ import java.util.Collections;
  * <p>
  * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-apis.html">
  * X-Pack Enrich Policy APIs on elastic.co</a> for more information.
+ *
+ * @deprecated The High Level Rest Client is deprecated in favor of the
+ * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/introduction.html">
+ * Elasticsearch Java API Client</a>
  */
+@Deprecated(since = "7.16.0", forRemoval = true)
+@SuppressWarnings("removal")
 public final class EnrichClient {
 
     private final RestHighLevelClient restHighLevelClient;
@@ -79,9 +74,7 @@ public final class EnrichClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable putPolicyAsync(PutPolicyRequest request,
-                                      RequestOptions options,
-                                      ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable putPolicyAsync(PutPolicyRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             EnrichRequestConverters::putPolicy,
@@ -124,9 +117,11 @@ public final class EnrichClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deletePolicyAsync(DeletePolicyRequest request,
-                                         RequestOptions options,
-                                         ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable deletePolicyAsync(
+        DeletePolicyRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             EnrichRequestConverters::deletePolicy,
@@ -169,9 +164,7 @@ public final class EnrichClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getPolicyAsync(GetPolicyRequest request,
-                               RequestOptions options,
-                               ActionListener<GetPolicyResponse> listener) {
+    public Cancellable getPolicyAsync(GetPolicyRequest request, RequestOptions options, ActionListener<GetPolicyResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             EnrichRequestConverters::getPolicy,
@@ -214,9 +207,7 @@ public final class EnrichClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable statsAsync(StatsRequest request,
-                                  RequestOptions options,
-                                  ActionListener<StatsResponse> listener) {
+    public Cancellable statsAsync(StatsRequest request, RequestOptions options, ActionListener<StatsResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             EnrichRequestConverters::stats,
@@ -259,9 +250,11 @@ public final class EnrichClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable executePolicyAsync(ExecutePolicyRequest request,
-                                          RequestOptions options,
-                                          ActionListener<ExecutePolicyResponse> listener) {
+    public Cancellable executePolicyAsync(
+        ExecutePolicyRequest request,
+        RequestOptions options,
+        ActionListener<ExecutePolicyResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             EnrichRequestConverters::executePolicy,

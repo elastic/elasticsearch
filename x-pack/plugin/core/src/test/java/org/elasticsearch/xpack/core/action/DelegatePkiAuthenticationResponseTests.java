@@ -1,31 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.hamcrest.Matchers.is;
 
 public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTestCase<DelegatePkiAuthenticationResponse> {
@@ -46,9 +48,11 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
 
     @Override
     protected DelegatePkiAuthenticationResponse createTestInstance() {
-        return new DelegatePkiAuthenticationResponse(randomAlphaOfLengthBetween(0, 10),
-                TimeValue.parseTimeValue(randomTimeValue(), getClass().getSimpleName() + ".expiresIn"),
-                createAuthentication());
+        return new DelegatePkiAuthenticationResponse(
+            randomAlphaOfLengthBetween(0, 10),
+            TimeValue.parseTimeValue(randomTimeValue(), getClass().getSimpleName() + ".expiresIn"),
+            createAuthentication()
+        );
     }
 
     @Override
@@ -67,17 +71,20 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
     private static final ParseField AUTHENTICATION = new ParseField("authentication");
 
     public static final ConstructingObjectParser<DelegatePkiAuthenticationResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "delegate_pki_response", true, a -> {
-        final String accessToken = (String) a[0];
-        final String type = (String) a[1];
-        if (false == "Bearer".equals(type)) {
-            throw new IllegalArgumentException("Unknown token type [" + type + "], only [Bearer] type permitted");
-        }
-        final Long expiresIn = (Long) a[2];
-        final Authentication authentication = (Authentication) a[3];
+        "delegate_pki_response",
+        true,
+        a -> {
+            final String accessToken = (String) a[0];
+            final String type = (String) a[1];
+            if (false == "Bearer".equals(type)) {
+                throw new IllegalArgumentException("Unknown token type [" + type + "], only [Bearer] type permitted");
+            }
+            final Long expiresIn = (Long) a[2];
+            final Authentication authentication = (Authentication) a[3];
 
-        return new DelegatePkiAuthenticationResponse(accessToken, TimeValue.timeValueSeconds(expiresIn), authentication);
-    });
+            return new DelegatePkiAuthenticationResponse(accessToken, TimeValue.timeValueSeconds(expiresIn), authentication);
+        }
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ACCESS_TOKEN_FIELD);
@@ -88,13 +95,30 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Authentication, Void> AUTH_PARSER = new ConstructingObjectParser<>(
-        "authentication", true,
-        a -> new Authentication(new User((String) a[0], ((ArrayList<String>) a[1]).toArray(new String[0]), (String) a[2], (String) a[3],
-            (Map<String, Object>) a[4], (boolean) a[5]), (Authentication.RealmRef) a[6], (Authentication.RealmRef) a[7], Version.CURRENT,
-            Authentication.AuthenticationType.valueOf(a[8].toString().toUpperCase(Locale.ROOT)), (Map<String, Object>) a[4]));
+        "authentication",
+        true,
+        a -> new Authentication(
+            new User(
+                (String) a[0],
+                ((ArrayList<String>) a[1]).toArray(new String[0]),
+                (String) a[2],
+                (String) a[3],
+                (Map<String, Object>) a[4],
+                (boolean) a[5]
+            ),
+            (Authentication.RealmRef) a[6],
+            (Authentication.RealmRef) a[7],
+            Version.CURRENT,
+            Authentication.AuthenticationType.valueOf(a[8].toString().toUpperCase(Locale.ROOT)),
+            (Map<String, Object>) a[4]
+        )
+    );
     static {
-        final ConstructingObjectParser<Authentication.RealmRef, Void> realmInfoParser = new ConstructingObjectParser<>("realm_info", true,
-            a -> new Authentication.RealmRef((String) a[0], (String) a[1], "node_name"));
+        final ConstructingObjectParser<Authentication.RealmRef, Void> realmInfoParser = new ConstructingObjectParser<>(
+            "realm_info",
+            true,
+            a -> new Authentication.RealmRef((String) a[0], (String) a[1], "node_name")
+        );
         realmInfoParser.declareString(ConstructingObjectParser.constructorArg(), User.Fields.REALM_NAME);
         realmInfoParser.declareString(ConstructingObjectParser.constructorArg(), User.Fields.REALM_TYPE);
         AUTH_PARSER.declareString(ConstructingObjectParser.constructorArg(), User.Fields.USERNAME);
@@ -135,9 +159,17 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
         final String lookupRealmType = randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos");
         final String nodeName = "node_name";
         final Authentication.AuthenticationType authenticationType = randomFrom(Authentication.AuthenticationType.values());
+        if (Authentication.AuthenticationType.API_KEY.equals(authenticationType)) {
+            metadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10));
+            metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10));
+        }
         return new Authentication(
             new User(username, roles, fullName, email, metadata, true),
             new Authentication.RealmRef(authenticationRealmName, authenticationRealmType, nodeName),
-            new Authentication.RealmRef(lookupRealmName, lookupRealmType, nodeName), Version.CURRENT, authenticationType, metadata);
+            new Authentication.RealmRef(lookupRealmName, lookupRealmType, nodeName),
+            Version.CURRENT,
+            authenticationType,
+            metadata
+        );
     }
 }

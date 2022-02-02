@@ -1,0 +1,28 @@
+{
+  "logstash.get_pipeline":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/logstash-api-get-pipeline.html",
+      "description":"Retrieves Logstash Pipelines used by Central Management"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_logstash/pipeline/{id}",
+          "methods":[ "GET" ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"A comma-separated list of Pipeline IDs"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}

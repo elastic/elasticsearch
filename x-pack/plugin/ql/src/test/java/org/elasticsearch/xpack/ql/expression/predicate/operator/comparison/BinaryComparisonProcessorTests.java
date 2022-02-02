@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 
@@ -26,9 +27,10 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 public class BinaryComparisonProcessorTests extends AbstractWireSerializingTestCase<BinaryComparisonProcessor> {
     public static BinaryComparisonProcessor randomProcessor() {
         return new BinaryComparisonProcessor(
-                new ConstantProcessor(randomLong()),
-                new ConstantProcessor(randomLong()),
-                randomFrom(BinaryComparisonProcessor.BinaryComparisonOperation.values()));
+            new ConstantProcessor(randomLong()),
+            new ConstantProcessor(randomLong()),
+            randomFrom(BinaryComparisonProcessor.BinaryComparisonOperation.values())
+        );
     }
 
     @Override
@@ -87,7 +89,7 @@ public class BinaryComparisonProcessorTests extends AbstractWireSerializingTestC
         assertEquals(true, lessThanOrEqualOf(l(3), l(4)).makePipe().asProcessor().process(null));
         assertEquals(true, lessThanOrEqualOf(l(3), l(3)).makePipe().asProcessor().process(null));
     }
-    
+
     public void testHandleNull() {
         assertNull(equalsOf(NULL, l(3)).makePipe().asProcessor().process(null));
         assertNull(notEqualsOf(NULL, l(3)).makePipe().asProcessor().process(null));
@@ -96,7 +98,7 @@ public class BinaryComparisonProcessorTests extends AbstractWireSerializingTestC
         assertNull(lessThanOf(NULL, l(3)).makePipe().asProcessor().process(null));
         assertNull(lessThanOrEqualOf(NULL, l(3)).makePipe().asProcessor().process(null));
     }
-    
+
     private static Literal l(Object value) {
         return TestUtils.of(EMPTY, value);
     }

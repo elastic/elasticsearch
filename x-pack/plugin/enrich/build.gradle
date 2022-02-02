@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-enrich'
@@ -9,19 +9,13 @@ esplugin {
 archivesBaseName = 'x-pack-enrich'
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'))
+  api project(path: ':modules:reindex')
+  testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: ':modules:ingest-common')
   testImplementation project(path: ':modules:lang-mustache')
-  testImplementation project(path: ':modules:geo')
-  testImplementation project(path: xpackModule('monitoring'), configuration: 'testArtifacts')
+  testImplementation project(xpackModule('spatial'))
+  testImplementation(testArtifact(project(xpackModule('monitoring'))))
 }
 
-// add all sub-projects of the qa sub-project
-gradle.projectsEvaluated {
-  project.subprojects
-    .find { it.path == project.path + ":qa" }
-    .subprojects
-    .findAll { it.path.startsWith(project.path + ":qa") }
-    .each { check.dependsOn it.check }
-}
+addQaCheckDependencies()

@@ -1,0 +1,30 @@
+{
+  "security.saml_service_provider_metadata":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-saml-sp-metadata.html",
+      "description":"Generates SAML metadata for the Elastic stack SAML 2.0 Service Provider"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/saml/metadata/{realm_name}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "realm_name":{
+              "type":"string",
+              "description":"The name of the SAML realm to get the metadata for"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action;
@@ -27,8 +16,18 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.DeleteDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.GetDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.TransportDeleteDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.TransportGetDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.TransportUpdateDesiredNodesAction;
+import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusAction;
+import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeAction;
+import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
+import org.elasticsearch.action.admin.cluster.migration.TransportPostFeatureUpgradeAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
@@ -69,8 +68,14 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAct
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
+import org.elasticsearch.action.admin.cluster.snapshots.features.SnapshottableFeaturesAction;
+import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
+import org.elasticsearch.action.admin.cluster.snapshots.features.TransportSnapshottableFeaturesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.shard.TransportGetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
@@ -117,6 +122,8 @@ import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesA
 import org.elasticsearch.action.admin.indices.dangling.list.TransportListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
+import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageAction;
+import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportShardFlushAction;
@@ -157,7 +164,9 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shrink.ResizeAction;
 import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
+import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.admin.indices.stats.TransportFieldUsageAction;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
@@ -181,24 +190,19 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateActio
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.upgrade.get.TransportUpgradeStatusAction;
-import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
-import org.elasticsearch.action.admin.indices.upgrade.post.TransportUpgradeAction;
-import org.elasticsearch.action.admin.indices.upgrade.post.TransportUpgradeSettingsAction;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeAction;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeSettingsAction;
 import org.elasticsearch.action.admin.indices.validate.query.TransportValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsTransportAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
-import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesIndexAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -217,11 +221,17 @@ import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.TransportMainAction;
 import org.elasticsearch.action.search.ClearScrollAction;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.OpenPointInTimeAction;
+import org.elasticsearch.action.search.RestClosePointInTimeAction;
+import org.elasticsearch.action.search.RestOpenPointInTimeAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.TransportClearScrollAction;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -235,7 +245,7 @@ import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction
 import org.elasticsearch.action.termvectors.TransportTermVectorsAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.NamedRegistry;
@@ -246,7 +256,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.gateway.TransportNodesListGatewayMetaState;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
@@ -278,9 +287,12 @@ import org.elasticsearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCreateSnapshotAction;
+import org.elasticsearch.rest.action.admin.cluster.RestDeleteDesiredNodesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.RestGetDesiredNodesAction;
+import org.elasticsearch.rest.action.admin.cluster.RestGetFeatureUpgradeStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetScriptContextAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetScriptLanguageAction;
@@ -293,18 +305,23 @@ import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
+import org.elasticsearch.rest.action.admin.cluster.RestPostFeatureUpgradeAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRemoteClusterInfoAction;
+import org.elasticsearch.rest.action.admin.cluster.RestResetFeatureStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestRestoreSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestSnapshotsStatusAction;
+import org.elasticsearch.rest.action.admin.cluster.RestSnapshottableFeaturesAction;
+import org.elasticsearch.rest.action.admin.cluster.RestUpdateDesiredNodesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestVerifyRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.dangling.RestDeleteDanglingIndexAction;
 import org.elasticsearch.rest.action.admin.cluster.dangling.RestImportDanglingIndexAction;
 import org.elasticsearch.rest.action.admin.cluster.dangling.RestListDanglingIndicesAction;
 import org.elasticsearch.rest.action.admin.indices.RestAddIndexBlockAction;
 import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
+import org.elasticsearch.rest.action.admin.indices.RestAnalyzeIndexDiskUsageAction;
 import org.elasticsearch.rest.action.admin.indices.RestClearIndicesCacheAction;
 import org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
@@ -312,6 +329,7 @@ import org.elasticsearch.rest.action.admin.indices.RestDeleteComponentTemplateAc
 import org.elasticsearch.rest.action.admin.indices.RestDeleteComposableIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexTemplateAction;
+import org.elasticsearch.rest.action.admin.indices.RestFieldUsageStatsAction;
 import org.elasticsearch.rest.action.admin.indices.RestFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestForceMergeAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetAliasesAction;
@@ -343,7 +361,6 @@ import org.elasticsearch.rest.action.admin.indices.RestSimulateTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestSyncedFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpdateSettingsAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpgradeActionDeprecated;
-import org.elasticsearch.rest.action.admin.indices.RestUpgradeStatusActionDeprecated;
 import org.elasticsearch.rest.action.admin.indices.RestValidateQueryAction;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestAliasAction;
@@ -364,6 +381,7 @@ import org.elasticsearch.rest.action.cat.RestSnapshotAction;
 import org.elasticsearch.rest.action.cat.RestTasksAction;
 import org.elasticsearch.rest.action.cat.RestTemplatesAction;
 import org.elasticsearch.rest.action.cat.RestThreadPoolAction;
+import org.elasticsearch.rest.action.datastreams.RestModifyDataStreamsAction;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
@@ -424,10 +442,19 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
 
-    public ActionModule(Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
-                        IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
-                        ThreadPool threadPool, List<ActionPlugin> actionPlugins, NodeClient nodeClient,
-                        CircuitBreakerService circuitBreakerService, UsageService usageService, SystemIndices systemIndices) {
+    public ActionModule(
+        Settings settings,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IndexScopedSettings indexScopedSettings,
+        ClusterSettings clusterSettings,
+        SettingsFilter settingsFilter,
+        ThreadPool threadPool,
+        List<ActionPlugin> actionPlugins,
+        NodeClient nodeClient,
+        CircuitBreakerService circuitBreakerService,
+        UsageService usageService,
+        SystemIndices systemIndices
+    ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexScopedSettings = indexScopedSettings;
@@ -441,13 +468,26 @@ public class ActionModule extends AbstractModule {
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
             actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()),
-            Stream.of(new RestHeaderDefinition(Task.X_OPAQUE_ID, false))
+            Stream.of(
+                new RestHeaderDefinition(Task.X_OPAQUE_ID_HTTP_HEADER, false),
+                new RestHeaderDefinition(Task.TRACE_PARENT_HTTP_HEADER, false),
+                new RestHeaderDefinition(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, false)
+            )
         ).collect(Collectors.toSet());
         UnaryOperator<RestHandler> restWrapper = null;
         for (ActionPlugin plugin : actionPlugins) {
             UnaryOperator<RestHandler> newRestWrapper = plugin.getRestHandlerWrapper(threadPool.getThreadContext());
             if (newRestWrapper != null) {
                 logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
+                if (plugin.getClass().getCanonicalName() == null
+                    || plugin.getClass().getCanonicalName().startsWith("org.elasticsearch.xpack") == false) {
+                    throw new IllegalArgumentException(
+                        "The "
+                            + plugin.getClass().getName()
+                            + " plugin tried to install a custom REST "
+                            + "wrapper. This functionality is not available anymore."
+                    );
+                }
                 if (restWrapper != null) {
                     throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST wrapper");
                 }
@@ -455,13 +495,14 @@ public class ActionModule extends AbstractModule {
             }
         }
         mappingRequestValidators = new RequestValidators<>(
-            actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList()));
+            actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList())
+        );
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
-                actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList()));
+            actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList())
+        );
 
         restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
     }
-
 
     public Map<String, ActionHandler<?, ?>> getActions() {
         return actions;
@@ -479,7 +520,9 @@ public class ActionModule extends AbstractModule {
             }
 
             public <Request extends ActionRequest, Response extends ActionResponse> void register(
-                ActionType<Response> action, Class<? extends TransportAction<Request, Response>> transportAction) {
+                ActionType<Response> action,
+                Class<? extends TransportAction<Request, Response>> transportAction
+            ) {
                 register(new ActionHandler<>(action, transportAction));
             }
         }
@@ -516,6 +559,11 @@ public class ActionModule extends AbstractModule {
         actions.register(CloneSnapshotAction.INSTANCE, TransportCloneSnapshotAction.class);
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
         actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
+        actions.register(SnapshottableFeaturesAction.INSTANCE, TransportSnapshottableFeaturesAction.class);
+        actions.register(ResetFeatureStateAction.INSTANCE, TransportResetFeatureStateAction.class);
+        actions.register(GetFeatureUpgradeStatusAction.INSTANCE, TransportGetFeatureUpgradeStatusAction.class);
+        actions.register(PostFeatureUpgradeAction.INSTANCE, TransportPostFeatureUpgradeAction.class);
+        actions.register(GetShardSnapshotAction.INSTANCE, TransportGetShardSnapshotAction.class);
 
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
@@ -551,9 +599,6 @@ public class ActionModule extends AbstractModule {
         actions.register(RefreshAction.INSTANCE, TransportRefreshAction.class);
         actions.register(FlushAction.INSTANCE, TransportFlushAction.class);
         actions.register(ForceMergeAction.INSTANCE, TransportForceMergeAction.class);
-        actions.register(UpgradeAction.INSTANCE, TransportUpgradeAction.class);
-        actions.register(UpgradeStatusAction.INSTANCE, TransportUpgradeStatusAction.class);
-        actions.register(UpgradeSettingsAction.INSTANCE, TransportUpgradeSettingsAction.class);
         actions.register(ClearIndicesCacheAction.INSTANCE, TransportClearIndicesCacheAction.class);
         actions.register(GetAliasesAction.INSTANCE, TransportGetAliasesAction.class);
         actions.register(GetSettingsAction.INSTANCE, TransportGetSettingsAction.class);
@@ -571,6 +616,8 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportShardBulkAction.TYPE, TransportShardBulkAction.class);
         actions.register(SearchAction.INSTANCE, TransportSearchAction.class);
         actions.register(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
+        actions.register(OpenPointInTimeAction.INSTANCE, TransportOpenPointInTimeAction.class);
+        actions.register(ClosePointInTimeAction.INSTANCE, TransportClosePointInTimeAction.class);
         actions.register(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
         actions.register(ExplainAction.INSTANCE, TransportExplainAction.class);
         actions.register(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
@@ -578,8 +625,13 @@ public class ActionModule extends AbstractModule {
         actions.register(NodesReloadSecureSettingsAction.INSTANCE, TransportNodesReloadSecureSettingsAction.class);
         actions.register(AutoCreateAction.INSTANCE, AutoCreateAction.TransportAction.class);
         actions.register(ResolveIndexAction.INSTANCE, ResolveIndexAction.TransportAction.class);
+        actions.register(AnalyzeIndexDiskUsageAction.INSTANCE, TransportAnalyzeIndexDiskUsageAction.class);
+        actions.register(FieldUsageStatsAction.INSTANCE, TransportFieldUsageAction.class);
 
-        //Indexed scripts
+        // Data streams
+        actions.register(ModifyDataStreamsAction.INSTANCE, ModifyDataStreamsTransportAction.class);
+
+        // Indexed scripts
         actions.register(PutStoredScriptAction.INSTANCE, TransportPutStoredScriptAction.class);
         actions.register(GetStoredScriptAction.INSTANCE, TransportGetStoredScriptAction.class);
         actions.register(DeleteStoredScriptAction.INSTANCE, TransportDeleteStoredScriptAction.class);
@@ -587,7 +639,6 @@ public class ActionModule extends AbstractModule {
         actions.register(GetScriptLanguageAction.INSTANCE, TransportGetScriptLanguageAction.class);
 
         actions.register(FieldCapabilitiesAction.INSTANCE, TransportFieldCapabilitiesAction.class);
-        actions.register(TransportFieldCapabilitiesIndexAction.TYPE, TransportFieldCapabilitiesIndexAction.class);
 
         actions.register(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
         actions.register(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
@@ -616,7 +667,6 @@ public class ActionModule extends AbstractModule {
         // internal actions
         actions.register(GlobalCheckpointSyncAction.TYPE, GlobalCheckpointSyncAction.class);
         actions.register(TransportNodesSnapshotsStatus.TYPE, TransportNodesSnapshotsStatus.class);
-        actions.register(TransportNodesListGatewayMetaState.TYPE, TransportNodesListGatewayMetaState.class);
         actions.register(TransportVerifyShardBeforeCloseAction.TYPE, TransportVerifyShardBeforeCloseAction.class);
         actions.register(TransportVerifyShardIndexBlockAction.TYPE, TransportVerifyShardIndexBlockAction.class);
         actions.register(TransportNodesListGatewayStartedShards.TYPE, TransportNodesListGatewayStartedShards.class);
@@ -624,12 +674,18 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportShardFlushAction.TYPE, TransportShardFlushAction.class);
         actions.register(TransportShardRefreshAction.TYPE, TransportShardRefreshAction.class);
 
+        // desired nodes
+        actions.register(GetDesiredNodesAction.INSTANCE, TransportGetDesiredNodesAction.class);
+        actions.register(UpdateDesiredNodesAction.INSTANCE, TransportUpdateDesiredNodesAction.class);
+        actions.register(DeleteDesiredNodesAction.INSTANCE, TransportDeleteDesiredNodesAction.class);
+
         return unmodifiableMap(actions.getRegistry());
     }
 
     private ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {
         return new ActionFilters(
-            Collections.unmodifiableSet(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toSet())));
+            Collections.unmodifiableSet(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toSet()))
+        );
     }
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
@@ -650,7 +706,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestNodesHotThreadsAction());
         registerHandler.accept(new RestClusterAllocationExplainAction());
         registerHandler.accept(new RestClusterStatsAction());
-        registerHandler.accept(new RestClusterStateAction(settingsFilter));
+        registerHandler.accept(new RestClusterStateAction(settingsFilter, threadPool));
         registerHandler.accept(new RestClusterHealthAction());
         registerHandler.accept(new RestClusterUpdateSettingsAction());
         registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter));
@@ -662,15 +718,19 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestDeleteRepositoryAction());
         registerHandler.accept(new RestVerifyRepositoryAction());
         registerHandler.accept(new RestCleanupRepositoryAction());
-        registerHandler.accept(new RestGetSnapshotsAction());
+        registerHandler.accept(new RestGetSnapshotsAction(threadPool));
         registerHandler.accept(new RestCreateSnapshotAction());
         registerHandler.accept(new RestCloneSnapshotAction());
         registerHandler.accept(new RestRestoreSnapshotAction());
         registerHandler.accept(new RestDeleteSnapshotAction());
         registerHandler.accept(new RestSnapshotsStatusAction());
+        registerHandler.accept(new RestSnapshottableFeaturesAction());
+        registerHandler.accept(new RestResetFeatureStateAction());
+        registerHandler.accept(new RestGetFeatureUpgradeStatusAction());
+        registerHandler.accept(new RestPostFeatureUpgradeAction());
         registerHandler.accept(new RestGetIndicesAction());
         registerHandler.accept(new RestIndicesStatsAction());
-        registerHandler.accept(new RestIndicesSegmentsAction());
+        registerHandler.accept(new RestIndicesSegmentsAction(threadPool));
         registerHandler.accept(new RestIndicesShardStoresAction());
         registerHandler.accept(new RestGetAliasesAction());
         registerHandler.accept(new RestIndexDeleteAliasesAction());
@@ -710,8 +770,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestFlushAction());
         registerHandler.accept(new RestSyncedFlushAction());
         registerHandler.accept(new RestForceMergeAction());
-        registerHandler.accept(new RestUpgradeActionDeprecated());
-        registerHandler.accept(new RestUpgradeStatusActionDeprecated());
         registerHandler.accept(new RestClearIndicesCacheAction());
         registerHandler.accept(new RestResolveIndexAction());
 
@@ -731,6 +789,8 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestSearchAction());
         registerHandler.accept(new RestSearchScrollAction());
         registerHandler.accept(new RestClearScrollAction());
+        registerHandler.accept(new RestOpenPointInTimeAction());
+        registerHandler.accept(new RestClosePointInTimeAction());
         registerHandler.accept(new RestMultiSearchAction(settings));
 
         registerHandler.accept(new RestValidateQueryAction());
@@ -740,6 +800,9 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestRecoveryAction());
 
         registerHandler.accept(new RestReloadSecureSettingsAction());
+
+        // Data streams
+        registerHandler.accept(new RestModifyDataStreamsAction());
 
         // Scripts API
         registerHandler.accept(new RestGetStoredScriptAction());
@@ -788,9 +851,26 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestRepositoriesAction());
         registerHandler.accept(new RestSnapshotAction());
         registerHandler.accept(new RestTemplatesAction());
+        registerHandler.accept(new RestAnalyzeIndexDiskUsageAction());
+        registerHandler.accept(new RestFieldUsageStatsAction());
+
+        registerHandler.accept(new RestUpgradeActionDeprecated());
+
+        // Desired nodes
+        registerHandler.accept(new RestGetDesiredNodesAction());
+        registerHandler.accept(new RestUpdateDesiredNodesAction());
+        registerHandler.accept(new RestDeleteDesiredNodesAction());
+
         for (ActionPlugin plugin : actionPlugins) {
-            for (RestHandler handler : plugin.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings,
-                    settingsFilter, indexNameExpressionResolver, nodesInCluster)) {
+            for (RestHandler handler : plugin.getRestHandlers(
+                settings,
+                restController,
+                clusterSettings,
+                indexScopedSettings,
+                settingsFilter,
+                indexNameExpressionResolver,
+                nodesInCluster
+            )) {
                 registerHandler.accept(handler);
             }
         }
@@ -801,14 +881,19 @@ public class ActionModule extends AbstractModule {
     protected void configure() {
         bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
-        bind(new TypeLiteral<RequestValidators<PutMappingRequest>>() {}).toInstance(mappingRequestValidators);
-        bind(new TypeLiteral<RequestValidators<IndicesAliasesRequest>>() {}).toInstance(indicesAliasesRequestRequestValidators);
+        bind(new TypeLiteral<RequestValidators<PutMappingRequest>>() {
+        }).toInstance(mappingRequestValidators);
+        bind(new TypeLiteral<RequestValidators<IndicesAliasesRequest>>() {
+        }).toInstance(indicesAliasesRequestRequestValidators);
         bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
 
         // register ActionType -> transportAction Map used by NodeClient
         @SuppressWarnings("rawtypes")
-        MapBinder<ActionType, TransportAction> transportActionsBinder
-                = MapBinder.newMapBinder(binder(), ActionType.class, TransportAction.class);
+        MapBinder<ActionType, TransportAction> transportActionsBinder = MapBinder.newMapBinder(
+            binder(),
+            ActionType.class,
+            TransportAction.class
+        );
         for (ActionHandler<?, ?> action : actions.values()) {
             // bind the action as eager singleton, so the map binder one will reuse it
             bind(action.getTransportAction()).asEagerSingleton();

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
@@ -29,7 +30,7 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected boolean timeWarped() {
-        //need to use the real scheduler
+        // need to use the real scheduler
         return false;
     }
 
@@ -39,12 +40,12 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
         refresh();
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "a")), "idx");
         new PutWatchRequestBuilder(client()).setId(randomAlphaOfLength(5))
-            .setSource(watchBuilder()
-                .trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.SECONDS)))
-                .input(searchInput(request))
-                .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
-                .addAction("_logger", loggingAction("_logging")
-                    .setCategory("_category")))
+            .setSource(
+                watchBuilder().trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.SECONDS)))
+                    .input(searchInput(request))
+                    .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
+                    .addAction("_logger", loggingAction("_logging").setCategory("_category"))
+            )
             .get();
 
         assertBusy(() -> {
@@ -55,10 +56,10 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
 
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
             .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             .put("thread_pool.write.size", 1)
@@ -67,6 +68,5 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
             .put("xpack.watcher.thread_pool.queue_size", 0)
             .build();
     }
-
 
 }

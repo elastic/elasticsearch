@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -45,9 +34,10 @@ public class PostDataRequest implements Validatable, ToXContentObject {
     public static final ParseField RESET_END = new ParseField("reset_end");
     public static final ParseField CONTENT_TYPE = new ParseField("content_type");
 
-    public static final ConstructingObjectParser<PostDataRequest, Void> PARSER =
-        new ConstructingObjectParser<>("post_data_request",
-            (a) -> new PostDataRequest((String)a[0], XContentType.fromMediaType((String)a[1]), new byte[0]));
+    public static final ConstructingObjectParser<PostDataRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "post_data_request",
+        (a) -> new PostDataRequest((String) a[0], XContentType.fromMediaType((String) a[1]), new byte[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -136,13 +126,13 @@ public class PostDataRequest implements Validatable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        //We leave out the content for server side parity
+        // We leave out the content for server side parity
         return Objects.hash(jobId, resetStart, resetEnd, xContentType);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if(obj == this) {
+        if (obj == this) {
             return true;
         }
 
@@ -150,12 +140,12 @@ public class PostDataRequest implements Validatable, ToXContentObject {
             return false;
         }
 
-        //We leave out the content for server side parity
+        // We leave out the content for server side parity
         PostDataRequest other = (PostDataRequest) obj;
-        return Objects.equals(jobId, other.jobId) &&
-            Objects.equals(resetStart, other.resetStart) &&
-            Objects.equals(resetEnd, other.resetEnd) &&
-            Objects.equals(xContentType, other.xContentType);
+        return Objects.equals(jobId, other.jobId)
+            && Objects.equals(resetStart, other.resetStart)
+            && Objects.equals(resetEnd, other.resetEnd)
+            && Objects.equals(xContentType, other.xContentType);
     }
 
     @Override

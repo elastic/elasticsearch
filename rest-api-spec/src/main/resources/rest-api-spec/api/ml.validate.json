@@ -1,0 +1,29 @@
+{
+  "ml.validate":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/machine-learning/current/ml-jobs.html",
+      "description":"Validates an anomaly detection job."
+    },
+    "stability":"stable",
+    "visibility":"private",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/_validate",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The job config",
+      "required":true
+    }
+  }
+}

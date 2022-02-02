@@ -31,7 +31,7 @@ parameter, such as the `query` parameter in the
 === Filter context
 In a filter context, a query clause answers the question ``__Does this
 document match this query clause?__''  The answer is a simple Yes or No -- no
-scores are calculated.  Filter context is mostly used for filtering structured
+scores are calculated. Filter context is mostly used for filtering structured
 data, e.g.
 
 *  __Does this +timestamp+ fall into the range 2015 to 2016?__
@@ -50,7 +50,7 @@ parameter, such as the `filter` or `must_not` parameters in the
 [[query-filter-context-ex]]
 === Example of query and filter contexts
 Below is an example of query clauses being used in query and filter context
-in the `search` API.  This query will match documents where all of the following
+in the `search` API. This query will match documents where all of the following
 conditions are met:
 
 * The `title` field contains the word `search`.

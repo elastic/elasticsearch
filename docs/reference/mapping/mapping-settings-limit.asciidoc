@@ -1,0 +1,65 @@
+[[mapping-settings-limit]]
+== Mapping limit settings
+Use the following settings to limit the number of field mappings (created manually or dynamically) and prevent documents from causing a mapping explosion:
+
+`index.mapping.total_fields.limit`::
+    The maximum number of fields in an index. Field and object mappings, as well as
+    field aliases count towards this limit. The default value is `1000`.
++
+[IMPORTANT]
+====
+The limit is in place to prevent mappings and searches from becoming too
+large. Higher values can lead to performance degradations and memory issues,
+especially in clusters with a high load or few resources.
+
+If you increase this setting, we recommend you also increase the
+<<search-settings,`indices.query.bool.max_clause_count`>> setting, which
+limits the maximum number of clauses in a query.
+====
++
+[TIP]
+====
+If your field mappings contain a large, arbitrary set of keys, consider using the <<flattened,flattened>> data type.
+====
+
+`index.mapping.depth.limit`::
+    The maximum depth for a field, which is measured as the number of inner
+    objects. For instance, if all fields are defined at the root object level,
+    then the depth is `1`. If there is one object mapping, then the depth is
+    `2`, etc. Default is `20`.
+
+// tag::nested-fields-limit[]
+`index.mapping.nested_fields.limit`::
+    The maximum number of distinct `nested` mappings in an index. The `nested` type should only be used in special cases, when arrays of objects need to be queried independently of each other. To safeguard against poorly designed mappings, this setting
+    limits the number of unique `nested` types per index. Default is `50`.
+// end::nested-fields-limit[]
+
+// tag::nested-objects-limit[]
+`index.mapping.nested_objects.limit`::
+    The maximum number of nested JSON objects that a single document can contain across all
+    `nested` types. This limit helps to prevent out of memory errors when a document contains too many nested
+    objects. Default is `10000`.
+// end::nested-objects-limit[]
+
+`index.mapping.field_name_length.limit`::
+    Setting for the maximum length of a field name. This setting isn't really something that addresses
+    mappings explosion but might still be useful if you want to limit the field length.
+    It usually shouldn't be necessary to set this setting. The default is okay
+    unless a user starts to add a huge number of fields with really long names. Default is
+    `Long.MAX_VALUE` (no limit).
+
+[[index-mapping-dimension-fields-limit]]
+`index.mapping.dimension_fields.limit`::
++
+--
+experimental:[] (<<dynamic-index-settings,Dynamic>>, integer)
+
+.For internal use by Elastic only.
+[%collapsible]
+====
+Maximum number of time series dimensions for the index. Defaults to `16`.
+
+You can mark a field as a dimension using the `time_series_dimension` mapping
+parameter.
+====
+--

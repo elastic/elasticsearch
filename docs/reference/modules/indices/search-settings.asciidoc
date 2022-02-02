@@ -7,21 +7,34 @@ limits.
 [[indices-query-bool-max-clause-count]]
 `indices.query.bool.max_clause_count`::
 (<<static-cluster-setting,Static>>, integer)
-Maximum number of clauses a Lucene BooleanQuery can contain. Defaults to `1024`.
+Maximum number of clauses a query can contain. Defaults to `4096`.
 +
-This setting limits the number of clauses a Lucene BooleanQuery can have. The
-default of 1024 is quite high and should normally be sufficient. This limit does
-not only affect Elasticsearchs `bool` query, but many other queries are rewritten to Lucene's
-BooleanQuery internally. The limit is in place to prevent searches from becoming too large
-and taking up too much CPU and memory. In case you're considering increasing this setting,
-make sure you've exhausted all other options to avoid having to do this. Higher values can lead 
-to performance degradations and memory issues, especially in clusters with a high load or 
-few resources.
+This setting limits the total number of clauses that a query tree can have. The default of 4096
+is quite high and should normally be sufficient. This limit applies to the rewritten query, so
+not only `bool` queries can contribute high numbers of clauses, but also all queries that rewrite
+to `bool` queries internally such as `fuzzy` queries. The limit is in place to prevent searches
+from becoming too large, and taking up too much CPU and memory. In case you're considering
+increasing this setting, make sure you've exhausted all other options to avoid having to do this.
+Higher values can lead to performance degradations and memory issues, especially in clusters with
+a high load or few resources.
+
+Elasticsearch offers some tools to avoid running into issues with regards to the maximum number of
+clauses such as the <<query-dsl-terms-query,`terms`>> query, which allows querying many distinct
+values while still counting as a single clause, or the <<index-prefixes,`index_prefixes`>> option
+of <<text-field-type,`text`>> fields, which allows executing prefix queries that expand to a high
+number of terms as a single term query.
 
 [[search-settings-max-buckets]]
 `search.max_buckets`::
 (<<cluster-update-settings,Dynamic>>, integer)
 Maximum number of <<search-aggregations-bucket,aggregation buckets>> allowed in
-a single response. Defaults to `10000`.
+a single response. Defaults to 65,536.
 +
 Requests that attempt to return more than this limit will return an error.
+
+[[indices-query-bool-max-nested-depth]]
+`indices.query.bool.max_nested_depth`::
+(<<static-cluster-setting,Static>>, integer) Maximum nested depth of bool queries. Defaults to `20`.
++
+This setting limits the nesting depth of bool queries. Deep nesting of boolean queries may lead to
+stack overflow.

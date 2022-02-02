@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http.nio;
@@ -33,10 +22,11 @@ import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
@@ -63,8 +53,8 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -206,10 +196,10 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         CorsHandler corsHandler = CorsHandler.disabled();
-        TaskScheduler taskScheduler = new TaskScheduler();
+        TaskScheduler realScheduler = new TaskScheduler();
 
         Iterator<Integer> timeValues = Arrays.asList(0, 2, 4, 6, 8).iterator();
-        handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, taskScheduler, timeValues::next);
+        handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, realScheduler, timeValues::next);
         handler.channelActive();
 
         prepareHandlerForResponse(handler);
@@ -217,31 +207,31 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         HttpWriteOperation writeOperation0 = new HttpWriteOperation(context, emptyGetResponse(0), mock(BiConsumer.class));
         ((ChannelPromise) handler.writeToBytes(writeOperation0).get(0).getListener()).setSuccess();
 
-        taskScheduler.pollTask(timeValue.getNanos() + 1).run();
+        realScheduler.pollTask(timeValue.getNanos() + 1).run();
         // There was a read. Do not close.
         verify(transport, times(0)).onException(eq(channel), any(HttpReadTimeoutException.class));
 
         prepareHandlerForResponse(handler);
         prepareHandlerForResponse(handler);
 
-        taskScheduler.pollTask(timeValue.getNanos() + 3).run();
+        realScheduler.pollTask(timeValue.getNanos() + 3).run();
         // There was a read. Do not close.
         verify(transport, times(0)).onException(eq(channel), any(HttpReadTimeoutException.class));
 
         HttpWriteOperation writeOperation1 = new HttpWriteOperation(context, emptyGetResponse(1), mock(BiConsumer.class));
         ((ChannelPromise) handler.writeToBytes(writeOperation1).get(0).getListener()).setSuccess();
 
-        taskScheduler.pollTask(timeValue.getNanos() + 5).run();
+        realScheduler.pollTask(timeValue.getNanos() + 5).run();
         // There has not been a read, however there is still an inflight request. Do not close.
         verify(transport, times(0)).onException(eq(channel), any(HttpReadTimeoutException.class));
 
         HttpWriteOperation writeOperation2 = new HttpWriteOperation(context, emptyGetResponse(2), mock(BiConsumer.class));
         ((ChannelPromise) handler.writeToBytes(writeOperation2).get(0).getListener()).setSuccess();
 
-        taskScheduler.pollTask(timeValue.getNanos() + 7).run();
+        realScheduler.pollTask(timeValue.getNanos() + 7).run();
         // No reads and no inflight requests, close
         verify(transport, times(1)).onException(eq(channel), any(HttpReadTimeoutException.class));
-        assertNull(taskScheduler.pollTask(timeValue.getNanos() + 9));
+        assertNull(realScheduler.pollTask(timeValue.getNanos() + 9));
     }
 
     private static HttpPipelinedResponse emptyGetResponse(int sequence) {
@@ -252,9 +242,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         return httpResponse;
     }
 
-
-
-    private void prepareHandlerForResponse(HttpReadWriteHandler handler) throws IOException {
+    private void prepareHandlerForResponse(HttpReadWriteHandler readWriteHandler) throws IOException {
         HttpMethod method = randomBoolean() ? HttpMethod.GET : HttpMethod.HEAD;
         HttpVersion version = randomBoolean() ? HttpVersion.HTTP_1_0 : HttpVersion.HTTP_1_1;
         String uri = "http://localhost:9090/" + randomAlphaOfLength(8);
@@ -262,7 +250,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         io.netty.handler.codec.http.HttpRequest request = new DefaultFullHttpRequest(version, method, uri);
         ByteBuf buf = requestEncoder.encode(request);
         try {
-            handler.consumeReads(toChannelBuffer(buf));
+            readWriteHandler.consumeReads(toChannelBuffer(buf));
         } finally {
             buf.release();
         }

@@ -1,0 +1,44 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+// gradle has an open issue of failing applying plugins in
+// precompiled script plugins (see https://github.com/gradle/gradle/issues/17004)
+// apply plugin: 'elasticsearch.jdk-download'
+
+jdks {
+    provisioned_runtime {
+        vendor = VersionProperties.bundledJdkVendor
+        version = VersionProperties.bundledJdkVersion
+        platform = OS.current().name().toLowerCase()
+        architecture = Architecture.current().name().toLowerCase()
+    }
+}
+
+configure(allprojects) {
+    project.tasks.withType(Test).configureEach { Test test ->
+        if (BuildParams.getIsRuntimeJavaHomeSet()) {
+            test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
+        } else {
+            test.dependsOn(rootProject.jdks.provisioned_runtime)
+            test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
+        }
+    }
+    project.plugins.withId("elasticsearch.testclusters") { testClustersPlugin ->
+        project.plugins.withId("elasticsearch.internal-testclusters") { internalPlugin ->
+            if (BuildParams.getIsRuntimeJavaHomeSet() == false) {
+                // If no runtime java home is set, use the bundled JDK for test clusters
+                testClustersPlugin.setRuntimeJava(providers.provider(() -> file("${rootProject.jdks.provisioned_runtime.javaHomePath}")))
+            }
+        }
+    }
+}

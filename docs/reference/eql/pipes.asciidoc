@@ -1,12 +1,9 @@
 [role="xpack"]
-[testenv="basic"]
 [[eql-pipe-ref]]
 == EQL pipe reference
 ++++
 <titleabbrev>Pipe reference</titleabbrev>
 ++++
-
-beta::[]
 
 {es} supports the following <<eql-pipes,EQL pipes>>.
 

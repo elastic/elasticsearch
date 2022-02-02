@@ -1,20 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.Locale;
 
 public enum TargetType implements Writeable {
 
-    REGRESSION, CLASSIFICATION;
+    REGRESSION,
+    CLASSIFICATION;
+
+    public static final ParseField TARGET_TYPE = new ParseField("target_type");
 
     public static TargetType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

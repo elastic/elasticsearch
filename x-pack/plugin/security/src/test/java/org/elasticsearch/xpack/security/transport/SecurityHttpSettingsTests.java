@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport;
 
@@ -15,8 +16,7 @@ import static org.hamcrest.Matchers.is;
 public class SecurityHttpSettingsTests extends ESTestCase {
 
     public void testDisablesCompressionByDefaultForSsl() {
-        Settings settings = Settings.builder()
-            .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
+        Settings settings = Settings.builder().put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
 
         Settings.Builder pluginSettingsBuilder = Settings.builder();
         SecurityHttpSettings.overrideSettings(pluginSettingsBuilder, settings);
@@ -24,8 +24,7 @@ public class SecurityHttpSettingsTests extends ESTestCase {
     }
 
     public void testLeavesCompressionOnIfNotSsl() {
-        Settings settings = Settings.builder()
-            .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), false).build();
+        Settings settings = Settings.builder().put(XPackSettings.HTTP_SSL_ENABLED.getKey(), false).build();
         Settings.Builder pluginSettingsBuilder = Settings.builder();
         SecurityHttpSettings.overrideSettings(pluginSettingsBuilder, settings);
         assertThat(pluginSettingsBuilder.build().isEmpty(), is(true));

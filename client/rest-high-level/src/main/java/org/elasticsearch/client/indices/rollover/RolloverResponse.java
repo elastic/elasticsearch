@@ -1,33 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.indices.rollover;
 
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Response object for {@link RolloverRequest} API
@@ -41,9 +30,19 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse {
     private static final ParseField CONDITIONS = new ParseField("conditions");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<RolloverResponse, Void> PARSER = new ConstructingObjectParser<>("rollover",
-            true, args -> new RolloverResponse((String) args[0], (String) args[1], (Map<String,Boolean>) args[2],
-            (Boolean)args[3], (Boolean)args[4], (Boolean) args[5], (Boolean) args[6]));
+    private static final ConstructingObjectParser<RolloverResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "rollover",
+        true,
+        args -> new RolloverResponse(
+            (String) args[0],
+            (String) args[1],
+            (Map<String, Boolean>) args[2],
+            (Boolean) args[3],
+            (Boolean) args[4],
+            (Boolean) args[5],
+            (Boolean) args[6]
+        )
+    );
 
     static {
         PARSER.declareString(constructorArg(), OLD_INDEX);
@@ -60,8 +59,15 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse {
     private final boolean dryRun;
     private final boolean rolledOver;
 
-    public RolloverResponse(String oldIndex, String newIndex, Map<String, Boolean> conditionResults,
-                            boolean dryRun, boolean rolledOver, boolean acknowledged, boolean shardsAcknowledged) {
+    public RolloverResponse(
+        String oldIndex,
+        String newIndex,
+        Map<String, Boolean> conditionResults,
+        boolean dryRun,
+        boolean rolledOver,
+        boolean acknowledged,
+        boolean shardsAcknowledged
+    ) {
         super(acknowledged, shardsAcknowledged);
         this.oldIndex = oldIndex;
         this.newIndex = newIndex;
@@ -113,11 +119,11 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse {
     public boolean equals(Object o) {
         if (super.equals(o)) {
             RolloverResponse that = (RolloverResponse) o;
-            return dryRun == that.dryRun &&
-                    rolledOver == that.rolledOver &&
-                    Objects.equals(oldIndex, that.oldIndex) &&
-                    Objects.equals(newIndex, that.newIndex) &&
-                    Objects.equals(conditionStatus, that.conditionStatus);
+            return dryRun == that.dryRun
+                && rolledOver == that.rolledOver
+                && Objects.equals(oldIndex, that.oldIndex)
+                && Objects.equals(newIndex, that.newIndex)
+                && Objects.equals(conditionStatus, that.conditionStatus);
         }
         return false;
     }

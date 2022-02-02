@@ -1,25 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.cleaner;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporters;
+import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
+import org.junit.Before;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Locale;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
+import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0)
 public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTestCase {
@@ -27,17 +31,23 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
     static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("yyyy.MM.dd").withZone(ZoneOffset.UTC);
     static Integer INDEX_TEMPLATE_VERSION = null;
 
-    public void testNothingToDelete() throws Exception {
+    @Before
+    public void setup() {
         internalCluster().startNode();
 
+        // Set max retention time to avoid any accidental cleanups
+        CleanerService cleanerService = internalCluster().getInstance(CleanerService.class, internalCluster().getMasterName());
+        cleanerService.setGlobalRetention(TimeValue.MAX_VALUE);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78737")
+    public void testNothingToDelete() throws Exception {
         CleanerService.Listener listener = getListener();
         listener.onCleanUpIndices(days(0));
         assertIndicesCount(0);
     }
 
     public void testDeleteIndex() throws Exception {
-        internalCluster().startNode();
-
         createTimestampedIndex(now().minusDays(10));
         assertIndicesCount(1);
 
@@ -47,8 +57,6 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
     }
 
     public void testIgnoreCurrentAlertsIndex() throws Exception {
-        internalCluster().startNode();
-
         // Will be deleted
         createTimestampedIndex(now().minusDays(10));
 
@@ -63,8 +71,6 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
     }
 
     public void testDoesNotIgnoreIndicesInOtherVersions() throws Exception {
-        internalCluster().startNode();
-
         // Will be deleted
         createTimestampedIndex(now().minusDays(10));
         createIndex(".monitoring-data-2", now().minusDays(10));
@@ -88,8 +94,6 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
     }
 
     public void testIgnoreCurrentTimestampedIndex() throws Exception {
-        internalCluster().startNode();
-
         // Will be deleted
         createTimestampedIndex(now().minusDays(10));
 
@@ -103,9 +107,8 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         assertIndicesCount(1);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78862")
     public void testDeleteIndices() throws Exception {
-        internalCluster().startNode();
-
         CleanerService.Listener listener = getListener();
 
         final ZonedDateTime now = now();
@@ -144,8 +147,9 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
     public void testRetentionAsGlobalSetting() throws Exception {
         final int max = 10;
         final int retention = randomIntBetween(1, max);
-        internalCluster().startNode(Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(),
-                String.format(Locale.ROOT, "%dd", retention)));
+        internalCluster().startNode(
+            Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), String.format(Locale.ROOT, "%dd", retention))
+        );
 
         final ZonedDateTime now = now();
         for (int i = 0; i < max; i++) {
@@ -159,10 +163,14 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         assertIndicesCount(retention);
     }
 
-    protected CleanerService.Listener getListener() {
+    protected CleanerService.Listener getListener() throws Exception {
         Exporters exporters = internalCluster().getInstance(Exporters.class, internalCluster().getMasterName());
         for (Exporter exporter : exporters.getEnabledExporters()) {
             if (exporter instanceof CleanerService.Listener) {
+                // Ensure that the exporter is initialized.
+                if (exporter instanceof LocalExporter) {
+                    assertBusy(() -> assertThat(((LocalExporter) exporter).isExporterReady(), is(true)));
+                }
                 return (CleanerService.Listener) exporter;
             }
         }
@@ -228,7 +236,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
 
     protected static TimeValue months(int months) {
         ZonedDateTime now = now();
-        return TimeValue.timeValueMillis(now.toInstant().toEpochMilli()  - now.minusMonths(months).toInstant().toEpochMilli());
+        return TimeValue.timeValueMillis(now.toInstant().toEpochMilli() - now.minusMonths(months).toInstant().toEpochMilli());
     }
 
     protected static TimeValue days(int days) {

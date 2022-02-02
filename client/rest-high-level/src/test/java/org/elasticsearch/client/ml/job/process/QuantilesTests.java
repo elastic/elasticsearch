@@ -1,29 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.job.process;
 
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Date;
-
 
 public class QuantilesTests extends AbstractXContentTestCase<Quantiles> {
 
@@ -32,12 +20,10 @@ public class QuantilesTests extends AbstractXContentTestCase<Quantiles> {
         assertTrue(quantiles.equals(quantiles));
     }
 
-
     public void testEquals_GivenDifferentClassObject() {
         Quantiles quantiles = new Quantiles("foo", new Date(0L), "foo");
         assertFalse(quantiles.equals("not a quantiles object"));
     }
-
 
     public void testEquals_GivenEqualQuantilesObject() {
         Quantiles quantiles1 = new Quantiles("foo", new Date(0L), "foo");
@@ -48,7 +34,6 @@ public class QuantilesTests extends AbstractXContentTestCase<Quantiles> {
         assertTrue(quantiles2.equals(quantiles1));
     }
 
-
     public void testEquals_GivenDifferentState() {
         Quantiles quantiles1 = new Quantiles("foo", new Date(0L), "bar1");
 
@@ -58,7 +43,6 @@ public class QuantilesTests extends AbstractXContentTestCase<Quantiles> {
         assertFalse(quantiles2.equals(quantiles1));
     }
 
-
     public void testHashCode_GivenEqualObject() {
         Quantiles quantiles1 = new Quantiles("foo", new Date(0L), "foo");
 
@@ -67,16 +51,17 @@ public class QuantilesTests extends AbstractXContentTestCase<Quantiles> {
         assertEquals(quantiles1.hashCode(), quantiles2.hashCode());
     }
 
-
     @Override
     protected Quantiles createTestInstance() {
         return createRandomized();
     }
 
     public static Quantiles createRandomized() {
-        return new Quantiles(randomAlphaOfLengthBetween(1, 20),
-                new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()),
-                randomAlphaOfLengthBetween(0, 1000));
+        return new Quantiles(
+            randomAlphaOfLengthBetween(1, 20),
+            new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()),
+            randomAlphaOfLengthBetween(0, 1000)
+        );
     }
 
     @Override

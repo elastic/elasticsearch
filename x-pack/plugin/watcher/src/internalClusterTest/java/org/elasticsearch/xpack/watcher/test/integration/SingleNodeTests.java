@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
@@ -50,10 +51,11 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
         String watchId = randomAlphaOfLength(20);
         // now we start with an empty set up, store a watch and expected it to be executed
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId(watchId)
-            .setSource(watchBuilder()
-                .trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.SECONDS)))
-                .input(simpleInput())
-                .addAction("_logger", loggingAction("logging of watch _name")))
+            .setSource(
+                watchBuilder().trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.SECONDS)))
+                    .input(simpleInput())
+                    .addAction("_logger", loggingAction("logging of watch _name"))
+            )
             .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
@@ -61,7 +63,7 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
             client().admin().indices().prepareRefresh(".watcher-history*");
             SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
             assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(1L)));
-        }, 5, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS);
     }
 
 }

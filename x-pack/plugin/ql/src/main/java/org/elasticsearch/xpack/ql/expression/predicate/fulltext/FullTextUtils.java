@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate.fulltext;
 
@@ -22,7 +23,7 @@ abstract class FullTextUtils {
     private static final String DELIMITER = ";";
 
     static Map<String, String> parseSettings(String options, Source source) {
-        if (!Strings.hasText(options)) {
+        if (Strings.hasText(options) == false) {
             return emptyMap();
         }
         String[] list = Strings.delimitedListToStringArray(options, DELIMITER);
@@ -48,36 +49,34 @@ abstract class FullTextUtils {
     }
 
     static Map<String, Float> parseFields(String fieldString, Source source) {
-        if (!Strings.hasText(fieldString)) {
+        if (Strings.hasText(fieldString) == false) {
             return emptyMap();
         }
         Set<String> fieldNames = Strings.commaDelimitedListToSet(fieldString);
-        
+
         Float defaultBoost = Float.valueOf(1.0f);
         Map<String, Float> fields = new LinkedHashMap<>();
-        
+
         for (String fieldName : fieldNames) {
             if (fieldName.contains("^")) {
                 String[] split = splitInTwo(fieldName, "^");
                 if (split == null) {
                     fields.put(fieldName, defaultBoost);
-                }
-                else {
+                } else {
                     try {
                         fields.put(split[0], Float.parseFloat(split[1]));
                     } catch (NumberFormatException nfe) {
                         throw new ParsingException(source, "Cannot parse boosting for {}", fieldName);
                     }
                 }
-            }
-            else {
+            } else {
                 fields.put(fieldName, defaultBoost);
             }
         }
 
         return fields;
     }
-    
+
     private static String[] splitInTwo(String string, String delimiter) {
         String[] split = Strings.split(string, delimiter);
         if (split == null || split.length != 2) {

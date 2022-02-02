@@ -92,15 +92,15 @@ case_insensitive = true
     expected = false
 
 
-[wildcard_case_insensitive]
+[like_case_insensitive]
 case_insensitive = true
 
-    [[wildcard_case_insensitive.fold.tests]]
-    expression = 'wildcard("FOO", "f*o*o*")'
+    [[like_case_insensitive.fold.tests]]
+    expression = 'field like~ ("FOO", "f*o*o*")'
     expected = true
 
-    [[wildcard_case_insensitive.fold.tests]]
-    expression = 'wildcard("bar", "f*o*o*")'
+    [[like_case_insensitive.fold.tests]]
+    expression = 'field like~ ("bar", "f*o*o*")'
     expected = false
 
 

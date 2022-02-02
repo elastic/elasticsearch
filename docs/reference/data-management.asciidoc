@@ -31,3 +31,5 @@ for your older indices while reducing operating costs and maintaining search per
 --
 
 include::datatiers.asciidoc[]
+
+include::indices/index-mgmt.asciidoc[]

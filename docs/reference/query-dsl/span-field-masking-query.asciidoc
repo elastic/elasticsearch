@@ -25,7 +25,7 @@ GET /_search
           }
         },
         {
-          "field_masking_span": {
+          "span_field_masking": {
             "query": {
               "span_term": {
                 "text.stems": "fox"

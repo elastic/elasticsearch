@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.persistence;
@@ -34,7 +35,7 @@ public class SeqNoPrimaryTermAndIndexTests extends ESTestCase {
         String index = randomAlphaOfLength(10);
         searchHit.setSeqNo(seqNo);
         searchHit.setPrimaryTerm(primaryTerm);
-        searchHit.shard(new SearchShardTarget("anynode", new ShardId(index, randomAlphaOfLength(10), 1), null, null));
+        searchHit.shard(new SearchShardTarget("anynode", new ShardId(index, randomAlphaOfLength(10), 1), null));
         assertThat(SeqNoPrimaryTermAndIndex.fromSearchHit(searchHit), equalTo(new SeqNoPrimaryTermAndIndex(seqNo, primaryTerm, index)));
     }
 
@@ -42,14 +43,18 @@ public class SeqNoPrimaryTermAndIndexTests extends ESTestCase {
         long seqNo = randomLongBetween(-2, 10_000);
         long primaryTerm = randomLongBetween(-2, 10_000);
         String index = randomAlphaOfLength(10);
-        IndexResponse indexResponse = new IndexResponse(new ShardId(index, randomAlphaOfLength(10), 1),
+        IndexResponse indexResponse = new IndexResponse(
+            new ShardId(index, randomAlphaOfLength(10), 1),
             "asdf",
             seqNo,
             primaryTerm,
             1,
-        randomBoolean());
+            randomBoolean()
+        );
 
-        assertThat(SeqNoPrimaryTermAndIndex.fromIndexResponse(indexResponse),
-            equalTo(new SeqNoPrimaryTermAndIndex(seqNo, primaryTerm, index)));
+        assertThat(
+            SeqNoPrimaryTermAndIndex.fromIndexResponse(indexResponse),
+            equalTo(new SeqNoPrimaryTermAndIndex(seqNo, primaryTerm, index))
+        );
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
 
@@ -62,11 +63,17 @@ public class ExpressionModel {
         final Predicate<FieldExpression.FieldValue> predicate = this.fieldPredicates.getOrDefault(field, NULL_PREDICATE);
         boolean isMatch = values.stream().anyMatch(predicate);
         if (isMatch == false && predicate == NULL_PREDICATE && fieldPredicates.containsKey(field) == false) {
-            logger.debug(() -> new ParameterizedMessage("Attempt to test field [{}] against value(s) [{}]," +
-                " but the field [{}] does not have a value on this object;" +
-                " known fields are [{}]",
-                field, Strings.collectionToCommaDelimitedString(values),
-                field, Strings.collectionToCommaDelimitedString(fieldPredicates.keySet())));
+            logger.debug(
+                () -> new ParameterizedMessage(
+                    "Attempt to test field [{}] against value(s) [{}],"
+                        + " but the field [{}] does not have a value on this object;"
+                        + " known fields are [{}]",
+                    field,
+                    Strings.collectionToCommaDelimitedString(values),
+                    field,
+                    Strings.collectionToCommaDelimitedString(fieldPredicates.keySet())
+                )
+            );
         }
 
         return isMatch;
@@ -90,9 +97,9 @@ public class ExpressionModel {
         }
         if (object instanceof Collection) {
             return ((Collection<?>) object).stream()
-                    .map(element -> buildPredicate(element))
-                    .reduce((a, b) -> a.or(b))
-                    .orElse(fieldValue -> false);
+                .map(element -> buildPredicate(element))
+                .reduce((a, b) -> a.or(b))
+                .orElse(fieldValue -> false);
         }
         throw new IllegalArgumentException("Unsupported value type " + object.getClass());
     }
@@ -109,8 +116,7 @@ public class ExpressionModel {
             return false;
         }
         Number right = (Number) other;
-        if (left instanceof Double || left instanceof Float
-                || right instanceof Double || right instanceof Float) {
+        if (left instanceof Double || left instanceof Float || right instanceof Double || right instanceof Float) {
             return Double.compare(left.doubleValue(), right.doubleValue()) == 0;
         }
         return Numbers.toLongExact(left) == Numbers.toLongExact(right);

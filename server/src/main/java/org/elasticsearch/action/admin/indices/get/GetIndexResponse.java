@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.get;
@@ -28,14 +17,18 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 /**
  * A response for a get index action.
@@ -49,12 +42,14 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     private ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.of();
     private final String[] indices;
 
-    public GetIndexResponse(String[] indices,
-                     ImmutableOpenMap<String, MappingMetadata> mappings,
-                     ImmutableOpenMap<String, List<AliasMetadata>> aliases,
-                     ImmutableOpenMap<String, Settings> settings,
-                     ImmutableOpenMap<String, Settings> defaultSettings,
-                     ImmutableOpenMap<String, String> dataStreams) {
+    public GetIndexResponse(
+        String[] indices,
+        ImmutableOpenMap<String, MappingMetadata> mappings,
+        ImmutableOpenMap<String, List<AliasMetadata>> aliases,
+        ImmutableOpenMap<String, Settings> settings,
+        ImmutableOpenMap<String, Settings> defaultSettings,
+        ImmutableOpenMap<String, String> dataStreams
+    ) {
         this.indices = indices;
         // to have deterministic order
         Arrays.sort(indices);
@@ -79,17 +74,16 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         super(in);
         this.indices = in.readStringArray();
         mappings = in.readImmutableMap(StreamInput::readString, in.getVersion().before(Version.V_8_0_0) ? i -> {
-                    int numMappings = i.readVInt();
-                    assert numMappings == 0 || numMappings == 1 : "Expected 0 or 1 mappings but got " + numMappings;
-                    if (numMappings == 1) {
-                        String type = i.readString();
-                        assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but got [" + type + "]";
-                        return new MappingMetadata(i);
-                    } else {
-                        return MappingMetadata.EMPTY_MAPPINGS;
-                    }
-                } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS
-        );
+            int numMappings = i.readVInt();
+            assert numMappings == 0 || numMappings == 1 : "Expected 0 or 1 mappings but got " + numMappings;
+            if (numMappings == 1) {
+                String type = i.readString();
+                assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but got [" + type + "]";
+                return new MappingMetadata(i);
+            } else {
+                return MappingMetadata.EMPTY_MAPPINGS;
+            }
+        } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS);
 
         aliases = in.readImmutableMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
         settings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
@@ -203,7 +197,14 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     if (indexMappings == null) {
                         builder.startObject("mappings").endObject();
                     } else {
-                        builder.field("mappings", indexMappings.sourceAsMap());
+                        if (builder.getRestApiVersion() == RestApiVersion.V_7
+                            && params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
+                            builder.startObject("mappings");
+                            builder.field(MapperService.SINGLE_MAPPING_NAME, indexMappings.sourceAsMap());
+                            builder.endObject();
+                        } else {
+                            builder.field("mappings", indexMappings.sourceAsMap());
+                        }
                     }
 
                     builder.startObject("settings");
@@ -240,26 +241,18 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o== null || getClass() != o.getClass()) return false;
+        if (o == null || getClass() != o.getClass()) return false;
         GetIndexResponse that = (GetIndexResponse) o;
-        return Arrays.equals(indices, that.indices) &&
-            Objects.equals(aliases, that.aliases) &&
-            Objects.equals(mappings, that.mappings) &&
-            Objects.equals(settings, that.settings) &&
-            Objects.equals(defaultSettings, that.defaultSettings) &&
-            Objects.equals(dataStreams, that.dataStreams);
+        return Arrays.equals(indices, that.indices)
+            && Objects.equals(aliases, that.aliases)
+            && Objects.equals(mappings, that.mappings)
+            && Objects.equals(settings, that.settings)
+            && Objects.equals(defaultSettings, that.defaultSettings)
+            && Objects.equals(dataStreams, that.dataStreams);
     }
 
     @Override
     public int hashCode() {
-        return
-            Objects.hash(
-                Arrays.hashCode(indices),
-                aliases,
-                mappings,
-                settings,
-                defaultSettings,
-                dataStreams
-            );
+        return Objects.hash(Arrays.hashCode(indices), aliases, mappings, settings, defaultSettings, dataStreams);
     }
 }

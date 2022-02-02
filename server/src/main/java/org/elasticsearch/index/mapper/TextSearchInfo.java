@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -44,36 +33,51 @@ public class TextSearchInfo {
     /**
      * Defines indexing information for fields that support only simple match text queries
      */
-    public static final TextSearchInfo SIMPLE_MATCH_ONLY
-        = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+    public static final TextSearchInfo SIMPLE_MATCH_ONLY = new TextSearchInfo(
+        SIMPLE_MATCH_ONLY_FIELD_TYPE,
+        null,
+        Lucene.KEYWORD_ANALYZER,
+        Lucene.KEYWORD_ANALYZER
+    );
 
     /**
      * Defines indexing information for fields that index as keywords, but split query input
      * on whitespace to build disjunctions.
      */
-    public static final TextSearchInfo WHITESPACE_MATCH_ONLY
-        = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, Lucene.WHITESPACE_ANALYZER, Lucene.WHITESPACE_ANALYZER);
+    public static final TextSearchInfo WHITESPACE_MATCH_ONLY = new TextSearchInfo(
+        SIMPLE_MATCH_ONLY_FIELD_TYPE,
+        null,
+        Lucene.WHITESPACE_ANALYZER,
+        Lucene.WHITESPACE_ANALYZER
+    );
 
     /**
      * Defines indexing information for fields that support simple match text queries
      * without using the terms index
      */
-    public static final TextSearchInfo SIMPLE_MATCH_WITHOUT_TERMS
-        = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+    public static final TextSearchInfo SIMPLE_MATCH_WITHOUT_TERMS = new TextSearchInfo(
+        SIMPLE_MATCH_ONLY_FIELD_TYPE,
+        null,
+        Lucene.KEYWORD_ANALYZER,
+        Lucene.KEYWORD_ANALYZER
+    );
 
-    private static final NamedAnalyzer FORBIDDEN_ANALYZER = new NamedAnalyzer("", AnalyzerScope.GLOBAL,
-        new Analyzer() {
-            @Override
-            protected TokenStreamComponents createComponents(String fieldName) {
-                throw new UnsupportedOperationException();
-            }
-        });
+    private static final NamedAnalyzer FORBIDDEN_ANALYZER = new NamedAnalyzer("", AnalyzerScope.GLOBAL, new Analyzer() {
+        @Override
+        protected TokenStreamComponents createComponents(String fieldName) {
+            throw new UnsupportedOperationException();
+        }
+    });
 
     /**
      * Specifies that this field does not support text searching of any kind
      */
-    public static final TextSearchInfo NONE
-        = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, FORBIDDEN_ANALYZER, FORBIDDEN_ANALYZER);
+    public static final TextSearchInfo NONE = new TextSearchInfo(
+        SIMPLE_MATCH_ONLY_FIELD_TYPE,
+        null,
+        FORBIDDEN_ANALYZER,
+        FORBIDDEN_ANALYZER
+    );
 
     private final FieldType luceneFieldType;
     private final SimilarityProvider similarity;
@@ -89,8 +93,12 @@ public class TextSearchInfo {
      * @param searchAnalyzer        the search-time analyzer to use.  May not be {@code null}
      * @param searchQuoteAnalyzer   the search-time analyzer to use for phrase searches.  May not be {@code null}
      */
-    public TextSearchInfo(FieldType luceneFieldType, SimilarityProvider similarity,
-                          NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer) {
+    public TextSearchInfo(
+        FieldType luceneFieldType,
+        SimilarityProvider similarity,
+        NamedAnalyzer searchAnalyzer,
+        NamedAnalyzer searchQuoteAnalyzer
+    ) {
         this.luceneFieldType = luceneFieldType;
         this.similarity = similarity;
         this.searchAnalyzer = Objects.requireNonNull(searchAnalyzer);
@@ -140,7 +148,12 @@ public class TextSearchInfo {
     /**
      * What sort of term vectors are available
      */
-    public enum TermVector { NONE, DOCS, POSITIONS, OFFSETS }
+    public enum TermVector {
+        NONE,
+        DOCS,
+        POSITIONS,
+        OFFSETS
+    }
 
     /**
      * @return the type of term vectors available for this field

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -17,6 +18,7 @@ import org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
@@ -31,6 +33,10 @@ public class TransformAggregationsTests extends ESTestCase {
         // avg
         assertEquals("double", TransformAggregations.resolveTargetMapping("avg", "int"));
         assertEquals("double", TransformAggregations.resolveTargetMapping("avg", "double"));
+
+        // median_absolute_deviation
+        assertEquals("double", TransformAggregations.resolveTargetMapping("median_absolute_deviation", "int"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("median_absolute_deviation", "double"));
 
         // cardinality
         assertEquals("long", TransformAggregations.resolveTargetMapping("cardinality", "int"));
@@ -65,6 +71,10 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("geo_shape", TransformAggregations.resolveTargetMapping("geo_bounds", "geo_shape"));
         assertEquals("geo_shape", TransformAggregations.resolveTargetMapping("geo_bounds", null));
 
+        // geo_line
+        assertEquals("geo_shape", TransformAggregations.resolveTargetMapping("geo_line", "geo_shape"));
+        assertEquals("geo_shape", TransformAggregations.resolveTargetMapping("geo_line", null));
+
         // scripted_metric
         assertEquals("_dynamic", TransformAggregations.resolveTargetMapping("scripted_metric", null));
         assertEquals("_dynamic", TransformAggregations.resolveTargetMapping("scripted_metric", "int"));
@@ -78,8 +88,9 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("_dynamic", TransformAggregations.resolveTargetMapping("bucket_selector", "int"));
 
         // weighted_avg
-        assertEquals("_dynamic", TransformAggregations.resolveTargetMapping("weighted_avg", null));
-        assertEquals("_dynamic", TransformAggregations.resolveTargetMapping("weighted_avg", "double"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("weighted_avg", null));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("weighted_avg", "double"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("weighted_avg", "int"));
 
         // percentile
         assertEquals("double", TransformAggregations.resolveTargetMapping("percentiles", null));
@@ -100,6 +111,16 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("flattened", TransformAggregations.resolveTargetMapping("rare_terms", "text"));
         assertEquals("flattened", TransformAggregations.resolveTargetMapping("rare_terms", "keyword"));
 
+        // top_metrics
+        assertEquals("int", TransformAggregations.resolveTargetMapping("top_metrics", "int"));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("top_metrics", "double"));
+        assertEquals("ip", TransformAggregations.resolveTargetMapping("top_metrics", "ip"));
+        assertEquals("keyword", TransformAggregations.resolveTargetMapping("top_metrics", "keyword"));
+
+        // stats
+        assertEquals("double", TransformAggregations.resolveTargetMapping("stats", null));
+        assertEquals("double", TransformAggregations.resolveTargetMapping("stats", "int"));
+
         // corner case: source type null
         assertEquals(null, TransformAggregations.resolveTargetMapping("min", null));
     }
@@ -115,16 +136,13 @@ public class TransformAggregationsTests extends ESTestCase {
             .collect(Collectors.toList());
 
         for (String aggregationName : aggregationNames) {
+            String message = """
+                The following aggregation is unknown to transform: [%s]. If this is a newly added aggregation, \
+                please open an issue to add transform support for it. Afterwards add "%s" to the list in %s. \
+                Thanks!\
+                """.formatted(aggregationName, aggregationName, TransformAggregations.class.getName());
             assertTrue(
-                "The following aggregation is unknown to transform: ["
-                    + aggregationName
-                    + "]. If this is a newly added aggregation, "
-                    + "please open an issue to add transform support for it. Afterwards add \""
-                    + aggregationName
-                    + "\" to the list in "
-                    + TransformAggregations.class.getName()
-                    + ". Thanks!",
-
+                message,
                 TransformAggregations.isSupportedByTransform(aggregationName)
                     || TransformAggregations.isUnSupportedByTransform(aggregationName)
             );
@@ -155,6 +173,21 @@ public class TransformAggregationsTests extends ESTestCase {
         assertEquals("percentiles", outputTypes.get("percentiles.1"));
         assertEquals("percentiles", outputTypes.get("percentiles.5"));
         assertEquals("percentiles", outputTypes.get("percentiles.10"));
+    }
+
+    public void testGetAggregationOutputTypesStats() {
+        AggregationBuilder statsAggregationBuilder = new StatsAggregationBuilder("stats");
+
+        Tuple<Map<String, String>, Map<String, String>> inputAndOutputTypes = TransformAggregations.getAggregationInputAndOutputTypes(
+            statsAggregationBuilder
+        );
+        Map<String, String> outputTypes = inputAndOutputTypes.v2();
+        assertEquals(5, outputTypes.size());
+        assertEquals("stats", outputTypes.get("stats.max"));
+        assertEquals("stats", outputTypes.get("stats.min"));
+        assertEquals("stats", outputTypes.get("stats.avg"));
+        assertEquals("stats", outputTypes.get("stats.count"));
+        assertEquals("stats", outputTypes.get("stats.sum"));
     }
 
     public void testGetAggregationOutputTypesSubAggregations() {

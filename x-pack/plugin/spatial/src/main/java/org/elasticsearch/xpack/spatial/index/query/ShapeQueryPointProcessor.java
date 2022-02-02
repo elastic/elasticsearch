@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial.index.query;
 
@@ -27,46 +28,45 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.spatial.common.ShapeUtils;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 
-
 public class ShapeQueryPointProcessor {
 
-    public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
         validateIsPointFieldType(fieldName, context);
         // only the intersects relation is supported for indexed cartesian point types
         if (relation != ShapeRelation.INTERSECTS) {
-            throw new QueryShardException(context,
-                relation+ " query relation not supported for Field [" + fieldName + "].");
+            throw new QueryShardException(context, relation + " query relation not supported for Field [" + fieldName + "].");
         }
         // wrap XYPoint query as a ConstantScoreQuery
         return getVectorQueryFromShape(shape, fieldName, relation, context);
     }
 
-    private void validateIsPointFieldType(String fieldName, QueryShardContext context) {
+    private void validateIsPointFieldType(String fieldName, SearchExecutionContext context) {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType instanceof PointFieldMapper.PointFieldType == false) {
-            throw new QueryShardException(context, "Expected " + PointFieldMapper.CONTENT_TYPE
-                + " field type for Field [" + fieldName + "] but found " + fieldType.typeName());
+            throw new QueryShardException(
+                context,
+                "Expected " + PointFieldMapper.CONTENT_TYPE + " field type for Field [" + fieldName + "] but found " + fieldType.typeName()
+            );
         }
     }
 
-    protected Query getVectorQueryFromShape(
-        Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    protected Query getVectorQueryFromShape(Geometry queryShape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
         ShapeVisitor shapeVisitor = new ShapeVisitor(context, fieldName, relation);
         return queryShape.visit(shapeVisitor);
     }
 
     private class ShapeVisitor implements GeometryVisitor<Query, RuntimeException> {
-        QueryShardContext context;
+        SearchExecutionContext context;
         MappedFieldType fieldType;
         String fieldName;
         ShapeRelation relation;
 
-        ShapeVisitor(QueryShardContext context, String fieldName, ShapeRelation relation) {
+        ShapeVisitor(SearchExecutionContext context, String fieldName, ShapeRelation relation) {
             this.context = context;
             this.fieldType = context.getFieldType(fieldName);
             this.fieldName = fieldName;
@@ -78,8 +78,7 @@ public class ShapeQueryPointProcessor {
             XYCircle xyCircle = ShapeUtils.toLuceneXYCircle(circle);
             Query query = XYPointField.newDistanceQuery(fieldName, xyCircle.getX(), xyCircle.getY(), xyCircle.getRadius());
             if (fieldType.hasDocValues()) {
-                Query dvQuery = XYDocValuesField.newSlowDistanceQuery(fieldName,
-                    xyCircle.getX(), xyCircle.getY(), xyCircle.getRadius());
+                Query dvQuery = XYDocValuesField.newSlowDistanceQuery(fieldName, xyCircle.getX(), xyCircle.getY(), xyCircle.getRadius());
                 query = new IndexOrDocValuesQuery(query, dvQuery);
             }
             return query;
@@ -101,33 +100,28 @@ public class ShapeQueryPointProcessor {
 
         @Override
         public Query visit(org.elasticsearch.geometry.Line line) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support "
-                + ShapeType.LINESTRING + " queries");
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + ShapeType.LINESTRING + " queries");
         }
 
         @Override
         // don't think this is called directly
         public Query visit(LinearRing ring) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support "
-                + ShapeType.LINEARRING + " queries");
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + ShapeType.LINEARRING + " queries");
         }
 
         @Override
         public Query visit(MultiLine multiLine) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support "
-                + ShapeType.MULTILINESTRING + " queries");
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + ShapeType.MULTILINESTRING + " queries");
         }
 
         @Override
         public Query visit(MultiPoint multiPoint) {
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support "
-                + ShapeType.MULTIPOINT + " queries");
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + ShapeType.MULTIPOINT + " queries");
         }
 
         @Override
         public Query visit(MultiPolygon multiPolygon) {
-            org.apache.lucene.geo.XYPolygon[] lucenePolygons =
-                new org.apache.lucene.geo.XYPolygon[multiPolygon.size()];
+            org.apache.lucene.geo.XYPolygon[] lucenePolygons = new org.apache.lucene.geo.XYPolygon[multiPolygon.size()];
             for (int i = 0; i < multiPolygon.size(); i++) {
                 lucenePolygons[i] = ShapeUtils.toLuceneXYPolygon(multiPolygon.get(i));
             }
@@ -142,8 +136,7 @@ public class ShapeQueryPointProcessor {
         @Override
         public Query visit(Point point) {
             // not currently supported
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + ShapeType.POINT +
-                " queries");
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + ShapeType.POINT + " queries");
         }
 
         @Override
@@ -163,7 +156,12 @@ public class ShapeQueryPointProcessor {
             Query query = XYPointField.newBoxQuery(fieldName, xyRectangle.minX, xyRectangle.maxX, xyRectangle.minY, xyRectangle.maxY);
             if (fieldType.hasDocValues()) {
                 Query dvQuery = XYDocValuesField.newSlowBoxQuery(
-                    fieldName, xyRectangle.minX, xyRectangle.maxX, xyRectangle.minY, xyRectangle.maxY);
+                    fieldName,
+                    xyRectangle.minX,
+                    xyRectangle.maxX,
+                    xyRectangle.minY,
+                    xyRectangle.maxY
+                );
                 query = new IndexOrDocValuesQuery(query, dvQuery);
             }
             return query;

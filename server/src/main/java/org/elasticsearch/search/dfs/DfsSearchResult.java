@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.dfs;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
@@ -120,8 +110,8 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String,
-            CollectionStatistics> fieldStatistics) throws IOException {
+    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics)
+        throws IOException {
         out.writeVInt(fieldStatistics.size());
 
         for (ObjectObjectCursor<String, CollectionStatistics> c : fieldStatistics) {
@@ -143,7 +133,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    public  static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {
+    public static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {
         if (termStatistic != null) {
             assert termStatistic.docFreq() > 0;
             out.writeVLong(termStatistic.docFreq());

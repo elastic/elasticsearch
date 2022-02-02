@@ -110,16 +110,23 @@ GET hockey/_search
 }
 ----------------------------------------------------------------
 
+[discrete]
+==== Missing keys
+
+`doc['myfield'].value` throws an exception if
+the field is missing in a document.
+
+For more dynamic index mappings, you may consider writting a catch equation
+
+```
+if (!doc.containsKey('myfield') || doc['myfield'].empty) { return "unavailable" } else { return doc['myfield'].value }
+```
 
 [discrete]
 ==== Missing values
 
-`doc['field'].value` throws an exception if
-the field is missing in a document.
-
 To check if a document is missing a value, you can call
-`doc['field'].size() == 0`.
-
+`doc['myfield'].size() == 0`.
 
 [discrete]
 ==== Updating Fields with Painless
@@ -206,14 +213,13 @@ GET hockey/_search
 [[modules-scripting-painless-regex]]
 ==== Regular expressions
 
-NOTE: Regexes are disabled by default because they circumvent Painless's
-protection against long running and memory hungry scripts. To make matters
-worse even innocuous looking regexes can have staggering performance and stack
-depth behavior. They remain an amazing powerful tool but are too scary to enable
-by default. To enable them yourself set `script.painless.regex.enabled: true` in
-`elasticsearch.yml`. We'd like very much to have a safe alternative
-implementation that can be enabled by default so check this space for later
-developments!
+NOTE: Regexes are enabled by default as the Setting `script.painless.regex.enabled` 
+has a new option, `limited`, the default. This defaults to using regular expressions 
+but limiting the complexity of the regular expressions. Innocuous looking regexes 
+can have staggering performance and stack depth behavior. But still, they remain an 
+amazingly powerful tool. In addition, to `limited`, the setting can be set to `true`, 
+as before, which enables regular expressions without limiting them.To enable them 
+yourself set `script.painless.regex.enabled: true` in `elasticsearch.yml`.
 
 Painless's native support for regular expressions has syntax constructs:
 

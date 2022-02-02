@@ -1,5 +1,8 @@
 [[schedule-cron]]
-==== Cron schedule
+==== {watcher} cron schedule
+++++
+<titleabbrev>Cron schedule</titleabbrev>
+++++
 
 Defines a <<trigger-schedule, `schedule`>> using a <<cron-expressions, cron expression>> 
 that specifiues when to execute a watch.
@@ -45,7 +48,7 @@ minute during the weekend:
   "trigger" : {
     "schedule" : {
       "cron" : [
-        "0 0/2 * ? * MON-FRI"",
+        "0 0/2 * ? * MON-FRI",
         "0 1-59/2 * ? * SAT-SUN"
       ]
     }

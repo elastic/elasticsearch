@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration;
@@ -21,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransformUpdateIT extends TransformRestTestCase {
@@ -64,6 +64,12 @@ public class TransformUpdateIT extends TransformRestTestCase {
 
     @Before
     public void createIndexes() throws IOException {
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        setupDataAccessRole(DATA_ACCESS_ROLE_2, REVIEWS_INDEX_NAME);
+
+        setupUser(TEST_USER_NAME, Arrays.asList("transform_user", DATA_ACCESS_ROLE));
+        setupUser(TEST_ADMIN_USER_NAME_1, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
+        setupUser(TEST_ADMIN_USER_NAME_2, Arrays.asList("transform_admin", DATA_ACCESS_ROLE_2));
 
         // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
         if (indicesCreated) {
@@ -72,13 +78,6 @@ public class TransformUpdateIT extends TransformRestTestCase {
 
         createReviewsIndex();
         indicesCreated = true;
-
-        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
-        setupDataAccessRole(DATA_ACCESS_ROLE_2, REVIEWS_INDEX_NAME);
-
-        setupUser(TEST_USER_NAME, Arrays.asList("transform_user", DATA_ACCESS_ROLE));
-        setupUser(TEST_ADMIN_USER_NAME_1, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
-        setupUser(TEST_ADMIN_USER_NAME_2, Arrays.asList("transform_admin", DATA_ACCESS_ROLE_2));
     }
 
     @SuppressWarnings("unchecked")
@@ -92,26 +91,32 @@ public class TransformUpdateIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
         );
-        String config = "{ \"dest\": {\"index\":\""
-            + transformDest
-            + "\"},"
-            + " \"source\": {\"index\":\""
-            + REVIEWS_INDEX_NAME
-            + "\"},"
-            + " \"pivot\": {"
-            + "   \"group_by\": {"
-            + "     \"reviewer\": {"
-            + "       \"terms\": {"
-            + "         \"field\": \"user_id\""
-            + " } } },"
-            + "   \"aggregations\": {"
-            + "     \"avg_rating\": {"
-            + "       \"avg\": {"
-            + "         \"field\": \"stars\""
-            + " } } },"
-            + "    \"max_page_search_size\": 555"
-            + " }"
-            + "}";
+        String config = """
+            {
+              "dest": {
+                "index": "%s"
+              },
+              "source": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                },
+                "max_page_search_size": 555
+              }
+            }""".formatted(transformDest, REVIEWS_INDEX_NAME);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -167,25 +172,31 @@ public class TransformUpdateIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2
         );
 
-        String config = "{ \"dest\": {\"index\":\""
-            + transformDest
-            + "\"},"
-            + " \"source\": {\"index\":\""
-            + REVIEWS_INDEX_NAME
-            + "\"},"
-            + " \"pivot\": {"
-            + "   \"group_by\": {"
-            + "     \"reviewer\": {"
-            + "       \"terms\": {"
-            + "         \"field\": \"user_id\""
-            + " } } },"
-            + "   \"aggregations\": {"
-            + "     \"avg_rating\": {"
-            + "       \"avg\": {"
-            + "         \"field\": \"stars\""
-            + " } } }"
-            + " }"
-            + "}";
+        String config = """
+            {
+              "dest": {
+                "index": "%s"
+              },
+              "source": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""".formatted(transformDest, REVIEWS_INDEX_NAME);
 
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));

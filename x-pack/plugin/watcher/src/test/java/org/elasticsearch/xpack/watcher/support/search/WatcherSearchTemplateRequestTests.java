@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Map;
@@ -20,12 +21,14 @@ import static org.hamcrest.Matchers.is;
 public class WatcherSearchTemplateRequestTests extends ESTestCase {
 
     public void testFromXContentWithTemplateDefaultLang() throws IOException {
-        String source = "{\"template\":{\"id\":\"default-script\", \"params\":{\"foo\":\"bar\"}}}";
+        String source = """
+            {"template":{"id":"default-script", "params":{"foo":"bar"}}}""";
         assertTemplate(source, "default-script", null, singletonMap("foo", "bar"));
     }
 
     public void testFromXContentWithTemplateCustomLang() throws IOException {
-        String source = "{\"template\":{\"source\":\"custom-script\", \"lang\":\"painful\",\"params\":{\"bar\":\"baz\"}}}";
+        String source = """
+            {"template":{"source":"custom-script", "lang":"painful","params":{"bar":"baz"}}}""";
         assertTemplate(source, "custom-script", "painful", singletonMap("bar", "baz"));
     }
 
@@ -35,7 +38,7 @@ public class WatcherSearchTemplateRequestTests extends ESTestCase {
 
     public void testDefaultHitCountsConfigured() throws IOException {
         boolean hitCountsAsInt = randomBoolean();
-        String source = "{ \"rest_total_hits_as_int\" : " + hitCountsAsInt  + " }";
+        String source = "{ \"rest_total_hits_as_int\" : " + hitCountsAsInt + " }";
         assertHitCount(source, hitCountsAsInt);
     }
 

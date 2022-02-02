@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.datafeed;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -38,20 +27,23 @@ public class ChunkingConfig implements ToXContentObject {
     public static final ParseField TIME_SPAN_FIELD = new ParseField("time_span");
 
     public static final ConstructingObjectParser<ChunkingConfig, Void> PARSER = new ConstructingObjectParser<>(
-        "chunking_config", true, a -> new ChunkingConfig((Mode) a[0], (TimeValue) a[1]));
+        "chunking_config",
+        true,
+        a -> new ChunkingConfig((Mode) a[0], (TimeValue) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Mode::fromString, MODE_FIELD);
         PARSER.declareString(
             ConstructingObjectParser.optionalConstructorArg(),
             text -> TimeValue.parseTimeValue(text, TIME_SPAN_FIELD.getPreferredName()),
-            TIME_SPAN_FIELD);
+            TIME_SPAN_FIELD
+        );
 
     }
 
     private final Mode mode;
     private final TimeValue timeSpan;
-
 
     ChunkingConfig(Mode mode, @Nullable TimeValue timeSpan) {
         this.mode = Objects.requireNonNull(mode, MODE_FIELD.getPreferredName());
@@ -94,8 +86,7 @@ public class ChunkingConfig implements ToXContentObject {
         }
 
         ChunkingConfig other = (ChunkingConfig) obj;
-        return Objects.equals(this.mode, other.mode) &&
-            Objects.equals(this.timeSpan, other.timeSpan);
+        return Objects.equals(this.mode, other.mode) && Objects.equals(this.timeSpan, other.timeSpan);
     }
 
     public static ChunkingConfig newAuto() {
@@ -111,7 +102,9 @@ public class ChunkingConfig implements ToXContentObject {
     }
 
     public enum Mode {
-        AUTO, MANUAL, OFF;
+        AUTO,
+        MANUAL,
+        OFF;
 
         public static Mode fromString(String value) {
             return Mode.valueOf(value.toUpperCase(Locale.ROOT));

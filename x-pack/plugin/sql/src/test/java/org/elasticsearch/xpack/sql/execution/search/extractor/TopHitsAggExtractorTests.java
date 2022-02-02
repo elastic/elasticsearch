@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
@@ -18,6 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -54,8 +56,9 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
     protected TopHitsAggExtractor mutateInstance(TopHitsAggExtractor instance) {
         return new TopHitsAggExtractor(
             instance.name() + "mutated",
-                randomValueOtherThan(instance.fieldDataType(), () -> randomFrom(SqlDataTypes.types())),
-            randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone));
+            randomValueOtherThan(instance.fieldDataType(), () -> randomFrom(SqlDataTypes.types())),
+            randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone)
+        );
     }
 
     public void testNoAggs() {
@@ -88,15 +91,33 @@ public class TopHitsAggExtractorTests extends AbstractSqlWireSerializingTestCase
         TopHitsAggExtractor extractor = new TopHitsAggExtractor("topHitsAgg", DataTypes.DATETIME, zoneId);
 
         long value = 123456789L;
-        Aggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null);
+        Aggregation agg = new InternalTopHits(
+            extractor.name(),
+            0,
+            1,
+            null,
+            searchHitsOf(StringUtils.toString(DateUtils.asDateTimeWithMillis(value, zoneId))),
+            null
+        );
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
-        assertEquals(DateUtils.asDateTime(value, zoneId), extractor.extract(bucket));
+        assertEquals(DateUtils.asDateTimeWithMillis(value, zoneId), extractor.extract(bucket));
     }
 
     private SearchHits searchHitsOf(Object value) {
         TotalHits totalHits = new TotalHits(10, TotalHits.Relation.EQUAL_TO);
-        return new SearchHits(new SearchHit[] {new SearchHit(1, "docId", null,
-                Collections.singletonMap("topHitsAgg", new DocumentField("field", Collections.singletonList(value))))},
-            totalHits, 0.0f);
+        return new SearchHits(
+            new SearchHit[] {
+                new SearchHit(
+                    1,
+                    "docId",
+                    Collections.singletonMap("topHitsAgg", new DocumentField("field", Collections.singletonList(value))),
+                    Collections.singletonMap(
+                        "topHitsAgg",
+                        new DocumentField("_ignored", Collections.singletonList(randomValueOtherThan(value, () -> randomAlphaOfLength(5))))
+                    )
+                ) },
+            totalHits,
+            0.0f
+        );
     }
 }

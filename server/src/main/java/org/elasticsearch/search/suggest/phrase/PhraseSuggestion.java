@@ -1,39 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Suggestion entry returned from the {@link PhraseSuggester}.
@@ -95,10 +84,10 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
         protected void merge(Suggestion.Entry<Option> other) {
             super.merge(other);
             // If the cluster contains both pre 0.90.4 and post 0.90.4 nodes then we'll see Suggestion.Entry
-            // objects being merged with PhraseSuggestion.Entry objects.  We merge Suggestion.Entry objects
+            // objects being merged with PhraseSuggestion.Entry objects. We merge Suggestion.Entry objects
             // by assuming they had a low cutoff score rather than a high one as that is the more common scenario
             // and the simplest one for us to implement.
-            if (!(other instanceof PhraseSuggestion.Entry)) {
+            if ((other instanceof PhraseSuggestion.Entry) == false) {
                 return;
             }
             PhraseSuggestion.Entry otherSuggestionEntry = (PhraseSuggestion.Entry) other;
@@ -139,8 +128,7 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
 
         @Override
         public boolean equals(Object other) {
-            return super.equals(other)
-                && Objects.equals(cutoffScore, ((Entry) other).cutoffScore);
+            return super.equals(other) && Objects.equals(cutoffScore, ((Entry) other).cutoffScore);
         }
 
         @Override
@@ -162,15 +150,18 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
                 super(in);
             }
 
-            private static final ConstructingObjectParser<Option, Void> PARSER = new ConstructingObjectParser<>("PhraseOptionParser",
-                true, args -> {
+            private static final ConstructingObjectParser<Option, Void> PARSER = new ConstructingObjectParser<>(
+                "PhraseOptionParser",
+                true,
+                args -> {
                     Text text = new Text((String) args[0]);
                     float score = (Float) args[1];
                     String highlighted = (String) args[2];
                     Text highlightedText = highlighted == null ? null : new Text(highlighted);
                     Boolean collateMatch = (Boolean) args[3];
                     return new Option(text, highlightedText, score, collateMatch);
-            });
+                }
+            );
 
             static {
                 PARSER.declareString(constructorArg(), TEXT);
@@ -180,7 +171,7 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
             }
 
             public static Option fromXContent(XContentParser parser) {
-                    return PARSER.apply(parser, null);
+                return PARSER.apply(parser, null);
             }
         }
     }

@@ -1,0 +1,1240 @@
+{
+  "cluster_uuid" : "R0aKM8oRQs2Wq_x9y1O0Uw",
+  "timestamp" : "2099-10-25T00:00:03.739Z",
+  "interval_ms" : 10000,
+  "type" : "cluster_stats",
+  "source_node" : {
+    "uuid" : "bBD4if6GRge8C27GEkyGoQ",
+    "host" : "192.168.1.77",
+    "transport_address" : "192.168.1.77:9300",
+    "ip" : "192.168.1.77",
+    "name" : "es-cn-fakecluster-94f438bf-0002",
+    "timestamp" : "2099-10-25T00:00:02.707Z"
+  },
+  "cluster_name" : "es-cn-fakecluster",
+  "version" : "7.10.0",
+  "license" : {
+    "status" : "active",
+    "uid" : "190cxxxb8-7bxxx8-4xxxce-xxxx-82xxxxxxxxxxx39",
+    "type" : "basic",
+    "issue_date" : "2099-04-12T00:00:00.000Z",
+    "issue_date_in_millis" : 1915307200000,
+    "expiry_date" : "2099-10-31T23:59:59.999Z",
+    "expiry_date_in_millis" : 1911939599999,
+    "max_nodes" : 1,
+    "issued_to" : "issued_to",
+    "issuer" : "API",
+    "start_date_in_millis" : 1907252800000
+  },
+  "cluster_stats" : {
+    "cluster_uuid" : "R0aKM8oRQs2Wq_x9y1O0Uw",
+    "timestamp" : 1931100003055,
+    "status" : "green",
+    "indices" : {
+      "count" : 58,
+      "shards" : {
+        "total" : 616,
+        "primaries" : 553,
+        "replication" : 0.11392405063291139,
+        "index" : {
+          "shards" : {
+            "min" : 2,
+            "max" : 50,
+            "avg" : 10.620689655172415
+          },
+          "primaries" : {
+            "min" : 1,
+            "max" : 50,
+            "avg" : 9.53448275862069
+          },
+          "replication" : {
+            "min" : 0.0,
+            "max" : 1.0,
+            "avg" : 0.5344827586206896
+          }
+        }
+      },
+      "docs" : {
+        "count" : 22592729079,
+        "deleted" : 2648503
+      },
+      "store" : {
+        "size_in_bytes" : 10592428397392,
+        "reserved_in_bytes" : 0
+      },
+      "fielddata" : {
+        "memory_size_in_bytes" : 91683688,
+        "evictions" : 0
+      },
+      "query_cache" : {
+        "memory_size_in_bytes" : 3217918516,
+        "total_count" : 174178533,
+        "hit_count" : 4568182,
+        "miss_count" : 169610351,
+        "cache_size" : 654410,
+        "cache_count" : 1365440,
+        "evictions" : 711030
+      },
+      "completion" : {
+        "size_in_bytes" : 0
+      },
+      "segments" : {
+        "count" : 14067,
+        "memory_in_bytes" : 7076953416,
+        "terms_memory_in_bytes" : 519841216,
+        "stored_fields_memory_in_bytes" : 8847576,
+        "term_vectors_memory_in_bytes" : 0,
+        "norms_memory_in_bytes" : 7424,
+        "points_memory_in_bytes" : 0,
+        "doc_values_memory_in_bytes" : 6548257200,
+        "index_writer_memory_in_bytes" : 6013448,
+        "version_map_memory_in_bytes" : 0,
+        "fixed_bit_set_memory_in_bytes" : 1878632,
+        "max_unsafe_auto_id_timestamp" : 1635120002100,
+        "file_sizes" : { }
+      },
+      "mappings" : {
+        "field_types" : [
+          {
+            "name" : "binary",
+            "count" : 14,
+            "index_count" : 3
+          },
+          {
+            "name" : "boolean",
+            "count" : 87,
+            "index_count" : 24
+          },
+          {
+            "name" : "date",
+            "count" : 184,
+            "index_count" : 58
+          },
+          {
+            "name" : "double",
+            "count" : 115421,
+            "index_count" : 29
+          },
+          {
+            "name" : "flattened",
+            "count" : 9,
+            "index_count" : 1
+          },
+          {
+            "name" : "float",
+            "count" : 73,
+            "index_count" : 8
+          },
+          {
+            "name" : "half_float",
+            "count" : 61,
+            "index_count" : 15
+          },
+          {
+            "name" : "integer",
+            "count" : 204,
+            "index_count" : 11
+          },
+          {
+            "name" : "keyword",
+            "count" : 12178,
+            "index_count" : 58
+          },
+          {
+            "name" : "long",
+            "count" : 1434,
+            "index_count" : 22
+          },
+          {
+            "name" : "nested",
+            "count" : 34,
+            "index_count" : 13
+          },
+          {
+            "name" : "object",
+            "count" : 1064,
+            "index_count" : 27
+          },
+          {
+            "name" : "text",
+            "count" : 178,
+            "index_count" : 18
+          }
+        ]
+      },
+      "analysis" : {
+        "char_filter_types" : [ ],
+        "tokenizer_types" : [ ],
+        "filter_types" : [
+          {
+            "name" : "pattern_capture",
+            "count" : 1,
+            "index_count" : 1
+          }
+        ],
+        "analyzer_types" : [
+          {
+            "name" : "custom",
+            "count" : 1,
+            "index_count" : 1
+          }
+        ],
+        "built_in_char_filters" : [ ],
+        "built_in_tokenizers" : [
+          {
+            "name" : "uax_url_email",
+            "count" : 1,
+            "index_count" : 1
+          }
+        ],
+        "built_in_filters" : [
+          {
+            "name" : "lowercase",
+            "count" : 1,
+            "index_count" : 1
+          },
+          {
+            "name" : "unique",
+            "count" : 1,
+            "index_count" : 1
+          }
+        ],
+        "built_in_analyzers" : [ ]
+      }
+    },
+    "nodes" : {
+      "count" : {
+        "total" : 15,
+        "coordinating_only" : 0,
+        "data" : 8,
+        "data_cold" : 8,
+        "data_content" : 8,
+        "data_hot" : 8,
+        "data_warm" : 8,
+        "ingest" : 15,
+        "master" : 3,
+        "ml" : 8,
+        "remote_cluster_client" : 15,
+        "transform" : 8,
+        "voting_only" : 0
+      },
+      "versions" : [
+        "7.10.0"
+      ],
+      "os" : {
+        "available_processors" : 148,
+        "allocated_processors" : 148,
+        "names" : [
+          {
+            "name" : "Linux",
+            "count" : 15
+          }
+        ],
+        "pretty_names" : [
+          {
+            "pretty_name" : "Group Enterprise Linux Server 7.2 (Paladin)",
+            "count" : 15
+          }
+        ],
+        "mem" : {
+          "total_in_bytes" : 574853480448,
+          "free_in_bytes" : 58824171520,
+          "used_in_bytes" : 516029308928,
+          "free_percent" : 10,
+          "used_percent" : 90
+        }
+      },
+      "process" : {
+        "cpu" : {
+          "percent" : 280
+        },
+        "open_file_descriptors" : {
+          "min" : 771,
+          "max" : 1690,
+          "avg" : 1270
+        }
+      },
+      "jvm" : {
+        "max_uptime_in_millis" : 5314436883,
+        "versions" : [
+          {
+            "version" : "11.0.7.7",
+            "vm_name" : "OpenJDK 64-Bit Server VM",
+            "vm_version" : "11.0.7.7",
+            "vm_vendor" : "OpenJDK",
+            "bundled_jdk" : false,
+            "using_bundled_jdk" : null,
+            "count" : 15
+          }
+        ],
+        "mem" : {
+          "heap_used_in_bytes" : 125485105960,
+          "heap_max_in_bytes" : 309581709312
+        },
+        "threads" : 2244
+      },
+      "fs" : {
+        "total_in_bytes" : 37147089809408,
+        "free_in_bytes" : 26544359333888,
+        "available_in_bytes" : 24667503521792
+      },
+      "plugins" : [
+        {
+          "name" : "analysis-kuromoji",
+          "version" : "7.10.0",
+          "elasticsearch_version" : "7.10.0",
+          "java_version" : "1.8",
+          "description" : "The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.",
+          "classname" : "org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin",
+          "extended_plugins" : [ ],
+          "has_native_controller" : false
+        },
+        {
+          "name" : "elasticsearch-repository-oss",
+          "version" : "7.10.0",
+          "elasticsearch_version" : "7.10.0",
+          "java_version" : "1.8",
+          "description" : "OSS snapshot plugin",
+          "classname" : "org.elasticsearch.plugin.repository.oss.OssRepositoryPlugin",
+          "extended_plugins" : [ ],
+          "has_native_controller" : false
+        },
+        {
+          "name" : "ingest-attachment",
+          "version" : "7.10.0",
+          "elasticsearch_version" : "7.10.0",
+          "java_version" : "1.8",
+          "description" : "Ingest processor that uses Apache Tika to extract contents",
+          "classname" : "org.elasticsearch.ingest.attachment.IngestAttachmentPlugin",
+          "extended_plugins" : [ ],
+          "has_native_controller" : false
+        },
+        {
+          "name" : "mapper-murmur3",
+          "version" : "7.10.0",
+          "elasticsearch_version" : "7.10.0",
+          "java_version" : "1.8",
+          "description" : "The Mapper Murmur3 plugin allows to compute hashes of a field's values at index-time and to store them in the index.",
+          "classname" : "org.elasticsearch.plugin.mapper.MapperMurmur3Plugin",
+          "extended_plugins" : [ ],
+          "has_native_controller" : false
+        },
+        {
+          "name" : "analysis-phonetic",
+          "version" : "7.10.0",
+          "elasticsearch_version" : "7.10.0",
+          "java_version" : "1.8",
+          "description" : "The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.",
+          "classname" : "org.elasticsearch.plugin.analysis.AnalysisPhoneticPlugin",
+          "extended_plugins" : [ ],
+          "has_native_controller" : false
+        },
+        {
+          "name" : "analysis-pinyin",
+          "version" : "7.10.0",
+          "elasticsearch_version" : "7.10.0",
+          "java_version" : "1.8",
+          "description" : "Pinyin Analysis for Elasticsearch",
+          "classname" : "org.elasticsearch.plugin.analysis.pinyin.AnalysisPinyinPlugin",
+          "extended_plugins" : [ ],
+          "has_native_controller" : false
+        },
+        {
+          "name" : "analysis-icu",
+          "version" : "7.10.0",
+          "elasticsearch_version" : "7.10.0",
+          "java_version" : "1.8",
+          "description" : "The ICU Analysis plugin integrates the Lucene ICU module into Elasticsearch, adding ICU-related analysis components.",
+          "classname" : "org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin",
+          "extended_plugins" : [ ],
+          "has_native_controller" : false
+        },
+        {
+          "name" : "repository-hdfs",
+          "version" : "7.10.0",
+          "elasticsearch_version" : "7.10.0",
+          "java_version" : "1.8",
+          "description" : "The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.",
+          "classname" : "org.elasticsearch.repositories.hdfs.HdfsPlugin",
+          "extended_plugins" : [ ],
+          "has_native_controller" : false
+        },
+        {
+          "name" : "analysis-smartcn",
+          "version" : "7.10.0",
+          "elasticsearch_version" : "7.10.0",
+          "java_version" : "1.8",
+          "description" : "Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into elasticsearch.",
+          "classname" : "org.elasticsearch.plugin.analysis.smartcn.AnalysisSmartChinesePlugin",
+          "extended_plugins" : [ ],
+          "has_native_controller" : false
+        },
+        {
+          "name" : "mapper-size",
+          "version" : "7.10.0",
+          "elasticsearch_version" : "7.10.0",
+          "java_version" : "1.8",
+          "description" : "The Mapper Size plugin allows document to record their uncompressed size at index time.",
+          "classname" : "org.elasticsearch.plugin.mapper.MapperSizePlugin",
+          "extended_plugins" : [ ],
+          "has_native_controller" : false
+        },
+        {
+          "name" : "analysis-ik",
+          "version" : "7.10.0-rc1",
+          "elasticsearch_version" : "7.10.0",
+          "java_version" : "11",
+          "description" : "IK Analyzer for Elasticsearch",
+          "classname" : "org.elasticsearch.plugin.analysis.ik.AnalysisIkPlugin",
+          "extended_plugins" : [ ],
+          "has_native_controller" : false
+        }
+      ],
+      "network_types" : {
+        "transport_types" : {
+          "security4" : 15
+        },
+        "http_types" : {
+          "security4" : 15
+        }
+      },
+      "discovery_types" : {
+        "zen" : 15
+      },
+      "packaging_types" : [
+        {
+          "flavor" : "default",
+          "type" : "tar",
+          "count" : 15
+        }
+      ],
+      "ingest" : {
+        "number_of_pipelines" : 2,
+        "processor_stats" : {
+          "gsub" : {
+            "count" : 0,
+            "failed" : 0,
+            "current" : 0,
+            "time_in_millis" : 0
+          },
+          "script" : {
+            "count" : 0,
+            "failed" : 0,
+            "current" : 0,
+            "time_in_millis" : 0
+          }
+        }
+      }
+    }
+  },
+  "cluster_state" : {
+    "nodes_hash" : 339566492,
+    "status" : "green",
+    "cluster_uuid" : "R0aKM8oRQs2Wq_x9y1O0Uw",
+    "version" : 41291,
+    "state_uuid" : "ZnKagUG_TpW9z2Y2WLz2xA",
+    "master_node" : "bBD4if6GRge8C27GEkyGoQ",
+    "nodes" : {
+      "Kj-yOV5US9i81JPPk7WfQA" : {
+        "name" : "es-cn-fakecluster-a175c3a4-0001",
+        "ephemeral_id" : "WhY14ML9TGevEgTbpuh6mw",
+        "transport_address" : "192.168.1.66:9300",
+        "attributes" : {
+          "xpack.installed" : "true",
+          "transform.node" : "false"
+        }
+      },
+      "-XGGYaBASTqZZAB8MYS_VA" : {
+        "name" : "es-cn-fakecluster-a175c3a4-0002",
+        "ephemeral_id" : "yg1bUP5YQkWG6VxWhZr5vw",
+        "transport_address" : "192.168.1.67:9300",
+        "attributes" : {
+          "xpack.installed" : "true",
+          "transform.node" : "false"
+        }
+      },
+      "YcuqpJ83RNS7DfsQeM88gQ" : {
+        "name" : "es-cn-fakecluster-d99fc1d8-0003",
+        "ephemeral_id" : "Zc__VmnmRue_WIhGpLfvFQ",
+        "transport_address" : "192.168.1.70:9300",
+        "attributes" : {
+          "ml.machine_memory" : "32246857728",
+          "ml.max_open_jobs" : "20",
+          "xpack.installed" : "true",
+          "box_type" : "warm",
+          "transform.node" : "true"
+        }
+      },
+      "4AgyEBr7TR6_jidSKAas_g" : {
+        "name" : "es-cn-fakecluster-e2cd88de-0001",
+        "ephemeral_id" : "R8hjRpdKR-i_KPWBtO5yWQ",
+        "transport_address" : "192.168.1.72:9300",
+        "attributes" : {
+          "ml.machine_memory" : "65538097152",
+          "ml.max_open_jobs" : "20",
+          "xpack.installed" : "true",
+          "box_type" : "hot",
+          "transform.node" : "true"
+        }
+      },
+      "bBD4if6GRge8C27GEkyGoQ" : {
+        "name" : "es-cn-fakecluster-94f438bf-0002",
+        "ephemeral_id" : "pVH92skLSr-RTCewRG1j-A",
+        "transport_address" : "192.168.1.77:9300",
+        "attributes" : {
+          "xpack.installed" : "true",
+          "transform.node" : "false"
+        }
+      },
+      "URdEFOuXR3KMCBgUCAVd6w" : {
+        "name" : "es-cn-fakecluster-d99fc1d8-0001",
+        "ephemeral_id" : "Qefi04amSJWwArqWEwSkuw",
+        "transport_address" : "192.168.1.68:9300",
+        "attributes" : {
+          "ml.machine_memory" : "32246857728",
+          "ml.max_open_jobs" : "20",
+          "xpack.installed" : "true",
+          "box_type" : "warm",
+          "transform.node" : "true"
+        }
+      },
+      "EpshAzNnRKiVA_WZffl4tw" : {
+        "name" : "es-cn-fakecluster-d99fc1d8-0002",
+        "ephemeral_id" : "a9Mh_qaERzWasnmkS_0OZg",
+        "transport_address" : "192.168.1.69:9300",
+        "attributes" : {
+          "ml.machine_memory" : "32246857728",
+          "ml.max_open_jobs" : "20",
+          "xpack.installed" : "true",
+          "box_type" : "warm",
+          "transform.node" : "true"
+        }
+      },
+      "phnW_W9gS5SXGwxLQl1Ksg" : {
+        "name" : "es-cn-fakecluster-e2cd88de-0004",
+        "ephemeral_id" : "DC1kWjZvQ5OGa9hvV0ehBQ",
+        "transport_address" : "192.168.1.75:9300",
+        "attributes" : {
+          "ml.machine_memory" : "65538097152",
+          "ml.max_open_jobs" : "20",
+          "xpack.installed" : "true",
+          "box_type" : "hot",
+          "transform.node" : "true"
+        }
+      },
+      "zdH8Ex3aQfyVdFfUmwUvuQ" : {
+        "name" : "es-cn-fakecluster-94f438bf-0003",
+        "ephemeral_id" : "cjzCoOlaQyuc0LnWrddjXQ",
+        "transport_address" : "192.168.1.79:9300",
+        "attributes" : {
+          "xpack.installed" : "true",
+          "transform.node" : "false"
+        }
+      },
+      "2nxG2ausSJSrLJPScUYhWw" : {
+        "name" : "es-cn-fakecluster-e2cd88de-0002",
+        "ephemeral_id" : "dJa-DbXiQ0mJhCD0zxbZsg",
+        "transport_address" : "192.168.1.73:9300",
+        "attributes" : {
+          "ml.machine_memory" : "65538097152",
+          "ml.max_open_jobs" : "20",
+          "xpack.installed" : "true",
+          "box_type" : "hot",
+          "transform.node" : "true"
+        }
+      },
+      "jaVpgmlAQ9uqZwZMoKmKYQ" : {
+        "name" : "es-cn-fakecluster-94f438bf-0001",
+        "ephemeral_id" : "oQHM9inhS_uzmFdNM9dVEQ",
+        "transport_address" : "192.168.1.78:9300",
+        "attributes" : {
+          "xpack.installed" : "true",
+          "transform.node" : "false"
+        }
+      },
+      "ncXQDBheTPKnK8bTBCdD0Q" : {
+        "name" : "es-cn-fakecluster-a175c3a4-0004",
+        "ephemeral_id" : "RxlBUnwCSKycybUldtQx5Q",
+        "transport_address" : "192.168.1.64:9300",
+        "attributes" : {
+          "xpack.installed" : "true",
+          "transform.node" : "false"
+        }
+      },
+      "gnRfymumTpSqt7ADYfrqEQ" : {
+        "name" : "es-cn-fakecluster-a175c3a4-0003",
+        "ephemeral_id" : "CGxUthmYQMuVhzrJF-k3Ig",
+        "transport_address" : "192.168.1.65:9300",
+        "attributes" : {
+          "xpack.installed" : "true",
+          "transform.node" : "false"
+        }
+      },
+      "-rpuVf04QC63wzXSDyYN9Q" : {
+        "name" : "es-cn-fakecluster-e2cd88de-0005",
+        "ephemeral_id" : "qz6A8nKaQOSYmCaeX96bgg",
+        "transport_address" : "192.168.1.71:9300",
+        "attributes" : {
+          "ml.machine_memory" : "65538097152",
+          "ml.max_open_jobs" : "20",
+          "xpack.installed" : "true",
+          "box_type" : "hot",
+          "transform.node" : "true"
+        }
+      },
+      "Ok9-G_U0QaSIM869kTMF4w" : {
+        "name" : "es-cn-fakecluster-e2cd88de-0003",
+        "ephemeral_id" : "x5zFvCs-Ra2q_m0IHsagZQ",
+        "transport_address" : "192.168.1.74:9300",
+        "attributes" : {
+          "ml.machine_memory" : "65538097152",
+          "ml.max_open_jobs" : "20",
+          "xpack.installed" : "true",
+          "box_type" : "hot",
+          "transform.node" : "true"
+        }
+      }
+    }
+  },
+  "stack_stats" : {
+    "apm" : {
+      "found" : false
+    },
+    "xpack" : {
+      "data_tiers" : {
+        "available" : true,
+        "enabled" : true,
+        "data_warm" : {
+          "node_count" : 8,
+          "index_count" : 171,
+          "total_shard_count" : 616,
+          "primary_shard_count" : 553,
+          "doc_count" : 23231446734,
+          "total_size_bytes" : 10592429235794,
+          "primary_size_bytes" : 10365331148766,
+          "primary_shard_size_avg_bytes" : 18743817628,
+          "primary_shard_size_median_bytes" : 12927940994,
+          "primary_shard_size_mad_bytes" : 9829764800
+        },
+        "data_cold" : {
+          "node_count" : 8,
+          "index_count" : 171,
+          "total_shard_count" : 616,
+          "primary_shard_count" : 553,
+          "doc_count" : 23231446734,
+          "total_size_bytes" : 10592429235794,
+          "primary_size_bytes" : 10365331148766,
+          "primary_shard_size_avg_bytes" : 18743817628,
+          "primary_shard_size_median_bytes" : 12927940994,
+          "primary_shard_size_mad_bytes" : 9829764800
+        },
+        "data_content" : {
+          "node_count" : 8,
+          "index_count" : 171,
+          "total_shard_count" : 616,
+          "primary_shard_count" : 553,
+          "doc_count" : 23231446734,
+          "total_size_bytes" : 10592429235794,
+          "primary_size_bytes" : 10365331148766,
+          "primary_shard_size_avg_bytes" : 18743817628,
+          "primary_shard_size_median_bytes" : 12927940994,
+          "primary_shard_size_mad_bytes" : 9829764800
+        },
+        "data_hot" : {
+          "node_count" : 8,
+          "index_count" : 171,
+          "total_shard_count" : 616,
+          "primary_shard_count" : 553,
+          "doc_count" : 23231446734,
+          "total_size_bytes" : 10592429235794,
+          "primary_size_bytes" : 10365331148766,
+          "primary_shard_size_avg_bytes" : 18743817628,
+          "primary_shard_size_median_bytes" : 12927940994,
+          "primary_shard_size_mad_bytes" : 9829764800
+        }
+      },
+      "monitoring" : {
+        "available" : true,
+        "enabled" : true,
+        "collection_enabled" : true,
+        "enabled_exporters" : {
+          "local" : 1
+        }
+      },
+      "vectors" : {
+        "available" : true,
+        "enabled" : true,
+        "dense_vector_fields_count" : 0,
+        "sparse_vector_fields_count" : 0,
+        "dense_vector_dims_avg_count" : 0
+      },
+      "analytics" : {
+        "available" : true,
+        "enabled" : true,
+        "stats" : {
+          "boxplot_usage" : 0,
+          "cumulative_cardinality_usage" : 0,
+          "string_stats_usage" : 116,
+          "top_metrics_usage" : 0,
+          "t_test_usage" : 0,
+          "moving_percentiles_usage" : 0,
+          "normalize_usage" : 0,
+          "rate_usage" : 0
+        }
+      },
+      "ml" : {
+        "available" : true,
+        "enabled" : true,
+        "jobs" : {
+          "_all" : {
+            "count" : 0,
+            "detectors" : {
+              "total" : 0.0,
+              "min" : 0.0,
+              "avg" : 0.0,
+              "max" : 0.0
+            },
+            "created_by" : { },
+            "model_size" : {
+              "total" : 0.0,
+              "min" : 0.0,
+              "avg" : 0.0,
+              "max" : 0.0
+            },
+            "forecasts" : {
+              "total" : 0,
+              "forecasted_jobs" : 0
+            }
+          }
+        },
+        "datafeeds" : {
+          "_all" : {
+            "count" : 0
+          }
+        },
+        "data_frame_analytics_jobs" : {
+          "_all" : {
+            "count" : 0
+          }
+        },
+        "inference" : {
+          "ingest_processors" : {
+            "_all" : {
+              "num_docs_processed" : {
+                "max" : 0,
+                "sum" : 0,
+                "min" : 0
+              },
+              "pipelines" : {
+                "count" : 0
+              },
+              "num_failures" : {
+                "max" : 0,
+                "sum" : 0,
+                "min" : 0
+              },
+              "time_ms" : {
+                "max" : 0,
+                "sum" : 0,
+                "min" : 0
+              }
+            }
+          },
+          "trained_models" : {
+            "_all" : {
+              "count" : 0
+            }
+          }
+        },
+        "node_count" : 8
+      },
+      "frozen_indices" : {
+        "available" : true,
+        "enabled" : true,
+        "indices_count" : 0
+      },
+      "logstash" : {
+        "available" : true,
+        "enabled" : true
+      },
+      "ccr" : {
+        "available" : true,
+        "enabled" : true,
+        "follower_indices_count" : 0,
+        "auto_follow_patterns_count" : 0
+      },
+      "graph" : {
+        "available" : true,
+        "enabled" : true
+      },
+      "enrich" : {
+        "available" : true,
+        "enabled" : true
+      },
+      "transform" : {
+        "available" : true,
+        "enabled" : true
+      },
+      "spatial" : {
+        "available" : true,
+        "enabled" : true
+      },
+      "rollup" : {
+        "available" : true,
+        "enabled" : true
+      },
+      "flattened" : {
+        "available" : true,
+        "enabled" : true,
+        "field_count" : 0
+      },
+      "security" : {
+        "available" : true,
+        "enabled" : true,
+        "realms" : {
+          "file" : {
+            "name" : [
+              "file1"
+            ],
+            "available" : true,
+            "cache" : [
+              {
+                "size" : 1
+              }
+            ],
+            "size" : [
+              5
+            ],
+            "enabled" : true,
+            "order" : [
+              0
+            ]
+          },
+          "ldap" : {
+            "available" : true,
+            "enabled" : false
+          },
+          "native" : {
+            "name" : [
+              "native1"
+            ],
+            "available" : true,
+            "cache" : [
+              {
+                "size" : 0
+              }
+            ],
+            "size" : [
+              0
+            ],
+            "enabled" : true,
+            "order" : [
+              1
+            ]
+          },
+          "saml" : {
+            "available" : true,
+            "enabled" : false
+          },
+          "kerberos" : {
+            "available" : true,
+            "enabled" : false
+          },
+          "oidc" : {
+            "available" : true,
+            "enabled" : false
+          },
+          "active_directory" : {
+            "available" : true,
+            "enabled" : false
+          },
+          "pki" : {
+            "available" : true,
+            "enabled" : false
+          }
+        },
+        "roles" : {
+          "native" : {
+            "size" : 0,
+            "fls" : false,
+            "dls" : false
+          },
+          "dls" : {
+            "bit_set_cache" : {
+              "count" : 0,
+              "memory" : "0b",
+              "memory_in_bytes" : 0
+            }
+          },
+          "file" : {
+            "size" : 2,
+            "fls" : false,
+            "dls" : false
+          }
+        },
+        "role_mapping" : {
+          "native" : {
+            "size" : 0,
+            "enabled" : 0
+          }
+        },
+        "ssl" : {
+          "http" : {
+            "enabled" : false
+          },
+          "transport" : {
+            "enabled" : true
+          }
+        },
+        "token_service" : {
+          "enabled" : false
+        },
+        "api_key_service" : {
+          "enabled" : false
+        },
+        "audit" : {
+          "enabled" : false
+        },
+        "ipfilter" : {
+          "http" : false,
+          "transport" : false
+        },
+        "anonymous" : {
+          "enabled" : false
+        },
+        "fips_140" : {
+          "enabled" : false
+        }
+      },
+      "searchable_snapshots" : {
+        "available" : false,
+        "enabled" : true,
+        "indices_count" : 0
+      },
+      "watcher" : {
+        "available" : true,
+        "enabled" : false
+      },
+      "ilm" : {
+        "policy_count" : 12,
+        "policy_stats" : [
+          {
+            "phases" : {
+              "hot" : {
+                "min_age" : 0,
+                "actions" : [
+                  "rollover"
+                ]
+              },
+              "delete" : {
+                "min_age" : 7776000000,
+                "actions" : [
+                  "delete"
+                ]
+              }
+            },
+            "indices_managed" : 3
+          },
+          {
+            "phases" : {
+              "hot" : {
+                "min_age" : 0,
+                "actions" : [
+                  "rollover",
+                  "set_priority"
+                ]
+              }
+            },
+            "indices_managed" : 0
+          },
+          {
+            "phases" : {
+              "warm" : {
+                "min_age" : 0,
+                "actions" : [
+                  "allocate",
+                  "forcemerge"
+                ]
+              },
+              "hot" : {
+                "min_age" : 0,
+                "actions" : [
+                  "rollover"
+                ]
+              },
+              "delete" : {
+                "min_age" : 2592000000,
+                "actions" : [
+                  "delete"
+                ]
+              }
+            },
+            "indices_managed" : 10
+          },
+          {
+            "phases" : {
+              "hot" : {
+                "min_age" : 0,
+                "actions" : [
+                  "rollover"
+                ]
+              }
+            },
+            "indices_managed" : 0
+          },
+          {
+            "phases" : {
+              "warm" : {
+                "min_age" : 0,
+                "actions" : [
+                  "allocate",
+                  "forcemerge"
+                ]
+              },
+              "hot" : {
+                "min_age" : 0,
+                "actions" : [
+                  "rollover"
+                ]
+              },
+              "delete" : {
+                "min_age" : 259200000,
+                "actions" : [
+                  "delete"
+                ]
+              }
+            },
+            "indices_managed" : 9
+          },
+          {
+            "phases" : {
+              "hot" : {
+                "min_age" : 0,
+                "actions" : [
+                  "rollover"
+                ]
+              },
+              "delete" : {
+                "min_age" : 7776000000,
+                "actions" : [
+                  "delete"
+                ]
+              }
+            },
+            "indices_managed" : 3
+          },
+          {
+            "phases" : {
+              "hot" : {
+                "min_age" : 0,
+                "actions" : [
+                  "rollover"
+                ]
+              },
+              "delete" : {
+                "min_age" : 43200000,
+                "actions" : [
+                  "delete"
+                ]
+              }
+            },
+            "indices_managed" : 4
+          },
+          {
+            "phases" : {
+              "hot" : {
+                "min_age" : 0,
+                "actions" : [
+                  "rollover"
+                ]
+              }
+            },
+            "indices_managed" : 0
+          },
+          {
+            "phases" : {
+              "hot" : {
+                "min_age" : 0,
+                "actions" : [
+                  "rollover"
+                ]
+              }
+            },
+            "indices_managed" : 0
+          },
+          {
+            "phases" : {
+              "hot" : {
+                "min_age" : 0,
+                "actions" : [
+                  "rollover"
+                ]
+              }
+            },
+            "indices_managed" : 0
+          },
+          {
+            "phases" : {
+              "hot" : {
+                "min_age" : 0,
+                "actions" : [
+                  "rollover"
+                ]
+              },
+              "delete" : {
+                "min_age" : 7776000000,
+                "actions" : [
+                  "delete"
+                ]
+              }
+            },
+            "indices_managed" : 0
+          },
+          {
+            "phases" : {
+              "warm" : {
+                "min_age" : 0,
+                "actions" : [
+                  "allocate",
+                  "forcemerge"
+                ]
+              },
+              "hot" : {
+                "min_age" : 0,
+                "actions" : [
+                  "rollover"
+                ]
+              },
+              "delete" : {
+                "min_age" : 15552000000,
+                "actions" : [
+                  "delete"
+                ]
+              }
+            },
+            "indices_managed" : 6
+          }
+        ]
+      },
+      "slm" : {
+        "available" : true,
+        "enabled" : true
+      },
+      "voting_only" : {
+        "available" : true,
+        "enabled" : true
+      },
+      "data_streams" : {
+        "available" : true,
+        "enabled" : true,
+        "data_streams" : 8,
+        "indices_count" : 29
+      },
+      "sql" : {
+        "available" : true,
+        "enabled" : true,
+        "features" : {
+          "having" : 0,
+          "subselect" : 0,
+          "limit" : 0,
+          "orderby" : 0,
+          "where" : 0,
+          "join" : 0,
+          "groupby" : 0,
+          "local" : 0,
+          "command" : 0
+        },
+        "queries" : {
+          "rest" : {
+            "total" : 0,
+            "paging" : 0,
+            "failed" : 0
+          },
+          "cli" : {
+            "total" : 0,
+            "paging" : 0,
+            "failed" : 0
+          },
+          "canvas" : {
+            "total" : 0,
+            "paging" : 0,
+            "failed" : 0
+          },
+          "odbc" : {
+            "total" : 0,
+            "paging" : 0,
+            "failed" : 0
+          },
+          "jdbc" : {
+            "total" : 0,
+            "paging" : 0,
+            "failed" : 0
+          },
+          "odbc32" : {
+            "total" : 0,
+            "paging" : 0,
+            "failed" : 0
+          },
+          "odbc64" : {
+            "total" : 0,
+            "paging" : 0,
+            "failed" : 0
+          },
+          "_all" : {
+            "total" : 0,
+            "paging" : 0,
+            "failed" : 0
+          },
+          "translate" : {
+            "count" : 0
+          }
+        }
+      },
+      "eql" : {
+        "available" : true,
+        "enabled" : true,
+        "features" : {
+          "joins" : {
+            "join_queries_two" : 0,
+            "join_queries_three" : 0,
+            "join_until" : 0,
+            "join_queries_five_or_more" : 0,
+            "join_queries_four" : 0
+          },
+          "sequence" : 0,
+          "keys" : {
+            "join_keys_two" : 0,
+            "join_keys_one" : 0,
+            "join_keys_three" : 0,
+            "join_keys_five_or_more" : 0,
+            "join_keys_four" : 0
+          },
+          "join" : 0,
+          "sequences" : {
+            "sequence_queries_three" : 0,
+            "sequence_queries_four" : 0,
+            "sequence_queries_two" : 0,
+            "sequence_until" : 0,
+            "sequence_maxspan" : 0,
+            "sequence_queries_five_or_more" : 0
+          },
+          "event" : 0,
+          "pipes" : {
+            "pipe_tail" : 0,
+            "pipe_head" : 0
+          }
+        },
+        "queries" : {
+          "all" : {
+            "total" : 0,
+            "failed" : 0
+          },
+          "_all" : {
+            "total" : 0,
+            "failed" : 0
+          }
+        }
+      }
+    }
+  }
+}

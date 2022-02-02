@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.ccr;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -45,10 +34,7 @@ public class FollowConfig {
     static final ParseField MAX_RETRY_DELAY_FIELD = new ParseField("max_retry_delay");
     static final ParseField READ_POLL_TIMEOUT = new ParseField("read_poll_timeout");
 
-    private static final ObjectParser<FollowConfig, Void> PARSER = new ObjectParser<>(
-        "follow_config",
-        true,
-        FollowConfig::new);
+    private static final ObjectParser<FollowConfig, Void> PARSER = new ObjectParser<>("follow_config", true, FollowConfig::new);
 
     static {
         PARSER.declareObject(FollowConfig::setSettings, (p, c) -> Settings.fromXContent(p), SETTINGS);
@@ -58,26 +44,35 @@ public class FollowConfig {
             FollowConfig::setMaxReadRequestSize,
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_READ_REQUEST_SIZE.getPreferredName()),
             MAX_READ_REQUEST_SIZE,
-            ObjectParser.ValueType.STRING);
+            ObjectParser.ValueType.STRING
+        );
         PARSER.declareInt(FollowConfig::setMaxWriteRequestOperationCount, MAX_WRITE_REQUEST_OPERATION_COUNT);
         PARSER.declareField(
             FollowConfig::setMaxWriteRequestSize,
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_REQUEST_SIZE.getPreferredName()),
             MAX_WRITE_REQUEST_SIZE,
-            ObjectParser.ValueType.STRING);
+            ObjectParser.ValueType.STRING
+        );
         PARSER.declareInt(FollowConfig::setMaxOutstandingWriteRequests, MAX_OUTSTANDING_WRITE_REQUESTS);
         PARSER.declareInt(FollowConfig::setMaxWriteBufferCount, MAX_WRITE_BUFFER_COUNT);
         PARSER.declareField(
             FollowConfig::setMaxWriteBufferSize,
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_BUFFER_SIZE.getPreferredName()),
             MAX_WRITE_BUFFER_SIZE,
-            ObjectParser.ValueType.STRING);
-        PARSER.declareField(FollowConfig::setMaxRetryDelay,
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareField(
+            FollowConfig::setMaxRetryDelay,
             (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY_FIELD.getPreferredName()),
-            MAX_RETRY_DELAY_FIELD, ObjectParser.ValueType.STRING);
-        PARSER.declareField(FollowConfig::setReadPollTimeout,
+            MAX_RETRY_DELAY_FIELD,
+            ObjectParser.ValueType.STRING
+        );
+        PARSER.declareField(
+            FollowConfig::setReadPollTimeout,
             (p, c) -> TimeValue.parseTimeValue(p.text(), READ_POLL_TIMEOUT.getPreferredName()),
-            READ_POLL_TIMEOUT, ObjectParser.ValueType.STRING);
+            READ_POLL_TIMEOUT,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     static FollowConfig fromXContent(XContentParser parser) {
@@ -96,8 +91,7 @@ public class FollowConfig {
     private TimeValue maxRetryDelay;
     private TimeValue readPollTimeout;
 
-    FollowConfig() {
-    }
+    FollowConfig() {}
 
     public Settings getSettings() {
         return settings;
@@ -232,16 +226,16 @@ public class FollowConfig {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FollowConfig that = (FollowConfig) o;
-        return Objects.equals(maxReadRequestOperationCount, that.maxReadRequestOperationCount) &&
-            Objects.equals(maxOutstandingReadRequests, that.maxOutstandingReadRequests) &&
-            Objects.equals(maxReadRequestSize, that.maxReadRequestSize) &&
-            Objects.equals(maxWriteRequestOperationCount, that.maxWriteRequestOperationCount) &&
-            Objects.equals(maxWriteRequestSize, that.maxWriteRequestSize) &&
-            Objects.equals(maxOutstandingWriteRequests, that.maxOutstandingWriteRequests) &&
-            Objects.equals(maxWriteBufferCount, that.maxWriteBufferCount) &&
-            Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize) &&
-            Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
-            Objects.equals(readPollTimeout, that.readPollTimeout);
+        return Objects.equals(maxReadRequestOperationCount, that.maxReadRequestOperationCount)
+            && Objects.equals(maxOutstandingReadRequests, that.maxOutstandingReadRequests)
+            && Objects.equals(maxReadRequestSize, that.maxReadRequestSize)
+            && Objects.equals(maxWriteRequestOperationCount, that.maxWriteRequestOperationCount)
+            && Objects.equals(maxWriteRequestSize, that.maxWriteRequestSize)
+            && Objects.equals(maxOutstandingWriteRequests, that.maxOutstandingWriteRequests)
+            && Objects.equals(maxWriteBufferCount, that.maxWriteBufferCount)
+            && Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize)
+            && Objects.equals(maxRetryDelay, that.maxRetryDelay)
+            && Objects.equals(readPollTimeout, that.readPollTimeout);
     }
 
     @Override

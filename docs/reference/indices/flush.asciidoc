@@ -24,6 +24,12 @@ POST /my-index-000001/_flush
 
 `GET /_flush`
 
+[[flush-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `maintenance`
+or `manage` <<privileges-list-indices,index privilege>> for the target data
+stream, index, or alias.
 
 [[flush-api-desc]]
 ==== {api-description-title}
@@ -31,7 +37,7 @@ POST /my-index-000001/_flush
 Flushing a data stream or index is the process of making sure that any data that is currently
 only stored in the <<index-modules-translog,transaction log>> is also
 permanently stored in the Lucene index. When restarting, {es} replays any
-unflushed operations from the transaction log into the Lucene index to bring it
+unflushed operations from the transaction log in to the Lucene index to bring it
 back into the state that it was in before the restart. {es} automatically
 triggers flushes as needed, using heuristics that trade off the size of the
 unflushed transaction log against the cost of performing each flush.
@@ -53,13 +59,9 @@ flush API was called.
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases to flush.
-Wildcard expressions (`*`) are supported.
-+
-To flush all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
-
+(Optional, string) Comma-separated list of data streams, indices, and aliases to
+flush. Supports wildcards (`*`). To flush all data streams and indices, omit
+this parameter or use `*` or `_all`.
 
 [[flush-api-query-params]]
 ==== {api-query-parms-title}

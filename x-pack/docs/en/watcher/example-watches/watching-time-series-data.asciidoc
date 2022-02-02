@@ -107,7 +107,7 @@ You define the condition with the following script:
 +
 [source,text]
 --------------------------------------------------
-return ctx.payload.hits.total.value > threshold
+return ctx.payload.hits.total > threshold
 --------------------------------------------------
 +
 If you store the script in a file at `$ES_HOME/config/scripts/threshold_hits.painless`,
@@ -204,7 +204,7 @@ PUT _watcher/watch/rss_watch
   }
 }
 --------------------------------------------------
-// TEST[s/"id" : "threshold_hits"/"source": "return ctx.payload.hits.total.value > params.threshold"/]
+// TEST[s/"id" : "threshold_hits"/"source": "return ctx.payload.hits.total > params.threshold"/]
 
 <1> Replace `username@example.org` with your email address to receive
     notifications.

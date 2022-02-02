@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.transform.chain;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
@@ -29,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
@@ -42,56 +43,62 @@ import static org.mockito.Mockito.mock;
 public class ChainTransformTests extends ESTestCase {
     public void testExecute() throws Exception {
         ChainTransform transform = new ChainTransform(
-                new NamedExecutableTransform.Transform("name1"),
-                new NamedExecutableTransform.Transform("name2"),
-                new NamedExecutableTransform.Transform("name3")
+            new NamedExecutableTransform.Transform("name1"),
+            new NamedExecutableTransform.Transform("name2"),
+            new NamedExecutableTransform.Transform("name3")
         );
-        ExecutableChainTransform executable = new ExecutableChainTransform(transform, logger,
-                new NamedExecutableTransform("name1"),
-                new NamedExecutableTransform("name2"),
-                new NamedExecutableTransform("name3"));
+        ExecutableChainTransform executable = new ExecutableChainTransform(
+            transform,
+            logger,
+            new NamedExecutableTransform("name1"),
+            new NamedExecutableTransform("name2"),
+            new NamedExecutableTransform("name3")
+        );
 
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
-        Payload payload = new Payload.Simple(new HashMap<String, Object>());
+        Payload payload = new Payload.Simple(new HashMap<>());
 
         ChainTransform.Result result = executable.execute(ctx, payload);
         assertThat(result.status(), is(Transform.Result.Status.SUCCESS));
         assertThat(result.results(), hasSize(3));
         assertThat(result.results().get(0), instanceOf(NamedExecutableTransform.Result.class));
         assertThat(result.results().get(0).status(), is(Transform.Result.Status.SUCCESS));
-        assertThat((List<String>) result.results().get(0).payload().data().get("names"), hasSize(1));
-        assertThat((List<String>) result.results().get(0).payload().data().get("names"), contains("name1"));
+        assertThat(getNames(result.results().get(0).payload()), hasSize(1));
+        assertThat(getNames(result.results().get(0).payload()), contains("name1"));
         assertThat(result.results().get(1), instanceOf(NamedExecutableTransform.Result.class));
         assertThat(result.results().get(1).status(), is(Transform.Result.Status.SUCCESS));
-        assertThat((List<String>) result.results().get(1).payload().data().get("names"), hasSize(2));
-        assertThat((List<String>) result.results().get(1).payload().data().get("names"), contains("name1", "name2"));
+        assertThat(getNames(result.results().get(1).payload()), hasSize(2));
+        assertThat(getNames(result.results().get(1).payload()), contains("name1", "name2"));
         assertThat(result.results().get(2), instanceOf(NamedExecutableTransform.Result.class));
         assertThat(result.results().get(2).status(), is(Transform.Result.Status.SUCCESS));
-        assertThat((List<String>) result.results().get(2).payload().data().get("names"), hasSize(3));
-        assertThat((List<String>) result.results().get(2).payload().data().get("names"), contains("name1", "name2", "name3"));
+        assertThat(getNames(result.results().get(2).payload()), hasSize(3));
+        assertThat(getNames(result.results().get(2).payload()), contains("name1", "name2", "name3"));
 
         Map<String, Object> data = result.payload().data();
         assertThat(data, notNullValue());
         assertThat(data, hasKey("names"));
         assertThat(data.get("names"), instanceOf(List.class));
-        List<String> names = (List<String>) data.get("names");
+        List<String> names = getNames(result.payload());
         assertThat(names, hasSize(3));
         assertThat(names, contains("name1", "name2", "name3"));
     }
 
     public void testExecuteFailure() throws Exception {
         ChainTransform transform = new ChainTransform(
-                new NamedExecutableTransform.Transform("name1"),
-                new NamedExecutableTransform.Transform("name2"),
-                new FailingExecutableTransform.Transform()
+            new NamedExecutableTransform.Transform("name1"),
+            new NamedExecutableTransform.Transform("name2"),
+            new FailingExecutableTransform.Transform()
         );
-        ExecutableChainTransform executable = new ExecutableChainTransform(transform, logger,
-                new NamedExecutableTransform("name1"),
-                new NamedExecutableTransform("name2"),
-                new FailingExecutableTransform(logger));
+        ExecutableChainTransform executable = new ExecutableChainTransform(
+            transform,
+            logger,
+            new NamedExecutableTransform("name1"),
+            new NamedExecutableTransform("name2"),
+            new FailingExecutableTransform(logger)
+        );
 
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
-        Payload payload = new Payload.Simple(new HashMap<String, Object>());
+        Payload payload = new Payload.Simple(new HashMap<>());
 
         ChainTransform.Result result = executable.execute(ctx, payload);
         assertThat(result.status(), is(Transform.Result.Status.FAILURE));
@@ -99,12 +106,12 @@ public class ChainTransformTests extends ESTestCase {
         assertThat(result.results(), hasSize(3));
         assertThat(result.results().get(0), instanceOf(NamedExecutableTransform.Result.class));
         assertThat(result.results().get(0).status(), is(Transform.Result.Status.SUCCESS));
-        assertThat((List<String>) result.results().get(0).payload().data().get("names"), hasSize(1));
-        assertThat((List<String>) result.results().get(0).payload().data().get("names"), contains("name1"));
+        assertThat(getNames(result.results().get(0).payload()), hasSize(1));
+        assertThat(getNames(result.results().get(0).payload()), contains("name1"));
         assertThat(result.results().get(1), instanceOf(NamedExecutableTransform.Result.class));
         assertThat(result.results().get(1).status(), is(Transform.Result.Status.SUCCESS));
-        assertThat((List<String>) result.results().get(1).payload().data().get("names"), hasSize(2));
-        assertThat((List<String>) result.results().get(1).payload().data().get("names"), contains("name1", "name2"));
+        assertThat(getNames(result.results().get(1).payload()), hasSize(2));
+        assertThat(getNames(result.results().get(1).payload()), contains("name1", "name2"));
         assertThat(result.results().get(2), instanceOf(FailingExecutableTransform.Result.class));
         assertThat(result.results().get(2).status(), is(Transform.Result.Status.FAILURE));
         assertThat(result.results().get(2).reason(), containsString("_error"));
@@ -117,11 +124,25 @@ public class ChainTransformTests extends ESTestCase {
         ChainTransformFactory transformParser = new ChainTransformFactory(registry);
 
         XContentBuilder builder = jsonBuilder().startArray()
-                .startObject().startObject("named").field("name", "name1").endObject().endObject()
-                .startObject().startObject("named").field("name", "name2").endObject().endObject()
-                .startObject().startObject("named").field("name", "name3").endObject().endObject()
-                .startObject().field("named", "name4").endObject()
-                .endArray();
+            .startObject()
+            .startObject("named")
+            .field("name", "name1")
+            .endObject()
+            .endObject()
+            .startObject()
+            .startObject("named")
+            .field("name", "name2")
+            .endObject()
+            .endObject()
+            .startObject()
+            .startObject("named")
+            .field("name", "name3")
+            .endObject()
+            .endObject()
+            .startObject()
+            .field("named", "name4")
+            .endObject()
+            .endArray();
 
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken();
@@ -135,8 +156,14 @@ public class ChainTransformTests extends ESTestCase {
         }
     }
 
-    private static class NamedExecutableTransform extends ExecutableTransform<NamedExecutableTransform.Transform,
-            NamedExecutableTransform.Result> {
+    @SuppressWarnings("unchecked")
+    private static List<String> getNames(Payload payload) {
+        return (List<String>) payload.data().get("names");
+    }
+
+    private static class NamedExecutableTransform extends ExecutableTransform<
+        NamedExecutableTransform.Transform,
+        NamedExecutableTransform.Result> {
         private static final String TYPE = "named";
 
         NamedExecutableTransform(String name) {
@@ -149,7 +176,7 @@ public class ChainTransformTests extends ESTestCase {
 
         @Override
         public Result execute(WatchExecutionContext ctx, Payload payload) {
-            List<String> names = (List<String>) payload.data().get("names");
+            List<String> names = getNames(payload);
             if (names == null) {
                 names = new ArrayList<>();
             } else {
@@ -225,8 +252,9 @@ public class ChainTransformTests extends ESTestCase {
         }
     }
 
-    private static class FailingExecutableTransform extends ExecutableTransform<FailingExecutableTransform.Transform,
-            FailingExecutableTransform.Result> {
+    private static class FailingExecutableTransform extends ExecutableTransform<
+        FailingExecutableTransform.Transform,
+        FailingExecutableTransform.Result> {
         private static final String TYPE = "throwing";
 
         FailingExecutableTransform(Logger logger) {

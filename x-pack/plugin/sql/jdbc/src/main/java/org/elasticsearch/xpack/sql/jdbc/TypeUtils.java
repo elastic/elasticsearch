@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.jdbc;
@@ -35,10 +36,17 @@ final class TypeUtils {
     private static final Map<String, EsType> ENUM_NAME_TO_TYPE;
     private static final Map<Integer, EsType> SQL_TO_TYPE;
 
-    private static final Set<EsType> SIGNED_TYPE = EnumSet.of(EsType.BYTE,
-            EsType.SHORT, EsType.INTEGER, EsType.LONG,
-            EsType.FLOAT, EsType.HALF_FLOAT, EsType.SCALED_FLOAT, EsType.DOUBLE, EsType.DATETIME);
-
+    private static final Set<EsType> SIGNED_TYPE = EnumSet.of(
+        EsType.BYTE,
+        EsType.SHORT,
+        EsType.INTEGER,
+        EsType.LONG,
+        EsType.FLOAT,
+        EsType.HALF_FLOAT,
+        EsType.SCALED_FLOAT,
+        EsType.DOUBLE,
+        EsType.DATETIME
+    );
 
     static {
         Map<Class<?>, EsType> aMap = new LinkedHashMap<>();
@@ -76,7 +84,6 @@ final class TypeUtils {
         types.put(EsType.SCALED_FLOAT, Double.class);
         types.put(EsType.KEYWORD, String.class);
         types.put(EsType.TEXT, String.class);
-        types.put(EsType.CONSTANT_KEYWORD, String.class);
         types.put(EsType.BINARY, byte[].class);
         types.put(EsType.DATETIME, Timestamp.class);
         types.put(EsType.IP, String.class);
@@ -98,7 +105,6 @@ final class TypeUtils {
         types.put(EsType.SHAPE, String.class);
 
         TYPE_TO_CLASS = unmodifiableMap(types);
-
 
         Map<String, EsType> strings = new LinkedHashMap<>();
         Map<Integer, EsType> numbers = new LinkedHashMap<>();
@@ -158,7 +164,7 @@ final class TypeUtils {
     }
 
     static boolean isString(EsType dataType) {
-        return dataType == EsType.KEYWORD || dataType == EsType.TEXT || dataType == EsType.CONSTANT_KEYWORD;
+        return dataType == EsType.KEYWORD || dataType == EsType.TEXT;
     }
 
     static EsType of(Class<? extends Object> clazz) throws SQLException {

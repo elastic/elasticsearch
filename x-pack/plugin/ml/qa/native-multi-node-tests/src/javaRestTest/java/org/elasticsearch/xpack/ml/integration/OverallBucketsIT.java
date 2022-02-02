@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
-import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -40,7 +41,8 @@ public class OverallBucketsIT extends MlNativeAutodetectIntegTestCase {
 
     public void test() throws Exception {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
-                Collections.singletonList(new Detector.Builder("count", null).build()));
+            Collections.singletonList(new Detector.Builder("count", null).build())
+        );
         analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(BUCKET_SPAN_SECONDS));
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeFormat("epoch");
@@ -48,7 +50,6 @@ public class OverallBucketsIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -76,7 +77,9 @@ public class OverallBucketsIT extends MlNativeAutodetectIntegTestCase {
             // Check we get equal number of overall buckets on a default request
             GetOverallBucketsAction.Request overallBucketsRequest = new GetOverallBucketsAction.Request(job.getId());
             GetOverallBucketsAction.Response overallBucketsResponse = client().execute(
-                    GetOverallBucketsAction.INSTANCE, overallBucketsRequest).actionGet();
+                GetOverallBucketsAction.INSTANCE,
+                overallBucketsRequest
+            ).actionGet();
             assertThat(overallBucketsResponse.getOverallBuckets().count(), equalTo(3000L));
         }
 
@@ -85,7 +88,9 @@ public class OverallBucketsIT extends MlNativeAutodetectIntegTestCase {
             GetOverallBucketsAction.Request aggregatedOverallBucketsRequest = new GetOverallBucketsAction.Request(job.getId());
             aggregatedOverallBucketsRequest.setBucketSpan(TimeValue.timeValueSeconds(2 * BUCKET_SPAN_SECONDS));
             GetOverallBucketsAction.Response aggregatedOverallBucketsResponse = client().execute(
-                    GetOverallBucketsAction.INSTANCE, aggregatedOverallBucketsRequest).actionGet();
+                GetOverallBucketsAction.INSTANCE,
+                aggregatedOverallBucketsRequest
+            ).actionGet();
             assertThat(aggregatedOverallBucketsResponse.getOverallBuckets().count(), equalTo(1500L));
         }
 
@@ -94,7 +99,9 @@ public class OverallBucketsIT extends MlNativeAutodetectIntegTestCase {
             GetOverallBucketsAction.Request filteredOverallBucketsRequest = new GetOverallBucketsAction.Request(job.getId());
             filteredOverallBucketsRequest.setOverallScore(0.1);
             GetOverallBucketsAction.Response filteredOverallBucketsResponse = client().execute(
-                    GetOverallBucketsAction.INSTANCE, filteredOverallBucketsRequest).actionGet();
+                GetOverallBucketsAction.INSTANCE,
+                filteredOverallBucketsRequest
+            ).actionGet();
             assertThat(filteredOverallBucketsResponse.getOverallBuckets().count(), equalTo(2L));
         }
     }

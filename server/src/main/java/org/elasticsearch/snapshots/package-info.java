@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 /**
@@ -109,8 +98,8 @@
  * <ol>
  *     <li>First, {@link org.elasticsearch.snapshots.SnapshotsService#cloneSnapshot} is invoked which will place a placeholder entry into
  *     {@code SnapshotsInProgress} that does not yet contain any shard clone assignments. Note that unlike in the case of snapshot
- *     creation, the shard level clone tasks in {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#clones} are not created in the
- *     initial cluster state update as is done for shard snapshot assignments in
+ *     creation, the shard level clone tasks in {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#shardsByRepoShardId()} are not
+ *     created in the initial cluster state update as is done for shard snapshot assignments in
  *     {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#shards}. This is due to the fact that shard snapshot assignments are
  *     computed purely from information in the current cluster state while shard clone assignments require information to be read from the
  *     repository, which is too slow of a process to be done inside a cluster state update. Loading this information ahead of creating a

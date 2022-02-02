@@ -1,24 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,8 +15,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
-
-public class GetIndexTemplatesResponse  {
+public class GetIndexTemplatesResponse {
 
     @Override
     public String toString() {
@@ -50,7 +38,6 @@ public class GetIndexTemplatesResponse  {
         return indexTemplates;
     }
 
-
     public static GetIndexTemplatesResponse fromXContent(XContentParser parser) throws IOException {
         final List<IndexTemplateMetadata> templates = new ArrayList<>();
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
@@ -71,12 +58,9 @@ public class GetIndexTemplatesResponse  {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
+        if (this == obj) return true;
+        if (obj == null) return false;
+        if (getClass() != obj.getClass()) return false;
         // To compare results we need to make sure the templates are listed in the same order
         GetIndexTemplatesResponse other = (GetIndexTemplatesResponse) obj;
         List<IndexTemplateMetadata> thisList = new ArrayList<>(this.indexTemplates);
@@ -85,6 +69,5 @@ public class GetIndexTemplatesResponse  {
         otherList.sort(Comparator.comparing(IndexTemplateMetadata::name));
         return Objects.equals(thisList, otherList);
     }
-
 
 }

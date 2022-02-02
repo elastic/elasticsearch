@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 
@@ -14,7 +15,7 @@ import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 /**
  * Division function ({@code a / b}).
  */
-public class Div extends ArithmeticOperation {
+public class Div extends ArithmeticOperation implements BinaryComparisonInversible {
 
     public Div(Source source, Expression left, Expression right) {
         super(source, left, right, DefaultBinaryArithmeticOperation.DIV);
@@ -33,5 +34,10 @@ public class Div extends ArithmeticOperation {
     @Override
     public DataType dataType() {
         return DataTypeConverter.commonType(left().dataType(), right().dataType());
+    }
+
+    @Override
+    public ArithmeticOperationFactory binaryComparisonInverse() {
+        return Mul::new;
     }
 }

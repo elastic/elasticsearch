@@ -39,6 +39,10 @@ record the `positionLength` for multi-position tokens. This filters include:
 * <<analysis-synonym-graph-tokenfilter,`synonym_graph`>>
 * <<analysis-word-delimiter-graph-tokenfilter,`word_delimiter_graph`>>
 
+Some tokenizers, such as the
+{plugins}/analysis-nori-tokenizer.html[`nori_tokenizer`], also accurately
+decompose compound tokens into multi-position tokens.
+
 In the following graph, `domain name system` and its synonym, `dns`, both have a
 position of `0`. However, `dns` has a `positionLength` of `3`. Other tokens in
 the graph have a default `positionLength` of `1`.

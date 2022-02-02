@@ -4,80 +4,60 @@
 [partintro]
 --
 With scripting, you can evaluate custom expressions in {es}. For example, you
-could use a script to return "script fields" as part of a search request or
-evaluate a custom score for a query.
+can use a script to return a computed value as a field or evaluate a custom
+score for a query.
 
-The default scripting language is <<modules-scripting-painless, `Painless`>>.
-Additional `lang` plugins enable you to run scripts written in other languages.
-Everywhere a script can be used, you can include a `lang` parameter
-to specify the language of the script.
-
-[discrete]
-== General-purpose languages
-
-These languages can be used for any purpose in the scripting APIs,
-and give the most flexibility.
-
-[cols="<,<,<",options="header",]
-|=======================================================================
-|Language
-    |Sandboxed
-    |Required plugin
-
-|<<modules-scripting-painless, `painless`>>
-    |yes
-    |built-in
-
-|=======================================================================
+The default scripting language is <<modules-scripting-painless,Painless>>.
+Additional `lang` plugins are available to run scripts written in other
+languages. You can specify the language of the script anywhere that scripts run.
 
 [discrete]
-== Special-purpose languages
+[[scripting-available-languages]]
+== Available scripting languages
 
-These languages are less flexible, but typically have higher performance for
-certain tasks.
+Painless is purpose-built for {es}, can be used for any purpose in the
+scripting APIs, and provides the most flexibility. The other languages are less
+flexible, but can be useful for specific purposes.
 
 [cols="<,<,<,<",options="header",]
-|=======================================================================
+|========
 |Language
     |Sandboxed
     |Required plugin
     |Purpose
 
+|<<modules-scripting-painless,`painless`>>
+    |{yes-icon}
+    |Built-in
+    |Purpose-built for {es}
+
 |<<modules-scripting-expression, `expression`>>
-    |yes
-    |built-in
-    |fast custom ranking and sorting
+    |{yes-icon}
+    |Built-in
+    |Fast custom ranking and sorting
 
 |<<search-template, `mustache`>>
-    |yes
-    |built-in
-    |templates
+    |{yes-icon}
+    |Built-in
+    |Templates
 
 |<<modules-scripting-engine, `java`>>
-    |n/a
-    |you write it!
-    |expert API
+    |{no-icon}
+    |You write it!
+    |Expert API
+|========
 
-|=======================================================================
-
-[WARNING]
-.Scripts and security
-=================================================
-
-Languages that are sandboxed are designed with security in mind. However, non-
-sandboxed languages can be a security issue, please read
-<<modules-scripting-security, Scripting and security>> for more details.
-
-=================================================
 --
 
+include::scripting/painless.asciidoc[]
+
 include::scripting/using.asciidoc[]
+
+include::scripting/common-script-uses.asciidoc[]
 
 include::scripting/fields.asciidoc[]
 
 include::scripting/security.asciidoc[]
-
-include::scripting/painless.asciidoc[]
 
 include::scripting/expression.asciidoc[]
 

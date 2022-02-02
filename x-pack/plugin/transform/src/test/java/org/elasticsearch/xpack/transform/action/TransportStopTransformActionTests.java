@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.transform.action;
 
@@ -77,11 +78,11 @@ public class TransportStopTransformActionTests extends ESTestCase {
                 "failed-task",
                 new TransformState(TransformTaskState.FAILED, IndexerState.STOPPED, null, 0L, "task has failed", null)
             );
-        csBuilder = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
+        final ClusterState cs = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build())).build();
 
-        TransportStopTransformAction.validateTaskState(csBuilder.build(), Arrays.asList("non-failed-task", "failed-task"), true);
+        TransportStopTransformAction.validateTaskState(cs, Arrays.asList("non-failed-task", "failed-task"), true);
 
-        TransportStopTransformAction.validateTaskState(csBuilder.build(), Collections.singletonList("non-failed-task"), false);
+        TransportStopTransformAction.validateTaskState(cs, Collections.singletonList("non-failed-task"), false);
 
         ClusterState.Builder csBuilderFinal = ClusterState.builder(new ClusterName("_name")).metadata(buildMetadata(pTasksBuilder.build()));
         ElasticsearchStatusException ex = expectThrows(

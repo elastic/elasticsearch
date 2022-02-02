@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -11,14 +12,14 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent.Params;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Collections;
 import java.util.UUID;
@@ -89,12 +90,12 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
     public void testXContentSerializationOneTrial() throws Exception {
         long issueDate = System.currentTimeMillis();
         License.Builder specBuilder = License.builder()
-                .uid(UUID.randomUUID().toString())
-                .issuedTo("customer")
-                .maxNodes(5)
-                .issueDate(issueDate)
-                .type(randomBoolean() ? "trial" : "basic")
-                .expiryDate(issueDate + TimeValue.timeValueHours(2).getMillis());
+            .uid(UUID.randomUUID().toString())
+            .issuedTo("customer")
+            .maxNodes(5)
+            .issueDate(issueDate)
+            .type(randomBoolean() ? "trial" : "basic")
+            .expiryDate(issueDate + TimeValue.timeValueHours(2).getMillis());
         final License trialLicense = SelfGeneratedLicense.create(specBuilder, License.VERSION_CURRENT);
         LicensesMetadata licensesMetadata = new LicensesMetadata(trialLicense, Version.CURRENT);
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -143,9 +144,9 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(Stream.concat(
-                new Licensing(Settings.EMPTY).getNamedXContent().stream(),
-                ClusterModule.getNamedXWriteables().stream()
-        ).collect(Collectors.toList()));
+        return new NamedXContentRegistry(
+            Stream.concat(new Licensing(Settings.EMPTY).getNamedXContent().stream(), ClusterModule.getNamedXWriteables().stream())
+                .collect(Collectors.toList())
+        );
     }
 }

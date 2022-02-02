@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 
 import java.util.Objects;
@@ -17,6 +19,7 @@ import java.util.function.Supplier;
 public class RealmConfig {
 
     final RealmIdentifier identifier;
+    final @Nullable String domain;
     final boolean enabled;
     final int order;
     private final Environment env;
@@ -25,14 +28,18 @@ public class RealmConfig {
 
     public RealmConfig(RealmIdentifier identifier, Settings settings, Environment env, ThreadContext threadContext) {
         this.identifier = identifier;
+        this.domain = RealmSettings.getDomainForRealm(settings, identifier);
         this.settings = settings;
         this.env = env;
         this.threadContext = threadContext;
         this.enabled = getSetting(RealmSettings.ENABLED_SETTING);
-        if (false == hasSetting(RealmSettings.ORDER_SETTING.apply(type()))) {
-            throw new IllegalArgumentException("'order' is a mandatory parameter for realm config. " +
-                "Found invalid config for realm: '" + identifier.name + "'\n" +
-                "Please see the breaking changes documentation."
+        if (enabled && false == hasSetting(RealmSettings.ORDER_SETTING.apply(type()))) {
+            throw new IllegalArgumentException(
+                "'order' is a mandatory parameter for realm config. "
+                    + "Found invalid config for realm: '"
+                    + identifier.name
+                    + "'\n"
+                    + "Please see the breaking changes documentation."
             );
         }
         this.order = getSetting(RealmSettings.ORDER_SETTING);
@@ -40,6 +47,10 @@ public class RealmConfig {
 
     public RealmIdentifier identifier() {
         return identifier;
+    }
+
+    public @Nullable String domain() {
+        return domain;
     }
 
     public String name() {
@@ -204,8 +215,7 @@ public class RealmConfig {
                 return false;
             }
             final RealmIdentifier other = (RealmIdentifier) o;
-            return Objects.equals(this.type, other.type) &&
-                    Objects.equals(this.name, other.name);
+            return Objects.equals(this.type, other.type) && Objects.equals(this.name, other.name);
         }
 
         @Override

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.fs;
@@ -22,13 +11,13 @@ package org.elasticsearch.monitor.fs;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.NodeHealthService;
@@ -50,8 +39,7 @@ import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 /**
- * Runs periodically and attempts to create a temp file to see if the filesystem is writable. If not then it marks the
- * path as unhealthy.
+ * Runs periodically and attempts to create a temp file to see if the filesystem is writable. If not then it marks the path as unhealthy.
  */
 public class FsHealthService extends AbstractLifecycleComponent implements NodeHealthService {
 
@@ -68,15 +56,25 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     @Nullable
     private volatile Set<Path> unhealthyPaths;
 
-    public static final Setting<Boolean> ENABLED_SETTING =
-        Setting.boolSetting("monitor.fs.health.enabled", true, Setting.Property.NodeScope, Setting.Property.Dynamic);
-    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("monitor.fs.health.refresh_interval", TimeValue.timeValueSeconds(120), TimeValue.timeValueMillis(1),
-            Setting.Property.NodeScope);
-    public static final Setting<TimeValue> SLOW_PATH_LOGGING_THRESHOLD_SETTING =
-        Setting.timeSetting("monitor.fs.health.slow_path_logging_threshold", TimeValue.timeValueSeconds(5), TimeValue.timeValueMillis(1),
-            Setting.Property.NodeScope, Setting.Property.Dynamic);
-
+    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
+        "monitor.fs.health.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "monitor.fs.health.refresh_interval",
+        TimeValue.timeValueSeconds(120),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
+    public static final Setting<TimeValue> SLOW_PATH_LOGGING_THRESHOLD_SETTING = Setting.timeSetting(
+        "monitor.fs.health.slow_path_logging_threshold",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     public FsHealthService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, NodeEnvironment nodeEnv) {
         this.threadPool = threadPool;
@@ -91,8 +89,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
     @Override
     protected void doStart() {
-        scheduledFuture = threadPool.scheduleWithFixedDelay(new FsHealthMonitor(), refreshInterval,
-                ThreadPool.Names.GENERIC);
+        scheduledFuture = threadPool.scheduleWithFixedDelay(new FsHealthMonitor(), refreshInterval, ThreadPool.Names.GENERIC);
     }
 
     @Override
@@ -101,8 +98,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     }
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
@@ -123,20 +119,22 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         } else if (unhealthyPaths == null) {
             statusInfo = new StatusInfo(HEALTHY, "health check passed");
         } else {
-            String info = "health check failed on [" + unhealthyPaths.stream()
-                .map(k -> k.toString()).collect(Collectors.joining(",")) + "]";
+            String info = "health check failed on ["
+                + unhealthyPaths.stream().map(k -> k.toString()).collect(Collectors.joining(","))
+                + "]";
             statusInfo = new StatusInfo(UNHEALTHY, info);
         }
+
         return statusInfo;
     }
 
-     class FsHealthMonitor implements Runnable {
+    class FsHealthMonitor implements Runnable {
 
         static final String TEMP_FILE_NAME = ".es_temp_file";
-        private byte[] byteToWrite;
+        private byte[] bytesToWrite;
 
-        FsHealthMonitor(){
-            this.byteToWrite = UUIDs.randomBase64UUID().getBytes(StandardCharsets.UTF_8);
+        FsHealthMonitor() {
+            this.bytesToWrite = UUIDs.randomBase64UUID().getBytes(StandardCharsets.UTF_8);
         }
 
         @Override
@@ -153,7 +151,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
         private void monitorFSHealth() {
             Set<Path> currentUnhealthyPaths = null;
-            Path[] paths = null;
+            final Path[] paths;
             try {
                 paths = nodeEnv.nodeDataPaths();
             } catch (IllegalStateException e) {
@@ -163,20 +161,24 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             }
 
             for (Path path : paths) {
-                long executionStartTime = currentTimeMillisSupplier.getAsLong();
+                final long executionStartTime = currentTimeMillisSupplier.getAsLong();
                 try {
                     if (Files.exists(path)) {
-                        Path tempDataPath = path.resolve(TEMP_FILE_NAME);
+                        final Path tempDataPath = path.resolve(TEMP_FILE_NAME);
                         Files.deleteIfExists(tempDataPath);
                         try (OutputStream os = Files.newOutputStream(tempDataPath, StandardOpenOption.CREATE_NEW)) {
-                            os.write(byteToWrite);
+                            os.write(bytesToWrite);
                             IOUtils.fsync(tempDataPath, false);
                         }
                         Files.delete(tempDataPath);
                         final long elapsedTime = currentTimeMillisSupplier.getAsLong() - executionStartTime;
                         if (elapsedTime > slowPathLoggingThreshold.millis()) {
-                            logger.warn("health check of [{}] took [{}ms] which is above the warn threshold of [{}]",
-                                path, elapsedTime, slowPathLoggingThreshold);
+                            logger.warn(
+                                "health check of [{}] took [{}ms] which is above the warn threshold of [{}]",
+                                path,
+                                elapsedTime,
+                                slowPathLoggingThreshold
+                            );
                         }
                     }
                 } catch (Exception ex) {
@@ -192,4 +194,3 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         }
     }
 }
-

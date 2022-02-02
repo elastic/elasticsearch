@@ -1,0 +1,10 @@
+---
+"Test geoip stats":
+  - do:
+      ingest.geo_ip_stats: {}
+  - gte: { stats.successful_downloads: 0 }
+  - gte: { stats.failed_downloads: 0 }
+  - gte: { stats.skipped_updates: 0 }
+  - gte: { stats.databases_count: 0 }
+  - gte: { stats.total_download_time: 0 }
+  - is_true: nodes

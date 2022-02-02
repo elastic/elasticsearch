@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.security.InvalidParameterException;
@@ -47,12 +36,17 @@ public class CloseJobRequest implements ToXContentObject, Validatable {
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<CloseJobRequest, Void> PARSER = new ConstructingObjectParser<>(
         "close_job_request",
-        true, a -> new CloseJobRequest((List<String>) a[0]));
+        true,
+        a -> new CloseJobRequest((List<String>) a[0])
+    );
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
             p -> Arrays.asList(Strings.commaDelimitedListToStringArray(p.text())),
-            JOB_ID, ObjectParser.ValueType.STRING_ARRAY);
+            JOB_ID,
+            ObjectParser.ValueType.STRING_ARRAY
+        );
         PARSER.declareString((obj, val) -> obj.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         PARSER.declareBoolean(CloseJobRequest::setForce, FORCE);
         PARSER.declareBoolean(CloseJobRequest::setAllowNoMatch, ALLOW_NO_MATCH);
@@ -70,7 +64,7 @@ public class CloseJobRequest implements ToXContentObject, Validatable {
      *
      * @return a {@link CloseJobRequest} for all existing jobs
      */
-    public static CloseJobRequest closeAllJobsRequest(){
+    public static CloseJobRequest closeAllJobsRequest() {
         return new CloseJobRequest(ALL_JOBS);
     }
 
@@ -159,10 +153,10 @@ public class CloseJobRequest implements ToXContentObject, Validatable {
         }
 
         CloseJobRequest that = (CloseJobRequest) other;
-        return Objects.equals(jobIds, that.jobIds) &&
-            Objects.equals(timeout, that.timeout) &&
-            Objects.equals(force, that.force) &&
-            Objects.equals(allowNoMatch, that.allowNoMatch);
+        return Objects.equals(jobIds, that.jobIds)
+            && Objects.equals(timeout, that.timeout)
+            && Objects.equals(force, that.force)
+            && Objects.equals(allowNoMatch, that.allowNoMatch);
     }
 
     @Override

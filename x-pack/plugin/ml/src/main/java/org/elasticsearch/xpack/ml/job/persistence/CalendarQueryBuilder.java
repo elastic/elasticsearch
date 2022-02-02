@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
@@ -92,9 +93,7 @@ public class CalendarQueryBuilder {
             jobIdAndGroups.add(Metadata.ALL);
             qb.filter(new TermsQueryBuilder(Calendar.JOB_IDS.getPreferredName(), jobIdAndGroups));
         }
-        QueryBuilderHelper
-            .buildTokenFilterQuery(Calendar.ID.getPreferredName(), idTokens)
-            .ifPresent(qb::filter);
+        QueryBuilderHelper.buildTokenFilterQuery(Calendar.ID.getPreferredName(), idTokens).ifPresent(qb::filter);
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(qb);
 

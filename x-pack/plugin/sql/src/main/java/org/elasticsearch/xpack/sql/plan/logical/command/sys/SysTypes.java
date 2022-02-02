@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
@@ -56,27 +57,28 @@ public class SysTypes extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(keyword("TYPE_NAME"),
-                      field("DATA_TYPE", INTEGER),
-                      field("PRECISION",INTEGER),
-                      keyword("LITERAL_PREFIX"),
-                      keyword("LITERAL_SUFFIX"),
-                      keyword("CREATE_PARAMS"),
-                      field("NULLABLE", SHORT),
-                      field("CASE_SENSITIVE", BOOLEAN),
-                      field("SEARCHABLE", SHORT),
-                      field("UNSIGNED_ATTRIBUTE", BOOLEAN),
-                      field("FIXED_PREC_SCALE", BOOLEAN),
-                      field("AUTO_INCREMENT", BOOLEAN),
-                      keyword("LOCAL_TYPE_NAME"),
-                      field("MINIMUM_SCALE", SHORT),
-                      field("MAXIMUM_SCALE", SHORT),
-                      field("SQL_DATA_TYPE", INTEGER),
-                      field("SQL_DATETIME_SUB", INTEGER),
-                      field("NUM_PREC_RADIX", INTEGER),
-                      // ODBC
-                      field("INTERVAL_PRECISION", INTEGER)
-                      );
+        return asList(
+            keyword("TYPE_NAME"),
+            field("DATA_TYPE", INTEGER),
+            field("PRECISION", INTEGER),
+            keyword("LITERAL_PREFIX"),
+            keyword("LITERAL_SUFFIX"),
+            keyword("CREATE_PARAMS"),
+            field("NULLABLE", SHORT),
+            field("CASE_SENSITIVE", BOOLEAN),
+            field("SEARCHABLE", SHORT),
+            field("UNSIGNED_ATTRIBUTE", BOOLEAN),
+            field("FIXED_PREC_SCALE", BOOLEAN),
+            field("AUTO_INCREMENT", BOOLEAN),
+            keyword("LOCAL_TYPE_NAME"),
+            field("MINIMUM_SCALE", SHORT),
+            field("MAXIMUM_SCALE", SHORT),
+            field("SQL_DATA_TYPE", INTEGER),
+            field("SQL_DATETIME_SUB", INTEGER),
+            field("NUM_PREC_RADIX", INTEGER),
+            // ODBC
+            field("INTERVAL_PRECISION", INTEGER)
+        );
     }
 
     @Override
@@ -86,35 +88,42 @@ public class SysTypes extends Command {
             values = values.filter(t -> type.equals(sqlType(t).getVendorTypeNumber()));
         }
         List<List<?>> rows = values
-                // sort by SQL int type (that's what the JDBC/ODBC specs want) followed by name
-                .sorted(Comparator.comparing((DataType t) -> sqlType(t).getVendorTypeNumber())
-                        .thenComparing((DataType t) -> sqlType(t).getName()))
-                .map(t -> asList(t.toString(),
-                        sqlType(t).getVendorTypeNumber(), precision(t),
-                        "'",
-                        "'",
-                        null,
-                        // don't be specific on nullable
-                        DatabaseMetaData.typeNullableUnknown,
-                        // all strings are case-sensitive
-                        isString(t),
-                        // everything is searchable,
-                        DatabaseMetaData.typeSearchable,
-                        // only numerics are signed
-                        isSigned(t) == false,
-                        //no fixed precision scale SQL_FALSE
-                        Boolean.FALSE,
-                        // not auto-incremented
-                        Boolean.FALSE,
-                        null,
-                        metaSqlMinimumScale(t), metaSqlMaximumScale(t),
-                        // SQL_DATA_TYPE - ODBC wants this to be not null
-                        metaSqlDataType(t), metaSqlDateTimeSub(t),
-                        // Radix
-                        metaSqlRadix(t),
-                        null
-                        ))
-                .collect(toList());
+            // sort by SQL int type (that's what the JDBC/ODBC specs want) followed by name
+            .sorted(
+                Comparator.comparing((DataType t) -> sqlType(t).getVendorTypeNumber()).thenComparing((DataType t) -> sqlType(t).getName())
+            )
+            .map(
+                t -> asList(
+                    t.toString(),
+                    sqlType(t).getVendorTypeNumber(),
+                    precision(t),
+                    "'",
+                    "'",
+                    null,
+                    // don't be specific on nullable
+                    DatabaseMetaData.typeNullableUnknown,
+                    // all strings are case-sensitive
+                    isString(t),
+                    // everything is searchable,
+                    DatabaseMetaData.typeSearchable,
+                    // only numerics are signed
+                    isSigned(t) == false,
+                    // no fixed precision scale SQL_FALSE
+                    Boolean.FALSE,
+                    // not auto-incremented
+                    Boolean.FALSE,
+                    null,
+                    metaSqlMinimumScale(t),
+                    metaSqlMaximumScale(t),
+                    // SQL_DATA_TYPE - ODBC wants this to be not null
+                    metaSqlDataType(t),
+                    metaSqlDateTimeSub(t),
+                    // Radix
+                    metaSqlRadix(t),
+                    null
+                )
+            )
+            .collect(toList());
 
         listener.onResponse(of(session, rows));
     }

@@ -47,7 +47,7 @@ GET my-index-000001/_search
     are in separate strings, because `slop` > `position_increment_gap`.
 
 
-The `position_increment_gap` can be specified in the mapping.  For instance:
+The `position_increment_gap` can be specified in the mapping. For instance:
 
 [source,console]
 --------------------------------------------------

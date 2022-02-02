@@ -1,34 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.env;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.NodeRoles;
 import org.hamcrest.Matcher;
 
-import java.util.Set;
-
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
@@ -41,13 +28,11 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         logger.info("--> starting two nodes");
         final String masterNode = internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode(
-            Settings.builder().put(IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), false).build());
+            Settings.builder().put(IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), false).build()
+        );
 
         logger.info("--> creating index");
-        prepareCreate(indexName, Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-        ).get();
+        prepareCreate(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get();
 
         logger.info("--> indexing a simple document");
         client().prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
@@ -59,7 +44,8 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         final Settings masterNodeDataPathSettings = internalCluster().dataPathSettings(masterNode);
         final Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
 
-        final Settings noMasterNoDataSettings = NodeRoles.removeRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE));
+        // put some unknown role here to make sure the tool does not bark when encountering an unknown role
+        final Settings noMasterNoDataSettings = nonMasterNode(nonDataNode());
 
         final Settings noMasterNoDataSettingsForMasterNode = Settings.builder()
             .put(noMasterNoDataSettings)
@@ -75,7 +61,8 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
 
         // verify test setup
         logger.info("--> restarting node with node.data=false and node.master=false");
-        IllegalStateException ex = expectThrows(IllegalStateException.class,
+        IllegalStateException ex = expectThrows(
+            IllegalStateException.class,
             "Node started with node.data=false and node.master=false while having existing index metadata must fail",
             () -> internalCluster().startCoordinatingOnlyNode(dataNodeDataPathSettings)
         );
@@ -83,7 +70,8 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         logger.info("--> Repurposing node 1");
         executeRepurposeCommand(noMasterNoDataSettingsForDataNode, 1, 1);
 
-        ElasticsearchException lockedException = expectThrows(ElasticsearchException.class,
+        ElasticsearchException lockedException = expectThrows(
+            ElasticsearchException.class,
             () -> executeRepurposeCommand(noMasterNoDataSettingsForMasterNode, 1, 1)
         );
 
@@ -113,14 +101,13 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         assertFalse(indexExists(indexName));
     }
 
-    private void executeRepurposeCommand(Settings settings, int expectedIndexCount,
-                                         int expectedShardCount) throws Exception {
+    private void executeRepurposeCommand(Settings settings, int expectedIndexCount, int expectedShardCount) throws Exception {
         boolean verbose = randomBoolean();
         Settings settingsWithPath = Settings.builder().put(internalCluster().getDefaultSettings()).put(settings).build();
         Matcher<String> matcher = allOf(
             containsString(NodeRepurposeCommand.noMasterMessage(expectedIndexCount, expectedShardCount, 0)),
-            NodeRepurposeCommandTests.conditionalNot(containsString("test-repurpose"), verbose == false));
-        NodeRepurposeCommandTests.verifySuccess(settingsWithPath, matcher,
-            verbose);
+            NodeRepurposeCommandTests.conditionalNot(containsString("test-repurpose"), verbose == false)
+        );
+        NodeRepurposeCommandTests.verifySuccess(settingsWithPath, matcher, verbose);
     }
 }

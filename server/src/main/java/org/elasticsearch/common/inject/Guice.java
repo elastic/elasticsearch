@@ -47,8 +47,7 @@ import java.util.Arrays;
  */
 public final class Guice {
 
-    private Guice() {
-    }
+    private Guice() {}
 
     /**
      * Creates an injector for the given set of modules.
@@ -88,11 +87,7 @@ public final class Guice {
      * @throws CreationException if one or more errors occur during Injector
      *                           construction
      */
-    public static Injector createInjector(Stage stage,
-                                          Iterable<? extends Module> modules) {
-        return new InjectorBuilder()
-                .stage(stage)
-                .addModules(modules)
-                .build();
+    public static Injector createInjector(Stage stage, Iterable<? extends Module> modules) {
+        return new InjectorBuilder().stage(stage).addModules(modules).build();
     }
 }

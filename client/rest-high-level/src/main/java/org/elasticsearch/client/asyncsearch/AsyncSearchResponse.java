@@ -1,44 +1,33 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.asyncsearch;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A response of an async search request.
  */
-public class AsyncSearchResponse implements ToXContentObject  {
+public class AsyncSearchResponse implements ToXContentObject {
     @Nullable
     private final String id;
     @Nullable
@@ -54,13 +43,15 @@ public class AsyncSearchResponse implements ToXContentObject  {
     /**
      * Creates an {@link AsyncSearchResponse} with the arguments that are always present in the server response
      */
-    AsyncSearchResponse(boolean isPartial,
-                        boolean isRunning,
-                        long startTimeMillis,
-                        long expirationTimeMillis,
-                        @Nullable String id,
-                        @Nullable SearchResponse searchResponse,
-                        @Nullable ElasticsearchException error) {
+    AsyncSearchResponse(
+        boolean isPartial,
+        boolean isRunning,
+        long startTimeMillis,
+        long expirationTimeMillis,
+        @Nullable String id,
+        @Nullable SearchResponse searchResponse,
+        @Nullable ElasticsearchException error
+    ) {
         this.isPartial = isPartial;
         this.isRunning = isRunning;
         this.startTimeMillis = startTimeMillis;
@@ -162,23 +153,25 @@ public class AsyncSearchResponse implements ToXContentObject  {
     public static final ParseField ERROR_FIELD = new ParseField("error");
 
     public static final ConstructingObjectParser<AsyncSearchResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "submit_async_search_response", true,
-            args -> new AsyncSearchResponse(
-                    (boolean) args[0],
-                    (boolean) args[1],
-                    (long) args[2],
-                    (long) args[3],
-                    (String) args[4],
-                    (SearchResponse) args[5],
-                    (ElasticsearchException) args[6]));
+        "submit_async_search_response",
+        true,
+        args -> new AsyncSearchResponse(
+            (boolean) args[0],
+            (boolean) args[1],
+            (long) args[2],
+            (long) args[3],
+            (String) args[4],
+            (SearchResponse) args[5],
+            (ElasticsearchException) args[6]
+        )
+    );
     static {
         PARSER.declareBoolean(constructorArg(), IS_PARTIAL_FIELD);
         PARSER.declareBoolean(constructorArg(), IS_RUNNING_FIELD);
         PARSER.declareLong(constructorArg(), START_TIME_FIELD);
         PARSER.declareLong(constructorArg(), EXPIRATION_FIELD);
         PARSER.declareString(optionalConstructorArg(), ID_FIELD);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> AsyncSearchResponse.parseSearchResponse(p),
-                RESPONSE_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> AsyncSearchResponse.parseSearchResponse(p), RESPONSE_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), ERROR_FIELD);
     }
 

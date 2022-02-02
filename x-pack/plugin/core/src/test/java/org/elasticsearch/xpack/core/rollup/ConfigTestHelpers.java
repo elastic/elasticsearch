@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-import org.elasticsearch.common.unit.TimeValue;
+
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
@@ -35,14 +37,14 @@ import static org.elasticsearch.test.ESTestCase.randomZone;
 
 public class ConfigTestHelpers {
 
-    private static final String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m"};
+    private static final String[] TIME_SUFFIXES = new String[] { "d", "h", "ms", "s", "m" };
 
-    private ConfigTestHelpers() {
-    }
+    private ConfigTestHelpers() {}
 
     public static RollupJobConfig randomRollupJobConfig(final Random random) {
         return randomRollupJobConfig(random, randomAsciiAlphanumOfLengthBetween(random, 5, 20));
     }
+
     public static RollupJobConfig randomRollupJobConfig(final Random random, final String id) {
         return randomRollupJobConfig(random, id, randomAsciiAlphanumOfLengthBetween(random, 5, 20));
     }
@@ -51,10 +53,12 @@ public class ConfigTestHelpers {
         return randomRollupJobConfig(random, id, indexPattern, "rollup_" + indexPattern);
     }
 
-    public static RollupJobConfig randomRollupJobConfig(final Random random,
-                                                        final String id,
-                                                        final String indexPattern,
-                                                        final String rollupIndex) {
+    public static RollupJobConfig randomRollupJobConfig(
+        final Random random,
+        final String id,
+        final String indexPattern,
+        final String rollupIndex
+    ) {
         final String cron = randomCron();
         final int pageSize = randomIntBetween(random, 1, 10);
         final TimeValue timeout = random.nextBoolean() ? null : randomTimeout(random);
@@ -68,6 +72,25 @@ public class ConfigTestHelpers {
         HistogramGroupConfig histogram = random.nextBoolean() ? randomHistogramGroupConfig(random) : null;
         TermsGroupConfig terms = random.nextBoolean() ? randomTermsGroupConfig(random) : null;
         return new GroupConfig(dateHistogram, histogram, terms);
+    }
+
+    public static RollupActionGroupConfig randomRollupActionGroupConfig(final Random random) {
+        RollupActionDateHistogramGroupConfig dateHistogram = randomRollupActionDateHistogramGroupConfig(random);
+        HistogramGroupConfig histogram = random.nextBoolean() ? randomHistogramGroupConfig(random) : null;
+        TermsGroupConfig terms = random.nextBoolean() ? randomTermsGroupConfig(random) : null;
+        return new RollupActionGroupConfig(dateHistogram, histogram, terms);
+    }
+
+    public static RollupActionDateHistogramGroupConfig randomRollupActionDateHistogramGroupConfig(final Random random) {
+        final String field = randomField(random);
+        final String timezone = random.nextBoolean() ? randomZone().getId() : null;
+        if (random.nextBoolean()) {
+            return new RollupActionDateHistogramGroupConfig.FixedInterval(field, randomInterval(), timezone);
+        } else {
+            List<String> units = new ArrayList<>(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.keySet());
+            Collections.shuffle(units, random);
+            return new RollupActionDateHistogramGroupConfig.CalendarInterval(field, new DateHistogramInterval(units.get(0)), timezone);
+        }
     }
 
     public static DateHistogramGroupConfig randomDateHistogramGroupConfig(final Random random) {
@@ -87,35 +110,20 @@ public class ConfigTestHelpers {
         }
     }
 
-    public static DateHistogramGroupConfig randomLegacyDateHistogramGroupConfig(final Random random) {
-        final String field = randomField(random);
-        final DateHistogramInterval delay = random.nextBoolean() ? randomInterval() : null;
-        final String timezone = random.nextBoolean() ? randomZone().getId() : null;
-        if (random.nextBoolean()) {
-            return new DateHistogramGroupConfig(field, randomInterval(), delay, timezone);
-        } else {
-            int i = random.nextInt(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.size());
-            List<String> units = new ArrayList<>(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.keySet());
-            Collections.shuffle(units, random);
-            return new DateHistogramGroupConfig(field, new DateHistogramInterval(units.get(0)), delay, timezone);
-        }
-    }
-
-
-    public static  List<String> getFields() {
+    public static List<String> getFields() {
         return IntStream.range(0, ESTestCase.randomIntBetween(1, 10))
-                .mapToObj(n -> ESTestCase.randomAlphaOfLengthBetween(5, 10))
-                .collect(Collectors.toList());
+            .mapToObj(n -> ESTestCase.randomAlphaOfLengthBetween(5, 10))
+            .collect(Collectors.toList());
     }
 
     public static String randomCron() {
-        return (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 59)))             + //second
-                " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 59)))      + //minute
-                " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 23)))      + //hour
-                " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1, 31)))      + //day of month
-                " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1, 12)))      + //month
-                " ?"                                                                         + //day of week
-                " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1970, 2199)));  //year
+        return (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 59))) + // second
+            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 59))) + // minute
+            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 23))) + // hour
+            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1, 31))) + // day of month
+            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1, 12))) + // month
+            " ?" + // day of week
+            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1970, 2199)));  // year
     }
 
     public static HistogramGroupConfig randomHistogramGroupConfig(final Random random) {
@@ -170,8 +178,10 @@ public class ConfigTestHelpers {
     }
 
     public static TimeValue randomTimeout(final Random random) {
-        return new TimeValue(randomIntBetween(random, 0, 60),
-            randomFrom(random, Arrays.asList(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES)));
+        return new TimeValue(
+            randomIntBetween(random, 0, 60),
+            randomFrom(random, Arrays.asList(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES))
+        );
     }
 
 }

@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.apache.lucene.store.ByteArrayDataInput;
-import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.ShapeType;
 
@@ -28,11 +29,11 @@ public enum DimensionalShapeType {
         return values[Byte.toUnsignedInt(ordinal)];
     }
 
-    public void writeTo(ByteBuffersDataOutput out) {
+    public void writeTo(BytesStreamOutput out) {
         out.writeByte((byte) ordinal());
     }
 
-    public static DimensionalShapeType readFrom(ByteArrayDataInput in) {
+    public static DimensionalShapeType readFrom(ByteArrayStreamInput in) {
         return fromOrdinalByte(in.readByte());
     }
 }

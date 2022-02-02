@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -22,15 +23,25 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportGetLicenseAction extends TransportMasterNodeReadAction<GetLicenseRequest, GetLicenseResponse> {
 
-    private final LicenseService licenseService;
-
     @Inject
-    public TransportGetLicenseAction(TransportService transportService, ClusterService clusterService,
-                                     LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetLicenseRequest::new, indexNameExpressionResolver, GetLicenseResponse::new, ThreadPool.Names.MANAGEMENT);
-        this.licenseService = licenseService;
+    public TransportGetLicenseAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetLicenseAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetLicenseRequest::new,
+            indexNameExpressionResolver,
+            GetLicenseResponse::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
@@ -39,8 +50,12 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
     }
 
     @Override
-    protected void masterOperation(Task task, final GetLicenseRequest request, ClusterState state,
-                                   final ActionListener<GetLicenseResponse> listener) throws ElasticsearchException {
-        listener.onResponse(new GetLicenseResponse(licenseService.getLicense()));
+    protected void masterOperation(
+        Task task,
+        final GetLicenseRequest request,
+        ClusterState state,
+        final ActionListener<GetLicenseResponse> listener
+    ) throws ElasticsearchException {
+        listener.onResponse(new GetLicenseResponse(LicenseService.getLicense(state.metadata())));
     }
 }

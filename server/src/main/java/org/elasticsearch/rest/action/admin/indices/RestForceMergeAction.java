@@ -1,31 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.tasks.LoggingTaskListener;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,9 +32,7 @@ public class RestForceMergeAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/_forcemerge"),
-            new Route(POST, "/{index}/_forcemerge"));
+        return List.of(new Route(POST, "/_forcemerge"), new Route(POST, "/{index}/_forcemerge"));
     }
 
     @Override
@@ -53,7 +47,34 @@ public class RestForceMergeAction extends BaseRestHandler {
         mergeRequest.maxNumSegments(request.paramAsInt("max_num_segments", mergeRequest.maxNumSegments()));
         mergeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", mergeRequest.onlyExpungeDeletes()));
         mergeRequest.flush(request.paramAsBoolean("flush", mergeRequest.flush()));
-        return channel -> client.admin().indices().forceMerge(mergeRequest, new RestToXContentListener<>(channel));
+        if (request.paramAsBoolean("wait_for_completion", true)) {
+            return channel -> client.admin().indices().forceMerge(mergeRequest, new RestToXContentListener<>(channel));
+        } else {
+            mergeRequest.setShouldStoreResult(true);
+            /*
+             * Let's try and validate before forking so the user gets some error. The
+             * task can't totally validate until it starts but this is better than
+             * nothing.
+             */
+            ActionRequestValidationException validationException = mergeRequest.validate();
+            if (validationException != null) {
+                throw validationException;
+            }
+            return sendTask(
+                client.getLocalNodeId(),
+                client.executeLocally(ForceMergeAction.INSTANCE, mergeRequest, LoggingTaskListener.instance())
+            );
+        }
     }
 
+    private RestChannelConsumer sendTask(String localNodeId, Task task) {
+        return channel -> {
+            try (XContentBuilder builder = channel.newBuilder()) {
+                builder.startObject();
+                builder.field("task", localNodeId + ":" + task.getId());
+                builder.endObject();
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+            }
+        };
+    }
 }

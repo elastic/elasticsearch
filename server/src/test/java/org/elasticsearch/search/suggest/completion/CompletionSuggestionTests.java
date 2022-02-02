@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.suggest.completion;
@@ -47,13 +36,17 @@ public class CompletionSuggestionTests extends ESTestCase {
             shardSuggestions.add(suggestion);
         }
         int totalResults = randomIntBetween(0, 5) * nShards;
-        float maxScore = randomIntBetween(totalResults, totalResults*2);
+        float maxScore = randomIntBetween(totalResults, totalResults * 2);
         for (int i = 0; i < totalResults; i++) {
             Suggest.Suggestion<CompletionSuggestion.Entry> suggestion = randomFrom(shardSuggestions);
             CompletionSuggestion.Entry entry = suggestion.getEntries().get(0);
             if (entry.getOptions().size() < size) {
-                CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(i, new Text(""),
-                    maxScore - i, Collections.emptyMap());
+                CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(
+                    i,
+                    new Text(""),
+                    maxScore - i,
+                    Collections.emptyMap()
+                );
                 option.setShardIndex(randomIntBetween(0, Integer.MAX_VALUE));
                 entry.addOption(option);
             }
@@ -84,11 +77,15 @@ public class CompletionSuggestionTests extends ESTestCase {
             CompletionSuggestion suggestion = new CompletionSuggestion(name, size, true);
             CompletionSuggestion.Entry entry = new CompletionSuggestion.Entry(new Text(""), 0, 0);
             suggestion.addTerm(entry);
-            int maxScore = randomIntBetween(totalResults, totalResults*2);
+            int maxScore = randomIntBetween(totalResults, totalResults * 2);
             for (int j = 0; j < size; j++) {
                 String surfaceForm = randomFrom(surfaceForms);
-                CompletionSuggestion.Entry.Option newOption =
-                    new CompletionSuggestion.Entry.Option(j, new Text(surfaceForm), maxScore - j, Collections.emptyMap());
+                CompletionSuggestion.Entry.Option newOption = new CompletionSuggestion.Entry.Option(
+                    j,
+                    new Text(surfaceForm),
+                    maxScore - j,
+                    Collections.emptyMap()
+                );
                 newOption.setShardIndex(0);
                 entry.addOption(newOption);
                 options.add(newOption);
@@ -119,8 +116,12 @@ public class CompletionSuggestionTests extends ESTestCase {
             suggestion.addTerm(entry);
             int shardIndex = 0;
             for (int j = 0; j < size; j++) {
-                CompletionSuggestion.Entry.Option newOption =
-                    new CompletionSuggestion.Entry.Option((j + 1) * (i + 1), surfaceForm, score, Collections.emptyMap());
+                CompletionSuggestion.Entry.Option newOption = new CompletionSuggestion.Entry.Option(
+                    (j + 1) * (i + 1),
+                    surfaceForm,
+                    score,
+                    Collections.emptyMap()
+                );
                 newOption.setShardIndex(shardIndex++);
                 entry.addOption(newOption);
             }

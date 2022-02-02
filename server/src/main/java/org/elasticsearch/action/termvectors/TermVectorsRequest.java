@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.termvectors;
@@ -26,18 +15,21 @@ import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.rest.action.document.RestTermVectorsAction;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,14 +41,17 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Request returning the term vector (doc frequency, positions, offsets) for a document.
  * <p>
  * Note, the {@link #index()} and {@link #id(String)} are required.
  */
+// It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
+@SuppressWarnings("unchecked")
 public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TermVectorsRequest.class);
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField ID = new ParseField("_id");
@@ -70,7 +65,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     private static final ParseField DFS = new ParseField("dfs");
     private static final ParseField FILTER = new ParseField("filter");
     private static final ParseField DOC = new ParseField("doc");
-
+    private static final ParseField TYPE = new ParseField("_type");
 
     private String id;
 
@@ -127,11 +122,9 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         }
     }
 
-    private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
-            Flag.FieldStatistics);
+    private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads, Flag.FieldStatistics);
 
-    public TermVectorsRequest() {
-    }
+    public TermVectorsRequest() {}
 
     TermVectorsRequest(StreamInput in) throws IOException {
         super(in);
@@ -464,11 +457,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     }
 
     private void setFlag(Flag flag, boolean set) {
-        if (set && !flagsEnum.contains(flag)) {
+        if (set && flagsEnum.contains(flag) == false) {
             flagsEnum.add(flag);
-        } else if (!set) {
+        } else if (set == false) {
             flagsEnum.remove(flag);
-            assert (!flagsEnum.contains(flag));
+            assert flagsEnum.contains(flag) == false;
         }
     }
 
@@ -493,7 +486,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         out.writeBoolean(doc != null);
         if (doc != null) {
             out.writeBytesReference(doc);
-            out.writeEnum(xContentType);
+            XContentHelper.writeTo(out, xContentType);
         }
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
@@ -523,13 +516,18 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     public enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!
-        Positions, Offsets, Payloads, FieldStatistics, TermStatistics
+        Positions,
+        Offsets,
+        Payloads,
+        FieldStatistics,
+        TermStatistics
     }
 
     /**
      * populates a request object (pre-populated with defaults) based on a parser.
      */
-    public static void parseRequest(TermVectorsRequest termVectorsRequest, XContentParser parser) throws IOException {
+    public static void parseRequest(TermVectorsRequest termVectorsRequest, XContentParser parser, RestApiVersion restApiVersion)
+        throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         List<String> fields = new ArrayList<>();
@@ -566,14 +564,16 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     termVectorsRequest.index = parser.text();
                 } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.doc != null) {
-                        throw new ElasticsearchParseException("failed to parse term vectors request. " +
-                            "either [id] or [doc] can be specified, but not both!");
+                        throw new ElasticsearchParseException(
+                            "failed to parse term vectors request. " + "either [id] or [doc] can be specified, but not both!"
+                        );
                     }
                     termVectorsRequest.id = parser.text();
                 } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.id != null) {
-                        throw new ElasticsearchParseException("failed to parse term vectors request. " +
-                            "either [id] or [doc] can be specified, but not both!");
+                        throw new ElasticsearchParseException(
+                            "failed to parse term vectors request. " + "either [id] or [doc] can be specified, but not both!"
+                        );
                     }
                     termVectorsRequest.doc(jsonBuilder().copyCurrentStructure(parser));
                 } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -582,6 +582,8 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     termVectorsRequest.version = parser.longValue();
                 } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.versionType = VersionType.fromString(parser.text());
+                } else if (restApiVersion == RestApiVersion.V_7 && TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    deprecationLogger.compatibleCritical("termvectors_with_types", RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
                 } else {
                     throw new ElasticsearchParseException("failed to parse term vectors request. unknown field [{}]", currentFieldName);
                 }
@@ -599,8 +601,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             if (e.getValue() instanceof String) {
                 mapStrStr.put(e.getKey(), (String) e.getValue());
             } else {
-                throw new ElasticsearchParseException("expecting the analyzer at [{}] to be a String, but found [{}] instead",
-                    e.getKey(), e.getValue().getClass());
+                throw new ElasticsearchParseException(
+                    "expecting the analyzer at [{}] to be a String, but found [{}] instead",
+                    e.getKey(),
+                    e.getValue().getClass()
+                );
             }
         }
         return mapStrStr;
@@ -629,8 +634,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                 } else if (currentFieldName.equals("max_word_length")) {
                     settings.maxWordLength = parser.intValue();
                 } else {
-                    throw new ElasticsearchParseException("failed to parse term vectors request. " +
-                        "the field [{}] is not valid for filter parameter for term vector request", currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "failed to parse term vectors request. "
+                            + "the field [{}] is not valid for filter parameter for term vector request",
+                        currentFieldName
+                    );
                 }
             }
         }

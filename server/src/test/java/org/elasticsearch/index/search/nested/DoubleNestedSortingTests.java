@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.search.nested;
 
@@ -51,8 +40,12 @@ public class DoubleNestedSortingTests extends AbstractNumberNestedSortingTestCas
     }
 
     @Override
-    protected IndexFieldData.XFieldComparatorSource createFieldComparator(String fieldName, MultiValueMode sortMode,
-                                                                                Object missingValue, Nested nested) {
+    protected IndexFieldData.XFieldComparatorSource createFieldComparator(
+        String fieldName,
+        MultiValueMode sortMode,
+        Object missingValue,
+        Nested nested
+    ) {
         IndexNumericFieldData fieldData = getForField(fieldName);
         return new DoubleValuesComparatorSource(fieldData, missingValue, sortMode, nested);
     }
@@ -66,10 +59,17 @@ public class DoubleNestedSortingTests extends AbstractNumberNestedSortingTestCas
     protected void assertAvgScoreMode(Query parentFilter, IndexSearcher searcher) throws IOException {
         MultiValueMode sortMode = MultiValueMode.AVG;
         Query childFilter = Queries.not(parentFilter);
-        XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, -127,
-            createNested(searcher, parentFilter, childFilter));
-        Query query = new ToParentBlockJoinQuery(new ConstantScoreQuery(childFilter),
-            new QueryBitSetProducer(parentFilter), ScoreMode.None);
+        XFieldComparatorSource nestedComparatorSource = createFieldComparator(
+            "field2",
+            sortMode,
+            -127,
+            createNested(searcher, parentFilter, childFilter)
+        );
+        Query query = new ToParentBlockJoinQuery(
+            new ConstantScoreQuery(childFilter),
+            new QueryBitSetProducer(parentFilter),
+            ScoreMode.None
+        );
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
         TopDocs topDocs = searcher.search(query, 5, sort);
         assertThat(topDocs.totalHits.value, equalTo(7L));

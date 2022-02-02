@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support;
@@ -24,14 +13,14 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices;
 
@@ -43,17 +32,24 @@ import java.util.List;
  * a write operation is about to happen in a non existing index.
  */
 public final class AutoCreateIndex {
-    public static final Setting<AutoCreate> AUTO_CREATE_INDEX_SETTING =
-        new Setting<>("action.auto_create_index", "true", AutoCreate::new, Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<AutoCreate> AUTO_CREATE_INDEX_SETTING = new Setting<>(
+        "action.auto_create_index",
+        "true",
+        AutoCreate::new,
+        Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     private final IndexNameExpressionResolver resolver;
     private final SystemIndices systemIndices;
     private volatile AutoCreate autoCreate;
 
-    public AutoCreateIndex(Settings settings,
-                           ClusterSettings clusterSettings,
-                           IndexNameExpressionResolver resolver,
-                           SystemIndices systemIndices) {
+    public AutoCreateIndex(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        IndexNameExpressionResolver resolver,
+        SystemIndices systemIndices
+    ) {
         this.resolver = resolver;
         this.systemIndices = systemIndices;
         this.autoCreate = AUTO_CREATE_INDEX_SETTING.get(settings);
@@ -70,7 +66,7 @@ public final class AutoCreateIndex {
         }
 
         // Always auto-create system indexes
-        if (systemIndices.isSystemIndex(index)) {
+        if (systemIndices.isSystemName(index)) {
             return true;
         }
 
@@ -102,12 +98,17 @@ public final class AutoCreateIndex {
                 if (include) {
                     return true;
                 }
-                throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] contains [-"
-                        + indexExpression + "] which forbids automatic creation of the index", index);
+                throw new IndexNotFoundException(
+                    "["
+                        + AUTO_CREATE_INDEX_SETTING.getKey()
+                        + "] contains [-"
+                        + indexExpression
+                        + "] which forbids automatic creation of the index",
+                    index
+                );
             }
         }
-        throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] ([" + autoCreate
-                + "]) doesn't match", index);
+        throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] ([" + autoCreate + "]) doesn't match", index);
     }
 
     AutoCreate getAutoCreate() {
@@ -138,21 +139,33 @@ public final class AutoCreateIndex {
                     String[] patterns = Strings.commaDelimitedListToStringArray(value);
                     for (String pattern : patterns) {
                         if (pattern == null || pattern.trim().length() == 0) {
-                            throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] must "
-                                    + "be either [true, false, or a comma separated list of index patterns]");
+                            throw new IllegalArgumentException(
+                                "Can't parse ["
+                                    + value
+                                    + "] for setting [action.auto_create_index] must "
+                                    + "be either [true, false, or a comma separated list of index patterns]"
+                            );
                         }
                         pattern = pattern.trim();
                         Tuple<String, Boolean> expression;
                         if (pattern.startsWith("-")) {
                             if (pattern.length() == 1) {
-                                throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] "
-                                        + "must contain an index name after [-]");
+                                throw new IllegalArgumentException(
+                                    "Can't parse ["
+                                        + value
+                                        + "] for setting [action.auto_create_index] "
+                                        + "must contain an index name after [-]"
+                                );
                             }
                             expression = new Tuple<>(pattern.substring(1), false);
-                        } else if(pattern.startsWith("+")) {
+                        } else if (pattern.startsWith("+")) {
                             if (pattern.length() == 1) {
-                                throw new IllegalArgumentException("Can't parse [" + value + "] for setting [action.auto_create_index] "
-                                        + "must contain an index name after [+]");
+                                throw new IllegalArgumentException(
+                                    "Can't parse ["
+                                        + value
+                                        + "] for setting [action.auto_create_index] "
+                                        + "must contain an index name after [+]"
+                                );
                             }
                             expression = new Tuple<>(pattern.substring(1), true);
                         } else {

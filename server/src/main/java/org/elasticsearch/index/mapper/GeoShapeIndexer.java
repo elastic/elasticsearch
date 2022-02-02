@@ -1,32 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.geo.GeoLineDecomposer;
-import org.elasticsearch.common.geo.GeoPolygonDecomposer;
 import org.elasticsearch.common.geo.GeoShapeUtils;
-import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -39,157 +27,38 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-
-import static org.elasticsearch.common.geo.GeoUtils.normalizePoint;
 
 /**
  * Utility class that converts geometries into Lucene-compatible form for indexing in a geo_shape field.
  */
-public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometry, Geometry> {
+public class GeoShapeIndexer {
 
-    private final boolean orientation;
+    private final Orientation orientation;
     private final String name;
 
-    public GeoShapeIndexer(boolean orientation, String name) {
+    public GeoShapeIndexer(Orientation orientation, String name) {
         this.orientation = orientation;
         this.name = name;
     }
 
-    public Geometry prepareForIndexing(Geometry geometry) {
+    public List<IndexableField> indexShape(Geometry geometry) {
         if (geometry == null) {
-            return null;
+            return Collections.emptyList();
         }
-
-        return geometry.visit(new GeometryVisitor<>() {
-            @Override
-            public Geometry visit(Circle circle) {
-                throw new UnsupportedOperationException(GeoShapeType.CIRCLE + " geometry is not supported");
-            }
-
-            @Override
-            public Geometry visit(GeometryCollection<?> collection) {
-                if (collection.isEmpty()) {
-                    return GeometryCollection.EMPTY;
-                }
-                List<Geometry> shapes = new ArrayList<>(collection.size());
-
-                // Flatten collection and convert each geometry to Lucene-friendly format
-                for (Geometry shape : collection) {
-                    shapes.add(shape.visit(this));
-                }
-
-                if (shapes.size() == 1) {
-                    return shapes.get(0);
-                } else {
-                    return new GeometryCollection<>(shapes);
-                }
-            }
-
-            @Override
-            public Geometry visit(Line line) {
-                // decompose linestrings crossing dateline into array of Lines
-                List<Line> lines = new ArrayList<>();
-                GeoLineDecomposer.decomposeLine(line, lines);
-                if (lines.isEmpty()) {
-                    return GeometryCollection.EMPTY;
-                } else if (lines.size() == 1) {
-                    return lines.get(0);
-                } else {
-                    return new MultiLine(lines);
-                }
-            }
-
-            @Override
-            public Geometry visit(LinearRing ring) {
-                throw new UnsupportedOperationException("cannot index linear ring [" + ring + "] directly");
-            }
-
-            @Override
-            public Geometry visit(MultiLine multiLine) {
-                List<Line> lines = new ArrayList<>();
-                GeoLineDecomposer.decomposeMultiLine(multiLine, lines);
-                if (lines.isEmpty()) {
-                    return GeometryCollection.EMPTY;
-                } else if (lines.size() == 1) {
-                    return lines.get(0);
-                } else {
-                    return new MultiLine(lines);
-                }
-            }
-
-            @Override
-            public Geometry visit(MultiPoint multiPoint) {
-                if (multiPoint.isEmpty()) {
-                    return MultiPoint.EMPTY;
-                } else if (multiPoint.size() == 1) {
-                    return multiPoint.get(0).visit(this);
-                } else {
-                    List<Point> points = new ArrayList<>();
-                    for (Point point : multiPoint) {
-                        points.add((Point) point.visit(this));
-                    }
-                    return new MultiPoint(points);
-                }
-            }
-
-            @Override
-            public Geometry visit(MultiPolygon multiPolygon) {
-                List<Polygon> polygons = new ArrayList<>();
-                GeoPolygonDecomposer.decomposeMultiPolygon(multiPolygon, orientation, polygons);
-                if (polygons.isEmpty()) {
-                    return GeometryCollection.EMPTY;
-                } else if (polygons.size() == 1) {
-                    return polygons.get(0);
-                } else {
-                    return new MultiPolygon(polygons);
-                }
-            }
-
-            @Override
-            public Geometry visit(Point point) {
-                double[] latlon = new double[]{point.getX(), point.getY()};
-                normalizePoint(latlon);
-                return new Point(latlon[0], latlon[1]);
-            }
-
-            @Override
-            public Geometry visit(Polygon polygon) {
-                List<Polygon> polygons = new ArrayList<>();
-                GeoPolygonDecomposer.decomposePolygon(polygon, orientation, polygons);
-                if (polygons.isEmpty()) {
-                    return GeometryCollection.EMPTY;
-                } else if (polygons.size() == 1) {
-                    return polygons.get(0);
-                } else {
-                    return new MultiPolygon(polygons);
-                }
-            }
-
-            @Override
-            public Geometry visit(Rectangle rectangle) {
-                return rectangle;
-            }
-        });
-    }
-
-    @Override
-    public Class<Geometry> processedClass() {
-        return Geometry.class;
-    }
-
-    @Override
-    public List<IndexableField> indexShape(ParseContext context, Geometry shape) {
+        geometry = GeometryNormalizer.apply(orientation, geometry);
         LuceneGeometryIndexer visitor = new LuceneGeometryIndexer(name);
-        shape.visit(visitor);
+        geometry.visit(visitor);
         return visitor.fields();
     }
 
     private static class LuceneGeometryIndexer implements GeometryVisitor<Void, RuntimeException> {
-        private List<IndexableField> fields = new ArrayList<>();
+        private final List<IndexableField> fields = new ArrayList<>();
         private final String name;
 
         private LuceneGeometryIndexer(String name) {
@@ -202,7 +71,7 @@ public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geom
 
         @Override
         public Void visit(Circle circle) {
-            throw new IllegalArgumentException("invalid shape type found [Circle] while indexing shape");
+            throw new UnsupportedOperationException(ShapeType.CIRCLE + " geometry is not supported");
         }
 
         @Override
@@ -234,7 +103,7 @@ public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geom
 
         @Override
         public Void visit(MultiPoint multiPoint) {
-            for(Point point : multiPoint) {
+            for (Point point : multiPoint) {
                 visit(point);
             }
             return null;
@@ -242,7 +111,7 @@ public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geom
 
         @Override
         public Void visit(MultiPolygon multiPolygon) {
-            for(Polygon polygon : multiPolygon) {
+            for (Polygon polygon : multiPolygon) {
                 visit(polygon);
             }
             return null;
@@ -262,30 +131,55 @@ public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geom
 
         @Override
         public Void visit(Rectangle r) {
-             if (r.getMinLon() > r.getMaxLon()) {
-                if (r.getMinLon() == GeoUtils.MAX_LON) {
-                    Line line  = new Line(new double[] {GeoUtils.MAX_LON, GeoUtils.MAX_LON}, new double[] {r.getMaxLat(), r.getMinLat()});
+            // use encoded values to check equality
+            final int minLat = GeoEncodingUtils.encodeLatitude(r.getMinLat());
+            final int maxLat = GeoEncodingUtils.encodeLatitude(r.getMaxLat());
+            final int minLon = GeoEncodingUtils.encodeLongitude(r.getMinLon());
+            final int maxLon = GeoEncodingUtils.encodeLongitude(r.getMaxLon());
+            // check crossing dateline on original values
+            if (r.getMinLon() > r.getMaxLon()) {
+                if (minLon == Integer.MAX_VALUE) {
+                    Line line = new Line(
+                        new double[] { GeoUtils.MAX_LON, GeoUtils.MAX_LON },
+                        new double[] { r.getMaxLat(), r.getMinLat() }
+                    );
                     visit(line);
                 } else {
                     Rectangle left = new Rectangle(r.getMinLon(), GeoUtils.MAX_LON, r.getMaxLat(), r.getMinLat());
                     visit(left);
                 }
-                if (r.getMaxLon() == GeoUtils.MIN_LON) {
-                    Line line  = new Line(new double[] {GeoUtils.MIN_LON, GeoUtils.MIN_LON}, new double[] {r.getMaxLat(), r.getMinLat()});
+                if (maxLon == Integer.MIN_VALUE) {
+                    Line line = new Line(
+                        new double[] { GeoUtils.MIN_LON, GeoUtils.MIN_LON },
+                        new double[] { r.getMaxLat(), r.getMinLat() }
+                    );
                     visit(line);
                 } else {
                     Rectangle right = new Rectangle(GeoUtils.MIN_LON, r.getMaxLon(), r.getMaxLat(), r.getMinLat());
                     visit(right);
                 }
-            } else if (r.getMinLon() == r.getMaxLon() || r.getMinLat() == r.getMaxLat()) {
-                 if (r.getMinLat() == r.getMaxLat()) {
-                     addFields(LatLonShape.createIndexableFields(name, r.getMinLat(), r.getMinLon()));
-                 } else {
-                     Line line = new Line(new double[]{r.getMinLon(), r.getMaxLon()}, new double[]{r.getMaxLat(), r.getMinLat()});
-                     visit(line);
-                 }
-             } else {
-                addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(r)));
+            } else if (minLon == maxLon) {
+                if (minLat == maxLat) {
+                    // rectangle is a point
+                    addFields(LatLonShape.createIndexableFields(name, r.getMinLat(), r.getMinLon()));
+                } else {
+                    // rectangle is a line
+                    Line line = new Line(new double[] { r.getMinLon(), r.getMaxLon() }, new double[] { r.getMaxLat(), r.getMinLat() });
+                    visit(line);
+                }
+            } else if (minLat == maxLat) {
+                // rectangle is a line
+                Line line = new Line(new double[] { r.getMinLon(), r.getMaxLon() }, new double[] { r.getMaxLat(), r.getMinLat() });
+                visit(line);
+            } else {
+                // we need to process the quantize rectangle to avoid errors for degenerated boxes
+                Rectangle qRectangle = new Rectangle(
+                    GeoEncodingUtils.decodeLongitude(minLon),
+                    GeoEncodingUtils.decodeLongitude(maxLon),
+                    GeoEncodingUtils.decodeLatitude(maxLat),
+                    GeoEncodingUtils.decodeLatitude(minLat)
+                );
+                addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(qRectangle)));
             }
             return null;
         }
@@ -294,5 +188,4 @@ public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geom
             this.fields.addAll(Arrays.asList(fields));
         }
     }
-
 }

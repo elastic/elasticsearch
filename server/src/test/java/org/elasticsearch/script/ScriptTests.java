@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.script;
@@ -24,13 +13,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -83,8 +72,8 @@ public class ScriptTests extends ESTestCase {
             scriptType,
             scriptType == ScriptType.STORED ? null : randomFrom("_lang1", "_lang2", "_lang3"),
             script,
-            scriptType == ScriptType.INLINE ?
-                    Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()) : null, params
+            scriptType == ScriptType.INLINE ? Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()) : null,
+            params
         );
     }
 
@@ -124,10 +113,11 @@ public class ScriptTests extends ESTestCase {
             options.put("option" + i, Integer.toString(i));
         }
         map.put("options", options);
-        String lang = Script.DEFAULT_SCRIPT_LANG;;
+        String lang = Script.DEFAULT_SCRIPT_LANG;
+        ;
         if (randomBoolean()) {
             map.put("lang", lang);
-        } else if(randomBoolean()) {
+        } else if (randomBoolean()) {
             lang = "expression";
             map.put("lang", lang);
         }
@@ -159,24 +149,15 @@ public class ScriptTests extends ESTestCase {
 
     public void testParseFromObjectWrongFormat() {
         {
-            NullPointerException exc = expectThrows(
-                NullPointerException.class,
-                () -> Script.parse((Object)null)
-            );
+            NullPointerException exc = expectThrows(NullPointerException.class, () -> Script.parse((Object) null));
             assertEquals("Script must not be null", exc.getMessage());
         }
         {
-            IllegalArgumentException exc = expectThrows(
-                IllegalArgumentException.class,
-                () -> Script.parse(3)
-            );
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> Script.parse(3));
             assertEquals("Script value should be a String or a Map", exc.getMessage());
         }
         {
-            ElasticsearchParseException exc = expectThrows(
-                ElasticsearchParseException.class,
-                () -> Script.parse(Collections.emptyMap())
-            );
+            ElasticsearchParseException exc = expectThrows(ElasticsearchParseException.class, () -> Script.parse(Collections.emptyMap()));
             assertEquals("Expected one of [source] or [id] fields, but found none", exc.getMessage());
         }
     }
@@ -193,10 +174,7 @@ public class ScriptTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("source", "doc['my_field']");
         map.put("options", 3);
-        ElasticsearchParseException exc = expectThrows(
-            ElasticsearchParseException.class,
-            () -> Script.parse(map)
-        );
+        ElasticsearchParseException exc = expectThrows(ElasticsearchParseException.class, () -> Script.parse(map));
         assertEquals("Value must be of type Map: [options]", exc.getMessage());
     }
 
@@ -204,10 +182,16 @@ public class ScriptTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("source", "doc['my_field']");
         map.put("params", 3);
-        ElasticsearchParseException exc = expectThrows(
-            ElasticsearchParseException.class,
-            () -> Script.parse(map)
-        );
+        ElasticsearchParseException exc = expectThrows(ElasticsearchParseException.class, () -> Script.parse(map));
         assertEquals("Value must be of type Map: [params]", exc.getMessage());
+    }
+
+    public void testDynamicMapToString() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("long", 1L);
+        map.put("string", "value");
+        DynamicMap dm = new DynamicMap(map, Collections.emptyMap());
+        assertTrue(dm.toString().contains("string=value"));
+        assertTrue(dm.toString().contains("long=1"));
     }
 }

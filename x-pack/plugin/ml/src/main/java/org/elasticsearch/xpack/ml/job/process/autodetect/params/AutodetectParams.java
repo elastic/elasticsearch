@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -33,11 +34,15 @@ public class AutodetectParams {
     private final Set<MlFilter> filters;
     private final List<ScheduledEvent> scheduledEvents;
 
-
-    private AutodetectParams(DataCounts dataCounts, ModelSizeStats modelSizeStats, TimingStats timingStats,
-                             @Nullable ModelSnapshot modelSnapshot,
-                             @Nullable Quantiles quantiles, Set<MlFilter> filters,
-                             List<ScheduledEvent> scheduledEvents) {
+    private AutodetectParams(
+        DataCounts dataCounts,
+        ModelSizeStats modelSizeStats,
+        TimingStats timingStats,
+        @Nullable ModelSnapshot modelSnapshot,
+        @Nullable Quantiles quantiles,
+        Set<MlFilter> filters,
+        List<ScheduledEvent> scheduledEvents
+    ) {
         this.dataCounts = Objects.requireNonNull(dataCounts);
         this.modelSizeStats = Objects.requireNonNull(modelSizeStats);
         this.timingStats = timingStats;
@@ -90,12 +95,12 @@ public class AutodetectParams {
         AutodetectParams that = (AutodetectParams) other;
 
         return Objects.equals(this.dataCounts, that.dataCounts)
-                && Objects.equals(this.modelSizeStats, that.modelSizeStats)
-                && Objects.equals(this.timingStats, that.timingStats)
-                && Objects.equals(this.modelSnapshot, that.modelSnapshot)
-                && Objects.equals(this.quantiles, that.quantiles)
-                && Objects.equals(this.filters, that.filters)
-                && Objects.equals(this.scheduledEvents, that.scheduledEvents);
+            && Objects.equals(this.modelSizeStats, that.modelSizeStats)
+            && Objects.equals(this.timingStats, that.timingStats)
+            && Objects.equals(this.modelSnapshot, that.modelSnapshot)
+            && Objects.equals(this.quantiles, that.quantiles)
+            && Objects.equals(this.filters, that.filters)
+            && Objects.equals(this.scheduledEvents, that.scheduledEvents);
     }
 
     @Override
@@ -160,8 +165,7 @@ public class AutodetectParams {
         }
 
         public AutodetectParams build() {
-            return new AutodetectParams(dataCounts, modelSizeStats, timingStats, modelSnapshot, quantiles,
-                    filters, scheduledEvents);
+            return new AutodetectParams(dataCounts, modelSizeStats, timingStats, modelSnapshot, quantiles, filters, scheduledEvents);
         }
     }
 }

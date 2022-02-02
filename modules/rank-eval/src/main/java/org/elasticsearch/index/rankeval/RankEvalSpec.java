@@ -1,36 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,14 +52,18 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
         this.metric = Objects.requireNonNull(metric, "Cannot evaluate ranking if no evaluation metric is provided.");
         if (ratedRequests == null || ratedRequests.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Cannot evaluate ranking if no search requests with rated results are provided. Seen: " + ratedRequests);
+                "Cannot evaluate ranking if no search requests with rated results are provided. Seen: " + ratedRequests
+            );
         }
         this.ratedRequests = ratedRequests;
         if (templates == null || templates.isEmpty()) {
             for (RatedRequest request : ratedRequests) {
                 if (request.getEvaluationRequest() == null) {
-                    throw new IllegalStateException("Cannot evaluate ranking if neither template nor evaluation request is "
-                            + "provided. Seen for request id: " + request.getId());
+                    throw new IllegalStateException(
+                        "Cannot evaluate ranking if neither template nor evaluation request is "
+                            + "provided. Seen for request id: "
+                            + request.getId()
+                    );
                 }
             }
         }
@@ -146,14 +139,19 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
     private static final ParseField REQUESTS_FIELD = new ParseField("requests");
     private static final ParseField MAX_CONCURRENT_SEARCHES_FIELD = new ParseField("max_concurrent_searches");
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<RankEvalSpec, Void> PARSER = new ConstructingObjectParser<>("rank_eval",
-            a -> new RankEvalSpec((List<RatedRequest>) a[0], (EvaluationMetric) a[1], (Collection<ScriptWithId>) a[2]));
+    private static final ConstructingObjectParser<RankEvalSpec, Void> PARSER = new ConstructingObjectParser<>(
+        "rank_eval",
+        a -> new RankEvalSpec((List<RatedRequest>) a[0], (EvaluationMetric) a[1], (Collection<ScriptWithId>) a[2])
+    );
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> RatedRequest.fromXContent(p), REQUESTS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> parseMetric(p), METRIC_FIELD);
-        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> ScriptWithId.fromXContent(p),
-                TEMPLATES_FIELD);
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> ScriptWithId.fromXContent(p),
+            TEMPLATES_FIELD
+        );
         PARSER.declareInt(RankEvalSpec::setMaxConcurrentSearches, MAX_CONCURRENT_SEARCHES_FIELD);
     }
 
@@ -181,9 +179,10 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
             this.script = script;
         }
 
-        private static final ConstructingObjectParser<ScriptWithId, Void> PARSER =
-                new ConstructingObjectParser<>("script_with_id",
-                        a -> new ScriptWithId((String) a[0], (Script) a[1]));
+        private static final ConstructingObjectParser<ScriptWithId, Void> PARSER = new ConstructingObjectParser<>(
+            "script_with_id",
+            a -> new ScriptWithId((String) a[0], (Script) a[1])
+        );
 
         public static ScriptWithId fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
@@ -239,10 +238,10 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
         }
         RankEvalSpec other = (RankEvalSpec) obj;
 
-        return Objects.equals(ratedRequests, other.ratedRequests) &&
-                Objects.equals(metric, other.metric) &&
-                Objects.equals(maxConcurrentSearches, other.maxConcurrentSearches) &&
-                Objects.equals(templates, other.templates);
+        return Objects.equals(ratedRequests, other.ratedRequests)
+            && Objects.equals(metric, other.metric)
+            && Objects.equals(maxConcurrentSearches, other.maxConcurrentSearches)
+            && Objects.equals(templates, other.templates);
     }
 
     @Override

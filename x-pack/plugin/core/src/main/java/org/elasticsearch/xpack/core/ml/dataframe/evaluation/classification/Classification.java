@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
@@ -41,17 +42,20 @@ public class Classification implements Evaluation {
     private static final String DEFAULT_PREDICTED_PROBABILITY_FIELD_SUFFIX = ".class_probability";
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Classification, Void> PARSER =
-        new ConstructingObjectParser<>(
-            NAME.getPreferredName(),
-            a -> new Classification((String) a[0], (String) a[1], (String) a[2], (List<EvaluationMetric>) a[3]));
+    public static final ConstructingObjectParser<Classification, Void> PARSER = new ConstructingObjectParser<>(
+        NAME.getPreferredName(),
+        a -> new Classification((String) a[0], (String) a[1], (String) a[2], (List<EvaluationMetric>) a[3])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ACTUAL_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PREDICTED_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TOP_CLASSES_FIELD);
-        PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME.getPreferredName(), n), c), METRICS);
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME.getPreferredName(), n), c),
+            METRICS
+        );
     }
 
     public static Classification fromXContent(XContentParser parser) {
@@ -71,23 +75,25 @@ public class Classification implements Evaluation {
      */
     private final List<EvaluationMetric> metrics;
 
-    public Classification(String actualField,
-                          @Nullable String predictedField,
-                          @Nullable String topClassesField,
-                          @Nullable List<EvaluationMetric> metrics) {
+    public Classification(
+        String actualField,
+        @Nullable String predictedField,
+        @Nullable String topClassesField,
+        @Nullable List<EvaluationMetric> metrics
+    ) {
         if (topClassesField == null) {
             topClassesField = DEFAULT_TOP_CLASSES_FIELD;
         }
         String predictedClassField = topClassesField + DEFAULT_PREDICTED_CLASS_FIELD_SUFFIX;
         String predictedProbabilityField = topClassesField + DEFAULT_PREDICTED_PROBABILITY_FIELD_SUFFIX;
-        this.fields =
-            new EvaluationFields(
-                ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD),
-                predictedField,
-                topClassesField,
-                predictedClassField,
-                predictedProbabilityField,
-                true);
+        this.fields = new EvaluationFields(
+            ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD),
+            predictedField,
+            topClassesField,
+            predictedClassField,
+            predictedProbabilityField,
+            true
+        );
         this.metrics = initMetrics(metrics, Classification::defaultMetrics);
     }
 
@@ -96,14 +102,14 @@ public class Classification implements Evaluation {
     }
 
     public Classification(StreamInput in) throws IOException {
-        this.fields =
-            new EvaluationFields(
-                in.readString(),
-                in.readOptionalString(),
-                in.readOptionalString(),
-                in.readOptionalString(),
-                in.readOptionalString(),
-                true);
+        this.fields = new EvaluationFields(
+            in.readString(),
+            in.readOptionalString(),
+            in.readOptionalString(),
+            in.readOptionalString(),
+            in.readOptionalString(),
+            true
+        );
         this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
     }
 
@@ -162,8 +168,7 @@ public class Classification implements Evaluation {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Classification that = (Classification) o;
-        return Objects.equals(that.fields, this.fields)
-            && Objects.equals(that.metrics, this.metrics);
+        return Objects.equals(that.fields, this.fields) && Objects.equals(that.metrics, this.metrics);
     }
 
     @Override

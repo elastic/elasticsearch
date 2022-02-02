@@ -2,9 +2,11 @@
     "properties" : {
         "bool" : { "type" : "boolean" },
         "int" : { "type" : "integer" },
+        "float" : { "type" : "float" },
         "text" : { "type" : "text" },
         "keyword" : { "type" : "keyword" },
         "date" :  { "type" : "date" },
+        "date_nanos": { "type" : "date_nanos" },
         "unsupported" : { "type" : "ip_range" },
         "some" : {
             "properties" : {
@@ -46,6 +48,12 @@
         },
         "foo_type" : { "type" : "foo" },
         "point": {"type" : "geo_point"},
-        "shape": {"type" : "geo_shape"}
+        "shape": {"type" : "geo_shape"},
+        "nested": {
+            "type": "nested",
+            "properties": {
+                "point": {"type" : "geo_point"}
+            }
+        }
     }
 }

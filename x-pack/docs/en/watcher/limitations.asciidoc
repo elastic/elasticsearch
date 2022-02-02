@@ -1,6 +1,6 @@
 [role="xpack"]
 [[watcher-limitations]]
-== Watcher limitations
+== {watcher} limitations
 [subs="attributes"]
 ++++
 <titleabbrev>Limitations</titleabbrev>

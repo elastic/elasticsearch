@@ -1,33 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common;
 
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class StringsTests extends ESTestCase {
 
@@ -36,7 +31,7 @@ public class StringsTests extends ESTestCase {
         assertThat(Strings.isAllOrWildcard("*"), is(true));
         assertThat(Strings.isAllOrWildcard("foo"), is(false));
         assertThat(Strings.isAllOrWildcard(""), is(false));
-        assertThat(Strings.isAllOrWildcard((String)null), is(false));
+        assertThat(Strings.isAllOrWildcard((String) null), is(false));
     }
 
     public void testSubstring() {
@@ -73,17 +68,18 @@ public class StringsTests extends ESTestCase {
         if (randomBoolean()) {
             if (randomBoolean()) {
                 error = false;
-                toXContent  = (builder, params) -> builder.field("ok", "here").field("catastrophe", "");
+                toXContent = (builder, params) -> builder.field("ok", "here").field("catastrophe", "");
             } else {
                 error = true;
-                toXContent  = (builder, params) ->
-                        builder.startObject().field("ok", "here").field("catastrophe", "").endObject();
+                toXContent = (builder, params) -> builder.startObject().field("ok", "here").field("catastrophe", "").endObject();
             }
         } else {
             if (randomBoolean()) {
                 error = false;
-                toXContent = (ToXContentObject) (builder, params) ->
-                        builder.startObject().field("ok", "here").field("catastrophe", "").endObject();
+                toXContent = (ToXContentObject) (builder, params) -> builder.startObject()
+                    .field("ok", "here")
+                    .field("catastrophe", "")
+                    .endObject();
             } else {
                 error = true;
                 toXContent = (ToXContentObject) (builder, params) -> builder.field("ok", "here").field("catastrophe", "");
@@ -107,19 +103,103 @@ public class StringsTests extends ESTestCase {
         // Pass "color" param explicitly
         assertThat(
             Strings.toString(toXContent, new ToXContent.MapParams(Collections.singletonMap("color", "blue"))),
-            containsString("\"color_from_param\":\"blue\""));
+            containsString("\"color_from_param\":\"blue\"")
+        );
     }
 
     public void testSplitStringToSet() {
         assertEquals(Strings.tokenizeByCommaToSet(null), Sets.newHashSet());
         assertEquals(Strings.tokenizeByCommaToSet(""), Sets.newHashSet());
-        assertEquals(Strings.tokenizeByCommaToSet("a,b,c"), Sets.newHashSet("a","b","c"));
-        assertEquals(Strings.tokenizeByCommaToSet("a, b, c"), Sets.newHashSet("a","b","c"));
-        assertEquals(Strings.tokenizeByCommaToSet(" a ,  b, c  "), Sets.newHashSet("a","b","c"));
-        assertEquals(Strings.tokenizeByCommaToSet("aa, bb, cc"), Sets.newHashSet("aa","bb","cc"));
+        assertEquals(Strings.tokenizeByCommaToSet("a,b,c"), Sets.newHashSet("a", "b", "c"));
+        assertEquals(Strings.tokenizeByCommaToSet("a, b, c"), Sets.newHashSet("a", "b", "c"));
+        assertEquals(Strings.tokenizeByCommaToSet(" a ,  b, c  "), Sets.newHashSet("a", "b", "c"));
+        assertEquals(Strings.tokenizeByCommaToSet("aa, bb, cc"), Sets.newHashSet("aa", "bb", "cc"));
         assertEquals(Strings.tokenizeByCommaToSet(" a "), Sets.newHashSet("a"));
         assertEquals(Strings.tokenizeByCommaToSet("   a   "), Sets.newHashSet("a"));
         assertEquals(Strings.tokenizeByCommaToSet("   aa   "), Sets.newHashSet("aa"));
         assertEquals(Strings.tokenizeByCommaToSet("   "), Sets.newHashSet());
+    }
+
+    public void testCollectionToDelimitedStringWithLimitZero() {
+        final String delimiter = randomFrom("", ",", ", ", "/");
+        final String prefix = randomFrom("", "[");
+        final String suffix = randomFrom("", "]");
+
+        final int count = between(0, 100);
+        final List<String> strings = new ArrayList<>(count);
+        while (strings.size() < count) {
+            // avoid starting with a sequence of empty appends, it makes the assertions much messier
+            final int minLength = strings.isEmpty() && delimiter.isEmpty() && prefix.isEmpty() && suffix.isEmpty() ? 1 : 0;
+            strings.add(randomAlphaOfLength(between(minLength, 10)));
+        }
+
+        final StringBuilder stringBuilder = new StringBuilder();
+        Strings.collectionToDelimitedStringWithLimit(strings, delimiter, prefix, suffix, 0, stringBuilder);
+        final String completelyTruncatedDescription = stringBuilder.toString();
+
+        if (count == 0) {
+            assertThat(completelyTruncatedDescription, equalTo(""));
+        } else if (count == 1) {
+            assertThat(completelyTruncatedDescription, equalTo(prefix + strings.get(0) + suffix));
+        } else {
+            assertThat(
+                completelyTruncatedDescription,
+                equalTo(prefix + strings.get(0) + suffix + delimiter + "... (" + count + " in total, " + (count - 1) + " omitted)")
+            );
+        }
+    }
+
+    public void testCollectionToDelimitedStringWithLimitTruncation() {
+        final String delimiter = randomFrom("", ",", ", ", "/");
+        final String prefix = randomFrom("", "[");
+        final String suffix = randomFrom("", "]");
+
+        final int count = between(2, 100);
+        final List<String> strings = new ArrayList<>(count);
+        while (strings.size() < count) {
+            // avoid empty appends, it makes the assertions much messier
+            final int minLength = delimiter.isEmpty() && prefix.isEmpty() && suffix.isEmpty() ? 1 : 0;
+            strings.add(randomAlphaOfLength(between(minLength, 10)));
+        }
+
+        final int fullDescriptionLength = Strings.collectionToDelimitedString(strings, delimiter, prefix, suffix).length();
+        final int lastItemSize = prefix.length() + strings.get(count - 1).length() + suffix.length();
+        final int truncatedLength = between(0, fullDescriptionLength - lastItemSize - 1);
+        final StringBuilder stringBuilder = new StringBuilder();
+        Strings.collectionToDelimitedStringWithLimit(strings, delimiter, prefix, suffix, truncatedLength, stringBuilder);
+        final String truncatedDescription = stringBuilder.toString();
+
+        assertThat(truncatedDescription, allOf(containsString("... (" + count + " in total,"), endsWith(" omitted)")));
+
+        assertThat(
+            truncatedDescription,
+            truncatedDescription.length(),
+            lessThanOrEqualTo(truncatedLength + (prefix + "0123456789" + suffix + delimiter + "... (999 in total, 999 omitted)").length())
+        );
+    }
+
+    public void testCollectionToDelimitedStringWithLimitNoTruncation() {
+        final String delimiter = randomFrom("", ",", ", ", "/");
+        final String prefix = randomFrom("", "[");
+        final String suffix = randomFrom("", "]");
+
+        final int count = between(1, 100);
+        final List<String> strings = new ArrayList<>(count);
+        while (strings.size() < count) {
+            strings.add(randomAlphaOfLength(between(0, 10)));
+        }
+
+        final String fullDescription = Strings.collectionToDelimitedString(strings, delimiter, prefix, suffix);
+        for (String string : strings) {
+            assertThat(fullDescription, containsString(prefix + string + suffix));
+        }
+
+        final int lastItemSize = prefix.length() + strings.get(count - 1).length() + suffix.length();
+        final int minLimit = fullDescription.length() - lastItemSize;
+        final int limit = randomFrom(between(minLimit, fullDescription.length()), between(minLimit, Integer.MAX_VALUE), Integer.MAX_VALUE);
+
+        final StringBuilder stringBuilder = new StringBuilder();
+        Strings.collectionToDelimitedStringWithLimit(strings, delimiter, prefix, suffix, limit, stringBuilder);
+        assertThat(stringBuilder.toString(), equalTo(fullDescription));
     }
 }

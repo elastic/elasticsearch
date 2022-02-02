@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm.action;
@@ -9,8 +10,9 @@ package org.elasticsearch.xpack.ilm.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -31,11 +33,24 @@ import java.util.List;
 public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNodeAction<Request, Response> {
 
     @Inject
-    public TransportRemoveIndexLifecyclePolicyAction(TransportService transportService, ClusterService clusterService,
-                                                     ThreadPool threadPool, ActionFilters actionFilters,
-                                                     IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(RemoveIndexLifecyclePolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            Request::new, indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
+    public TransportRemoveIndexLifecyclePolicyAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            RemoveIndexLifecyclePolicyAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            Request::new,
+            indexNameExpressionResolver,
+            Response::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
@@ -46,26 +61,25 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         final Index[] indices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), true, request.indices());
-        clusterService.submitStateUpdateTask("remove-lifecycle-for-index",
-                new AckedClusterStateUpdateTask<Response>(request, listener) {
+        clusterService.submitStateUpdateTask("remove-lifecycle-for-index", new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
-                    private final List<String> failedIndexes = new ArrayList<>();
+            private final List<String> failedIndexes = new ArrayList<>();
 
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        return IndexLifecycleTransition.removePolicyForIndexes(indices, currentState, failedIndexes);
-                    }
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                return IndexLifecycleTransition.removePolicyForIndexes(indices, currentState, failedIndexes);
+            }
 
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        listener.onFailure(e);
-                    }
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
 
-                    @Override
-                    protected Response newResponse(boolean acknowledged) {
-                        return new Response(failedIndexes);
-                    }
-                });
+            @Override
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                listener.onResponse(new Response(failedIndexes));
+            }
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
 }

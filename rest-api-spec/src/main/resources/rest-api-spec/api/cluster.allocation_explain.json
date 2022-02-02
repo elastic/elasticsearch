@@ -5,6 +5,11 @@
       "description":"Provides explanations for shard allocations in the cluster."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -27,7 +32,7 @@
       }
     },
     "body":{
-      "description":"The index, shard, and primary flag to explain. Empty means 'explain the first unassigned shard'"
+      "description":"The index, shard, and primary flag to explain. Empty means 'explain a randomly-chosen unassigned shard'"
     }
   }
 }

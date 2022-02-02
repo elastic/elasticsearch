@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.smoketest;
 
@@ -15,7 +16,6 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
 
 public class GraphWithSecurityIT extends ESClientYamlSuiteTestCase {
 
@@ -32,25 +32,19 @@ public class GraphWithSecurityIT extends ESClientYamlSuiteTestCase {
     }
 
     protected String[] getCredentials() {
-        return new String[]{"graph_explorer", "x-pack-test-password"};
+        return new String[] { "graph_explorer", "x-pack-test-password" };
     }
-
 
     @Override
     protected Settings restClientSettings() {
         String[] creds = getCredentials();
         String token = basicAuthHeaderValue(creds[0], new SecureString(creds[1].toCharArray()));
-        return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecureString(TEST_ADMIN_PASSWORD.toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }
-

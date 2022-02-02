@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.transform.transforms.DestConfig;
@@ -25,15 +27,16 @@ import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.client.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -41,13 +44,41 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.oneOf;
 
+@SuppressWarnings("removal")
 public class TransformIT extends TransformIntegTestCase {
+
+    private static final int NUM_USERS = 28;
+
+    static Integer getUserIdForRow(int row) {
+        return row % NUM_USERS;
+    }
+
+    static String getDateStringForRow(int row) {
+        int day = (11 + (row / 100)) % 28;
+        int hour = 10 + (row % 13);
+        int min = 10 + (row % 49);
+        int sec = 10 + (row % 49);
+        return "2017-01-" + (day < 10 ? "0" + day : day) + "T" + hour + ":" + min + ":" + sec + "Z";
+    }
+
+    @Before
+    public void setClusterSettings() throws IOException {
+        Request settingsRequest = new Request("PUT", "/_cluster/settings");
+        settingsRequest.setJsonEntity("""
+            {
+              "persistent": {
+                "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "debug",
+                "logger.org.elasticsearch.xpack.transform": "debug"
+              }
+            }""");
+        client().performRequest(settingsRequest);
+    }
 
     @After
     public void cleanTransforms() throws IOException {
@@ -56,36 +87,8 @@ public class TransformIT extends TransformIntegTestCase {
 
     public void testTransformCrud() throws Exception {
         String indexName = "basic-crud-reviews";
-        createReviewsIndex(indexName, 100);
-
-        Map<String, SingleGroupSource> groups = new HashMap<>();
-        groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
-        groups.put("by-user", TermsGroupSource.builder().setField("user_id").build());
-        groups.put("by-business", TermsGroupSource.builder().setField("business_id").build());
-
-        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
-            .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
-            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
-
-        TransformConfig config = createTransformConfig("transform-crud", groups, aggs, "reviews-by-user-business-day", indexName);
-
-        assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
-        assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
-
-        waitUntilCheckpoint(config.getId(), 1L);
-
-        stopTransform(config.getId());
-
-        TransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
-        assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
-        Instant now = Instant.now();
-        assertTrue("[create_time] is not before current time", storedConfig.getCreateTime().isBefore(now));
-        deleteTransform(config.getId());
-    }
-
-    public void testContinuousTransformCrud() throws Exception {
-        String indexName = "continuous-crud-reviews";
-        createReviewsIndex(indexName, 100);
+        String transformId = "transform-crud";
+        createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
@@ -97,14 +100,52 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
         TransformConfig config = createTransformConfigBuilder(
-            "transform-crud",
-            groups,
-            aggs,
+            transformId,
             "reviews-by-user-business-day",
             QueryBuilders.matchAllQuery(),
-            null,
             indexName
-        ).setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1))).build();
+        ).setPivotConfig(createPivotConfig(groups, aggs)).build();
+
+        assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
+        assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
+
+        waitUntilCheckpoint(config.getId(), 1L);
+
+        stopTransform(config.getId());
+        assertBusy(
+            () -> { assertEquals(TransformStats.State.STOPPED, getTransformStats(config.getId()).getTransformsStats().get(0).getState()); }
+        );
+
+        TransformConfig storedConfig = getTransform(config.getId()).getTransformConfigurations().get(0);
+        assertThat(storedConfig.getVersion(), equalTo(Version.CURRENT));
+        Instant now = Instant.now();
+        assertTrue("[create_time] is not before current time", storedConfig.getCreateTime().isBefore(now));
+        deleteTransform(config.getId());
+    }
+
+    public void testContinuousTransformCrud() throws Exception {
+        String indexName = "continuous-crud-reviews";
+        String transformId = "transform-continuous-crud";
+        createReviewsIndex(indexName, 100, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        Map<String, SingleGroupSource> groups = new HashMap<>();
+        groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
+        groups.put("by-user", TermsGroupSource.builder().setField("user_id").build());
+        groups.put("by-business", TermsGroupSource.builder().setField("business_id").build());
+
+        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
+            .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
+            .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
+
+        TransformConfig config = createTransformConfigBuilder(
+            transformId,
+            "reviews-by-user-business-day",
+            QueryBuilders.matchAllQuery(),
+            indexName
+        ).setPivotConfig(createPivotConfig(groups, aggs))
+            .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
+            .setSettings(SettingsConfig.builder().setAlignCheckpoints(false).build())
+            .build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
@@ -137,7 +178,7 @@ public class TransformIT extends TransformIntegTestCase {
 
     public void testContinuousTransformUpdate() throws Exception {
         String indexName = "continuous-reviews-update";
-        createReviewsIndex(indexName, 10);
+        createReviewsIndex(indexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-user", TermsGroupSource.builder().setField("user_id").build());
@@ -148,9 +189,9 @@ public class TransformIT extends TransformIntegTestCase {
 
         String id = "transform-to-update";
         String dest = "reviews-by-user-business-day-to-update";
-        TransformConfig config = createTransformConfigBuilder(id, groups, aggs, dest, QueryBuilders.matchAllQuery(), null, indexName)
-            .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
-            .build();
+        TransformConfig config = createTransformConfigBuilder(id, dest, QueryBuilders.matchAllQuery(), indexName).setPivotConfig(
+            createPivotConfig(groups, aggs)
+        ).setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build()).build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
@@ -221,7 +262,7 @@ public class TransformIT extends TransformIntegTestCase {
     public void testStopWaitForCheckpoint() throws Exception {
         String indexName = "wait-for-checkpoint-reviews";
         String transformId = "transform-wait-for-checkpoint";
-        createReviewsIndex(indexName, 1000);
+        createReviewsIndex(indexName, 1000, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
@@ -234,13 +275,12 @@ public class TransformIT extends TransformIntegTestCase {
 
         TransformConfig config = createTransformConfigBuilder(
             transformId,
-            groups,
-            aggs,
             "reviews-by-user-business-day",
             QueryBuilders.matchAllQuery(),
-            null,
             indexName
-        ).setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1))).build();
+        ).setPivotConfig(createPivotConfig(groups, aggs))
+            .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
+            .build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
 
@@ -281,7 +321,8 @@ public class TransformIT extends TransformIntegTestCase {
 
         TransformStats stateAndStats = getTransformStats(config.getId()).getTransformsStats().get(0);
         assertThat(stateAndStats.getState(), equalTo(TransformStats.State.STOPPED));
-        assertThat(stateAndStats.getIndexerStats().getDocumentsIndexed(), greaterThan(1000L));
+        // Despite indexing new documents into the source index, the number of documents in the destination index stays the same.
+        assertThat(stateAndStats.getIndexerStats().getDocumentsIndexed(), equalTo(1000L));
 
         assertTrue(stopTransform(transformId).isAcknowledged());
         deleteTransform(config.getId());
@@ -289,7 +330,9 @@ public class TransformIT extends TransformIntegTestCase {
 
     public void testContinuousTransformRethrottle() throws Exception {
         String indexName = "continuous-crud-reviews-throttled";
-        createReviewsIndex(indexName, 1000);
+        String transformId = "transform-continuous-crud-throttled";
+
+        createReviewsIndex(indexName, 1000, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
         groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null));
@@ -301,15 +344,15 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
         TransformConfig config = createTransformConfigBuilder(
-            "transform-crud",
-            groups,
-            aggs,
+            transformId,
             "reviews-by-user-business-day",
             QueryBuilders.matchAllQuery(),
-            // set requests per second and page size low enough to fail the test if update does not succeed
-            SettingsConfig.builder().setRequestsPerSecond(1F).setMaxPageSearchSize(10),
             indexName
-        ).setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1))).build();
+        ).setPivotConfig(createPivotConfig(groups, aggs))
+            .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
+            // set requests per second and page size low enough to fail the test if update does not succeed,
+            .setSettings(SettingsConfig.builder().setRequestsPerSecond(1F).setMaxPageSearchSize(10).setAlignCheckpoints(false).build())
+            .build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
@@ -367,21 +410,10 @@ public class TransformIT extends TransformIntegTestCase {
             int stars = (i + 20) % 5;
             long business = (i + 100) % 50;
 
-            StringBuilder sourceBuilder = new StringBuilder();
-            sourceBuilder.append("{\"user_id\":\"")
-                .append("user_")
-                .append(userId)
-                .append("\",\"count\":")
-                .append(i)
-                .append(",\"business_id\":\"")
-                .append("business_")
-                .append(business)
-                .append("\",\"stars\":")
-                .append(stars)
-                .append(",\"timestamp\":")
-                .append(timestamp)
-                .append("}");
-            bulk.add(new IndexRequest().source(sourceBuilder.toString(), XContentType.JSON));
+            String source = """
+                {"user_id":"user_%s","count":%s,"business_id":"business_%s","stars":%s,"timestamp":%s}
+                """.formatted(userId, i, business, stars, timestamp);
+            bulk.add(new IndexRequest().source(source, XContentType.JSON));
         }
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         bulkIndexDocs(bulk);

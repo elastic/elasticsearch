@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.settings;
 
@@ -23,13 +12,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -67,20 +56,24 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testByteSizeSetting() {
-        final Setting<ByteSizeValue> byteSizeValueSetting =
-                Setting.byteSizeSetting("a.byte.size", new ByteSizeValue(1024), Property.Dynamic, Property.NodeScope);
+        final Setting<ByteSizeValue> byteSizeValueSetting = Setting.byteSizeSetting(
+            "a.byte.size",
+            new ByteSizeValue(1024),
+            Property.Dynamic,
+            Property.NodeScope
+        );
         assertFalse(byteSizeValueSetting.isGroupSetting());
         final ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
         assertThat(byteSizeValue.getBytes(), equalTo(1024L));
     }
 
     public void testByteSizeSettingMinValue() {
-        final Setting<ByteSizeValue> byteSizeValueSetting =
-                Setting.byteSizeSetting(
-                        "a.byte.size",
-                        new ByteSizeValue(100, ByteSizeUnit.MB),
-                        new ByteSizeValue(20_000_000, ByteSizeUnit.BYTES),
-                        new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES));
+        final Setting<ByteSizeValue> byteSizeValueSetting = Setting.byteSizeSetting(
+            "a.byte.size",
+            new ByteSizeValue(100, ByteSizeUnit.MB),
+            new ByteSizeValue(20_000_000, ByteSizeUnit.BYTES),
+            new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES)
+        );
         final long value = 20_000_000 - randomIntBetween(1, 1024);
         final Settings settings = Settings.builder().put("a.byte.size", value + "b").build();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> byteSizeValueSetting.get(settings));
@@ -89,12 +82,12 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testByteSizeSettingMaxValue() {
-        final Setting<ByteSizeValue> byteSizeValueSetting =
-                Setting.byteSizeSetting(
-                        "a.byte.size",
-                        new ByteSizeValue(100, ByteSizeUnit.MB),
-                        new ByteSizeValue(16, ByteSizeUnit.MB),
-                        new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES));
+        final Setting<ByteSizeValue> byteSizeValueSetting = Setting.byteSizeSetting(
+            "a.byte.size",
+            new ByteSizeValue(100, ByteSizeUnit.MB),
+            new ByteSizeValue(16, ByteSizeUnit.MB),
+            new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES)
+        );
         final long value = (1L << 31) - 1 + randomIntBetween(1, 1024);
         final Settings settings = Settings.builder().put("a.byte.size", value + "b").build();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> byteSizeValueSetting.get(settings));
@@ -103,16 +96,21 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testByteSizeSettingValidation() {
-        final Setting<ByteSizeValue> byteSizeValueSetting =
-                Setting.byteSizeSetting("a.byte.size", s -> "2048b", Property.Dynamic, Property.NodeScope);
+        final Setting<ByteSizeValue> byteSizeValueSetting = Setting.byteSizeSetting(
+            "a.byte.size",
+            s -> "2048b",
+            Property.Dynamic,
+            Property.NodeScope
+        );
         final ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
         assertThat(byteSizeValue.getBytes(), equalTo(2048L));
         AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
         ClusterSettings.SettingUpdater<ByteSizeValue> settingUpdater = byteSizeValueSetting.newUpdater(value::set, logger);
 
         final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY));
+            IllegalArgumentException.class,
+            () -> settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY)
+        );
         assertThat(e, hasToString(containsString("illegal value can't update [a.byte.size] from [2048b] to [12]")));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
@@ -124,8 +122,12 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testMemorySize() {
-        Setting<ByteSizeValue> memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", new ByteSizeValue(1024), Property.Dynamic,
-                Property.NodeScope);
+        Setting<ByteSizeValue> memorySizeValueSetting = Setting.memorySizeSetting(
+            "a.byte.size",
+            new ByteSizeValue(1024),
+            Property.Dynamic,
+            Property.NodeScope
+        );
 
         assertFalse(memorySizeValueSetting.isGroupSetting());
         ByteSizeValue memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
@@ -155,7 +157,7 @@ public class SettingTests extends ESTestCase {
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
             final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
             final String expected =
-                    "failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized";
+                "failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized";
             assertThat(cause, hasToString(containsString(expected)));
         }
 
@@ -163,7 +165,7 @@ public class SettingTests extends ESTestCase {
         assertEquals(new ByteSizeValue(12), value.get());
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "20%").build(), Settings.EMPTY));
-        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
+        assertEquals(new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
     }
 
     public void testSimpleUpdate() {
@@ -188,10 +190,12 @@ public class SettingTests extends ESTestCase {
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
             final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
             assertThat(
-                    cause,
-                    hasToString(containsString("Failed to parse value [I am not a boolean] as only [true] or [false] are allowed.")));
+                cause,
+                hasToString(containsString("Failed to parse value [I am not a boolean] as only [true] or [false] are allowed."))
+            );
         }
     }
+
     public void testSimpleUpdateOfFilteredSetting() {
         Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.Filtered);
         AtomicReference<Boolean> atomicBoolean = new AtomicReference<>(null);
@@ -213,12 +217,13 @@ public class SettingTests extends ESTestCase {
     }
 
     private static final Setting<String> FOO_BAR_SETTING = new Setting<>(
-            "foo.bar",
-            "foobar",
-            Function.identity(),
-            new FooBarValidator(),
-            Property.Dynamic,
-            Property.NodeScope);
+        "foo.bar",
+        "foobar",
+        Function.identity(),
+        new FooBarValidator(),
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
     private static final Setting<String> BAZ_QUX_SETTING = Setting.simpleString("baz.qux", Property.NodeScope);
     private static final Setting<String> QUUX_QUUZ_SETTING = Setting.simpleString("quux.quuz", Property.NodeScope);
@@ -253,10 +258,10 @@ public class SettingTests extends ESTestCase {
     // the purpose of this test is merely to ensure that a validator is invoked with the appropriate values
     public void testValidator() {
         final Settings settings = Settings.builder()
-                .put("foo.bar", "foo.bar value")
-                .put("baz.qux", "baz.qux value")
-                .put("quux.quuz", "quux.quuz value")
-                .build();
+            .put("foo.bar", "foo.bar value")
+            .put("baz.qux", "baz.qux value")
+            .put("quux.quuz", "quux.quuz value")
+            .build();
         FOO_BAR_SETTING.get(settings);
         assertTrue(FooBarValidator.invokedInIsolation);
         assertTrue(FooBarValidator.invokedWithDependencies);
@@ -267,14 +272,11 @@ public class SettingTests extends ESTestCase {
             "foo.bar",
             "foobar",
             Function.identity(),
-            value -> {
-                throw new SettingsException("validate always fails");
-            },
-            Property.Filtered);
+            value -> { throw new SettingsException("validate always fails"); },
+            Property.Filtered
+        );
 
-        final Settings settings = Settings.builder()
-            .put(filteredStringSetting.getKey(), filteredStringSetting.getKey() + " value")
-            .build();
+        final Settings settings = Settings.builder().put(filteredStringSetting.getKey(), filteredStringSetting.getKey() + " value").build();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> filteredStringSetting.get(settings));
         assertThat(e, hasToString(containsString("Failed to parse value for setting [" + filteredStringSetting.getKey() + "]")));
         assertThat(e.getCause(), instanceOf(SettingsException.class));
@@ -282,74 +284,112 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testFilteredFloatSetting() {
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            Setting.floatSetting("foo", 42.0f, 43.0f, Property.Filtered));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.floatSetting("foo", 42.0f, 43.0f, Property.Filtered)
+        );
         assertThat(e, hasToString(containsString("Failed to parse value for setting [foo] must be >= 43.0")));
     }
 
     public void testFilteredDoubleSetting() {
-        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () ->
-            Setting.doubleSetting("foo", 42.0, 43.0, Property.Filtered));
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.doubleSetting("foo", 42.0, 43.0, Property.Filtered)
+        );
         assertThat(e1, hasToString(containsString("Failed to parse value for setting [foo] must be >= 43.0")));
 
-        final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () ->
-            Setting.doubleSetting("foo", 45.0, 43.0, 44.0, Property.Filtered));
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.doubleSetting("foo", 45.0, 43.0, 44.0, Property.Filtered)
+        );
         assertThat(e2, hasToString(containsString("Failed to parse value for setting [foo] must be <= 44.0")));
     }
 
     public void testFilteredIntSetting() {
-        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () ->
-            Setting.intSetting("foo", 42, 43, 44, Property.Filtered));
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.intSetting("foo", 42, 43, 44, Property.Filtered)
+        );
         assertThat(e1, hasToString(containsString("Failed to parse value for setting [foo] must be >= 43")));
 
-        final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () ->
-            Setting.intSetting("foo", 45, 43, 44, Property.Filtered));
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.intSetting("foo", 45, 43, 44, Property.Filtered)
+        );
         assertThat(e2, hasToString(containsString("Failed to parse value for setting [foo] must be <= 44")));
     }
 
     public void testFilteredLongSetting() {
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            Setting.longSetting("foo", 42L, 43L, Property.Filtered));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.longSetting("foo", 42L, 43L, Property.Filtered)
+        );
         assertThat(e, hasToString(containsString("Failed to parse value for setting [foo] must be >= 43")));
     }
 
     public void testFilteredTimeSetting() {
-        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () ->
-            Setting.timeSetting("foo", TimeValue.timeValueHours(1), TimeValue.timeValueHours(2), Property.Filtered));
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.timeSetting("foo", TimeValue.timeValueHours(1), TimeValue.timeValueHours(2), Property.Filtered)
+        );
         assertThat(e1, hasToString(containsString("failed to parse value for setting [foo], must be >= [2h]")));
 
-        final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () ->
-            Setting.timeSetting("foo", TimeValue.timeValueHours(4), TimeValue.timeValueHours(2), TimeValue.timeValueHours(3),
-                Property.Filtered));
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.timeSetting(
+                "foo",
+                TimeValue.timeValueHours(4),
+                TimeValue.timeValueHours(2),
+                TimeValue.timeValueHours(3),
+                Property.Filtered
+            )
+        );
         assertThat(e2, hasToString(containsString("failed to parse value for setting [foo], must be <= [3h]")));
 
-        final Setting minSetting = Setting.timeSetting("foo", TimeValue.timeValueHours(3), TimeValue.timeValueHours(2), Property.Filtered);
-        final Settings minSettings = Settings.builder()
-            .put("foo", "not a time value")
-            .build();
+        final Setting<TimeValue> minSetting = Setting.timeSetting(
+            "foo",
+            TimeValue.timeValueHours(3),
+            TimeValue.timeValueHours(2),
+            Property.Filtered
+        );
+        final Settings minSettings = Settings.builder().put("foo", "not a time value").build();
         final IllegalArgumentException e3 = expectThrows(IllegalArgumentException.class, () -> minSetting.get(minSettings));
         assertThat(e3, hasToString(containsString("failed to parse value for setting [foo] as a time value")));
         assertNull(e3.getCause());
 
-        final Setting maxSetting = Setting.timeSetting("foo", TimeValue.timeValueHours(3), TimeValue.timeValueHours(2),
-            TimeValue.timeValueHours(4), Property.Filtered);
-        final Settings maxSettings = Settings.builder()
-            .put("foo", "not a time value")
-            .build();
+        final Setting<TimeValue> maxSetting = Setting.timeSetting(
+            "foo",
+            TimeValue.timeValueHours(3),
+            TimeValue.timeValueHours(2),
+            TimeValue.timeValueHours(4),
+            Property.Filtered
+        );
+        final Settings maxSettings = Settings.builder().put("foo", "not a time value").build();
         final IllegalArgumentException e4 = expectThrows(IllegalArgumentException.class, () -> maxSetting.get(maxSettings));
         assertThat(e4, hasToString(containsString("failed to parse value for setting [foo] as a time value")));
         assertNull(e4.getCause());
     }
 
     public void testFilteredBooleanSetting() {
-        Setting setting = Setting.boolSetting("foo", false, Property.Filtered);
-        final Settings settings = Settings.builder()
-            .put("foo", "not a boolean value")
-            .build();
+        Setting<Boolean> setting = Setting.boolSetting("foo", false, Property.Filtered);
+        final Settings settings = Settings.builder().put("foo", "not a boolean value").build();
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
         assertThat(e, hasToString(containsString("Failed to parse value for setting [foo]")));
         assertNull(e.getCause());
+    }
+
+    private enum TestEnum {
+        ON,
+        OFF
+    }
+
+    public void testThrowsIllegalArgumentExceptionOnInvalidEnumSetting() {
+        Setting<TestEnum> setting = Setting.enumSetting(TestEnum.class, "foo", TestEnum.ON, Property.Filtered);
+        final Settings settings = Settings.builder().put("foo", "bar").build();
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
+        assertThat(e, hasToString(containsString("No enum constant org.elasticsearch.common.settings.SettingTests.TestEnum.BAR")));
     }
 
     public void testUpdateNotDynamic() {
@@ -376,42 +416,40 @@ public class SettingTests extends ESTestCase {
 
     public void testDefault() {
         TimeValue defaultValue = TimeValue.timeValueMillis(randomIntBetween(0, 1000000));
-        Setting<TimeValue> setting =
-            Setting.positiveTimeSetting("my.time.value", defaultValue, Property.NodeScope);
+        Setting<TimeValue> setting = Setting.positiveTimeSetting("my.time.value", defaultValue, Property.NodeScope);
         assertFalse(setting.isGroupSetting());
         String aDefault = setting.getDefaultRaw(Settings.EMPTY);
         assertEquals(defaultValue.millis() + "ms", aDefault);
         assertEquals(defaultValue.millis(), setting.get(Settings.EMPTY).millis());
         assertEquals(defaultValue, setting.getDefault(Settings.EMPTY));
 
-        Setting<String> secondaryDefault =
-            new Setting<>("foo.bar", (s) -> s.get("old.foo.bar", "some_default"), Function.identity(), Property.NodeScope);
+        Setting<String> secondaryDefault = new Setting<>(
+            "foo.bar",
+            (s) -> s.get("old.foo.bar", "some_default"),
+            Function.identity(),
+            Property.NodeScope
+        );
         assertEquals("some_default", secondaryDefault.get(Settings.EMPTY));
         assertEquals("42", secondaryDefault.get(Settings.builder().put("old.foo.bar", 42).build()));
 
-        Setting<String> secondaryDefaultViaSettings =
-            new Setting<>("foo.bar", secondaryDefault, Function.identity(), Property.NodeScope);
+        Setting<String> secondaryDefaultViaSettings = new Setting<>("foo.bar", secondaryDefault, Function.identity(), Property.NodeScope);
         assertEquals("some_default", secondaryDefaultViaSettings.get(Settings.EMPTY));
         assertEquals("42", secondaryDefaultViaSettings.get(Settings.builder().put("old.foo.bar", 42).build()));
 
         // It gets more complicated when there are two settings objects....
         Settings hasFallback = Settings.builder().put("foo.bar", "o").build();
-        Setting<String> fallsback =
-                new Setting<>("foo.baz", secondaryDefault, Function.identity(), Property.NodeScope);
+        Setting<String> fallsback = new Setting<>("foo.baz", secondaryDefault, Function.identity(), Property.NodeScope);
         assertEquals("o", fallsback.get(hasFallback));
         assertEquals("some_default", fallsback.get(Settings.EMPTY));
         assertEquals("some_default", fallsback.get(Settings.EMPTY, Settings.EMPTY));
         assertEquals("o", fallsback.get(Settings.EMPTY, hasFallback));
         assertEquals("o", fallsback.get(hasFallback, Settings.EMPTY));
-        assertEquals("a", fallsback.get(
-                Settings.builder().put("foo.bar", "a").build(),
-                Settings.builder().put("foo.bar", "b").build()));
+        assertEquals("a", fallsback.get(Settings.builder().put("foo.bar", "a").build(), Settings.builder().put("foo.bar", "b").build()));
     }
 
     public void testComplexType() {
         AtomicReference<ComplexType> ref = new AtomicReference<>(null);
-        Setting<ComplexType> setting = new Setting<>("foo.bar", (s) -> "", (s) -> new ComplexType(s),
-            Property.Dynamic, Property.NodeScope);
+        Setting<ComplexType> setting = new Setting<>("foo.bar", (s) -> "", (s) -> new ComplexType(s), Property.Dynamic, Property.NodeScope);
         assertFalse(setting.isGroupSetting());
         ref.set(setting.get(Settings.EMPTY));
         ComplexType type = ref.get();
@@ -423,7 +461,6 @@ public class SettingTests extends ESTestCase {
         assertTrue(settingUpdater.apply(Settings.builder().put("foo.bar", "2").build(), Settings.EMPTY));
         assertNotSame("update - type has changed", type, ref.get());
         assertEquals("2", ref.get().foo);
-
 
         // change back to default...
         assertTrue(settingUpdater.apply(Settings.EMPTY, Settings.builder().put("foo.bar", "2").build()));
@@ -447,9 +484,10 @@ public class SettingTests extends ESTestCase {
         ClusterSettings.SettingUpdater<Settings> settingUpdater = setting.newUpdater(ref::set, logger);
 
         Settings currentInput = Settings.builder()
-                .put("foo.bar.1.value", "1")
-                .put("foo.bar.2.value", "2")
-                .put("foo.bar.3.value", "3").build();
+            .put("foo.bar.1.value", "1")
+            .put("foo.bar.2.value", "2")
+            .put("foo.bar.3.value", "3")
+            .build();
         Settings previousInput = Settings.EMPTY;
         assertTrue(settingUpdater.apply(currentInput, previousInput));
         assertNotNull(ref.get());
@@ -491,10 +529,12 @@ public class SettingTests extends ESTestCase {
         assertTrue(setting.match("foo.bar.baz"));
         assertFalse(setting.match("foo.baz.bar"));
 
-        ClusterSettings.SettingUpdater<Settings> predicateSettingUpdater = setting.newUpdater(ref::set, logger,(s) -> assertFalse(true));
+        ClusterSettings.SettingUpdater<Settings> predicateSettingUpdater = setting.newUpdater(ref::set, logger, (s) -> assertFalse(true));
         try {
-            predicateSettingUpdater.apply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build(),
-                    Settings.EMPTY);
+            predicateSettingUpdater.apply(
+                Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build(),
+                Settings.EMPTY
+            );
             fail("not accepted");
         } catch (IllegalArgumentException ex) {
             assertEquals(ex.getMessage(), "illegal value can't update [foo.bar.] from [{}] to [{\"1.value\":\"1\",\"2.value\":\"2\"}]");
@@ -506,9 +546,13 @@ public class SettingTests extends ESTestCase {
         Setting<Settings> setting = Setting.groupSetting("foo.bar.", Property.Filtered, Property.Dynamic);
 
         ClusterSettings.SettingUpdater<Settings> predicateSettingUpdater = setting.newUpdater(ref::set, logger, (s) -> assertFalse(true));
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> predicateSettingUpdater.apply(Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build(),
-                Settings.EMPTY));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> predicateSettingUpdater.apply(
+                Settings.builder().put("foo.bar.1.value", "1").put("foo.bar.2.value", "2").build(),
+                Settings.EMPTY
+            )
+        );
         assertEquals("illegal value can't update [foo.bar.]", ex.getMessage());
     }
 
@@ -537,7 +581,6 @@ public class SettingTests extends ESTestCase {
             }
         }
     }
-
 
     public void testComposite() {
         Composite c = new Composite();
@@ -604,28 +647,36 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testListSettingsDeprecated() {
-        final Setting<List<String>> deprecatedListSetting =
-                Setting.listSetting(
-                        "foo.deprecated",
-                        Collections.singletonList("foo.deprecated"),
-                        Function.identity(),
-                        Property.Deprecated,
-                        Property.NodeScope);
-        final Setting<List<String>> nonDeprecatedListSetting =
-                Setting.listSetting(
-                        "foo.non_deprecated", Collections.singletonList("foo.non_deprecated"), Function.identity(), Property.NodeScope);
+        final Setting<List<String>> deprecatedListSetting = Setting.listSetting(
+            "foo.deprecated",
+            Collections.singletonList("foo.deprecated"),
+            Function.identity(),
+            Property.DeprecatedWarning,
+            Property.NodeScope
+        );
+        final Setting<List<String>> nonDeprecatedListSetting = Setting.listSetting(
+            "foo.non_deprecated",
+            Collections.singletonList("foo.non_deprecated"),
+            Function.identity(),
+            Property.NodeScope
+        );
         final Settings settings = Settings.builder()
-                .put("foo.deprecated", "foo.deprecated1,foo.deprecated2")
-                .put("foo.deprecated", "foo.non_deprecated1,foo.non_deprecated2")
-                .build();
+            .put("foo.deprecated", "foo.deprecated1,foo.deprecated2")
+            .put("foo.deprecated", "foo.non_deprecated1,foo.non_deprecated2")
+            .build();
         deprecatedListSetting.get(settings);
         nonDeprecatedListSetting.get(settings);
-        assertSettingDeprecationsAndWarnings(new Setting[]{deprecatedListSetting});
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedListSetting });
     }
 
     public void testListSettings() {
-        Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(),
-            Property.Dynamic, Property.NodeScope);
+        Setting<List<String>> listSetting = Setting.listSetting(
+            "foo.bar",
+            Arrays.asList("foo,bar"),
+            (s) -> s.toString(),
+            Property.Dynamic,
+            Property.NodeScope
+        );
         List<String> value = listSetting.get(Settings.EMPTY);
         assertFalse(listSetting.exists(Settings.EMPTY));
         assertEquals(1, value.size());
@@ -657,18 +708,23 @@ public class SettingTests extends ESTestCase {
 
         settingUpdater.apply(Settings.builder().putList("foo.bar", "123").build(), builder.build());
         assertEquals(1, ref.get().size());
-        assertArrayEquals(ref.get().toArray(new String[0]), new String[] {"123"});
+        assertArrayEquals(ref.get().toArray(new String[0]), new String[] { "123" });
 
         settingUpdater.apply(Settings.builder().put("foo.bar", "1,2,3").build(), Settings.builder().putList("foo.bar", "123").build());
         assertEquals(3, ref.get().size());
-        assertArrayEquals(ref.get().toArray(new String[0]), new String[] {"1", "2", "3"});
+        assertArrayEquals(ref.get().toArray(new String[0]), new String[] { "1", "2", "3" });
 
         settingUpdater.apply(Settings.EMPTY, Settings.builder().put("foo.bar", "1,2,3").build());
         assertEquals(1, ref.get().size());
         assertEquals("foo,bar", ref.get().get(0));
 
-        Setting<List<Integer>> otherSettings = Setting.listSetting("foo.bar", Collections.emptyList(), Integer::parseInt,
-            Property.Dynamic, Property.NodeScope);
+        Setting<List<Integer>> otherSettings = Setting.listSetting(
+            "foo.bar",
+            Collections.emptyList(),
+            Integer::parseInt,
+            Property.Dynamic,
+            Property.NodeScope
+        );
         List<Integer> defaultValue = otherSettings.get(Settings.EMPTY);
         assertEquals(0, defaultValue.size());
         List<Integer> intValues = otherSettings.get(Settings.builder().put("foo.bar", "0,1,2,3").build());
@@ -677,8 +733,13 @@ public class SettingTests extends ESTestCase {
             assertEquals(i, intValues.get(i).intValue());
         }
 
-        Setting<List<String>> settingWithFallback = Setting.listSetting("foo.baz", listSetting, Function.identity(),
-            Property.Dynamic, Property.NodeScope);
+        Setting<List<String>> settingWithFallback = Setting.listSetting(
+            "foo.baz",
+            listSetting,
+            Function.identity(),
+            Property.Dynamic,
+            Property.NodeScope
+        );
         value = settingWithFallback.get(Settings.EMPTY);
         assertEquals(1, value.size());
         assertEquals("foo,bar", value.get(0));
@@ -700,8 +761,13 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testListSettingAcceptsNumberSyntax() {
-        Setting<List<String>> listSetting = Setting.listSetting("foo.bar", Arrays.asList("foo,bar"), (s) -> s.toString(),
-            Property.Dynamic, Property.NodeScope);
+        Setting<List<String>> listSetting = Setting.listSetting(
+            "foo.bar",
+            Arrays.asList("foo,bar"),
+            (s) -> s.toString(),
+            Property.Dynamic,
+            Property.NodeScope
+        );
         List<String> input = Arrays.asList("test", "test1, test2", "test", ",,,,");
         Settings.Builder builder = Settings.builder().putList("foo.bar", input.toArray(new String[0]));
         // try to parse this really annoying format
@@ -715,7 +781,7 @@ public class SettingTests extends ESTestCase {
         assertFalse(listSetting.match("foo_bar"));
         assertFalse(listSetting.match("foo_bar.1"));
         assertTrue(listSetting.match("foo.bar"));
-        assertTrue(listSetting.match("foo.bar." + randomIntBetween(0,10000)));
+        assertTrue(listSetting.match("foo.bar." + randomIntBetween(0, 10000)));
     }
 
     public void testDynamicKeySetting() {
@@ -736,8 +802,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testAffixKeySetting() {
-        Setting<Boolean> setting =
-            Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
+        Setting<Boolean> setting = Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
         assertTrue(setting.hasComplexMatcher());
         assertTrue(setting.match("foo.bar.enable"));
         assertTrue(setting.match("foo.baz.enable"));
@@ -752,12 +817,17 @@ public class SettingTests extends ESTestCase {
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> setting.getConcreteSetting("foo"));
         assertEquals("key [foo] must match [foo.*.enable] but didn't.", exc.getMessage());
 
-        exc = expectThrows(IllegalArgumentException.class, () -> Setting.affixKeySetting("foo", "enable",
-            (key) -> Setting.boolSetting(key, false, Property.NodeScope)));
+        exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.affixKeySetting("foo", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope))
+        );
         assertEquals("prefix must end with a '.'", exc.getMessage());
 
-        Setting<List<String>> listAffixSetting = Setting.affixKeySetting("foo.", "bar",
-            (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope));
+        Setting<List<String>> listAffixSetting = Setting.affixKeySetting(
+            "foo.",
+            "bar",
+            (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope)
+        );
 
         assertTrue(listAffixSetting.hasComplexMatcher());
         assertTrue(listAffixSetting.match("foo.test.bar"));
@@ -769,8 +839,11 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testAffixSettingNamespaces() {
-        Setting.AffixSetting<Boolean> setting =
-            Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
+        Setting.AffixSetting<Boolean> setting = Setting.affixKeySetting(
+            "foo.",
+            "enable",
+            (key) -> Setting.boolSetting(key, false, Property.NodeScope)
+        );
         Settings build = Settings.builder()
             .put("foo.bar.enable", "true")
             .put("foo.baz.enable", "true")
@@ -785,16 +858,14 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testAffixAsMap() {
-        Setting.AffixSetting<String> setting = Setting.prefixKeySetting("foo.bar.", key ->
-            Setting.simpleString(key, Property.NodeScope));
+        Setting.AffixSetting<String> setting = Setting.prefixKeySetting("foo.bar.", key -> Setting.simpleString(key, Property.NodeScope));
         Settings build = Settings.builder().put("foo.bar.baz", 2).put("foo.bar.foobar", 3).build();
         Map<String, String> asMap = setting.getAsMap(build);
         assertEquals(2, asMap.size());
         assertEquals("2", asMap.get("baz"));
         assertEquals("3", asMap.get("foobar"));
 
-        setting = Setting.prefixKeySetting("foo.bar.", key ->
-            Setting.simpleString(key, Property.NodeScope));
+        setting = Setting.prefixKeySetting("foo.bar.", key -> Setting.simpleString(key, Property.NodeScope));
         build = Settings.builder().put("foo.bar.baz", 2).put("foo.bar.foobar", 3).put("foo.bar.baz.deep", 45).build();
         asMap = setting.getAsMap(build);
         assertEquals(3, asMap.size());
@@ -804,8 +875,11 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testGetAllConcreteSettings() {
-        Setting.AffixSetting<List<String>> listAffixSetting = Setting.affixKeySetting("foo.", "bar",
-            (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope));
+        Setting.AffixSetting<List<String>> listAffixSetting = Setting.affixKeySetting(
+            "foo.",
+            "bar",
+            (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope)
+        );
 
         Settings settings = Settings.builder()
             .putList("foo.1.bar", "1", "2")
@@ -823,8 +897,11 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testAffixSettingsFailOnGet() {
-        Setting.AffixSetting<List<String>> listAffixSetting = Setting.affixKeySetting("foo.", "bar",
-            (key) -> Setting.listSetting(key, Collections.singletonList("testelement"), Function.identity(), Property.NodeScope));
+        Setting.AffixSetting<List<String>> listAffixSetting = Setting.affixKeySetting(
+            "foo.",
+            "bar",
+            (key) -> Setting.listSetting(key, Collections.singletonList("testelement"), Function.identity(), Property.NodeScope)
+        );
         expectThrows(UnsupportedOperationException.class, () -> listAffixSetting.get(Settings.EMPTY));
         assertEquals(Collections.singletonList("testelement"), listAffixSetting.getDefault(Settings.EMPTY));
         assertEquals("[\"testelement\"]", listAffixSetting.getDefaultRaw(Settings.EMPTY));
@@ -838,7 +915,10 @@ public class SettingTests extends ESTestCase {
             public void validate(Integer value) {}
 
             String toString(Map<Setting<?>, Object> s) {
-                return s.entrySet().stream().map(e -> e.getKey().getKey() + ":" + e.getValue().toString()).sorted()
+                return s.entrySet()
+                    .stream()
+                    .map(e -> e.getKey().getKey() + ":" + e.getValue().toString())
+                    .sorted()
                     .collect(Collectors.joining(","));
             }
 
@@ -861,22 +941,26 @@ public class SettingTests extends ESTestCase {
             }
         });
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> fix1.get(Settings.builder().put("abc.1.def", 11).put("abc.2.def", 12).put("abc.qrx", 11).build()));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> fix1.get(Settings.builder().put("abc.1.def", 11).put("abc.2.def", 12).put("abc.qrx", 11).build())
+        );
         assertThat(e.getMessage(), is("abc.1.def:11,abc.2.def:12"));
 
-        e = expectThrows(IllegalArgumentException.class,
-            () -> fix1.get(Settings.builder().put("abc.3.def", 13).put("abc.qrx", 20).build()));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> fix1.get(Settings.builder().put("abc.3.def", 13).put("abc.qrx", 20).build())
+        );
         assertThat(e.getMessage(), is("abc.3.def:13"));
 
-        e = expectThrows(IllegalArgumentException.class,
-            () -> fix1.get(Settings.builder().put("abc.4.def", 14).put("abc.qrx", 20).put("abc.tuv", 50).build()));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> fix1.get(Settings.builder().put("abc.4.def", 14).put("abc.qrx", 20).put("abc.tuv", 50).build())
+        );
         assertThat(e.getMessage(), is("abc.4.def:14,abc.tuv:50"));
 
         assertEquals(
-            fix1.get(Settings.builder()
-                .put("abc.3.def", 13).put("abc.1.def", 11).put("abc.2.def", 12).put("abc.qrx", 20)
-                .build()),
+            fix1.get(Settings.builder().put("abc.3.def", 13).put("abc.1.def", 11).put("abc.2.def", 12).put("abc.qrx", 20).build()),
             Integer.valueOf(20)
         );
 
@@ -930,35 +1014,50 @@ public class SettingTests extends ESTestCase {
      * We can't have Null properties
      */
     public void testRejectNullProperties() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> Setting.simpleString("foo.bar", (Property[]) null));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", (Property[]) null)
+        );
         assertThat(ex.getMessage(), containsString("properties cannot be null for setting"));
     }
 
     public void testRejectConflictingDynamicAndFinalProperties() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> Setting.simpleString("foo.bar", Property.Final, Property.Dynamic));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", Property.Final, randomFrom(Property.Dynamic, Property.OperatorDynamic))
+        );
         assertThat(ex.getMessage(), containsString("final setting [foo.bar] cannot be dynamic"));
+    }
+
+    public void testRejectConflictingDynamicAndOperatorDynamicProperties() {
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", Property.Dynamic, Property.OperatorDynamic)
+        );
+        assertThat(ex.getMessage(), containsString("setting [foo.bar] cannot be both dynamic and operator dynamic"));
     }
 
     public void testRejectNonIndexScopedNotCopyableOnResizeSetting() {
         final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> Setting.simpleString("foo.bar", Property.NotCopyableOnResize));
+            IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", Property.NotCopyableOnResize)
+        );
         assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [NotCopyableOnResize]")));
     }
 
     public void testRejectNonIndexScopedInternalIndexSetting() {
         final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> Setting.simpleString("foo.bar", Property.InternalIndex));
+            IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", Property.InternalIndex)
+        );
         assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [InternalIndex]")));
     }
 
     public void testRejectNonIndexScopedPrivateIndexSetting() {
         final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> Setting.simpleString("foo.bar", Property.PrivateIndex));
+            IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", Property.PrivateIndex)
+        );
         assertThat(e, hasToString(containsString("non-index-scoped setting [foo.bar] can not have property [PrivateIndex]")));
     }
 
@@ -975,39 +1074,51 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testTimeValueBounds() {
-        Setting<TimeValue> settingWithLowerBound
-            = Setting.timeSetting("foo", TimeValue.timeValueSeconds(10), TimeValue.timeValueSeconds(5));
+        Setting<TimeValue> settingWithLowerBound = Setting.timeSetting(
+            "foo",
+            TimeValue.timeValueSeconds(10),
+            TimeValue.timeValueSeconds(5)
+        );
         assertThat(settingWithLowerBound.get(Settings.EMPTY), equalTo(TimeValue.timeValueSeconds(10)));
 
         assertThat(settingWithLowerBound.get(Settings.builder().put("foo", "5000ms").build()), equalTo(TimeValue.timeValueSeconds(5)));
-        IllegalArgumentException illegalArgumentException
-            = expectThrows(IllegalArgumentException.class,
-            () -> settingWithLowerBound.get(Settings.builder().put("foo", "4999ms").build()));
+        IllegalArgumentException illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> settingWithLowerBound.get(Settings.builder().put("foo", "4999ms").build())
+        );
 
         assertThat(illegalArgumentException.getMessage(), equalTo("failed to parse value [4999ms] for setting [foo], must be >= [5s]"));
 
-        Setting<TimeValue> settingWithBothBounds = Setting.timeSetting("bar",
-            TimeValue.timeValueSeconds(10), TimeValue.timeValueSeconds(5), TimeValue.timeValueSeconds(20));
+        Setting<TimeValue> settingWithBothBounds = Setting.timeSetting(
+            "bar",
+            TimeValue.timeValueSeconds(10),
+            TimeValue.timeValueSeconds(5),
+            TimeValue.timeValueSeconds(20)
+        );
         assertThat(settingWithBothBounds.get(Settings.EMPTY), equalTo(TimeValue.timeValueSeconds(10)));
 
         assertThat(settingWithBothBounds.get(Settings.builder().put("bar", "5000ms").build()), equalTo(TimeValue.timeValueSeconds(5)));
         assertThat(settingWithBothBounds.get(Settings.builder().put("bar", "20000ms").build()), equalTo(TimeValue.timeValueSeconds(20)));
-        illegalArgumentException
-            = expectThrows(IllegalArgumentException.class,
-            () -> settingWithBothBounds.get(Settings.builder().put("bar", "4999ms").build()));
+        illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> settingWithBothBounds.get(Settings.builder().put("bar", "4999ms").build())
+        );
         assertThat(illegalArgumentException.getMessage(), equalTo("failed to parse value [4999ms] for setting [bar], must be >= [5s]"));
 
-        illegalArgumentException
-            = expectThrows(IllegalArgumentException.class,
-            () -> settingWithBothBounds.get(Settings.builder().put("bar", "20001ms").build()));
+        illegalArgumentException = expectThrows(
+            IllegalArgumentException.class,
+            () -> settingWithBothBounds.get(Settings.builder().put("bar", "20001ms").build())
+        );
         assertThat(illegalArgumentException.getMessage(), equalTo("failed to parse value [20001ms] for setting [bar], must be <= [20s]"));
     }
 
     public void testSettingsGroupUpdater() {
         Setting<Integer> intSetting = Setting.intSetting("prefix.foo", 1, Property.NodeScope, Property.Dynamic);
         Setting<Integer> intSetting2 = Setting.intSetting("prefix.same", 1, Property.NodeScope, Property.Dynamic);
-        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {},
-            Arrays.asList(intSetting, intSetting2));
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(
+            s -> {},
+            Arrays.asList(intSetting, intSetting2)
+        );
 
         Settings current = Settings.builder().put("prefix.foo", 123).put("prefix.same", 5555).build();
         Settings previous = Settings.builder().put("prefix.foo", 321).put("prefix.same", 5555).build();
@@ -1017,8 +1128,10 @@ public class SettingTests extends ESTestCase {
     public void testSettingsGroupUpdaterRemoval() {
         Setting<Integer> intSetting = Setting.intSetting("prefix.foo", 1, Property.NodeScope, Property.Dynamic);
         Setting<Integer> intSetting2 = Setting.intSetting("prefix.same", 1, Property.NodeScope, Property.Dynamic);
-        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {},
-            Arrays.asList(intSetting, intSetting2));
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(
+            s -> {},
+            Arrays.asList(intSetting, intSetting2)
+        );
 
         Settings current = Settings.builder().put("prefix.same", 5555).build();
         Settings previous = Settings.builder().put("prefix.foo", 321).put("prefix.same", 5555).build();
@@ -1027,17 +1140,22 @@ public class SettingTests extends ESTestCase {
 
     public void testSettingsGroupUpdaterWithAffixSetting() {
         Setting<Integer> intSetting = Setting.intSetting("prefix.foo", 1, Property.NodeScope, Property.Dynamic);
-        Setting.AffixSetting<String> prefixKeySetting =
-            Setting.prefixKeySetting("prefix.foo.bar.", key -> Setting.simpleString(key, Property.NodeScope, Property.Dynamic));
-        Setting.AffixSetting<String> affixSetting =
-            Setting.affixKeySetting("prefix.foo.", "suffix", key -> Setting.simpleString(key,Property.NodeScope, Property.Dynamic));
+        Setting.AffixSetting<String> prefixKeySetting = Setting.prefixKeySetting(
+            "prefix.foo.bar.",
+            key -> Setting.simpleString(key, Property.NodeScope, Property.Dynamic)
+        );
+        Setting.AffixSetting<String> affixSetting = Setting.affixKeySetting(
+            "prefix.foo.",
+            "suffix",
+            key -> Setting.simpleString(key, Property.NodeScope, Property.Dynamic)
+        );
 
-        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {},
-            Arrays.asList(intSetting, prefixKeySetting, affixSetting));
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(
+            s -> {},
+            Arrays.asList(intSetting, prefixKeySetting, affixSetting)
+        );
 
-        Settings.Builder currentSettingsBuilder = Settings.builder()
-            .put("prefix.foo.bar.baz", "foo")
-            .put("prefix.foo.infix.suffix", "foo");
+        Settings.Builder currentSettingsBuilder = Settings.builder().put("prefix.foo.bar.baz", "foo").put("prefix.foo.infix.suffix", "foo");
         Settings.Builder previousSettingsBuilder = Settings.builder()
             .put("prefix.foo.bar.baz", "foo")
             .put("prefix.foo.infix.suffix", "foo");
@@ -1065,24 +1183,31 @@ public class SettingTests extends ESTestCase {
             previousSettingsBuilder.put("prefix.foo.infix2.suffix", "bar");
         }
 
-        boolean expectedChange = removeAffixKeySetting || removePrefixKeySetting || changeAffixKeySetting || changePrefixKeySetting
+        boolean expectedChange = removeAffixKeySetting
+            || removePrefixKeySetting
+            || changeAffixKeySetting
+            || changePrefixKeySetting
             || removeAffixNamespace;
         assertThat(updater.apply(currentSettingsBuilder.build(), previousSettingsBuilder.build()), is(expectedChange));
     }
 
     public void testAffixNamespacesWithGroupSetting() {
-        final Setting.AffixSetting<Settings> affixSetting =
-            Setting.affixKeySetting("prefix.","suffix",
-                (key) -> Setting.groupSetting(key + ".", Setting.Property.Dynamic, Setting.Property.NodeScope));
+        final Setting.AffixSetting<Settings> affixSetting = Setting.affixKeySetting(
+            "prefix.",
+            "suffix",
+            (key) -> Setting.groupSetting(key + ".", Setting.Property.Dynamic, Setting.Property.NodeScope)
+        );
 
         assertThat(affixSetting.getNamespaces(Settings.builder().put("prefix.infix.suffix", "anything").build()), hasSize(1));
         assertThat(affixSetting.getNamespaces(Settings.builder().put("prefix.infix.suffix.anything", "anything").build()), hasSize(1));
     }
 
     public void testGroupSettingUpdaterValidator() {
-        final Setting.AffixSetting<Integer> affixSetting =
-            Setting.affixKeySetting("prefix.","suffix",
-                (key) -> Setting.intSetting(key, 5, Setting.Property.Dynamic, Setting.Property.NodeScope));
+        final Setting.AffixSetting<Integer> affixSetting = Setting.affixKeySetting(
+            "prefix.",
+            "suffix",
+            (key) -> Setting.intSetting(key, 5, Setting.Property.Dynamic, Setting.Property.NodeScope)
+        );
         Setting<Integer> fixSetting = Setting.intSetting("abc", 1, Property.NodeScope);
 
         Consumer<Settings> validator = s -> {
@@ -1095,37 +1220,26 @@ public class SettingTests extends ESTestCase {
             }
         };
 
-        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(s -> {},
-            Arrays.asList(affixSetting, fixSetting), validator);
+        AbstractScopedSettings.SettingUpdater<Settings> updater = Setting.groupedSettingsUpdater(
+            s -> {},
+            Arrays.asList(affixSetting, fixSetting),
+            validator
+        );
 
-        IllegalArgumentException illegal = expectThrows(IllegalArgumentException.class, () -> {
-            updater.getValue(
-                Settings.builder()
-                    .put("prefix.foo.suffix", 5)
-                    .put("abc", 2)
-                    .build(),
-                Settings.EMPTY
-            );
-        });
+        IllegalArgumentException illegal = expectThrows(
+            IllegalArgumentException.class,
+            () -> { updater.getValue(Settings.builder().put("prefix.foo.suffix", 5).put("abc", 2).build(), Settings.EMPTY); }
+        );
         assertEquals("foo and 2 can't go together", illegal.getMessage());
 
-        illegal = expectThrows(IllegalArgumentException.class, () -> {
-            updater.getValue(
-                Settings.builder()
-                    .put("prefix.bar.suffix", 6)
-                    .put("abc", 3)
-                    .build(),
-                Settings.EMPTY
-            );
-        });
+        illegal = expectThrows(
+            IllegalArgumentException.class,
+            () -> { updater.getValue(Settings.builder().put("prefix.bar.suffix", 6).put("abc", 3).build(), Settings.EMPTY); }
+        );
         assertEquals("no bar", illegal.getMessage());
 
         Settings s = updater.getValue(
-            Settings.builder()
-                .put("prefix.foo.suffix", 5)
-                .put("prefix.bar.suffix", 5)
-                .put("abc", 3)
-                .build(),
+            Settings.builder().put("prefix.foo.suffix", 5).put("prefix.bar.suffix", 5).put("abc", 3).build(),
             Settings.EMPTY
         );
         assertNotNull(s);
@@ -1148,8 +1262,12 @@ public class SettingTests extends ESTestCase {
         final int count = randomIntBetween(1, 16);
         Setting<String> current = Setting.simpleString("fallback0", Property.NodeScope);
         for (int i = 1; i < count; i++) {
-            final Setting<String> next =
-                    new Setting<>(new Setting.SimpleKey("fallback" + i), current, Function.identity(), Property.NodeScope);
+            final Setting<String> next = new Setting<>(
+                new Setting.SimpleKey("fallback" + i),
+                current,
+                Function.identity(),
+                Property.NodeScope
+            );
             current = next;
         }
         final Setting<String> fooSetting = new Setting<>(new Setting.SimpleKey("foo"), current, Function.identity(), Property.NodeScope);
@@ -1165,17 +1283,14 @@ public class SettingTests extends ESTestCase {
 
     public void testAffixMapUpdateWithNullSettingValue() {
         // GIVEN an affix setting changed from "prefix._foo"="bar" to "prefix._foo"=null
-        final Settings current = Settings.builder()
-            .put("prefix._foo", (String) null)
-            .build();
+        final Settings current = Settings.builder().put("prefix._foo", (String) null).build();
 
-        final Settings previous = Settings.builder()
-            .put("prefix._foo", "bar")
-            .build();
+        final Settings previous = Settings.builder().put("prefix._foo", "bar").build();
 
-        final Setting.AffixSetting<String> affixSetting =
-            Setting.prefixKeySetting("prefix" + ".",
-                key -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+        final Setting.AffixSetting<String> affixSetting = Setting.prefixKeySetting(
+            "prefix" + ".",
+            key -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope)
+        );
 
         final Consumer<Map<String, String>> consumer = (map) -> {};
         final BiConsumer<String, String> validator = (s1, s2) -> {};
@@ -1207,35 +1322,101 @@ public class SettingTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("must be stored inside elasticsearch.yml"));
     }
 
-    @TestLogging(value="org.elasticsearch.common.settings.IndexScopedSettings:INFO",
-        reason="to ensure we log INFO-level messages from IndexScopedSettings")
+    @TestLogging(
+        value = "org.elasticsearch.common.settings.IndexScopedSettings:INFO",
+        reason = "to ensure we log INFO-level messages from IndexScopedSettings"
+    )
     public void testLogSettingUpdate() throws Exception {
-        final IndexMetadata metadata = newIndexMeta("index1",
-            Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "20s").build());
+        final IndexMetadata metadata = newIndexMeta(
+            "index1",
+            Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "20s").build()
+        );
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
 
         final MockLogAppender mockLogAppender = new MockLogAppender();
-        mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
-            "message",
-            "org.elasticsearch.common.settings.IndexScopedSettings",
-            Level.INFO,
-            "updating [index.refresh_interval] from [20s] to [10s]") {
-            @Override
-            public boolean innerMatch(LogEvent event) {
-                return event.getMarker().getName().equals(" [index1]");
+        mockLogAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "message",
+                "org.elasticsearch.common.settings.IndexScopedSettings",
+                Level.INFO,
+                "updating [index.refresh_interval] from [20s] to [10s]"
+            ) {
+                @Override
+                public boolean innerMatch(LogEvent event) {
+                    return event.getMarker().getName().equals(" [index1]");
+                }
             }
-        });
+        );
         mockLogAppender.start();
         final Logger logger = LogManager.getLogger(IndexScopedSettings.class);
         try {
             Loggers.addAppender(logger, mockLogAppender);
-            settings.updateIndexMetadata(newIndexMeta("index1",
-                Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s").build()));
+            settings.updateIndexMetadata(
+                newIndexMeta("index1", Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s").build())
+            );
 
             mockLogAppender.assertAllExpectationsMatched();
         } finally {
             Loggers.removeAppender(logger, mockLogAppender);
             mockLogAppender.stop();
         }
+    }
+
+    public void testDynamicTest() {
+        final Property property = randomFrom(Property.Dynamic, Property.OperatorDynamic);
+        final Setting<String> setting = Setting.simpleString("foo.bar", property);
+        assertTrue(setting.isDynamic());
+        assertEquals(setting.isOperatorOnly(), property == Property.OperatorDynamic);
+    }
+
+    public void testCheckForDeprecation() {
+        final String criticalSettingName = "foo.bar";
+        final String warningSettingName = "foo.foo";
+        final String settingValue = "blat";
+        final Setting<String> undeprecatedSetting1 = Setting.simpleString(criticalSettingName, settingValue);
+        final Setting<String> undeprecatedSetting2 = Setting.simpleString(warningSettingName, settingValue);
+        final Settings settings = Settings.builder().put(criticalSettingName, settingValue).put(warningSettingName, settingValue).build();
+        undeprecatedSetting1.checkDeprecation(settings);
+        undeprecatedSetting2.checkDeprecation(settings);
+        ensureNoWarnings();
+        final Setting<String> criticalDeprecatedSetting = Setting.simpleString(
+            criticalSettingName,
+            settingValue,
+            Property.DeprecatedWarning
+        );
+        criticalDeprecatedSetting.checkDeprecation(settings);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { criticalDeprecatedSetting });
+        final Setting<String> deprecatedSettingWarningOnly = Setting.simpleString(
+            warningSettingName,
+            settingValue,
+            Property.DeprecatedWarning
+        );
+        deprecatedSettingWarningOnly.checkDeprecation(settings);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSettingWarningOnly });
+    }
+
+    public void testCheckForDeprecationWithSkipSetting() {
+        final String settingName = "foo.bar";
+        final String settingValue = "blat";
+        final Setting<String> setting = Setting.simpleString(settingName, settingValue);
+        final Settings settings = Settings.builder().put(settingName, settingValue).build();
+        setting.checkDeprecation(settings);
+        ensureNoWarnings();
+        final Setting<String> deprecatedSetting = Setting.simpleString(settingName, settingValue, Property.DeprecatedWarning);
+        deprecatedSetting.checkDeprecation(settings);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] { deprecatedSetting });
+        final Settings settingsWithSkipDeprecationSetting = Settings.builder()
+            .put(settingName, settingValue)
+            .putList("deprecation.skip_deprecated_settings", settingName)
+            .build();
+        deprecatedSetting.checkDeprecation(settingsWithSkipDeprecationSetting);
+        ensureNoWarnings();
+    }
+
+    public void testDeprecationPropertyValidation() {
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Setting.boolSetting("a.bool.setting", true, Property.Deprecated, Property.DeprecatedWarning)
+        );
     }
 }

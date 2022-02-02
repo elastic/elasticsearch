@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.datafeed;
@@ -45,9 +46,11 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
 
     @Override
     public boolean isAbleToRun(ClusterState latestState) {
-        String[] indices = expressionResolver.concreteIndexNames(latestState,
+        String[] indices = expressionResolver.concreteIndexNames(
+            latestState,
             IndicesOptions.lenientExpandOpenHidden(),
-            MlConfigIndex.indexName());
+            MlConfigIndex.indexName()
+        );
         for (String index : indices) {
             if (latestState.metadata().hasIndex(index) == false) {
                 continue;
@@ -73,26 +76,33 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
         List<DatafeedUpdate> updates = datafeedConfigBuilders.stream()
             .map(DatafeedConfig.Builder::build)
             .filter(DatafeedConfig::aggsRewritten)
-            .map(datafeedConfig -> new DatafeedUpdate.Builder()
-                .setAggregations(datafeedConfig.getAggProvider())
-                .setId(datafeedConfig.getId())
-                .build())
+            .map(
+                datafeedConfig -> new DatafeedUpdate.Builder().setAggregations(datafeedConfig.getAggProvider())
+                    .setId(datafeedConfig.getId())
+                    .build()
+            )
             .collect(Collectors.toList());
         if (updates.isEmpty()) {
             return;
         }
 
-        logger.debug(() -> new ParameterizedMessage("{} datafeeds are currently being updated",
-            updates.stream().map(DatafeedUpdate::getId).collect(Collectors.toList())));
+        logger.debug(
+            () -> new ParameterizedMessage(
+                "{} datafeeds are currently being updated",
+                updates.stream().map(DatafeedUpdate::getId).collect(Collectors.toList())
+            )
+        );
 
         List<Exception> failures = new ArrayList<>();
         for (DatafeedUpdate update : updates) {
             PlainActionFuture<DatafeedConfig> updateDatafeeds = PlainActionFuture.newFuture();
-            provider.updateDatefeedConfig(update.getId(),
+            provider.updateDatefeedConfig(
+                update.getId(),
                 update,
                 Collections.emptyMap(),
                 (updatedConfig, listener) -> listener.onResponse(Boolean.TRUE),
-                updateDatafeeds);
+                updateDatafeeds
+            );
             try {
                 updateDatafeeds.actionGet();
                 logger.debug(() -> new ParameterizedMessage("[{}] datafeed successfully updated", update.getId()));
@@ -102,8 +112,12 @@ public class DatafeedConfigAutoUpdater implements MlAutoUpdateService.UpdateActi
             }
         }
         if (failures.isEmpty()) {
-            logger.debug(() -> new ParameterizedMessage("{} datafeeds are finished being updated",
-                updates.stream().map(DatafeedUpdate::getId).collect(Collectors.toList())));
+            logger.debug(
+                () -> new ParameterizedMessage(
+                    "{} datafeeds are finished being updated",
+                    updates.stream().map(DatafeedUpdate::getId).collect(Collectors.toList())
+                )
+            );
             return;
         }
 

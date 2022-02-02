@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
@@ -45,8 +46,10 @@ public class HistogramGroupConfigSerializingTests extends AbstractSerializingTes
 
         HistogramGroupConfig config = new HistogramGroupConfig(132, "my_field");
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("Could not find a [numeric] field with name [my_field] in any of the " +
-                "indices matching the index pattern."));
+        assertThat(
+            e.validationErrors().get(0),
+            equalTo("Could not find a [numeric] field with name [my_field] in any of the " + "indices matching the index pattern.")
+        );
     }
 
     public void testValidateNomatchingField() throws IOException {
@@ -60,8 +63,10 @@ public class HistogramGroupConfigSerializingTests extends AbstractSerializingTes
 
         HistogramGroupConfig config = new HistogramGroupConfig(132, "my_field");
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("Could not find a [numeric] field with name [my_field] in any of the " +
-                "indices matching the index pattern."));
+        assertThat(
+            e.validationErrors().get(0),
+            equalTo("Could not find a [numeric] field with name [my_field] in any of the " + "indices matching the index pattern.")
+        );
     }
 
     public void testValidateFieldWrongType() throws IOException {
@@ -75,8 +80,10 @@ public class HistogramGroupConfigSerializingTests extends AbstractSerializingTes
 
         HistogramGroupConfig config = new HistogramGroupConfig(132, "my_field");
         config.validateMappings(responseMap, e);
-        assertThat(e.validationErrors().get(0), equalTo("The field referenced by a histo group must be a [numeric] type, but " +
-                "found [keyword] for field [my_field]"));
+        assertThat(
+            e.validationErrors().get(0),
+            equalTo("The field referenced by a histo group must be a [numeric] type, but " + "found [keyword] for field [my_field]")
+        );
     }
 
     public void testValidateFieldMatchingNotAggregatable() throws IOException {

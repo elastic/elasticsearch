@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -81,8 +70,11 @@ public class EvilSecurityTests extends ESTestCase {
 
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.resolve("home").toString());
-        settingsBuilder.putList(Environment.PATH_DATA_SETTING.getKey(), esHome.resolve("data1").toString(),
-                esHome.resolve("data2").toString());
+        settingsBuilder.putList(
+            Environment.PATH_DATA_SETTING.getKey(),
+            esHome.resolve("data1").toString(),
+            esHome.resolve("data2").toString()
+        );
         settingsBuilder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), esHome.resolve("custom").toString());
         settingsBuilder.put(Environment.PATH_LOGS_SETTING.getKey(), esHome.resolve("logs").toString());
         settingsBuilder.put(Environment.NODE_PIDFILE_SETTING.getKey(), esHome.resolve("test.pid").toString());
@@ -148,12 +140,10 @@ public class EvilSecurityTests extends ESTestCase {
             Files.createSymbolicLink(duplicate, data);
         }
 
-        final Settings settings =
-                Settings
-                        .builder()
-                        .put(Environment.PATH_HOME_SETTING.getKey(), home.toString())
-                        .putList(Environment.PATH_DATA_SETTING.getKey(), data.toString(), duplicate.toString())
-                        .build();
+        final Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), home.toString())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), data.toString(), duplicate.toString())
+            .build();
 
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Security.createPermissions(environment));

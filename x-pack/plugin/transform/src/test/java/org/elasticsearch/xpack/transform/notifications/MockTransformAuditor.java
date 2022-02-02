@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.notifications;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -56,6 +57,10 @@ public class MockTransformAuditor extends TransformAuditor {
         expectations = new CopyOnWriteArrayList<>();
     }
 
+    /**
+     * Adds an audit expectation.
+     * Must be called *before* the code that uses auditor's {@code info}, {@code warning} or {@code error} methods.
+     */
     public void addExpectation(AuditExpectation expectation) {
         expectations.add(expectation);
     }
@@ -150,7 +155,6 @@ public class MockTransformAuditor extends TransformAuditor {
             assertThat("expected not to see " + expectedName + " but did", saw, equalTo(false));
         }
     }
-
 
     private void audit(Level level, String resourceId, String message) {
         for (AuditExpectation expectation : expectations) {

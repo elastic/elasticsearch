@@ -184,12 +184,11 @@ public class Key<T> {
         if (o == this) {
             return true;
         }
-        if (!(o instanceof Key<?>)) {
+        if ((o instanceof Key<?>) == false) {
             return false;
         }
         Key<?> other = (Key<?>) o;
-        return annotationStrategy.equals(other.annotationStrategy)
-                && typeLiteral.equals(other.typeLiteral);
+        return annotationStrategy.equals(other.annotationStrategy) && typeLiteral.equals(other.typeLiteral);
     }
 
     @Override
@@ -199,17 +198,13 @@ public class Key<T> {
 
     @Override
     public final String toString() {
-        return new ToStringBuilder(Key.class)
-                .add("type", typeLiteral)
-                .add("annotation", annotationStrategy)
-                .toString();
+        return new ToStringBuilder(Key.class).add("type", typeLiteral).add("annotation", annotationStrategy).toString();
     }
 
     /**
      * Gets a key for an injection type and an annotation strategy.
      */
-    static <T> Key<T> get(Class<T> type,
-                          AnnotationStrategy annotationStrategy) {
+    static <T> Key<T> get(Class<T> type, AnnotationStrategy annotationStrategy) {
         return new Key<>(type, annotationStrategy);
     }
 
@@ -223,8 +218,7 @@ public class Key<T> {
     /**
      * Gets a key for an injection type and an annotation type.
      */
-    public static <T> Key<T> get(Class<T> type,
-                                 Class<? extends Annotation> annotationType) {
+    public static <T> Key<T> get(Class<T> type, Class<? extends Annotation> annotationType) {
         return new Key<>(type, strategyFor(annotationType));
     }
 
@@ -245,8 +239,7 @@ public class Key<T> {
     /**
      * Gets a key for an injection type and an annotation type.
      */
-    public static Key<?> get(Type type,
-                             Class<? extends Annotation> annotationType) {
+    public static Key<?> get(Type type, Class<? extends Annotation> annotationType) {
         return new Key<Object>(type, strategyFor(annotationType));
     }
 
@@ -267,16 +260,14 @@ public class Key<T> {
     /**
      * Gets a key for an injection type and an annotation type.
      */
-    public static <T> Key<T> get(TypeLiteral<T> typeLiteral,
-                                 Class<? extends Annotation> annotationType) {
+    public static <T> Key<T> get(TypeLiteral<T> typeLiteral, Class<? extends Annotation> annotationType) {
         return new Key<>(typeLiteral, strategyFor(annotationType));
     }
 
     /**
      * Gets a key for an injection type and an annotation.
      */
-    public static <T> Key<T> get(TypeLiteral<T> typeLiteral,
-                                 Annotation annotation) {
+    public static <T> Key<T> get(TypeLiteral<T> typeLiteral, Annotation annotation) {
         return new Key<>(typeLiteral, strategyFor(annotation));
     }
 
@@ -362,20 +353,18 @@ public class Key<T> {
         return new AnnotationTypeStrategy(annotationType, null);
     }
 
-    private static void ensureRetainedAtRuntime(
-            Class<? extends Annotation> annotationType) {
-        if (!Annotations.isRetainedAtRuntime(annotationType)) {
+    private static void ensureRetainedAtRuntime(Class<? extends Annotation> annotationType) {
+        if (Annotations.isRetainedAtRuntime(annotationType) == false) {
             throw new IllegalArgumentException(
-                    annotationType.getName() + " is not retained at runtime. Please annotate it with @Retention(RUNTIME)."
+                annotationType.getName() + " is not retained at runtime. Please annotate it with @Retention(RUNTIME)."
             );
         }
     }
 
-    private static void ensureIsBindingAnnotation(
-            Class<? extends Annotation> annotationType) {
-        if (!isBindingAnnotation(annotationType)) {
+    private static void ensureIsBindingAnnotation(Class<? extends Annotation> annotationType) {
+        if (isBindingAnnotation(annotationType) == false) {
             throw new IllegalArgumentException(
-                    annotationType.getName() + " is not a binding annotation. Please annotate it with @BindingAnnotation."
+                annotationType.getName() + " is not a binding annotation. Please annotate it with @BindingAnnotation."
             );
         }
     }
@@ -440,7 +429,7 @@ public class Key<T> {
 
         @Override
         public boolean equals(Object o) {
-            if (!(o instanceof AnnotationInstanceStrategy)) {
+            if ((o instanceof AnnotationInstanceStrategy) == false) {
                 return false;
             }
 
@@ -466,8 +455,7 @@ public class Key<T> {
         // Keep the instance around if we have it so the client can request it.
         final Annotation annotation;
 
-        AnnotationTypeStrategy(Class<? extends Annotation> annotationType,
-                               Annotation annotation) {
+        AnnotationTypeStrategy(Class<? extends Annotation> annotationType, Annotation annotation) {
             this.annotationType = Objects.requireNonNull(annotationType, "annotation type");
             this.annotation = annotation;
         }
@@ -494,7 +482,7 @@ public class Key<T> {
 
         @Override
         public boolean equals(Object o) {
-            if (!(o instanceof AnnotationTypeStrategy)) {
+            if ((o instanceof AnnotationTypeStrategy) == false) {
                 return false;
             }
 
@@ -517,8 +505,7 @@ public class Key<T> {
         return isBindingAnnotation(annotation.annotationType());
     }
 
-    static boolean isBindingAnnotation(
-            Class<? extends Annotation> annotationType) {
+    static boolean isBindingAnnotation(Class<? extends Annotation> annotationType) {
         return annotationType.getAnnotation(BindingAnnotation.class) != null;
     }
 }

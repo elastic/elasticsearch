@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.spatial.action;
 
@@ -15,9 +16,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.stats.EnumCounters;
 
 import java.io.IOException;
@@ -38,6 +39,8 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
      * Items to track. Serialized by ordinals. Append only, don't remove or change order of items in this list.
      */
     public enum Item {
+        GEOLINE,
+        GEOHEX
     }
 
     public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
@@ -105,8 +108,7 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
         }
 
         public EnumCounters<Item> getStats() {
-            List<EnumCounters<Item>> countersPerNode = getNodes()
-                .stream()
+            List<EnumCounters<Item>> countersPerNode = getNodes().stream()
                 .map(SpatialStatsAction.NodeResponse::getStats)
                 .collect(Collectors.toList());
             return EnumCounters.merge(Item.class, countersPerNode);
@@ -115,9 +117,15 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             EnumCounters<Item> stats = getStats();
-            builder.startObject("stats");
-            for (Item item : Item.values()) {
-                builder.field(item.name().toLowerCase(Locale.ROOT) + "_usage", stats.get(item));
+            builder.startObject();
+            {
+                builder.startObject("stats");
+                {
+                    for (Item item : Item.values()) {
+                        builder.field(item.name().toLowerCase(Locale.ROOT) + "_usage", stats.get(item));
+                    }
+                }
+                builder.endObject();
             }
             builder.endObject();
             return builder;
@@ -165,8 +173,7 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NodeResponse that = (NodeResponse) o;
-            return counters.equals(that.counters) &&
-                getNode().equals(that.getNode());
+            return counters.equals(that.counters) && getNode().equals(that.getNode());
         }
 
         @Override

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial.ingest;
 
@@ -13,28 +14,26 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.geo.GeoJson;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
-import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.spatial.SpatialUtils;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper.ShapeFieldType;
@@ -54,12 +53,11 @@ import static org.elasticsearch.xpack.spatial.ingest.CircleProcessor.CircleShape
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class CircleProcessorTests extends ESTestCase {
-    private static final WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
 
     public void testNumSides() {
         double radiusDistanceMeters = randomDoubleBetween(0.01, 6371000, true);
@@ -73,7 +71,7 @@ public class CircleProcessorTests extends ESTestCase {
         // radius is much larger than error distance
         assertThat(processor.numSides(Math.pow(radiusDistanceMeters, 100)), equalTo(1000));
         // radius is 5 times longer than error distance
-        assertThat(processor.numSides(5*radiusDistanceMeters), equalTo(10));
+        assertThat(processor.numSides(5 * radiusDistanceMeters), equalTo(10));
 
     }
 
@@ -124,21 +122,24 @@ public class CircleProcessorTests extends ESTestCase {
         Map<String, Object> polyMap = ingestDocument.getFieldValue("field", Map.class);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         GeoJson.toXContent(expectedPoly, builder, ToXContent.EMPTY_PARAMS);
-        Tuple<XContentType, Map<String, Object>> expected = XContentHelper.convertToMap(BytesReference.bytes(builder),
-            true, XContentType.JSON);
+        Tuple<XContentType, Map<String, Object>> expected = XContentHelper.convertToMap(
+            BytesReference.bytes(builder),
+            true,
+            XContentType.JSON
+        );
         assertThat(polyMap, equalTo(expected.v2()));
     }
 
     public void testWKT() {
         Circle circle = new Circle(101.0, 0.0, 2);
         HashMap<String, Object> map = new HashMap<>();
-        map.put("field", WKT.toWKT(circle));
+        map.put("field", WellKnownText.toWKT(circle));
         Geometry expectedPoly = SpatialUtils.createRegularGeoShapePolygon(circle, 4);
         IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
-        CircleProcessor processor = new CircleProcessor("tag", null, "field", "field",false, 2, GEO_SHAPE);
+        CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 2, GEO_SHAPE);
         processor.execute(ingestDocument);
         String polyString = ingestDocument.getFieldValue("field", String.class);
-        assertThat(polyString, equalTo(WKT.toWKT(expectedPoly)));
+        assertThat(polyString, equalTo(WellKnownText.toWKT(expectedPoly)));
     }
 
     public void testInvalidWKT() {
@@ -169,7 +170,7 @@ public class CircleProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 10, GEO_SHAPE);
 
-        for (Object value : new Object[] { null, 4.0, "not_circle"}) {
+        for (Object value : new Object[] { null, 4.0, "not_circle" }) {
             field.put("type", value);
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
             assertThat(e.getMessage(), equalTo("invalid circle definition"));
@@ -185,7 +186,7 @@ public class CircleProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 10, GEO_SHAPE);
 
-        for (Object value : new Object[] { null, "not_circle"}) {
+        for (Object value : new Object[] { null, "not_circle" }) {
             field.put("coordinates", value);
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
             assertThat(e.getMessage(), equalTo("invalid circle definition"));
@@ -201,7 +202,7 @@ public class CircleProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = new IngestDocument(map, Collections.emptyMap());
         CircleProcessor processor = new CircleProcessor("tag", null, "field", "field", false, 10, GEO_SHAPE);
 
-        for (Object value : new Object[] { null, "NotNumber", "10.0fs"}) {
+        for (Object value : new Object[] { null, "NotNumber", "10.0fs" }) {
             field.put("radius", value);
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
             assertThat(e.getMessage(), equalTo("invalid circle definition"));
@@ -214,21 +215,30 @@ public class CircleProcessorTests extends ESTestCase {
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularGeoShapePolygon(circle, numSides);
 
-        MappedFieldType shapeType
-            = new GeoShapeWithDocValuesFieldType(fieldName, true, false, ShapeBuilder.Orientation.RIGHT, null, Collections.emptyMap());
+        GeoShapeWithDocValuesFieldType shapeType = new GeoShapeWithDocValuesFieldType(
+            fieldName,
+            true,
+            false,
+            Orientation.RIGHT,
+            null,
+            null,
+            Collections.emptyMap()
+        );
 
-        VectorGeoShapeQueryProcessor processor = new VectorGeoShapeQueryProcessor();
-        QueryShardContext mockedContext = mock(QueryShardContext.class);
+        SearchExecutionContext mockedContext = mock(SearchExecutionContext.class);
         when(mockedContext.getFieldType(any())).thenReturn(shapeType);
-        Query sameShapeQuery = processor.geoShapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
-        Query pointOnDatelineQuery = processor.geoShapeQuery(new Point(180, circle.getLat()), fieldName,
-            ShapeRelation.INTERSECTS, mockedContext);
+        Query sameShapeQuery = shapeType.geoShapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
+        Query pointOnDatelineQuery = shapeType.geoShapeQuery(
+            new Point(180, circle.getLat()),
+            fieldName,
+            ShapeRelation.INTERSECTS,
+            mockedContext
+        );
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
-            GeoShapeIndexer indexer = new GeoShapeIndexer(true, fieldName);
-            Geometry normalized = indexer.prepareForIndexing(geometry);
-            for (IndexableField field : indexer.indexShape(null, normalized)) {
+            GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, fieldName);
+            for (IndexableField field : indexer.indexShape(geometry)) {
                 doc.add(field);
             }
             w.addDocument(doc);
@@ -247,20 +257,23 @@ public class CircleProcessorTests extends ESTestCase {
         int numSides = randomIntBetween(4, 1000);
         Geometry geometry = SpatialUtils.createRegularShapePolygon(circle, numSides);
 
-        MappedFieldType shapeType = new ShapeFieldType(fieldName, true, ShapeBuilder.Orientation.RIGHT, null, Collections.emptyMap());
+        MappedFieldType shapeType = new ShapeFieldType(fieldName, true, Orientation.RIGHT, null, Collections.emptyMap());
 
         ShapeQueryProcessor processor = new ShapeQueryProcessor();
-        QueryShardContext mockedContext = mock(QueryShardContext.class);
+        SearchExecutionContext mockedContext = mock(SearchExecutionContext.class);
         when(mockedContext.getFieldType(any())).thenReturn(shapeType);
         Query sameShapeQuery = processor.shapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
-        Query centerPointQuery = processor.shapeQuery(new Point(circle.getLon(), circle.getLat()), fieldName,
-            ShapeRelation.INTERSECTS, mockedContext);
+        Query centerPointQuery = processor.shapeQuery(
+            new Point(circle.getLon(), circle.getLat()),
+            fieldName,
+            ShapeRelation.INTERSECTS,
+            mockedContext
+        );
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
             ShapeIndexer indexer = new ShapeIndexer(fieldName);
-            Geometry normalized = indexer.prepareForIndexing(geometry);
-            for (IndexableField field : indexer.indexShape(null, normalized)) {
+            for (IndexableField field : indexer.indexShape(geometry)) {
                 doc.add(field);
             }
             w.addDocument(doc);

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.action.BasicFormatter;
@@ -24,11 +25,13 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.action.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption.TEXT;
 
 /**
  * Templating class for displaying SQL responses in text formats.
@@ -70,20 +73,22 @@ enum TextFormat implements MediaType {
                 }
                 // format with header
                 return formatter.formatWithHeader(response.columns(), response.rows());
-            }
-            else {
-                // should be initialized (wrapped by the cursor)
-                if (formatter != null) {
-                    // format without header
-                    return formatter.formatWithoutHeader(response.rows());
-                }
+            } else if (formatter != null) { // should be initialized (wrapped by the cursor)
+                // format without header
+                return formatter.formatWithoutHeader(response.rows());
+            } else if (response.hasId()) {
+                // an async request has no results yet
+                return StringUtils.EMPTY;
+            } else if (response.rows().isEmpty()) {
+                // no data and no headers to return
+                return StringUtils.EMPTY;
             }
             // if this code is reached, it means it's a next page without cursor wrapping
             throw new SqlIllegalArgumentException("Cannot find text formatter - this is likely a bug");
         }
 
         @Override
-        public String format() {
+        public String queryParameter() {
             return FORMAT_TEXT;
         }
 
@@ -103,10 +108,15 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String subtype() {
-            return "plain";
+        public Set<HeaderValue> headerValues() {
+            return Set.of(
+                new HeaderValue(CONTENT_TYPE_TXT, Map.of("header", "present|absent")),
+                new HeaderValue(
+                    VENDOR_CONTENT_TYPE_TXT,
+                    Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)
+                )
+            );
         }
-
 
     },
 
@@ -127,12 +137,12 @@ enum TextFormat implements MediaType {
 
         @Override
         protected String eol() {
-            //CRLF
+            // CRLF
             return "\r\n";
         }
 
         @Override
-        public String format() {
+        public String queryParameter() {
             return FORMAT_CSV;
         }
 
@@ -143,8 +153,11 @@ enum TextFormat implements MediaType {
 
         @Override
         String contentType(RestRequest request) {
-            return contentType() + "; charset=utf-8; " +
-                URL_PARAM_HEADER + "=" + (hasHeader(request) ? PARAM_HEADER_PRESENT : PARAM_HEADER_ABSENT);
+            return contentType()
+                + "; charset=utf-8; "
+                + URL_PARAM_HEADER
+                + "="
+                + (hasHeader(request) ? PARAM_HEADER_PRESENT : PARAM_HEADER_ABSENT);
         }
 
         @Override
@@ -155,18 +168,18 @@ enum TextFormat implements MediaType {
             }
             delimiterParam = URLDecoder.decode(delimiterParam, StandardCharsets.UTF_8);
             if (delimiterParam.length() != 1) {
-                throw new IllegalArgumentException("invalid " +
-                    (delimiterParam.length() > 0 ? "multi-character" : "empty") + " delimiter [" + delimiterParam + "]");
+                throw new IllegalArgumentException(
+                    "invalid " + (delimiterParam.length() > 0 ? "multi-character" : "empty") + " delimiter [" + delimiterParam + "]"
+                );
             }
             Character delimiter = delimiterParam.charAt(0);
             switch (delimiter) {
-                case '"':
-                case '\n':
-                case '\r':
-                    throw new IllegalArgumentException("illegal reserved character specified as delimiter [" + delimiter + "]");
-                case '\t':
-                    throw new IllegalArgumentException("illegal delimiter [TAB] specified as delimiter for the [csv] format; " +
-                        "choose the [tsv] format instead");
+                case '"', '\n', '\r' -> throw new IllegalArgumentException(
+                    "illegal reserved character specified as delimiter [" + delimiter + "]"
+                );
+                case '\t' -> throw new IllegalArgumentException(
+                    "illegal delimiter [TAB] specified as delimiter for the [csv] format; " + "choose the [tsv] format instead"
+                );
             }
             return delimiter;
         }
@@ -219,13 +232,20 @@ enum TextFormat implements MediaType {
                 }
                 return true;
             } else {
-                return !header.toLowerCase(Locale.ROOT).equals(PARAM_HEADER_ABSENT);
+                return header.toLowerCase(Locale.ROOT).equals(PARAM_HEADER_ABSENT) == false;
             }
         }
 
         @Override
-        public String subtype() {
-            return "csv";
+        public Set<HeaderValue> headerValues() {
+            return Set.of(
+                new HeaderValue(CONTENT_TYPE_CSV, Map.of("header", "present|absent", "delimiter", ".+")),// more detailed parsing is in
+                                                                                                         // TextFormat.CSV#delimiter
+                new HeaderValue(
+                    VENDOR_CONTENT_TYPE_CSV,
+                    Map.of("header", "present|absent", "delimiter", ".+", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)
+                )
+            );
         }
     },
 
@@ -242,7 +262,7 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String format() {
+        public String queryParameter() {
             return FORMAT_TSV;
         }
 
@@ -263,14 +283,9 @@ enum TextFormat implements MediaType {
             for (int i = 0; i < value.length(); i++) {
                 char c = value.charAt(i);
                 switch (c) {
-                    case '\n' :
-                        sb.append("\\n");
-                        break;
-                    case '\t' :
-                        sb.append("\\t");
-                        break;
-                    default:
-                        sb.append(c);
+                    case '\n' -> sb.append("\\n");
+                    case '\t' -> sb.append("\\t");
+                    default -> sb.append(c);
                 }
             }
 
@@ -278,8 +293,14 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public String subtype() {
-            return "tab-separated-values";
+        public Set<HeaderValue> headerValues() {
+            return Set.of(
+                new HeaderValue(CONTENT_TYPE_TSV, Map.of("header", "present|absent")),
+                new HeaderValue(
+                    VENDOR_CONTENT_TYPE_TSV,
+                    Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)
+                )
+            );
         }
     };
 
@@ -287,8 +308,11 @@ enum TextFormat implements MediaType {
     private static final String FORMAT_CSV = "csv";
     private static final String FORMAT_TSV = "tsv";
     private static final String CONTENT_TYPE_TXT = "text/plain";
+    private static final String VENDOR_CONTENT_TYPE_TXT = "text/vnd.elasticsearch+plain";
     private static final String CONTENT_TYPE_CSV = "text/csv";
+    private static final String VENDOR_CONTENT_TYPE_CSV = "text/vnd.elasticsearch+csv";
     private static final String CONTENT_TYPE_TSV = "text/tab-separated-values";
+    private static final String VENDOR_CONTENT_TYPE_TSV = "text/vnd.elasticsearch+tab-separated-values";
     private static final String URL_PARAM_HEADER = "header";
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";
@@ -302,8 +326,12 @@ enum TextFormat implements MediaType {
         }
 
         for (List<Object> row : response.rows()) {
-            row(sb, row, f -> f instanceof ZonedDateTime ? DateUtils.toString((ZonedDateTime) f) : Objects.toString(f, StringUtils.EMPTY),
-                delimiter(request));
+            row(
+                sb,
+                row,
+                f -> f instanceof ZonedDateTime ? DateUtils.toString((ZonedDateTime) f) : Objects.toString(f, StringUtils.EMPTY),
+                delimiter(request)
+            );
         }
 
         return sb.toString();
@@ -357,16 +385,5 @@ enum TextFormat implements MediaType {
      */
     String maybeEscape(String value, Character delimiter) {
         return value;
-    }
-
-
-    @Override
-    public String type() {
-        return "text";
-    }
-
-    @Override
-    public String typeWithSubtype() {
-        return contentType();
     }
 }

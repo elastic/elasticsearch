@@ -1,4 +1,5 @@
-/* @notice
+/*
+ * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -20,8 +21,8 @@ package org.elasticsearch.core.internal.io;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.Closeable;
@@ -84,8 +85,8 @@ public class IOUtilsTests extends ESTestCase {
         runTestCloseWithIOExceptions((Function<Closeable[], List<Closeable>>) Arrays::asList, IOUtils::close);
     }
 
-    private <T> void runTestCloseWithIOExceptions(
-            final Function<Closeable[], T> function, final CheckedConsumer<T, IOException> close) throws IOException {
+    private <T> void runTestCloseWithIOExceptions(final Function<Closeable[], T> function, final CheckedConsumer<T, IOException> close)
+        throws IOException {
         final int numberOfCloseables = randomIntBetween(1, 8);
         final Closeable[] closeables = new Closeable[numberOfCloseables];
         final List<Integer> indexesThatThrow = new ArrayList<>(numberOfCloseables);
@@ -124,7 +125,9 @@ public class IOUtilsTests extends ESTestCase {
     }
 
     private <T> void runDeleteFilesIgnoringExceptionsTest(
-            final Function<Path[], T> function, CheckedConsumer<T, IOException> deleteFilesIgnoringExceptions) throws IOException {
+        final Function<Path[], T> function,
+        CheckedConsumer<T, IOException> deleteFilesIgnoringExceptions
+    ) throws IOException {
         final int numberOfFiles = randomIntBetween(0, 7);
         final Path[] files = new Path[numberOfFiles];
         for (int i = 0; i < numberOfFiles; i++) {
@@ -157,8 +160,9 @@ public class IOUtilsTests extends ESTestCase {
         for (int i = 0; i < numberOfLocations; i++) {
             if (exception && randomBoolean()) {
                 final Path location = createTempDir();
-                final FileSystem fs =
-                        new AccessDeniedWhileDeletingFileSystem(location.getFileSystem()).getFileSystem(URI.create("file:///"));
+                final FileSystem fs = new AccessDeniedWhileDeletingFileSystem(location.getFileSystem()).getFileSystem(
+                    URI.create("file:///")
+                );
                 final Path wrapped = new FilterPath(location, fs);
                 locations[i] = wrapped.resolve(randomAlphaOfLength(8));
                 Files.createDirectory(locations[i]);
@@ -213,11 +217,15 @@ public class IOUtilsTests extends ESTestCase {
 
     }
 
+    private void fsync(final Path path, final boolean isDir) throws IOException {
+        IOUtils.fsync(path, isDir, randomBoolean());
+    }
+
     public void testFsyncDirectory() throws Exception {
         final Path path = createTempDir().toRealPath();
         final Path subPath = path.resolve(randomAlphaOfLength(8));
         Files.createDirectories(subPath);
-        IOUtils.fsync(subPath, true);
+        fsync(subPath, true);
         // no exception
     }
 
@@ -228,10 +236,8 @@ public class IOUtilsTests extends ESTestCase {
         }
 
         @Override
-        public FileChannel newFileChannel(
-                final Path path,
-                final Set<? extends OpenOption> options,
-                final FileAttribute<?>... attrs) throws IOException {
+        public FileChannel newFileChannel(final Path path, final Set<? extends OpenOption> options, final FileAttribute<?>... attrs)
+            throws IOException {
             if (Files.isDirectory(path)) {
                 throw new AccessDeniedException(path.toString());
             }
@@ -246,16 +252,16 @@ public class IOUtilsTests extends ESTestCase {
         final Path wrapped = new FilterPath(path, fs);
         if (Constants.WINDOWS) {
             // no exception, we early return and do not even try to open the directory
-            IOUtils.fsync(wrapped, true);
+            fsync(wrapped, true);
         } else {
-            expectThrows(AccessDeniedException.class, () -> IOUtils.fsync(wrapped, true));
+            expectThrows(AccessDeniedException.class, () -> fsync(wrapped, true));
         }
     }
 
     public void testFsyncNonExistentDirectory() throws Exception {
         final Path dir = FilterPath.unwrap(createTempDir()).toRealPath();
         final Path nonExistentDir = dir.resolve("non-existent");
-        expectThrows(NoSuchFileException.class, () -> IOUtils.fsync(nonExistentDir, true));
+        expectThrows(NoSuchFileException.class, () -> fsync(nonExistentDir, true));
     }
 
     public void testFsyncFile() throws IOException {
@@ -266,7 +272,7 @@ public class IOUtilsTests extends ESTestCase {
         try (OutputStream o = Files.newOutputStream(file)) {
             o.write("0\n".getBytes(StandardCharsets.US_ASCII));
         }
-        IOUtils.fsync(file, false);
+        fsync(file, false);
         // no exception
     }
 

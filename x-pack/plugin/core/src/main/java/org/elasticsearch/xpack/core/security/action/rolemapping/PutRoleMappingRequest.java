@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
@@ -31,8 +32,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * see org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class PutRoleMappingRequest extends ActionRequest
-        implements WriteRequest<PutRoleMappingRequest> {
+public class PutRoleMappingRequest extends ActionRequest implements WriteRequest<PutRoleMappingRequest> {
 
     private String name = null;
     private boolean enabled = true;
@@ -55,8 +55,7 @@ public class PutRoleMappingRequest extends ActionRequest
         this.refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
-    public PutRoleMappingRequest() {
-    }
+    public PutRoleMappingRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {
@@ -74,8 +73,10 @@ public class PutRoleMappingRequest extends ActionRequest
             validationException = addValidationError("role-mapping rules are missing", validationException);
         }
         if (MetadataUtils.containsReservedMetadata(metadata)) {
-            validationException = addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
-                validationException);
+            validationException = addValidationError(
+                "metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
+                validationException
+            );
         }
         return validationException;
     }
@@ -159,13 +160,6 @@ public class PutRoleMappingRequest extends ActionRequest
     }
 
     public ExpressionRoleMapping getMapping() {
-        return new ExpressionRoleMapping(
-                name,
-                rules,
-                roles,
-                roleTemplates,
-                metadata,
-                enabled
-        );
+        return new ExpressionRoleMapping(name, rules, roles, roleTemplates, metadata, enabled);
     }
 }

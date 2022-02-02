@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.query;
@@ -37,12 +26,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.MinDocQuery;
-import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldComparator;
@@ -66,32 +54,27 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.bkd.BKDConfig;
-import org.apache.lucene.util.bkd.BKDReader;
-import org.apache.lucene.util.bkd.BKDWriter;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.lucene.queries.MinDocQuery;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
+import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;
@@ -99,15 +82,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.search.query.QueryPhase.pointsHaveDuplicateData;
 import static org.elasticsearch.search.query.TopDocsCollectorContext.hasInfMaxScore;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class QueryPhaseTests extends IndexShardTestCase {
@@ -127,8 +109,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
     }
 
     private void countTestCase(Query query, IndexReader reader, boolean shouldCollectSearch, boolean shouldCollectCount) throws Exception {
-        ContextIndexSearcher searcher = shouldCollectSearch ? newContextSearcher(reader) :
-            newEarlyTerminationContextSearcher(reader, 0);
+        ContextIndexSearcher searcher = shouldCollectSearch ? newContextSearcher(reader) : newEarlyTerminationContextSearcher(reader, 0);
         TestSearchContext context = new TestSearchContext(null, indexShard, searcher);
         context.parsedQuery(new ParsedQuery(query));
         context.setSize(0);
@@ -136,8 +117,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
         final boolean rescore = QueryPhase.executeInternal(context);
         assertFalse(rescore);
 
-        ContextIndexSearcher countSearcher = shouldCollectCount ? newContextSearcher(reader) :
-            newEarlyTerminationContextSearcher(reader, 0);
+        ContextIndexSearcher countSearcher = shouldCollectCount
+            ? newContextSearcher(reader)
+            : newEarlyTerminationContextSearcher(reader, 0);
         assertEquals(countSearcher.count(query), context.queryResult().topDocs().topDocs.totalHits.value);
     }
 
@@ -177,10 +159,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         Query dvfeqCsq = new ConstantScoreQuery(dvfeq);
         // field with doc-values but not indexed will need to collect
         Query dvOnlyfeq = new DocValuesFieldExistsQuery("docValuesOnlyField");
-        BooleanQuery bq = new BooleanQuery.Builder()
-            .add(matchAll, Occur.SHOULD)
-            .add(tq, Occur.MUST)
-            .build();
+        BooleanQuery bq = new BooleanQuery.Builder().add(matchAll, Occur.SHOULD).add(tq, Occur.MUST).build();
 
         countTestCase(matchAll, reader, false, false);
         countTestCase(matchAllCsq, reader, false, false);
@@ -207,16 +186,14 @@ public class QueryPhaseTests extends IndexShardTestCase {
     public void testPostFilterDisablesCountOptimization() throws Exception {
         Directory dir = newDirectory();
         final Sort sort = new Sort(new SortField("rank", SortField.Type.INT));
-        IndexWriterConfig iwc = newIndexWriterConfig()
-            .setIndexSort(sort);
+        IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(sort);
         RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
         Document doc = new Document();
         w.addDocument(doc);
         w.close();
 
         IndexReader reader = DirectoryReader.open(dir);
-        TestSearchContext context =
-            new TestSearchContext(null, indexShard, newEarlyTerminationContextSearcher(reader, 0));
+        TestSearchContext context = new TestSearchContext(null, indexShard, newEarlyTerminationContextSearcher(reader, 0));
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
 
@@ -234,8 +211,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
     public void testTerminateAfterWithFilter() throws Exception {
         Directory dir = newDirectory();
         final Sort sort = new Sort(new SortField("rank", SortField.Type.INT));
-        IndexWriterConfig iwc = newIndexWriterConfig()
-            .setIndexSort(sort);
+        IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(sort);
         RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
         Document doc = new Document();
         for (int i = 0; i < 10; i++) {
@@ -263,16 +239,14 @@ public class QueryPhaseTests extends IndexShardTestCase {
     public void testMinScoreDisablesCountOptimization() throws Exception {
         Directory dir = newDirectory();
         final Sort sort = new Sort(new SortField("rank", SortField.Type.INT));
-        IndexWriterConfig iwc = newIndexWriterConfig()
-            .setIndexSort(sort);
+        IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(sort);
         RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
         Document doc = new Document();
         w.addDocument(doc);
         w.close();
 
         IndexReader reader = DirectoryReader.open(dir);
-        TestSearchContext context =
-            new TestSearchContext(null, indexShard, newEarlyTerminationContextSearcher(reader, 0));
+        TestSearchContext context = new TestSearchContext(null, indexShard, newEarlyTerminationContextSearcher(reader, 0));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(0);
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
@@ -311,8 +285,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
     public void testInOrderScrollOptimization() throws Exception {
         Directory dir = newDirectory();
         final Sort sort = new Sort(new SortField("rank", SortField.Type.INT));
-        IndexWriterConfig iwc = newIndexWriterConfig()
-            .setIndexSort(sort);
+        IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(sort);
         RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
         final int numDocs = scaledRandomIntBetween(100, 200);
         for (int i = 0; i < numDocs; ++i) {
@@ -323,6 +296,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         ScrollContext scrollContext = new ScrollContext();
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader), scrollContext);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+        context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
         scrollContext.lastEmittedDoc = null;
         scrollContext.maxScore = Float.NaN;
         scrollContext.totalHits = null;
@@ -339,7 +313,6 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.setSearcher(newEarlyTerminationContextSearcher(reader, size));
         QueryPhase.executeInternal(context);
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
-        assertThat(context.terminateAfter(), equalTo(size));
         assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0].doc, greaterThanOrEqualTo(size));
         reader.close();
@@ -404,8 +377,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         }
         {
             context.setSize(1);
-            BooleanQuery bq = new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("foo", "bar")), Occur.SHOULD)
+            BooleanQuery bq = new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.SHOULD)
                 .add(new TermQuery(new Term("foo", "baz")), Occur.SHOULD)
                 .build();
             context.parsedQuery(new ParsedQuery(bq));
@@ -446,7 +418,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         // tests with trackTotalHits and terminateAfter
         context.terminateAfter(10);
         context.setSize(0);
-        for (int trackTotalHits : new int[] { -1, 3, 76, 100}) {
+        for (int trackTotalHits : new int[] { -1, 3, 76, 100 }) {
             context.trackTotalHitsUpTo(trackTotalHits);
             TotalHitCountCollector collector = new TotalHitCountCollector();
             context.queryCollectors().put(TotalHitCountCollector.class, collector);
@@ -463,7 +435,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         context.terminateAfter(7);
         context.setSize(10);
-        for (int trackTotalHits : new int[] { -1, 3, 75, 100}) {
+        for (int trackTotalHits : new int[] { -1, 3, 75, 100 }) {
             context.trackTotalHitsUpTo(trackTotalHits);
             EarlyTerminatingCollector collector = new EarlyTerminatingCollector(new TotalHitCountCollector(), 1, false);
             context.queryCollectors().put(EarlyTerminatingCollector.class, collector);
@@ -483,8 +455,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
     public void testIndexSortingEarlyTermination() throws Exception {
         Directory dir = newDirectory();
         final Sort sort = new Sort(new SortField("rank", SortField.Type.INT));
-        IndexWriterConfig iwc = newIndexWriterConfig()
-            .setIndexSort(sort);
+        IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(sort);
         RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
         final int numDocs = scaledRandomIntBetween(100, 200);
         for (int i = 0; i < numDocs; ++i) {
@@ -505,8 +476,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(1);
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
-        context.sort(new SortAndFormats(sort, new DocValueFormat[]{DocValueFormat.RAW}));
-
+        context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
 
         QueryPhase.executeInternal(context);
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
@@ -558,10 +528,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
     public void testIndexSortScrollOptimization() throws Exception {
         Directory dir = newDirectory();
-        final Sort indexSort = new Sort(
-            new SortField("rank", SortField.Type.INT),
-            new SortField("tiebreaker", SortField.Type.INT)
-        );
+        final Sort indexSort = new Sort(new SortField("rank", SortField.Type.INT), new SortField("tiebreaker", SortField.Type.INT));
         IndexWriterConfig iwc = newIndexWriterConfig().setIndexSort(indexSort);
         RandomIndexWriter w = new RandomIndexWriter(random(), dir, iwc);
         final int numDocs = scaledRandomIntBetween(100, 200);
@@ -578,9 +545,9 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         final IndexReader reader = DirectoryReader.open(dir);
         List<SortAndFormats> searchSortAndFormats = new ArrayList<>();
-        searchSortAndFormats.add(new SortAndFormats(indexSort, new DocValueFormat[]{DocValueFormat.RAW, DocValueFormat.RAW}));
+        searchSortAndFormats.add(new SortAndFormats(indexSort, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW }));
         // search sort is a prefix of the index sort
-        searchSortAndFormats.add(new SortAndFormats(new Sort(indexSort.getSort()[0]), new DocValueFormat[]{DocValueFormat.RAW}));
+        searchSortAndFormats.add(new SortAndFormats(new Sort(indexSort.getSort()[0]), new DocValueFormat[] { DocValueFormat.RAW }));
         for (SortAndFormats searchSortAndFormat : searchSortAndFormats) {
             ScrollContext scrollContext = new ScrollContext();
             TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader), scrollContext);
@@ -641,8 +608,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         IndexReader reader = DirectoryReader.open(dir);
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
-        Query q = new SpanNearQuery.Builder("title", true)
-            .addClause(new SpanTermQuery(new Term("title", "foo")))
+        Query q = new SpanNearQuery.Builder("title", true).addClause(new SpanTermQuery(new Term("title", "foo")))
             .addClause(new SpanTermQuery(new Term("title", "bar")))
             .build();
 
@@ -656,9 +622,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         assertEquals(context.queryResult().topDocs().topDocs.totalHits.relation, TotalHits.Relation.EQUAL_TO);
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(3));
 
-
-        context.sort(new SortAndFormats(new Sort(new SortField("other", SortField.Type.INT)),
-            new DocValueFormat[]{DocValueFormat.RAW}));
+        context.sort(new SortAndFormats(new Sort(new SortField("other", SortField.Type.INT)), new DocValueFormat[] { DocValueFormat.RAW }));
         topDocsContext = TopDocsCollectorContext.createTopDocsCollectorContext(context, false);
         assertEquals(topDocsContext.create(null).scoreMode(), org.apache.lucene.search.ScoreMode.TOP_DOCS);
         QueryPhase.executeInternal(context);
@@ -670,153 +634,153 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
-    public void testNumericLongOrDateSortOptimization() throws Exception {
+    public void testNumericSortOptimization() throws Exception {
         final String fieldNameLong = "long-field";
         final String fieldNameDate = "date-field";
         MappedFieldType fieldTypeLong = new NumberFieldMapper.NumberFieldType(fieldNameLong, NumberFieldMapper.NumberType.LONG);
         MappedFieldType fieldTypeDate = new DateFieldMapper.DateFieldType(fieldNameDate);
-        QueryShardContext shardContext = mock(QueryShardContext.class);
-        when(shardContext.getFieldType(fieldNameLong)).thenReturn(fieldTypeLong);
-        when(shardContext.getFieldType(fieldNameDate)).thenReturn(fieldTypeDate);
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.getFieldType(fieldNameLong)).thenReturn(fieldTypeLong);
+        when(searchExecutionContext.getFieldType(fieldNameDate)).thenReturn(fieldTypeDate);
         // enough docs to have a tree with several leaf nodes
-        final int numDocs = 3500 * 20;
+        final int numDocs = atLeast(3500 * 2);
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(null));
+        long startLongValue = randomLongBetween(-10000000L, 10000000L);
+        long longValue = startLongValue;
+        long dateValue = randomLongBetween(0, 3000000000000L);
+
         for (int i = 1; i <= numDocs; ++i) {
             Document doc = new Document();
-            long longValue = randomLongBetween(-10000000L, 10000000L);
             doc.add(new LongPoint(fieldNameLong, longValue));
             doc.add(new NumericDocValuesField(fieldNameLong, longValue));
-            longValue = randomLongBetween(0, 3000000000000L);
-            doc.add(new LongPoint(fieldNameDate, longValue));
-            doc.add(new NumericDocValuesField(fieldNameDate, longValue));
+            doc.add(new LongPoint(fieldNameDate, dateValue));
+            doc.add(new NumericDocValuesField(fieldNameDate, dateValue));
             writer.addDocument(doc);
-            if (i % 3500 == 0) writer.commit();
+            longValue++;
+            dateValue++;
+            if (i % 3500 == 0) writer.flush();
         }
         writer.close();
+
         final IndexReader reader = DirectoryReader.open(dir);
 
-        TestSearchContext searchContext = spy(new TestSearchContext(shardContext, indexShard, newOptimizedContextSearcher(reader, 0)));
-
-        // 1. Test a sort on long field
         final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
-        sortFieldLong.setMissingValue(Long.MAX_VALUE);
-        final Sort longSort = new Sort(sortFieldLong);
-        SortAndFormats sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
-        searchContext.sort(sortAndFormats);
-        searchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-        searchContext.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
-        searchContext.setSize(10);
-        QueryPhase.executeInternal(searchContext);
-        assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
-
-        // 2. Test a sort on long field + date field
         final SortField sortFieldDate = new SortField(fieldNameDate, SortField.Type.LONG);
-        DocValueFormat dateFormat = fieldTypeDate.docValueFormat(null, null);
-        final Sort longDateSort = new Sort(sortFieldLong, sortFieldDate);
-        sortAndFormats = new SortAndFormats(longDateSort, new DocValueFormat[]{DocValueFormat.RAW, dateFormat});
-        searchContext.sort(sortAndFormats);
-        QueryPhase.executeInternal(searchContext);
-        assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
-
-        // 3. Test a sort on date field
+        sortFieldLong.setMissingValue(Long.MAX_VALUE);
         sortFieldDate.setMissingValue(Long.MAX_VALUE);
-        final Sort dateSort = new Sort(sortFieldDate);
-        sortAndFormats = new SortAndFormats(dateSort, new DocValueFormat[]{dateFormat});
-        searchContext.sort(sortAndFormats);
-        QueryPhase.executeInternal(searchContext);
-        assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
+        final Sort sortLong = new Sort(sortFieldLong);
+        final Sort sortDate = new Sort(sortFieldDate);
+        final Sort sortLongDate = new Sort(sortFieldLong, sortFieldDate);
+        final Sort sortDateLong = new Sort(sortFieldDate, sortFieldLong);
+        final DocValueFormat dvFormatDate = fieldTypeDate.docValueFormat(null, null);
+        final SortAndFormats formatsLong = new SortAndFormats(sortLong, new DocValueFormat[] { DocValueFormat.RAW });
+        final SortAndFormats formatsDate = new SortAndFormats(sortDate, new DocValueFormat[] { dvFormatDate });
+        final SortAndFormats formatsLongDate = new SortAndFormats(sortLongDate, new DocValueFormat[] { DocValueFormat.RAW, dvFormatDate });
+        final SortAndFormats formatsDateLong = new SortAndFormats(sortDateLong, new DocValueFormat[] { dvFormatDate, DocValueFormat.RAW });
 
-        // 4. Test a sort on date field + long field
-        final Sort dateLongSort = new Sort(sortFieldDate, sortFieldLong);
-        sortAndFormats = new SortAndFormats(dateLongSort, new DocValueFormat[]{dateFormat, DocValueFormat.RAW});
-        searchContext.sort(sortAndFormats);
-        QueryPhase.executeInternal(searchContext);
-        assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
+        Query q = LongPoint.newRangeQuery(fieldNameLong, startLongValue, startLongValue + numDocs);
+        final ParsedQuery query = new ParsedQuery(q);
+        final SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
 
-        // 5. Test that sort optimization is run when from > 0 and size = 0
+        // 1. Test sort optimization on long field
         {
-            sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
-            searchContext.sort(sortAndFormats);
+            TestSearchContext searchContext = new TestSearchContext(searchExecutionContext, indexShard, newContextSearcher(reader));
+            searchContext.sort(formatsLong);
+            searchContext.parsedQuery(query);
+            searchContext.setTask(task);
+            searchContext.trackTotalHitsUpTo(10);
+            searchContext.setSize(10);
+            QueryPhase.executeInternal(searchContext);
+            assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
+            assertSortResults(searchContext.queryResult().topDocs().topDocs, numDocs, false);
+        }
+
+        // 2. Test sort optimization on long field with after
+        {
+            TestSearchContext searchContext = new TestSearchContext(searchExecutionContext, indexShard, newContextSearcher(reader));
+            int afterDoc = (int) randomLongBetween(0, 30);
+            long afterValue = startLongValue + afterDoc;
+            FieldDoc after = new FieldDoc(afterDoc, Float.NaN, new Long[] { afterValue });
+            searchContext.searchAfter(after);
+            searchContext.sort(formatsLong);
+            searchContext.parsedQuery(query);
+            searchContext.setTask(task);
+            searchContext.trackTotalHitsUpTo(10);
+            searchContext.setSize(10);
+            QueryPhase.executeInternal(searchContext);
+            assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
+            final TopDocs topDocs = searchContext.queryResult().topDocs().topDocs;
+            long firstResult = (long) ((FieldDoc) topDocs.scoreDocs[0]).fields[0];
+            assertThat(firstResult, greaterThan(afterValue));
+            assertSortResults(topDocs, numDocs, false);
+        }
+
+        // 3. Test sort optimization on long field + date field
+        {
+            TestSearchContext searchContext = new TestSearchContext(searchExecutionContext, indexShard, newContextSearcher(reader));
+            searchContext.sort(formatsLongDate);
+            searchContext.parsedQuery(query);
+            searchContext.setTask(task);
+            searchContext.trackTotalHitsUpTo(10);
+            searchContext.setSize(10);
+            QueryPhase.executeInternal(searchContext);
+            assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
+            assertSortResults(searchContext.queryResult().topDocs().topDocs, numDocs, true);
+        }
+
+        // 4. Test sort optimization on date field
+        {
+            TestSearchContext searchContext = new TestSearchContext(searchExecutionContext, indexShard, newContextSearcher(reader));
+            searchContext.sort(formatsDate);
+            searchContext.parsedQuery(query);
+            searchContext.setTask(task);
+            searchContext.trackTotalHitsUpTo(10);
+            searchContext.setSize(10);
+            QueryPhase.executeInternal(searchContext);
+            assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
+            assertSortResults(searchContext.queryResult().topDocs().topDocs, numDocs, false);
+        }
+
+        // 5. Test sort optimization on date field + long field
+        {
+            TestSearchContext searchContext = new TestSearchContext(searchExecutionContext, indexShard, newContextSearcher(reader));
+            searchContext.sort(formatsDateLong);
+            searchContext.parsedQuery(query);
+            searchContext.setTask(task);
+            searchContext.trackTotalHitsUpTo(10);
+            searchContext.setSize(10);
+            QueryPhase.executeInternal(searchContext);
+            assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
+            assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
+        }
+
+        // 6. Test sort optimization on when from > 0 and size = 0
+        {
+            TestSearchContext searchContext = new TestSearchContext(searchExecutionContext, indexShard, newContextSearcher(reader));
+            searchContext.sort(formatsLong);
+            searchContext.parsedQuery(query);
+            searchContext.setTask(task);
+            searchContext.trackTotalHitsUpTo(10);
             searchContext.from(5);
             searchContext.setSize(0);
             QueryPhase.executeInternal(searchContext);
+            assertTrue(searchContext.sort().sort.getSort()[0].getOptimizeSortWithPoints());
             assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
         }
 
-        // 6. Test that sort optimization is NOT run with from = 0 and size= 0
+        // 7. Test that sort optimization doesn't break a case where from = 0 and size= 0
         {
-            sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
-            searchContext = spy(new TestSearchContext(null, indexShard, newContextSearcher(reader)));
-            searchContext.sort(sortAndFormats);
-            searchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-            searchContext.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+            TestSearchContext searchContext = new TestSearchContext(searchExecutionContext, indexShard, newContextSearcher(reader));
+            searchContext.sort(formatsLong);
+            searchContext.parsedQuery(query);
+            searchContext.setTask(task);
             searchContext.setSize(0);
-
             QueryPhase.executeInternal(searchContext);
-            TotalHits totalHits = searchContext.queryResult().topDocs().topDocs.totalHits;
-            assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation);
-            assertEquals(numDocs, totalHits.value);
         }
 
         reader.close();
         dir.close();
-    }
-
-    public void testIndexHasDuplicateData() throws IOException {
-        int docsCount = 5000;
-        int maxPointsInLeafNode = 40;
-        float duplicateRatio = 0.7f;
-        long duplicateValue = randomLongBetween(-10000000L, 10000000L);
-        BKDConfig config = new BKDConfig(1, 1, 8, maxPointsInLeafNode);
-        try (Directory dir = newDirectory()) {
-            BKDWriter w = new BKDWriter(docsCount, dir, "tmp", config, 1, docsCount);
-            byte[] longBytes = new byte[8];
-            for (int docId = 0; docId < docsCount; docId++) {
-                long value = randomFloat() < duplicateRatio ? duplicateValue : randomLongBetween(-10000000L, 10000000L);
-                LongPoint.encodeDimension(value, longBytes, 0);
-                w.add(longBytes, docId);
-            }
-            try (IndexOutput metaout = dir.createOutput("bkdmeta", IOContext.DEFAULT);
-                 IndexOutput indexout = dir.createOutput("bkdindex", IOContext.DEFAULT);
-                 IndexOutput dataout = dir.createOutput("bkddata", IOContext.DEFAULT)) {
-                w.finish(metaout, indexout, dataout).run();
-            }
-            try (IndexInput metain = dir.openInput("bkdmeta", IOContext.DEFAULT);
-                 IndexInput indexin = dir.openInput("bkdindex", IOContext.DEFAULT);
-                 IndexInput datain = dir.openInput("bkddata", IOContext.DEFAULT)) {
-                BKDReader r = new BKDReader(metain, indexin, datain);
-                assertTrue(pointsHaveDuplicateData(r, r.getDocCount() / 2));
-            }
-        }
-    }
-
-    public void testIndexHasNoDuplicateData() throws IOException {
-        int docsCount = 5000;
-        int maxPointsInLeafNode = 40;
-        float duplicateRatio = 0.3f;
-        long duplicateValue = randomLongBetween(-10000000L, 10000000L);
-        BKDConfig config = new BKDConfig(1, 1, 8, maxPointsInLeafNode);
-        try (Directory dir = newDirectory()) {
-            BKDWriter w = new BKDWriter(docsCount, dir, "tmp", config, 1, docsCount);
-            byte[] longBytes = new byte[8];
-            for (int docId = 0; docId < docsCount; docId++) {
-                long value = randomFloat() < duplicateRatio ? duplicateValue : randomLongBetween(-10000000L, 10000000L);
-                LongPoint.encodeDimension(value, longBytes, 0);
-                w.add(longBytes, docId);
-            }
-            long indexFP;
-            try (IndexOutput out = dir.createOutput("bkd", IOContext.DEFAULT)) {
-                Runnable finalizer = w.finish(out, out, out);
-                indexFP = out.getFilePointer();
-                finalizer.run();;
-            }
-            try (IndexInput in = dir.openInput("bkd", IOContext.DEFAULT)) {
-                in.seek(indexFP);
-                BKDReader r = new BKDReader(in, in, in);
-                assertFalse(pointsHaveDuplicateData(r, r.getDocCount() / 2));
-            }
-        }
     }
 
     public void testMaxScoreQueryVisitor() {
@@ -827,41 +791,45 @@ public class QueryPhaseTests extends IndexShardTestCase {
         query = new ESToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.None, "nested");
         assertFalse(hasInfMaxScore(query));
 
-
         for (Occur occur : Occur.values()) {
-            query = new BooleanQuery.Builder()
-                .add(new ESToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested"), occur)
-                .build();
+            query = new BooleanQuery.Builder().add(
+                new ESToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested"),
+                occur
+            ).build();
             if (occur == Occur.MUST) {
                 assertTrue(hasInfMaxScore(query));
             } else {
                 assertFalse(hasInfMaxScore(query));
             }
 
-            query = new BooleanQuery.Builder()
-                .add(new BooleanQuery.Builder()
-                    .add(new ESToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested"), occur)
-                    .build(), occur)
-                .build();
+            query = new BooleanQuery.Builder().add(
+                new BooleanQuery.Builder().add(
+                    new ESToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested"),
+                    occur
+                ).build(),
+                occur
+            ).build();
             if (occur == Occur.MUST) {
                 assertTrue(hasInfMaxScore(query));
             } else {
                 assertFalse(hasInfMaxScore(query));
             }
 
-            query = new BooleanQuery.Builder()
-                .add(new BooleanQuery.Builder()
-                    .add(new ESToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested"), occur)
-                    .build(), Occur.FILTER)
-                .build();
+            query = new BooleanQuery.Builder().add(
+                new BooleanQuery.Builder().add(
+                    new ESToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested"),
+                    occur
+                ).build(),
+                Occur.FILTER
+            ).build();
             assertFalse(hasInfMaxScore(query));
 
-            query = new BooleanQuery.Builder()
-                .add(new BooleanQuery.Builder()
-                    .add(new SpanTermQuery(new Term("field", "foo")), occur)
+            query = new BooleanQuery.Builder().add(
+                new BooleanQuery.Builder().add(new SpanTermQuery(new Term("field", "foo")), occur)
                     .add(new ESToParentBlockJoinQuery(new MatchAllDocsQuery(), producer, ScoreMode.Avg, "nested"), occur)
-                    .build(), occur)
-                .build();
+                    .build(),
+                occur
+            ).build();
             if (occur == Occur.MUST) {
                 assertTrue(hasInfMaxScore(query));
             } else {
@@ -871,22 +839,19 @@ public class QueryPhaseTests extends IndexShardTestCase {
     }
 
     // assert score docs are in order and their number is as expected
-    private void assertSortResults(TopDocs topDocs, long expectedNumDocs, boolean isDoubleSort) {
-        if (topDocs.totalHits.relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
-            assertThat(topDocs.totalHits.value, lessThanOrEqualTo(expectedNumDocs));
-        } else {
-            assertEquals(topDocs.totalHits.value, expectedNumDocs);
-        }
+    private void assertSortResults(TopDocs topDocs, long totalNumDocs, boolean isDoubleSort) {
+        assertEquals(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO, topDocs.totalHits.relation);
+        assertThat(topDocs.totalHits.value, lessThan(totalNumDocs)); // we collected less docs than total number
         long cur1, cur2;
         long prev1 = Long.MIN_VALUE;
         long prev2 = Long.MIN_VALUE;
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             cur1 = (long) ((FieldDoc) scoreDoc).fields[0];
-            assertThat(cur1, greaterThanOrEqualTo(prev1)); // test that docs are properly sorted on the first sort
+            assertThat(cur1, greaterThan(prev1)); // test that docs are properly sorted on the first sort
             if (isDoubleSort) {
                 cur2 = (long) ((FieldDoc) scoreDoc).fields[1];
                 if (cur1 == prev1) {
-                    assertThat(cur2, greaterThanOrEqualTo(prev2)); // test that docs are properly sorted on the secondary sort
+                    assertThat(cur2, greaterThan(prev2)); // test that docs are properly sorted on the secondary sort
                 }
                 prev2 = cur2;
             }
@@ -908,12 +873,13 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         IndexReader reader = DirectoryReader.open(dir);
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
-        context.parsedQuery(new ParsedQuery(
-            new BooleanQuery.Builder()
-                .add(new TermQuery(new Term("foo", "bar")), Occur.MUST)
-                .add(new TermQuery(new Term("filter", "f1")), Occur.SHOULD)
-                .build()
-        ));
+        context.parsedQuery(
+            new ParsedQuery(
+                new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST)
+                    .add(new TermQuery(new Term("filter", "f1")), Occur.SHOULD)
+                    .build()
+            )
+        );
         context.minimumScore(0.01f);
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.setSize(1);
@@ -926,9 +892,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         dir.close();
     }
 
-    public void testCancellationDuringPreprocess() throws IOException {
-        try (Directory dir = newDirectory();
-             RandomIndexWriter w = new RandomIndexWriter(random(), dir, newIndexWriterConfig())) {
+    public void testCancellationDuringRewrite() throws IOException {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir, newIndexWriterConfig())) {
 
             for (int i = 0; i < 10; i++) {
                 Document doc = new Document();
@@ -939,85 +904,42 @@ public class QueryPhaseTests extends IndexShardTestCase {
             w.close();
 
             try (IndexReader reader = DirectoryReader.open(dir)) {
-                TestSearchContext context = new TestSearchContextWithRewriteAndCancellation(
-                    null, indexShard, newContextSearcher(reader));
+                TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
                 PrefixQuery prefixQuery = new PrefixQuery(new Term("foo", "a"));
                 prefixQuery.setRewriteMethod(MultiTermQuery.SCORING_BOOLEAN_REWRITE);
                 context.parsedQuery(new ParsedQuery(prefixQuery));
-                SearchShardTask task = mock(SearchShardTask.class);
-                when(task.isCancelled()).thenReturn(true);
+                SearchShardTask task = new SearchShardTask(randomLong(), "transport", "", "", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+                TaskCancelHelper.cancel(task, "simulated");
                 context.setTask(task);
-                expectThrows(TaskCancelledException.class, () -> new QueryPhase().preProcess(context));
+                context.searcher().addQueryCancellation(task::ensureNotCancelled);
+                expectThrows(TaskCancelledException.class, () -> context.rewrittenQuery());
             }
-        }
-    }
-
-    private static class TestSearchContextWithRewriteAndCancellation extends TestSearchContext {
-
-        private TestSearchContextWithRewriteAndCancellation(QueryShardContext queryShardContext,
-                                                            IndexShard indexShard,
-                                                            ContextIndexSearcher searcher) {
-            super(queryShardContext, indexShard, searcher);
-        }
-
-        @Override
-        public void preProcess(boolean rewrite) {
-            try {
-                searcher().rewrite(query());
-            } catch (IOException e) {
-                fail("IOException shouldn't be thrown");
-            }
-        }
-
-        @Override
-        public boolean lowLevelCancellation() {
-            return true;
         }
     }
 
     private static ContextIndexSearcher newContextSearcher(IndexReader reader) throws IOException {
-        return new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true);
+        return new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true
+        );
     }
 
     private static ContextIndexSearcher newEarlyTerminationContextSearcher(IndexReader reader, int size) throws IOException {
-        return new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true) {
+        return new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true
+        ) {
 
             @Override
             public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
                 final Collector in = new AssertingEarlyTerminationFilterCollector(collector, size);
                 super.search(leaves, weight, in);
-            }
-        };
-    }
-
-    // used to check that numeric long or date sort optimization was run
-    private static ContextIndexSearcher newOptimizedContextSearcher(IndexReader reader, int queryType) throws IOException {
-        return new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true) {
-
-            @Override
-            public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager,
-                               QuerySearchResult result, DocValueFormat[] formats, TotalHits totalHits) throws IOException {
-                final Query query = weight.getQuery();
-                assertTrue(query instanceof BooleanQuery);
-                List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
-                assertTrue(clauses.size() == 2);
-                assertTrue(clauses.get(0).getOccur() == Occur.FILTER);
-                assertTrue(clauses.get(1).getOccur() == Occur.SHOULD);
-                if (queryType == 0) {
-                    assertTrue(clauses.get(1).getQuery().getClass() ==
-                        LongPoint.newDistanceFeatureQuery("random_field", 1, 1, 1).getClass()
-                    );
-                }
-                if (queryType == 1) assertTrue(clauses.get(1).getQuery() instanceof DocValuesFieldExistsQuery);
-                super.search(leaves, weight, manager, result, formats, totalHits);
-            }
-
-            @Override
-            public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) {
-                assert (false);  // should not be there, expected to search with CollectorManager
             }
         };
     }

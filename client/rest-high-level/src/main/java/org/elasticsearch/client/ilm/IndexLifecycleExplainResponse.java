@@ -1,33 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -55,7 +44,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
     private static final ParseField AGE_FIELD = new ParseField("age");
 
     public static final ConstructingObjectParser<IndexLifecycleExplainResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "index_lifecycle_explain_response", true,
+        "index_lifecycle_explain_response",
+        true,
         a -> new IndexLifecycleExplainResponse(
             (String) a[0],
             (boolean) a[1],
@@ -69,7 +59,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
             (Long) a[9],
             (Long) a[10],
             (BytesReference) a[11],
-            (PhaseExecutionInfo) a[12]));
+            (PhaseExecutionInfo) a[12]
+        )
+    );
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), MANAGED_BY_ILM_FIELD);
@@ -87,8 +79,11 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
             builder.copyCurrentStructure(p);
             return BytesReference.bytes(builder);
         }, STEP_INFO_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> PhaseExecutionInfo.parse(p, ""),
-            PHASE_EXECUTION_INFO);
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> PhaseExecutionInfo.parse(p, ""),
+            PHASE_EXECUTION_INFO
+        );
     }
 
     private final String index;
@@ -105,21 +100,56 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
     private final BytesReference stepInfo;
     private final PhaseExecutionInfo phaseExecutionInfo;
 
-    public static IndexLifecycleExplainResponse newManagedIndexResponse(String index, String policyName, Long lifecycleDate,
-                                                                        String phase, String action, String step, String failedStep,
-                                                                        Long phaseTime, Long actionTime, Long stepTime,
-                                                                        BytesReference stepInfo, PhaseExecutionInfo phaseExecutionInfo) {
-        return new IndexLifecycleExplainResponse(index, true, policyName, lifecycleDate, phase, action, step, failedStep, phaseTime,
-            actionTime, stepTime, stepInfo, phaseExecutionInfo);
+    public static IndexLifecycleExplainResponse newManagedIndexResponse(
+        String index,
+        String policyName,
+        Long lifecycleDate,
+        String phase,
+        String action,
+        String step,
+        String failedStep,
+        Long phaseTime,
+        Long actionTime,
+        Long stepTime,
+        BytesReference stepInfo,
+        PhaseExecutionInfo phaseExecutionInfo
+    ) {
+        return new IndexLifecycleExplainResponse(
+            index,
+            true,
+            policyName,
+            lifecycleDate,
+            phase,
+            action,
+            step,
+            failedStep,
+            phaseTime,
+            actionTime,
+            stepTime,
+            stepInfo,
+            phaseExecutionInfo
+        );
     }
 
     public static IndexLifecycleExplainResponse newUnmanagedIndexResponse(String index) {
         return new IndexLifecycleExplainResponse(index, false, null, null, null, null, null, null, null, null, null, null, null);
     }
 
-    private IndexLifecycleExplainResponse(String index, boolean managedByILM, String policyName, Long lifecycleDate,
-                                          String phase, String action, String step, String failedStep, Long phaseTime, Long actionTime,
-                                          Long stepTime, BytesReference stepInfo, PhaseExecutionInfo phaseExecutionInfo) {
+    private IndexLifecycleExplainResponse(
+        String index,
+        boolean managedByILM,
+        String policyName,
+        Long lifecycleDate,
+        String phase,
+        String action,
+        String step,
+        String failedStep,
+        Long phaseTime,
+        Long actionTime,
+        Long stepTime,
+        BytesReference stepInfo,
+        PhaseExecutionInfo phaseExecutionInfo
+    ) {
         if (managedByILM) {
             if (policyName == null) {
                 throw new IllegalArgumentException("[" + POLICY_NAME_FIELD.getPreferredName() + "] cannot be null for managed index");
@@ -127,16 +157,37 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
             // check to make sure that step details are either all null or all set.
             long numNull = Stream.of(phase, action, step).filter(Objects::isNull).count();
             if (numNull > 0 && numNull < 3) {
-                throw new IllegalArgumentException("managed index response must have complete step details [" +
-                    PHASE_FIELD.getPreferredName() + "=" + phase + ", " +
-                    ACTION_FIELD.getPreferredName() + "=" + action + ", " +
-                    STEP_FIELD.getPreferredName() + "=" + step + "]");
+                throw new IllegalArgumentException(
+                    "managed index response must have complete step details ["
+                        + PHASE_FIELD.getPreferredName()
+                        + "="
+                        + phase
+                        + ", "
+                        + ACTION_FIELD.getPreferredName()
+                        + "="
+                        + action
+                        + ", "
+                        + STEP_FIELD.getPreferredName()
+                        + "="
+                        + step
+                        + "]"
+                );
             }
         } else {
-            if (policyName != null || lifecycleDate != null || phase != null || action != null || step != null || failedStep != null
-                || phaseTime != null || actionTime != null || stepTime != null || stepInfo != null || phaseExecutionInfo != null) {
+            if (policyName != null
+                || lifecycleDate != null
+                || phase != null
+                || action != null
+                || step != null
+                || failedStep != null
+                || phaseTime != null
+                || actionTime != null
+                || stepTime != null
+                || stepInfo != null
+                || phaseExecutionInfo != null) {
                 throw new IllegalArgumentException(
-                    "Unmanaged index response must only contain fields: [" + MANAGED_BY_ILM_FIELD + ", " + INDEX_FIELD + "]");
+                    "Unmanaged index response must only contain fields: [" + MANAGED_BY_ILM_FIELD + ", " + INDEX_FIELD + "]"
+                );
             }
         }
         this.index = index;
@@ -259,8 +310,21 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, managedByILM, policyName, lifecycleDate, phase, action, step, failedStep, phaseTime, actionTime,
-            stepTime, stepInfo, phaseExecutionInfo);
+        return Objects.hash(
+            index,
+            managedByILM,
+            policyName,
+            lifecycleDate,
+            phase,
+            action,
+            step,
+            failedStep,
+            phaseTime,
+            actionTime,
+            stepTime,
+            stepInfo,
+            phaseExecutionInfo
+        );
     }
 
     @Override
@@ -272,19 +336,19 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
             return false;
         }
         IndexLifecycleExplainResponse other = (IndexLifecycleExplainResponse) obj;
-        return Objects.equals(index, other.index) &&
-            Objects.equals(managedByILM, other.managedByILM) &&
-            Objects.equals(policyName, other.policyName) &&
-            Objects.equals(lifecycleDate, other.lifecycleDate) &&
-            Objects.equals(phase, other.phase) &&
-            Objects.equals(action, other.action) &&
-            Objects.equals(step, other.step) &&
-            Objects.equals(failedStep, other.failedStep) &&
-            Objects.equals(phaseTime, other.phaseTime) &&
-            Objects.equals(actionTime, other.actionTime) &&
-            Objects.equals(stepTime, other.stepTime) &&
-            Objects.equals(stepInfo, other.stepInfo) &&
-            Objects.equals(phaseExecutionInfo, other.phaseExecutionInfo);
+        return Objects.equals(index, other.index)
+            && Objects.equals(managedByILM, other.managedByILM)
+            && Objects.equals(policyName, other.policyName)
+            && Objects.equals(lifecycleDate, other.lifecycleDate)
+            && Objects.equals(phase, other.phase)
+            && Objects.equals(action, other.action)
+            && Objects.equals(step, other.step)
+            && Objects.equals(failedStep, other.failedStep)
+            && Objects.equals(phaseTime, other.phaseTime)
+            && Objects.equals(actionTime, other.actionTime)
+            && Objects.equals(stepTime, other.stepTime)
+            && Objects.equals(stepInfo, other.stepInfo)
+            && Objects.equals(phaseExecutionInfo, other.phaseExecutionInfo);
     }
 
     @Override
@@ -293,4 +357,3 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
     }
 
 }
-

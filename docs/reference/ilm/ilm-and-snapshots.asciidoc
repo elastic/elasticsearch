@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[index-lifecycle-and-snapshots]]
 == Restore a managed data stream or index
 

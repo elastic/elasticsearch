@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.watcher;
@@ -34,12 +35,12 @@ public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCas
         ensureGreen(newWatcherIndexName);
         startWatcher();
 
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "mywatch").setSource(watchBuilder()
-            .trigger(schedule(interval("3s")))
-            .input(noneInput())
-            .condition(InternalAlwaysCondition.INSTANCE)
-            .addAction("indexer", indexAction(watchResultsIndex)))
-            .get();
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "mywatch").setSource(
+            watchBuilder().trigger(schedule(interval("3s")))
+                .input(noneInput())
+                .condition(InternalAlwaysCondition.INSTANCE)
+                .addAction("indexer", indexAction(watchResultsIndex))
+        ).get();
 
         assertTrue(putWatchResponse.isCreated());
         refresh();

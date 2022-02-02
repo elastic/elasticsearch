@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSource;
 
@@ -35,13 +36,13 @@ public final class GeoShapeBoundsAggregator extends MetricsAggregator {
 
     public GeoShapeBoundsAggregator(
         String name,
-        SearchContext aggregationContext,
+        AggregationContext context,
         Aggregator parent,
         ValuesSourceConfig valuesSourceConfig,
         boolean wrapLongitude,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, aggregationContext, parent, metadata);
+        super(name, context, parent, metadata);
         this.valuesSource = valuesSourceConfig.hasValues() ? (GeoShapeValuesSource) valuesSourceConfig.getValuesSource() : null;
         this.wrapLongitude = wrapLongitude;
         if (valuesSource != null) {
@@ -61,8 +62,7 @@ public final class GeoShapeBoundsAggregator extends MetricsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            LeafBucketCollector sub) {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
@@ -119,8 +119,17 @@ public final class GeoShapeBoundsAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoBounds(name, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
-            Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, wrapLongitude, metadata());
+        return new InternalGeoBounds(
+            name,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY,
+            wrapLongitude,
+            metadata()
+        );
     }
 
     @Override

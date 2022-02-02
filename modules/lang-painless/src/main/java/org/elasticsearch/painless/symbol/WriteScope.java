@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.symbol;
@@ -148,27 +137,29 @@ public class WriteScope {
         this.nextSlot = parent.nextSlot;
     }
 
-     /** Creates a script scope as the top-level scope with no labels and parameters. */
+    /** Creates a script scope as the top-level scope with no labels and parameters. */
     public static WriteScope newScriptScope() {
         return new WriteScope();
     }
 
     /** Creates a class scope with the script scope as a parent. */
-    public WriteScope newClassScope(ClassWriter classWriter) {
-        return new WriteScope(this, classWriter);
+    public WriteScope newClassScope(ClassWriter writer) {
+        return new WriteScope(this, writer);
     }
 
     /** Creates a method scope with the class scope as a parent and parameters from the method signature. */
-    public WriteScope newMethodScope(MethodWriter methodWriter) {
-        return new WriteScope(this, methodWriter);
+    public WriteScope newMethodScope(MethodWriter writer) {
+        return new WriteScope(this, writer);
     }
 
     /** Creates a loop scope with labels for where continue and break instructions should jump to. */
+    @SuppressWarnings("HiddenField")
     public WriteScope newLoopScope(Label continueLabel, Label breakLabel) {
         return new WriteScope(this, continueLabel, breakLabel);
     }
 
     /** Creates a try scope with labels for where and exception should jump to. */
+    @SuppressWarnings("HiddenField")
     public WriteScope newTryScope(Label tryBeginLabel, Label tryEndLabel, Label catchesEndLabel) {
         return new WriteScope(this, tryBeginLabel, tryEndLabel, catchesEndLabel);
     }

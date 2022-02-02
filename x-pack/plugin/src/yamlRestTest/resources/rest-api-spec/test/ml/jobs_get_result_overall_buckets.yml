@@ -1,0 +1,639 @@
+setup:
+  - skip:
+      features:
+        - "warnings"
+        - "headers"
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: jobs-get-result-overall-buckets-60
+        body:  >
+          {
+            "groups": [ "jobs-get-result-overall-buckets-group"],
+            "analysis_config" : {
+                "bucket_span": "60m",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: jobs-get-result-overall-buckets-30
+        body:  >
+          {
+            "groups": [ "jobs-get-result-overall-buckets-group"],
+            "analysis_config" : {
+                "bucket_span": "30m",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+
+  - do:
+      warnings:
+        - 'bucket_span 17m [1020s] is not an integral divisor of the number of seconds in 1d [86400s]. This is now deprecated.'
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: jobs-get-result-overall-buckets-17
+        body:  >
+          {
+            "groups": [ "jobs-get-result-overall-buckets-group"],
+            "analysis_config" : {
+                "bucket_span": "17m",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}],
+                "model_prune_window":"34d"
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+
+  # Now index some buckets
+  # The buckets are:
+  # job-60: [ 30.0] [0.0] [       20.0     ]
+  # job-30: [     ] [0.0] [    10.0, 40.0  ]
+  # job-17: [     ] [0.0] [ 1.0, 0.0, 60.0 ]
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-shared
+        id:     "jobs-get-result-overall-buckets-60_1"
+        body:
+          {
+            "job_id": "jobs-get-result-overall-buckets-60",
+            "result_type": "bucket",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "anomaly_score": 30.0,
+            "bucket_span": 3600
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-shared
+        id:     "jobs-get-result-overall-buckets-60_2"
+        body:
+          {
+            "job_id": "jobs-get-result-overall-buckets-60",
+            "result_type": "bucket",
+            "timestamp": "2016-06-01T01:00:00Z",
+            "anomaly_score": 0.0,
+            "bucket_span": 3600
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-shared
+        id:     "jobs-get-result-overall-buckets-60_3"
+        body:
+          {
+            "job_id": "jobs-get-result-overall-buckets-60",
+            "result_type": "bucket",
+            "timestamp": "2016-06-01T02:00:00Z",
+            "anomaly_score": 20.0,
+            "bucket_span": 3600
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index:  .ml-anomalies-shared
+        id:     "jobs-get-result-overall-buckets-30_1"
+        body:
+          {
+            "job_id": "jobs-get-result-overall-buckets-30",
+            "result_type": "bucket",
+            "timestamp": "2016-06-01T01:00:00Z",
+            "anomaly_score": 0.0,
+            "bucket_span": 1800
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-shared
+        id:     "jobs-get-result-overall-buckets-30_2"
+        body:
+          {
+            "job_id": "jobs-get-result-overall-buckets-30",
+            "result_type": "bucket",
+            "timestamp": "2016-06-01T02:00:00Z",
+            "anomaly_score": 10.0,
+            "bucket_span": 1800
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-shared
+        id:     "jobs-get-result-overall-buckets-30_3"
+        body:
+          {
+            "job_id": "jobs-get-result-overall-buckets-30",
+            "result_type": "bucket",
+            "timestamp": "2016-06-01T02:30:00Z",
+            "anomaly_score": 40.0,
+            "bucket_span": 1800
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-shared
+        id:     "jobs-get-result-overall-buckets-17_1"
+        body:
+          {
+            "job_id": "jobs-get-result-overall-buckets-17",
+            "result_type": "bucket",
+            "timestamp": "2016-06-01T01:00:00Z",
+            "anomaly_score": 0.0,
+            "bucket_span": 1020
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-shared
+        id:     "jobs-get-result-overall-buckets-17_2"
+        body:
+          {
+            "job_id": "jobs-get-result-overall-buckets-17",
+            "result_type": "bucket",
+            "timestamp": "2016-06-01T02:08:00Z",
+            "anomaly_score": 1.0,
+            "bucket_span": 1020
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-shared
+        id:     "jobs-get-result-overall-buckets-17_3"
+        body:
+          {
+            "job_id": "jobs-get-result-overall-buckets-17",
+            "result_type": "bucket",
+            "timestamp": "2016-06-01T02:25:00Z",
+            "anomaly_score": 0.0,
+            "bucket_span": 1020
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-shared
+        id:     "jobs-get-result-overall-buckets-17_4"
+        body:
+          {
+            "job_id": "jobs-get-result-overall-buckets-17",
+            "result_type": "bucket",
+            "timestamp": "2016-06-01T02:42:00Z",
+            "anomaly_score": 60.0,
+            "bucket_span": 1020,
+            "is_interim": true
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh:
+        index: .ml-anomalies-shared
+
+---
+"Test overall buckets given missing job":
+  - do:
+      catch: missing
+      ml.get_overall_buckets:
+        job_id: "missing-job"
+
+---
+"Test overall buckets given non-matching expression and allow_no_match":
+  - do:
+      ml.get_overall_buckets:
+        job_id: "none-matching-*"
+  - match: { count: 0 }
+
+---
+"Test overall buckets given non-matching expression and not allow_no_match":
+  - skip:
+      features:
+        - "warnings"
+
+  - do:
+      catch: missing
+      ml.get_overall_buckets:
+        job_id: "none-matching-*"
+        allow_no_match: false
+
+---
+"Test overall buckets given top_n is 0":
+  - do:
+      catch: /\[topN\] parameter must be positive, found \[0\]/
+      ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        top_n: 0
+
+---
+"Test overall buckets given top_n is negative":
+  - do:
+      catch: /\[topN\] parameter must be positive, found \[-1\]/
+      ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        top_n: -1
+
+---
+"Test overall buckets given default":
+  - do:
+      ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+  - match: { count: 3 }
+  - match: { overall_buckets.0.timestamp: 1464739200000 }
+  - match: { overall_buckets.0.bucket_span: 3600 }
+  - match: { overall_buckets.0.overall_score: 30.0 }
+  - length: { overall_buckets.0.jobs: 1}
+  - match: {overall_buckets.0.jobs.0.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.0.jobs.0.max_anomaly_score: 30.0 }
+  - match: { overall_buckets.0.is_interim: false }
+  - match: { overall_buckets.0.result_type: overall_bucket }
+  - match: { overall_buckets.1.timestamp: 1464742800000 }
+  - match: { overall_buckets.1.bucket_span: 3600 }
+  - match: { overall_buckets.1.overall_score: 0.0 }
+  - length: { overall_buckets.1.jobs: 3}
+  - match: {overall_buckets.1.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.1.jobs.0.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.1.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.1.jobs.1.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.1.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.1.jobs.2.max_anomaly_score: 0.0 }
+  - match: { overall_buckets.1.is_interim: false }
+  - match: { overall_buckets.1.result_type: overall_bucket }
+  - match: { overall_buckets.2.timestamp: 1464746400000 }
+  - match: { overall_buckets.2.bucket_span: 3600 }
+  - match: { overall_buckets.2.overall_score: 60.0 }
+  - length: { overall_buckets.2.jobs: 3}
+  - match: {overall_buckets.2.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.2.jobs.0.max_anomaly_score: 60.0 }
+  - match: {overall_buckets.2.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.2.jobs.1.max_anomaly_score: 40.0 }
+  - match: {overall_buckets.2.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.2.jobs.2.max_anomaly_score: 20.0 }
+  - match: { overall_buckets.2.is_interim: true }
+  - match: { overall_buckets.2.result_type: overall_bucket }
+
+---
+"Test overall buckets given top_n is 2":
+  - do:
+      ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-group"
+        top_n: 2
+  - match: { count: 3 }
+  - match: { overall_buckets.0.timestamp: 1464739200000 }
+  - match: { overall_buckets.0.bucket_span: 3600 }
+  - match: { overall_buckets.0.overall_score: 30.0 }
+  - length: { overall_buckets.0.jobs: 1}
+  - match: {overall_buckets.0.jobs.0.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.0.jobs.0.max_anomaly_score: 30.0 }
+  - match: { overall_buckets.0.is_interim: false }
+  - match: { overall_buckets.0.result_type: overall_bucket }
+  - match: { overall_buckets.1.timestamp: 1464742800000 }
+  - match: { overall_buckets.1.bucket_span: 3600 }
+  - match: { overall_buckets.1.overall_score: 0.0 }
+  - length: { overall_buckets.1.jobs: 3}
+  - match: {overall_buckets.1.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.1.jobs.0.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.1.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.1.jobs.1.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.1.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.1.jobs.2.max_anomaly_score: 0.0 }
+  - match: { overall_buckets.1.is_interim: false }
+  - match: { overall_buckets.1.result_type: overall_bucket }
+  - match: { overall_buckets.2.timestamp: 1464746400000 }
+  - match: { overall_buckets.2.bucket_span: 3600 }
+  - match: { overall_buckets.2.overall_score: 50.0 }
+  - length: { overall_buckets.2.jobs: 3}
+  - match: {overall_buckets.2.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.2.jobs.0.max_anomaly_score: 60.0 }
+  - match: {overall_buckets.2.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.2.jobs.1.max_anomaly_score: 40.0 }
+  - match: {overall_buckets.2.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.2.jobs.2.max_anomaly_score: 20.0 }
+  - match: { overall_buckets.2.is_interim: true }
+  - match: { overall_buckets.2.result_type: overall_bucket }
+
+---
+"Test overall buckets given top_n is 3":
+  - do:
+      ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-group"
+        top_n: 3
+  - match: { count: 3 }
+  - match: { overall_buckets.0.timestamp: 1464739200000 }
+  - match: { overall_buckets.0.bucket_span: 3600 }
+  - match: { overall_buckets.0.overall_score: 30.0 }
+  - length: { overall_buckets.0.jobs: 1}
+  - match: {overall_buckets.0.jobs.0.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.0.jobs.0.max_anomaly_score: 30.0 }
+  - match: { overall_buckets.0.is_interim: false }
+  - match: { overall_buckets.0.result_type: overall_bucket }
+  - match: { overall_buckets.1.timestamp: 1464742800000 }
+  - match: { overall_buckets.1.bucket_span: 3600 }
+  - match: { overall_buckets.1.overall_score: 0.0 }
+  - length: { overall_buckets.1.jobs: 3}
+  - match: {overall_buckets.1.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.1.jobs.0.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.1.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.1.jobs.1.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.1.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.1.jobs.2.max_anomaly_score: 0.0 }
+  - match: { overall_buckets.1.is_interim: false }
+  - match: { overall_buckets.1.result_type: overall_bucket }
+  - match: { overall_buckets.2.timestamp: 1464746400000 }
+  - match: { overall_buckets.2.bucket_span: 3600 }
+  - match: { overall_buckets.2.overall_score: 40.0 }
+  - length: { overall_buckets.2.jobs: 3}
+  - match: {overall_buckets.2.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.2.jobs.0.max_anomaly_score: 60.0 }
+  - match: {overall_buckets.2.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.2.jobs.1.max_anomaly_score: 40.0 }
+  - match: {overall_buckets.2.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.2.jobs.2.max_anomaly_score: 20.0 }
+  - match: { overall_buckets.2.is_interim: true }
+  - match: { overall_buckets.2.result_type: overall_bucket }
+
+---
+"Test overall buckets given top_n is greater than the job count":
+  - do:
+      ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        top_n: 333
+  - match: { count: 3 }
+  - match: { overall_buckets.0.timestamp: 1464739200000 }
+  - match: { overall_buckets.0.bucket_span: 3600 }
+  - match: { overall_buckets.0.overall_score: 30.0 }
+  - length: { overall_buckets.0.jobs: 1}
+  - match: {overall_buckets.0.jobs.0.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.0.jobs.0.max_anomaly_score: 30.0 }
+  - match: { overall_buckets.0.is_interim: false }
+  - match: { overall_buckets.0.result_type: overall_bucket }
+  - match: { overall_buckets.1.timestamp: 1464742800000 }
+  - match: { overall_buckets.1.bucket_span: 3600 }
+  - match: { overall_buckets.1.overall_score: 0.0 }
+  - length: { overall_buckets.1.jobs: 3}
+  - match: {overall_buckets.1.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.1.jobs.0.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.1.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.1.jobs.1.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.1.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.1.jobs.2.max_anomaly_score: 0.0 }
+  - match: { overall_buckets.1.is_interim: false }
+  - match: { overall_buckets.1.result_type: overall_bucket }
+  - match: { overall_buckets.2.timestamp: 1464746400000 }
+  - match: { overall_buckets.2.bucket_span: 3600 }
+  - match: { overall_buckets.2.overall_score: 40.0 }
+  - length: { overall_buckets.2.jobs: 3}
+  - match: {overall_buckets.2.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.2.jobs.0.max_anomaly_score: 60.0 }
+  - match: {overall_buckets.2.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.2.jobs.1.max_anomaly_score: 40.0 }
+  - match: {overall_buckets.2.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.2.jobs.2.max_anomaly_score: 20.0 }
+  - match: { overall_buckets.2.is_interim: true }
+  - match: { overall_buckets.2.result_type: overall_bucket }
+
+---
+"Test overall buckets given overall_score filter":
+  - do:
+      ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        top_n: 2
+        overall_score: 50.0
+  - match: { count: 1 }
+  - match: { overall_buckets.0.timestamp: 1464746400000 }
+  - match: { overall_buckets.0.overall_score: 50.0 }
+
+---
+"Test overall buckets given exclude_interim":
+  - do:
+      ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        exclude_interim: true
+  - match: { count: 3 }
+  - match: { overall_buckets.0.timestamp: 1464739200000 }
+  - match: { overall_buckets.0.bucket_span: 3600 }
+  - match: { overall_buckets.0.overall_score: 30.0 }
+  - length: { overall_buckets.0.jobs: 1}
+  - match: {overall_buckets.0.jobs.0.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.0.jobs.0.max_anomaly_score: 30.0 }
+  - match: { overall_buckets.0.is_interim: false }
+  - match: { overall_buckets.0.result_type: overall_bucket }
+  - match: { overall_buckets.1.timestamp: 1464742800000 }
+  - match: { overall_buckets.1.bucket_span: 3600 }
+  - match: { overall_buckets.1.overall_score: 0.0 }
+  - length: { overall_buckets.1.jobs: 3}
+  - match: {overall_buckets.1.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.1.jobs.0.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.1.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.1.jobs.1.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.1.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.1.jobs.2.max_anomaly_score: 0.0 }
+  - match: { overall_buckets.1.is_interim: false }
+  - match: { overall_buckets.1.result_type: overall_bucket }
+  - match: { overall_buckets.2.timestamp: 1464746400000 }
+  - match: { overall_buckets.2.bucket_span: 3600 }
+  - match: { overall_buckets.2.overall_score: 40.0 }
+  - length: { overall_buckets.2.jobs: 3}
+  - match: {overall_buckets.2.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.2.jobs.0.max_anomaly_score: 1.0 }
+  - match: {overall_buckets.2.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.2.jobs.1.max_anomaly_score: 40.0 }
+  - match: {overall_buckets.2.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.2.jobs.2.max_anomaly_score: 20.0 }
+  - match: { overall_buckets.2.is_interim: false }
+  - match: { overall_buckets.2.result_type: overall_bucket }
+
+---
+"Test overall buckets given string start and end params":
+  - do:
+      ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        top_n: 2
+        start: "2016-06-01T00:30:00Z"
+        end: "2016-06-01T02:30:00Z"
+  - match: { count: 1 }
+  - match: { overall_buckets.0.timestamp: 1464742800000 }
+  - match: { overall_buckets.0.overall_score: 0.0 }
+  - length: { overall_buckets.0.jobs: 3}
+
+---
+"Test overall buckets given epoch start and end params":
+  - do:
+      ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        top_n: 2
+        start: 1464744600000
+        end: 1464751800000
+  - match: { count: 1 }
+  - match: { overall_buckets.0.timestamp: 1464746400000 }
+  - match: { overall_buckets.0.overall_score: 50.0 }
+  - length: { overall_buckets.0.jobs: 3}
+  - match: {overall_buckets.0.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.0.jobs.0.max_anomaly_score: 60.0 }
+  - match: {overall_buckets.0.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.0.jobs.1.max_anomaly_score: 40.0 }
+  - match: {overall_buckets.0.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.0.jobs.2.max_anomaly_score: 20.0 }
+
+---
+"Test overall buckets given invalid start param":
+  - do:
+      catch: /.*Query param \[start\] with value \[invalid\] cannot be parsed as a date or converted to a number.*/
+      ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        start: "invalid"
+
+---
+"Test overall buckets given invalid end param":
+  - do:
+      catch: /.*Query param \[end\] with value \[invalid\] cannot be parsed as a date or converted to a number.*/
+      ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        end: "invalid"
+
+---
+"Test overall buckets given bucket_span":
+  - do:
+      ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        bucket_span: "2h"
+  - match: { count: 2 }
+  - match: { overall_buckets.0.timestamp: 1464739200000 }
+  - match: { overall_buckets.0.bucket_span: 7200 }
+  - match: { overall_buckets.0.overall_score: 30.0 }
+  - length: { overall_buckets.0.jobs: 3}
+  - match: {overall_buckets.0.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.0.jobs.0.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.0.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.0.jobs.1.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.0.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.0.jobs.2.max_anomaly_score: 30.0 }
+  - match: { overall_buckets.0.is_interim: false }
+  - match: { overall_buckets.0.result_type: overall_bucket }
+  - match: { overall_buckets.1.timestamp: 1464746400000 }
+  - match: { overall_buckets.1.bucket_span: 7200 }
+  - match: { overall_buckets.1.overall_score: 60.0 }
+  - length: { overall_buckets.1.jobs: 3}
+  - match: {overall_buckets.1.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.1.jobs.0.max_anomaly_score: 60.0 }
+  - match: {overall_buckets.1.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.1.jobs.1.max_anomaly_score: 40.0 }
+  - match: {overall_buckets.1.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.1.jobs.2.max_anomaly_score: 20.0 }
+  - match: { overall_buckets.1.is_interim: true }
+  - match: { overall_buckets.1.result_type: overall_bucket }
+
+---
+"Test overall buckets given bucket_span and top_n is 2":
+  - do:
+      ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        top_n: 2
+        bucket_span: "2h"
+
+  - match: { count: 2 }
+  - match: { overall_buckets.0.timestamp: 1464739200000 }
+  - match: { overall_buckets.0.bucket_span: 7200 }
+  - match: { overall_buckets.0.overall_score: 30.0 }
+  - length: { overall_buckets.0.jobs: 3}
+  - match: {overall_buckets.0.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.0.jobs.0.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.0.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.0.jobs.1.max_anomaly_score: 0.0 }
+  - match: {overall_buckets.0.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.0.jobs.2.max_anomaly_score: 30.0 }
+  - match: { overall_buckets.0.is_interim: false }
+  - match: { overall_buckets.0.result_type: overall_bucket }
+  - match: { overall_buckets.1.timestamp: 1464746400000 }
+  - match: { overall_buckets.1.bucket_span: 7200 }
+  - match: { overall_buckets.1.overall_score: 50.0 }
+  - length: { overall_buckets.1.jobs: 3}
+  - match: {overall_buckets.1.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.1.jobs.0.max_anomaly_score: 60.0 }
+  - match: {overall_buckets.1.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.1.jobs.1.max_anomaly_score: 40.0 }
+  - match: {overall_buckets.1.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.1.jobs.2.max_anomaly_score: 20.0 }
+  - match: { overall_buckets.1.is_interim: true }
+  - match: { overall_buckets.1.result_type: overall_bucket }
+
+---
+"Test overall buckets given bucket_span and overall_score filter":
+  - do:
+      ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        bucket_span: "2h"
+        overall_score: "41.0"
+
+  - match: { count: 1 }
+  - match: { overall_buckets.0.timestamp: 1464746400000 }
+  - match: { overall_buckets.0.bucket_span: 7200 }
+  - match: { overall_buckets.0.overall_score: 60.0 }
+  - length: { overall_buckets.0.jobs: 3}
+  - match: {overall_buckets.0.jobs.0.job_id: jobs-get-result-overall-buckets-17 }
+  - match: {overall_buckets.0.jobs.0.max_anomaly_score: 60.0 }
+  - match: {overall_buckets.0.jobs.1.job_id: jobs-get-result-overall-buckets-30 }
+  - match: {overall_buckets.0.jobs.1.max_anomaly_score: 40.0 }
+  - match: {overall_buckets.0.jobs.2.job_id: jobs-get-result-overall-buckets-60 }
+  - match: {overall_buckets.0.jobs.2.max_anomaly_score: 20.0 }
+  - match: { overall_buckets.0.is_interim: true }
+  - match: { overall_buckets.0.result_type: overall_bucket }
+
+---
+"Test overall buckets given no matching jobs":
+  - do:
+      ml.get_overall_buckets:
+        job_id: "jobs-that-do-not-exist-*"
+        bucket_span: "2h"
+        overall_score: "41.0"
+        allow_no_match: true
+
+  - match: { count: 0 }
+  - length: { overall_buckets: 0 }
+
+---
+"Test overall buckets given bucket_span is smaller than max job bucket_span":
+  - do:
+      catch: /.*Param \[bucket_span\] must be greater or equal to the max bucket_span \[60m\]*/
+      ml.get_overall_buckets:
+        job_id: "jobs-get-result-overall-buckets-*"
+        bucket_span: "59m"

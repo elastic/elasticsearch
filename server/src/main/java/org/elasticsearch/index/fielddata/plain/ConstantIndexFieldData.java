@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.fielddata.plain;
@@ -27,8 +16,8 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -37,6 +26,7 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -53,16 +43,23 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
         private final String constantValue;
         private final String name;
         private final ValuesSourceType valuesSourceType;
+        private final ToScriptField<SortedSetDocValues> toScriptField;
 
-        public Builder(String constantValue, String name, ValuesSourceType valuesSourceType) {
+        public Builder(
+            String constantValue,
+            String name,
+            ValuesSourceType valuesSourceType,
+            ToScriptField<SortedSetDocValues> toScriptField
+        ) {
             this.constantValue = constantValue;
             this.name = name;
             this.valuesSourceType = valuesSourceType;
+            this.toScriptField = toScriptField;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new ConstantIndexFieldData(name, constantValue, valuesSourceType);
+            return new ConstantIndexFieldData(name, constantValue, valuesSourceType, toScriptField);
         }
     }
 
@@ -70,11 +67,10 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
         private final String value;
 
-        ConstantLeafFieldData(String value) {
-            super(DEFAULT_SCRIPT_FUNCTION);
+        ConstantLeafFieldData(String value, ToScriptField<SortedSetDocValues> toScriptField) {
+            super(toScriptField);
             this.value = value;
         }
-
 
         @Override
         public long ramBytesUsed() {
@@ -126,16 +122,20 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
         }
 
         @Override
-        public void close() {
-        }
+        public void close() {}
 
     }
 
     private final ConstantLeafFieldData atomicFieldData;
 
-    private ConstantIndexFieldData(String name, String value, ValuesSourceType valuesSourceType) {
-        super(name, valuesSourceType, null, null, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
-        atomicFieldData = new ConstantLeafFieldData(value);
+    private ConstantIndexFieldData(
+        String name,
+        String value,
+        ValuesSourceType valuesSourceType,
+        ToScriptField<SortedSetDocValues> toScriptField
+    ) {
+        super(name, valuesSourceType, null, null, toScriptField);
+        atomicFieldData = new ConstantLeafFieldData(value, toScriptField);
     }
 
     @Override
@@ -149,15 +149,27 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested,
-            boolean reverse) {
+    public SortField sortField(
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        XFieldComparatorSource.Nested nested,
+        boolean reverse
+    ) {
         final XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
         return new SortField(getFieldName(), source, reverse);
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         throw new IllegalArgumentException("only supported on numeric fields");
     }
 

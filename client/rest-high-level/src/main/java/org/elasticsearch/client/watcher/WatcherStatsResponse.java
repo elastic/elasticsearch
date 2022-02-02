@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.NodesResponseHeader;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -82,17 +71,17 @@ public class WatcherStatsResponse {
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<WatcherStatsResponse, Void> PARSER =
-        new ConstructingObjectParser<>("watcher_stats_response", true,
-            a -> new WatcherStatsResponse((NodesResponseHeader) a[0], (String) a[1], new WatcherMetadata((boolean) a[2]),
-                (List<Node>) a[3]));
+    private static final ConstructingObjectParser<WatcherStatsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "watcher_stats_response",
+        true,
+        a -> new WatcherStatsResponse((NodesResponseHeader) a[0], (String) a[1], new WatcherMetadata((boolean) a[2]), (List<Node>) a[3])
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), NodesResponseHeader::fromXContent, new ParseField("_nodes"));
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("cluster_name"));
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), new ParseField("manually_stopped"));
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Node.PARSER.apply(p, null),
-            new ParseField("stats"));
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Node.PARSER.apply(p, null), new ParseField("stats"));
     }
 
     public static WatcherStatsResponse fromXContent(XContentParser parser) throws IOException {
@@ -104,10 +93,10 @@ public class WatcherStatsResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         WatcherStatsResponse that = (WatcherStatsResponse) o;
-        return Objects.equals(nodes, that.nodes) &&
-            Objects.equals(header, that.header) &&
-            Objects.equals(clusterName, that.clusterName) &&
-            Objects.equals(watcherMetadata, that.watcherMetadata);
+        return Objects.equals(nodes, that.nodes)
+            && Objects.equals(header, that.header)
+            && Objects.equals(clusterName, that.clusterName)
+            && Objects.equals(watcherMetadata, that.watcherMetadata);
     }
 
     @Override
@@ -118,8 +107,10 @@ public class WatcherStatsResponse {
 
     public static class Node {
         @SuppressWarnings("unchecked")
-        public static final ConstructingObjectParser<Node, Void> PARSER =
-            new ConstructingObjectParser<>("watcher_stats_node", true, (args, c) -> new Node(
+        public static final ConstructingObjectParser<Node, Void> PARSER = new ConstructingObjectParser<>(
+            "watcher_stats_node",
+            true,
+            (args, c) -> new Node(
                 (String) args[0],
                 WatcherState.valueOf(((String) args[1]).toUpperCase(Locale.ROOT)),
                 (long) args[2],
@@ -129,21 +120,34 @@ public class WatcherStatsResponse {
                 (List<QueuedWatch>) args[5],
                 (Map<String, Object>) args[6]
 
-            ));
+            )
+        );
 
-        private static final ConstructingObjectParser<Tuple<Long, Long>, Void> THREAD_POOL_PARSER =
-            new ConstructingObjectParser<>("execution_thread_pool", true, (args, id) -> new Tuple<>((Long) args[0], (Long) args[1]));
+        private static final ConstructingObjectParser<Tuple<Long, Long>, Void> THREAD_POOL_PARSER = new ConstructingObjectParser<>(
+            "execution_thread_pool",
+            true,
+            (args, id) -> new Tuple<>((Long) args[0], (Long) args[1])
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("node_id"));
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("watcher_state"));
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), new ParseField("watch_count"));
-            PARSER.declareObject(ConstructingObjectParser.constructorArg(), THREAD_POOL_PARSER::apply,
-                new ParseField("execution_thread_pool"));
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), WatchExecutionSnapshot.PARSER,
-                new ParseField("current_watches"));
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), QueuedWatch.PARSER,
-                new ParseField("queued_watches"));
+            PARSER.declareObject(
+                ConstructingObjectParser.constructorArg(),
+                THREAD_POOL_PARSER::apply,
+                new ParseField("execution_thread_pool")
+            );
+            PARSER.declareObjectArray(
+                ConstructingObjectParser.optionalConstructorArg(),
+                WatchExecutionSnapshot.PARSER,
+                new ParseField("current_watches")
+            );
+            PARSER.declareObjectArray(
+                ConstructingObjectParser.optionalConstructorArg(),
+                QueuedWatch.PARSER,
+                new ParseField("queued_watches")
+            );
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), new ParseField("stats"));
 
             THREAD_POOL_PARSER.declareLong(ConstructingObjectParser.constructorArg(), new ParseField("queue_size"));
@@ -160,9 +164,16 @@ public class WatcherStatsResponse {
         private List<QueuedWatch> queuedWatches;
         private Map<String, Object> stats;
 
-
-        public Node(String nodeId, WatcherState watcherState, long watchesCount, long threadPoolQueueSize, long threadPoolMaxSize,
-                    List<WatchExecutionSnapshot> snapshots, List<QueuedWatch> queuedWatches, Map<String, Object> stats) {
+        public Node(
+            String nodeId,
+            WatcherState watcherState,
+            long watchesCount,
+            long threadPoolQueueSize,
+            long threadPoolMaxSize,
+            List<WatchExecutionSnapshot> snapshots,
+            List<QueuedWatch> queuedWatches,
+            Map<String, Object> stats
+        ) {
             this.nodeId = nodeId;
             this.watcherState = watcherState;
             this.watchesCount = watchesCount;
@@ -210,20 +221,28 @@ public class WatcherStatsResponse {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Node node = (Node) o;
-            return watchesCount == node.watchesCount &&
-                threadPoolQueueSize == node.threadPoolQueueSize &&
-                threadPoolMaxSize == node.threadPoolMaxSize &&
-                Objects.equals(nodeId, node.nodeId) &&
-                watcherState == node.watcherState &&
-                Objects.equals(snapshots, node.snapshots) &&
-                Objects.equals(queuedWatches, node.queuedWatches) &&
-                Objects.equals(stats, node.stats);
+            return watchesCount == node.watchesCount
+                && threadPoolQueueSize == node.threadPoolQueueSize
+                && threadPoolMaxSize == node.threadPoolMaxSize
+                && Objects.equals(nodeId, node.nodeId)
+                && watcherState == node.watcherState
+                && Objects.equals(snapshots, node.snapshots)
+                && Objects.equals(queuedWatches, node.queuedWatches)
+                && Objects.equals(stats, node.stats);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(nodeId, watcherState, watchesCount, threadPoolQueueSize, threadPoolMaxSize, snapshots, queuedWatches,
-                stats);
+            return Objects.hash(
+                nodeId,
+                watcherState,
+                watchesCount,
+                threadPoolQueueSize,
+                threadPoolMaxSize,
+                snapshots,
+                queuedWatches,
+                stats
+            );
         }
     }
 }

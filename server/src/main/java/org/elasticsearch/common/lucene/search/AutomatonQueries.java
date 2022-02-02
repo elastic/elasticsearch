@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.lucene.search;
@@ -34,9 +23,7 @@ import java.util.List;
 /**
  * Helper functions for creating various forms of {@link AutomatonQuery}
  */
-public class AutomatonQueries  {
-
-
+public class AutomatonQueries {
 
     /** Build an automaton query accepting all terms with the specified prefix, ASCII case insensitive. */
     public static Automaton caseInsensitivePrefix(String s) {
@@ -52,7 +39,6 @@ public class AutomatonQueries  {
         return a;
     }
 
-
     /** Build an automaton query accepting all terms with the specified prefix, ASCII case insensitive. */
     public static AutomatonQuery caseInsensitivePrefixQuery(Term prefix) {
         return new AutomatonQuery(prefix, caseInsensitivePrefix(prefix.text()));
@@ -61,15 +47,13 @@ public class AutomatonQueries  {
     /** Build an automaton accepting all terms ASCII case insensitive. */
     public static AutomatonQuery caseInsensitiveTermQuery(Term term) {
         BytesRef prefix = term.bytes();
-        return new AutomatonQuery(term, toCaseInsensitiveString(prefix,Integer.MAX_VALUE));
+        return new AutomatonQuery(term, toCaseInsensitiveString(prefix, Integer.MAX_VALUE));
     }
-
 
     /** Build an automaton matching a wildcard pattern, ASCII case insensitive. */
     public static AutomatonQuery caseInsensitiveWildcardQuery(Term wildcardquery) {
-        return new AutomatonQuery(wildcardquery, toCaseInsensitiveWildcardAutomaton(wildcardquery,Integer.MAX_VALUE));
+        return new AutomatonQuery(wildcardquery, toCaseInsensitiveWildcardAutomaton(wildcardquery, Integer.MAX_VALUE));
     }
-
 
     /** String equality with support for wildcards */
     public static final char WILDCARD_STRING = '*';
@@ -79,40 +63,41 @@ public class AutomatonQueries  {
 
     /** Escape character */
     public static final char WILDCARD_ESCAPE = '\\';
+
     /**
      * Convert Lucene wildcard syntax into an automaton.
      */
     @SuppressWarnings("fallthrough")
     public static Automaton toCaseInsensitiveWildcardAutomaton(Term wildcardquery, int maxDeterminizedStates) {
-      List<Automaton> automata = new ArrayList<>();
+        List<Automaton> automata = new ArrayList<>();
 
-      String wildcardText = wildcardquery.text();
+        String wildcardText = wildcardquery.text();
 
-      for (int i = 0; i < wildcardText.length();) {
-        final int c = wildcardText.codePointAt(i);
-        int length = Character.charCount(c);
-        switch(c) {
-          case WILDCARD_STRING:
-            automata.add(Automata.makeAnyString());
-            break;
-          case WILDCARD_CHAR:
-            automata.add(Automata.makeAnyChar());
-            break;
-          case WILDCARD_ESCAPE:
-            // add the next codepoint instead, if it exists
-            if (i + length < wildcardText.length()) {
-              final int nextChar = wildcardText.codePointAt(i + length);
-              length += Character.charCount(nextChar);
-              automata.add(Automata.makeChar(nextChar));
-              break;
-            } // else fallthru, lenient parsing with a trailing \
-          default:
-            automata.add(toCaseInsensitiveChar(c, maxDeterminizedStates));
+        for (int i = 0; i < wildcardText.length();) {
+            final int c = wildcardText.codePointAt(i);
+            int length = Character.charCount(c);
+            switch (c) {
+                case WILDCARD_STRING:
+                    automata.add(Automata.makeAnyString());
+                    break;
+                case WILDCARD_CHAR:
+                    automata.add(Automata.makeAnyChar());
+                    break;
+                case WILDCARD_ESCAPE:
+                    // add the next codepoint instead, if it exists
+                    if (i + length < wildcardText.length()) {
+                        final int nextChar = wildcardText.codePointAt(i + length);
+                        length += Character.charCount(nextChar);
+                        automata.add(Automata.makeChar(nextChar));
+                        break;
+                    } // else fallthru, lenient parsing with a trailing \
+                default:
+                    automata.add(toCaseInsensitiveChar(c, maxDeterminizedStates));
+            }
+            i += length;
         }
-        i += length;
-      }
 
-      return Operations.concatenate(automata);
+        return Operations.concatenate(automata);
     }
 
     protected static Automaton toCaseInsensitiveString(BytesRef br, int maxDeterminizedStates) {
@@ -129,7 +114,6 @@ public class AutomatonQueries  {
         Automaton a = Operations.concatenate(list);
         a = MinimizationOperations.minimize(a, maxDeterminizedStates);
         return a;
-
 
     }
 

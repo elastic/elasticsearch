@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
@@ -20,7 +21,6 @@ public class NullIfProcessor implements Processor {
 
     private final Processor leftProcessor;
     private final Processor rightProcessor;
-
 
     public NullIfProcessor(Processor leftProcessor, Processor rightProcessor) {
         this.leftProcessor = leftProcessor;
@@ -66,8 +66,7 @@ public class NullIfProcessor implements Processor {
             return false;
         }
         NullIfProcessor that = (NullIfProcessor) o;
-        return Objects.equals(leftProcessor, that.leftProcessor) &&
-            Objects.equals(rightProcessor, that.rightProcessor);
+        return Objects.equals(leftProcessor, that.leftProcessor) && Objects.equals(rightProcessor, that.rightProcessor);
     }
 
     @Override

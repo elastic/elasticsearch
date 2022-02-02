@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.util;
@@ -33,27 +22,15 @@ import static org.hamcrest.Matchers.hasSize;
  * works in Linux containers. At the moment that isn't a problem, because we only publish Docker images
  * for Linux.
  */
-public class ProcessInfo {
-    public final int pid;
-    public final int uid;
-    public final int gid;
-    public final String username;
-    public final String group;
-
-    public ProcessInfo(int pid, int uid, int gid, String username, String group) {
-        this.pid = pid;
-        this.uid = uid;
-        this.gid = gid;
-        this.username = username;
-        this.group = group;
-    }
+public record ProcessInfo(int pid, int uid, int gid, String username, String group) {
 
     /**
      * Fetches process information about <code>command</code>, using <code>sh</code> to execute commands.
+     *
      * @return a populated <code>ProcessInfo</code> object
      */
     public static ProcessInfo getProcessInfo(Shell sh, String command) {
-        final List<String> processes = sh.run("pgrep " + command).stdout.lines().collect(Collectors.toList());
+        final List<String> processes = sh.run("pgrep " + command).stdout().lines().collect(Collectors.toList());
 
         assertThat("Expected a single process", processes, hasSize(1));
 
@@ -63,7 +40,7 @@ public class ProcessInfo {
         int uid = -1;
         int gid = -1;
 
-        for (String line : sh.run("cat /proc/" + pid + "/status | grep '^[UG]id:'").stdout.split("\\n")) {
+        for (String line : sh.run("cat /proc/" + pid + "/status | grep '^[UG]id:'").stdout().split("\\n")) {
             final String[] fields = line.split("\\s+");
 
             if (fields[0].equals("Uid:")) {
@@ -73,8 +50,8 @@ public class ProcessInfo {
             }
         }
 
-        final String username = sh.run("getent passwd " + uid + " | cut -f1 -d:").stdout.trim();
-        final String group = sh.run("getent group " + gid + " | cut -f1 -d:").stdout.trim();
+        final String username = sh.run("getent passwd " + uid + " | cut -f1 -d:").stdout().trim();
+        final String group = sh.run("getent group " + gid + " | cut -f1 -d:").stdout().trim();
 
         return new ProcessInfo(pid, uid, gid, username, group);
     }

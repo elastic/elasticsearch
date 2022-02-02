@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -22,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
 
 /**
  * PreProcessor for target mean encoding a set of categorical values for a given field.
@@ -45,27 +45,32 @@ public class TargetMeanEncoding implements LenientlyParsedPreProcessor, Strictly
         ConstructingObjectParser<TargetMeanEncoding, PreProcessorParseContext> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            (a, c) -> new TargetMeanEncoding((String)a[0],
-                (String)a[1],
-                (Map<String, Double>)a[2],
-                (Double)a[3],
-                a[4] == null ? c.isCustomByDefault() : (Boolean)a[4]));
+            (a, c) -> new TargetMeanEncoding(
+                (String) a[0],
+                (String) a[1],
+                (Map<String, Double>) a[2],
+                (Double) a[3],
+                a[4] == null ? c.isCustomByDefault() : (Boolean) a[4]
+            )
+        );
         parser.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         parser.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
-        parser.declareObject(ConstructingObjectParser.constructorArg(),
+        parser.declareObject(
+            ConstructingObjectParser.constructorArg(),
             (p, c) -> p.map(HashMap::new, XContentParser::doubleValue),
-            TARGET_MAP);
+            TARGET_MAP
+        );
         parser.declareDouble(ConstructingObjectParser.constructorArg(), DEFAULT_VALUE);
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), CUSTOM);
         return parser;
     }
 
     public static TargetMeanEncoding fromXContentStrict(XContentParser parser, PreProcessorParseContext context) {
-        return STRICT_PARSER.apply(parser, context == null ?  PreProcessorParseContext.DEFAULT : context);
+        return STRICT_PARSER.apply(parser, context == null ? PreProcessorParseContext.DEFAULT : context);
     }
 
     public static TargetMeanEncoding fromXContentLenient(XContentParser parser, PreProcessorParseContext context) {
-        return LENIENT_PARSER.apply(parser, context == null ?  PreProcessorParseContext.DEFAULT : context);
+        return LENIENT_PARSER.apply(parser, context == null ? PreProcessorParseContext.DEFAULT : context);
     }
 
     private final String field;

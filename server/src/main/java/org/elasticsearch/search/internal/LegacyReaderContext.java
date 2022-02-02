@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.internal;
@@ -35,12 +24,19 @@ public class LegacyReaderContext extends ReaderContext {
     private AggregatedDfs aggregatedDfs;
     private RescoreDocIds rescoreDocIds;
 
-    public LegacyReaderContext(ShardSearchContextId id, IndexService indexService, IndexShard indexShard, Engine.SearcherSupplier reader,
-                               ShardSearchRequest shardSearchRequest, long keepAliveInMillis) {
+    public LegacyReaderContext(
+        ShardSearchContextId id,
+        IndexService indexService,
+        IndexShard indexShard,
+        Engine.SearcherSupplier reader,
+        ShardSearchRequest shardSearchRequest,
+        long keepAliveInMillis
+    ) {
         super(id, indexService, indexShard, reader, keepAliveInMillis, false);
         assert shardSearchRequest.readerId() == null;
         assert shardSearchRequest.keepAlive() == null;
-        this.shardSearchRequest = Objects.requireNonNull(shardSearchRequest);
+        assert id.getSearcherId() == null : "Legacy reader context must not have searcher id";
+        this.shardSearchRequest = Objects.requireNonNull(shardSearchRequest, "ShardSearchRequest must be provided");
         if (shardSearchRequest.scroll() != null) {
             // Search scroll requests are special, they don't hold indices names so we have
             // to reuse the searcher created on the request that initialized the scroll.
@@ -49,8 +45,14 @@ public class LegacyReaderContext extends ReaderContext {
             final Engine.Searcher delegate = searcherSupplier.acquireSearcher("search");
             addOnClose(delegate);
             // wrap the searcher so that closing is a noop, the actual closing happens when this context is closed
-            this.searcher = new Engine.Searcher(delegate.source(), delegate.getDirectoryReader(),
-                delegate.getSimilarity(), delegate.getQueryCache(), delegate.getQueryCachingPolicy(), () -> {});
+            this.searcher = new Engine.Searcher(
+                delegate.source(),
+                delegate.getDirectoryReader(),
+                delegate.getSimilarity(),
+                delegate.getQueryCache(),
+                delegate.getQueryCachingPolicy(),
+                () -> {}
+            );
             this.scrollContext = new ScrollContext();
         } else {
             this.scrollContext = null;

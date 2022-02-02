@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -81,7 +70,7 @@ public class RenameProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[3] is out of bounds for array with length [2] as part of path [list.3]"));
             assertThat(actualList.size(), equalTo(2));
             assertThat(actualList.get(0), equalTo("item2"));
@@ -92,12 +81,11 @@ public class RenameProcessorTests extends ESTestCase {
     public void testRenameNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = createRenameProcessor(fieldName,
-            RandomDocumentPicks.randomFieldName(random()), false);
+        Processor processor = createRenameProcessor(fieldName, RandomDocumentPicks.randomFieldName(random()), false);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [" + fieldName + "] doesn't exist"));
         }
     }
@@ -106,21 +94,27 @@ public class RenameProcessorTests extends ESTestCase {
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = createRenameProcessor(fieldName,
-            RandomDocumentPicks.randomFieldName(random()), true);
+        Processor processor = createRenameProcessor(fieldName, RandomDocumentPicks.randomFieldName(random()), true);
         processor.execute(ingestDocument);
+        assertIngestDocument(originalIngestDocument, ingestDocument);
+
+        Processor processor1 = createRenameProcessor("", RandomDocumentPicks.randomFieldName(random()), true);
+        processor1.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
     }
 
     public void testRenameNewFieldAlreadyExists() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
-        Processor processor = createRenameProcessor(RandomDocumentPicks.randomExistingFieldName(
-                random(), ingestDocument), fieldName, false);
+        Processor processor = createRenameProcessor(
+            RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument),
+            fieldName,
+            false
+        );
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [" + fieldName + "] already exists"));
         }
     }
@@ -158,8 +152,8 @@ public class RenameProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(UnsupportedOperationException e) {
-            //the set failed, the old field has not been removed
+        } catch (UnsupportedOperationException e) {
+            // the set failed, the old field has not been removed
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
         }
@@ -183,7 +177,7 @@ public class RenameProcessorTests extends ESTestCase {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
         } catch (UnsupportedOperationException e) {
-            //the set failed, the old field has not been removed
+            // the set failed, the old field has not been removed
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
             assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(false));
         }
@@ -198,10 +192,12 @@ public class RenameProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("foo", Map.class), equalTo(Collections.singletonMap("bar", "bar")));
         assertThat(ingestDocument.getFieldValue("foo.bar", String.class), equalTo("bar"));
 
-        Processor processor2 = createRenameProcessor( "foo.bar", "foo.bar.baz", false);
+        Processor processor2 = createRenameProcessor("foo.bar", "foo.bar.baz", false);
         processor2.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue("foo", Map.class), equalTo(Collections.singletonMap("bar",
-                Collections.singletonMap("baz", "bar"))));
+        assertThat(
+            ingestDocument.getFieldValue("foo", Map.class),
+            equalTo(Collections.singletonMap("bar", Collections.singletonMap("baz", "bar")))
+        );
         assertThat(ingestDocument.getFieldValue("foo.bar", Map.class), equalTo(Collections.singletonMap("baz", "bar")));
         assertThat(ingestDocument.getFieldValue("foo.bar.baz", String.class), equalTo("bar"));
 
@@ -212,7 +208,12 @@ public class RenameProcessorTests extends ESTestCase {
     }
 
     private RenameProcessor createRenameProcessor(String field, String targetField, boolean ignoreMissing) {
-        return new RenameProcessor(randomAlphaOfLength(10), null, new TestTemplateService.MockTemplateScript.Factory(field),
-            new TestTemplateService.MockTemplateScript.Factory(targetField), ignoreMissing);
+        return new RenameProcessor(
+            randomAlphaOfLength(10),
+            null,
+            new TestTemplateService.MockTemplateScript.Factory(field),
+            new TestTemplateService.MockTemplateScript.Factory(targetField),
+            ignoreMissing
+        );
     }
 }

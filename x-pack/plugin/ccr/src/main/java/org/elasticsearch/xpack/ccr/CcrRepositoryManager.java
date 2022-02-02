@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -40,23 +42,21 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doStop() {
-    }
+    protected void doStop() {}
 
     @Override
-    protected void doClose() throws IOException {
-    }
+    protected void doClose() throws IOException {}
 
     private void putRepository(String repositoryName) {
         ActionRequest request = new PutInternalCcrRepositoryRequest(repositoryName, CcrRepository.TYPE);
-        PlainActionFuture<PutInternalCcrRepositoryAction.PutInternalCcrRepositoryResponse> f = PlainActionFuture.newFuture();
+        PlainActionFuture<ActionResponse.Empty> f = PlainActionFuture.newFuture();
         client.execute(PutInternalCcrRepositoryAction.INSTANCE, request, f);
         assert f.isDone() : "Should be completed as it is executed synchronously";
     }
 
     private void deleteRepository(String repositoryName) {
         DeleteInternalCcrRepositoryRequest request = new DeleteInternalCcrRepositoryRequest(repositoryName);
-        PlainActionFuture<DeleteInternalCcrRepositoryAction.DeleteInternalCcrRepositoryResponse> f = PlainActionFuture.newFuture();
+        PlainActionFuture<ActionResponse.Empty> f = PlainActionFuture.newFuture();
         client.execute(DeleteInternalCcrRepositoryAction.INSTANCE, request, f);
         assert f.isDone() : "Should be completed as it is executed synchronously";
     }

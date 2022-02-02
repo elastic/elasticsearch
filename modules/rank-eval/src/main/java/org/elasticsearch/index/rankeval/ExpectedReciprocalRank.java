@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,9 +23,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.OptionalInt;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRatings;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Implementation of the Expected Reciprocal Rank metric described in:<p>
@@ -124,7 +113,6 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
         return this.unknownDocRating;
     }
 
-
     @Override
     public OptionalInt forcedSearchSize() {
         return OptionalInt.of(k);
@@ -176,14 +164,15 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
     private static final ParseField K_FIELD = new ParseField("k");
     private static final ParseField UNKNOWN_DOC_RATING_FIELD = new ParseField("unknown_doc_rating");
     private static final ParseField MAX_RELEVANCE_FIELD = new ParseField("maximum_relevance");
-    private static final ConstructingObjectParser<ExpectedReciprocalRank, Void> PARSER = new ConstructingObjectParser<>("dcg", false,
-            args -> {
-                int maxRelevance = (Integer) args[0];
-                Integer optK = (Integer) args[2];
-                return new ExpectedReciprocalRank(maxRelevance, (Integer) args[1],
-                        optK == null ? DEFAULT_K : optK);
-            });
-
+    private static final ConstructingObjectParser<ExpectedReciprocalRank, Void> PARSER = new ConstructingObjectParser<>(
+        "dcg",
+        false,
+        args -> {
+            int maxRelevance = (Integer) args[0];
+            Integer optK = (Integer) args[2];
+            return new ExpectedReciprocalRank(maxRelevance, (Integer) args[1], optK == null ? DEFAULT_K : optK);
+        }
+    );
 
     static {
         PARSER.declareInt(constructorArg(), MAX_RELEVANCE_FIELD);
@@ -218,9 +207,7 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
             return false;
         }
         ExpectedReciprocalRank other = (ExpectedReciprocalRank) obj;
-        return this.k == other.k &&
-                this.maxRelevance == other.maxRelevance
-                && Objects.equals(unknownDocRating, other.unknownDocRating);
+        return this.k == other.k && this.maxRelevance == other.maxRelevance && Objects.equals(unknownDocRating, other.unknownDocRating);
     }
 
     @Override
@@ -242,8 +229,7 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
         }
 
         @Override
-        public
-        String getMetricName() {
+        public String getMetricName() {
             return NAME;
         }
 
@@ -252,9 +238,11 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
             return builder.field(UNRATED_FIELD.getPreferredName(), this.unratedDocs);
         }
 
-        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
-            return new Detail((Integer) args[0]);
-        });
+        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(
+            NAME,
+            true,
+            args -> { return new Detail((Integer) args[0]); }
+        );
 
         static {
             PARSER.declareInt(constructorArg(), UNRATED_FIELD);
@@ -299,4 +287,3 @@ public class ExpectedReciprocalRank implements EvaluationMetric {
         }
     }
 }
-

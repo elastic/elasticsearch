@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.single.instance;
@@ -24,10 +13,10 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -36,7 +25,8 @@ import java.util.concurrent.TimeUnit;
 // TODO: This request and its associated transport action can be folded into UpdateRequest which is its only concrete production code
 //       implementation
 public abstract class InstanceShardOperationRequest<Request extends InstanceShardOperationRequest<Request>> extends ActionRequest
-        implements IndicesRequest {
+    implements
+        IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -48,8 +38,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
 
     private String concreteIndex;
 
-    protected InstanceShardOperationRequest() {
-    }
+    protected InstanceShardOperationRequest() {}
 
     protected InstanceShardOperationRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(in);
@@ -90,7 +79,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
 
     @Override
     public String[] indices() {
-        return new String[]{index};
+        return new String[] { index };
     }
 
     @Override
@@ -153,4 +142,3 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
         out.writeOptionalString(concreteIndex);
     }
 }
-

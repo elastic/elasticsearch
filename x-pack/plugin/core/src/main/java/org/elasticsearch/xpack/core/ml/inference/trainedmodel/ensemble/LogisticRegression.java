@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
-
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.io.IOException;
@@ -37,7 +37,8 @@ public class LogisticRegression implements StrictlyParsedOutputAggregator, Lenie
         ConstructingObjectParser<LogisticRegression, Void> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            a -> new LogisticRegression((List<Double>)a[0]));
+            a -> new LogisticRegression((List<Double>) a[0])
+        );
         parser.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS);
         return parser;
     }
@@ -87,7 +88,7 @@ public class LogisticRegression implements StrictlyParsedOutputAggregator, Lenie
         for (int j = 0; j < values.length; j++) {
             double[] value = values[j];
             double weight = weights == null ? 1.0 : weights[j];
-            for(int i = 0; i < value.length; i++) {
+            for (int i = 0; i < value.length; i++) {
                 if (i >= sumOnAxis1.length) {
                     throw new IllegalArgumentException("value entries must have the same dimensions");
                 }
@@ -100,7 +101,7 @@ public class LogisticRegression implements StrictlyParsedOutputAggregator, Lenie
 
         double probOfClassOne = sigmoid(sumOnAxis1[0]);
         assert 0.0 <= probOfClassOne && probOfClassOne <= 1.0;
-        return new double[] {1.0 - probOfClassOne, probOfClassOne};
+        return new double[] { 1.0 - probOfClassOne, probOfClassOne };
     }
 
     @Override

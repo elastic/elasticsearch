@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
@@ -21,18 +22,16 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-
 public class UpdateParamsTests extends ESTestCase {
 
     public void testFromJobUpdate() {
         String jobId = "foo";
-        DetectionRule rule = new DetectionRule.Builder(Collections.singletonList(
-            new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 1.0))).build();
+        DetectionRule rule = new DetectionRule.Builder(
+            Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 1.0))
+        ).build();
         List<DetectionRule> rules = Collections.singletonList(rule);
-        List<JobUpdate.DetectorUpdate> detectorUpdates = Collections.singletonList(
-            new JobUpdate.DetectorUpdate(2, null, rules));
-        JobUpdate.Builder updateBuilder = new JobUpdate.Builder(jobId)
-            .setModelPlotConfig(new ModelPlotConfig())
+        List<JobUpdate.DetectorUpdate> detectorUpdates = Collections.singletonList(new JobUpdate.DetectorUpdate(2, null, rules));
+        JobUpdate.Builder updateBuilder = new JobUpdate.Builder(jobId).setModelPlotConfig(new ModelPlotConfig())
             .setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig())
             .setDetectorUpdates(detectorUpdates);
 
@@ -50,18 +49,21 @@ public class UpdateParamsTests extends ESTestCase {
     }
 
     public void testExtractReferencedFilters() {
-        JobUpdate.DetectorUpdate detectorUpdate1 = new JobUpdate.DetectorUpdate(0, "",
+        JobUpdate.DetectorUpdate detectorUpdate1 = new JobUpdate.DetectorUpdate(
+            0,
+            "",
             Arrays.asList(
                 new DetectionRule.Builder(RuleScope.builder().include("a", "filter_1")).build(),
                 new DetectionRule.Builder(RuleScope.builder().include("b", "filter_2")).build()
             )
         );
-        JobUpdate.DetectorUpdate detectorUpdate2 = new JobUpdate.DetectorUpdate(0, "",
+        JobUpdate.DetectorUpdate detectorUpdate2 = new JobUpdate.DetectorUpdate(
+            0,
+            "",
             Collections.singletonList(new DetectionRule.Builder(RuleScope.builder().include("c", "filter_3")).build())
         );
 
-        UpdateParams updateParams = new UpdateParams.Builder("test_job")
-            .detectorUpdates(Arrays.asList(detectorUpdate1, detectorUpdate2))
+        UpdateParams updateParams = new UpdateParams.Builder("test_job").detectorUpdates(Arrays.asList(detectorUpdate1, detectorUpdate2))
             .filter(MlFilter.builder("filter_4").build())
             .build();
 

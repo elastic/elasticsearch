@@ -1,5 +1,7 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
 esplugin {
   name 'x-pack-monitoring'
   description 'Elasticsearch Expanded Pack Plugin - Monitoring'
@@ -9,31 +11,18 @@ esplugin {
 archivesBaseName = 'x-pack-monitoring'
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  compileOnly project(path: xpackModule('core'))
 
   // monitoring deps
   api project(':client:rest')
   api project(':client:sniffer')
 
   // baz - this goes away after we separate out the actions #27759
+  testImplementation project(":modules:analysis-common")
   testImplementation project(xpackModule('watcher'))
-
   testImplementation project(xpackModule('ilm'))
-}
-
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
-TaskProvider testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
-}
-artifacts {
-  // normal es plugins do not publish the jar but we need to since users need it for extensions
-  archives tasks.named("jar")
-  testArtifacts testJar
+  testImplementation project(xpackModule('data-streams'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 tasks.named("dependencyLicenses").configure {

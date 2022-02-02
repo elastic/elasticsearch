@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.job.retention;
@@ -14,7 +15,7 @@ import java.util.Date;
 
 public class MlDataRemoverTests extends ESTestCase {
     public void testStringOrNull() {
-        MlDataRemover remover = (requestsPerSecond, listener, isTimedOutSupplier) -> { };
+        MlDataRemover remover = (requestsPerSecond, listener, isTimedOutSupplier) -> {};
 
         SearchHitBuilder hitBuilder = new SearchHitBuilder(0);
         assertNull(remover.stringFieldValueOrNull(hitBuilder.build(), "missing"));

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.parser;
 
@@ -64,9 +65,12 @@ public class EqlParser {
         return invokeParser(expression, params, EqlBaseParser::singleExpression, AstBuilder::expression);
     }
 
-    private <T> T invokeParser(String eql, ParserParams params,
-            Function<EqlBaseParser, ParserRuleContext> parseFunction,
-            BiFunction<AstBuilder, ParserRuleContext, T> visitor) {
+    private <T> T invokeParser(
+        String eql,
+        ParserParams params,
+        Function<EqlBaseParser, ParserRuleContext> parseFunction,
+        BiFunction<AstBuilder, ParserRuleContext, T> visitor
+    ) {
         try {
             EqlBaseLexer lexer = new EqlBaseLexer(new ANTLRInputStream(eql));
 
@@ -90,9 +94,7 @@ public class EqlParser {
                 for (Token t : tokenStream.getTokens()) {
                     String symbolicName = EqlBaseLexer.VOCABULARY.getSymbolicName(t.getType());
                     String literalName = EqlBaseLexer.VOCABULARY.getLiteralName(t.getType());
-                    log.info(format(Locale.ROOT, "  %-15s '%s'",
-                        symbolicName == null ? literalName : symbolicName,
-                        t.getText()));
+                    log.info(format(Locale.ROOT, "  %-15s '%s'", symbolicName == null ? literalName : symbolicName, t.getText()));
                 }
             }
 
@@ -104,8 +106,10 @@ public class EqlParser {
 
             return visitor.apply(new AstBuilder(params), tree);
         } catch (StackOverflowError e) {
-            throw new ParsingException("EQL statement is too large, " +
-                "causing stack overflow when generating the parsing tree: [{}]", eql);
+            throw new ParsingException(
+                "EQL statement is too large, " + "causing stack overflow when generating the parsing tree: [{}]",
+                eql
+            );
         }
     }
 
@@ -118,12 +122,24 @@ public class EqlParser {
 
         parser.addErrorListener(new DiagnosticErrorListener(false) {
             @Override
-            public void reportAttemptingFullContext(Parser recognizer, DFA dfa,
-                    int startIndex, int stopIndex, BitSet conflictingAlts, ATNConfigSet configs) {}
+            public void reportAttemptingFullContext(
+                Parser recognizer,
+                DFA dfa,
+                int startIndex,
+                int stopIndex,
+                BitSet conflictingAlts,
+                ATNConfigSet configs
+            ) {}
 
             @Override
-            public void reportContextSensitivity(Parser recognizer, DFA dfa,
-                    int startIndex, int stopIndex, int prediction, ATNConfigSet configs) {}
+            public void reportContextSensitivity(
+                Parser recognizer,
+                DFA dfa,
+                int startIndex,
+                int stopIndex,
+                int prediction,
+                ATNConfigSet configs
+            ) {}
         });
     }
 
@@ -137,11 +153,7 @@ public class EqlParser {
         @Override
         public void exitProcessCheck(EqlBaseParser.ProcessCheckContext context) {
             Token token = context.relationship;
-            throw new ParsingException(
-                    "Process relationships are not supported",
-                    null,
-                    token.getLine(),
-                    token.getCharPositionInLine());
+            throw new ParsingException("Process relationships are not supported", null, token.getLine(), token.getCharPositionInLine());
         }
 
         @Override
@@ -152,15 +164,22 @@ public class EqlParser {
                     "Array indexes are not supported",
                     null,
                     firstIndex.getLine(),
-                    firstIndex.getCharPositionInLine());
+                    firstIndex.getCharPositionInLine()
+                );
             }
         }
     }
 
     private static final BaseErrorListener ERROR_LISTENER = new BaseErrorListener() {
         @Override
-        public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line,
-                int charPositionInLine, String message, RecognitionException e) {
+        public void syntaxError(
+            Recognizer<?, ?> recognizer,
+            Object offendingSymbol,
+            int line,
+            int charPositionInLine,
+            String message,
+            RecognitionException e
+        ) {
             throw new ParsingException(message, e, line, charPositionInLine);
         }
     };

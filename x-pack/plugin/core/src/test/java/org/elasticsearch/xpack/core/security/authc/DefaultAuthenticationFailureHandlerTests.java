@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authc;
@@ -43,8 +44,10 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
             failureHandler = new DefaultAuthenticationFailureHandler(failureResponseHeaders);
         }
         assertThat(failureHandler, is(notNullValue()));
-        final ElasticsearchSecurityException ese =
-                failureHandler.authenticationRequired("someaction", new ThreadContext(Settings.builder().build()));
+        final ElasticsearchSecurityException ese = failureHandler.authenticationRequired(
+            "someaction",
+            new ThreadContext(Settings.builder().build())
+        );
         assertThat(ese, is(notNullValue()));
         assertThat(ese.getMessage(), equalTo("action [someaction] requires authentication"));
         assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
@@ -77,8 +80,8 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         final boolean causeIsElasticsearchSecurityException = randomBoolean();
         final boolean causeIsEseAndUnauthorized = causeIsElasticsearchSecurityException && randomBoolean();
         final ElasticsearchSecurityException eseCause = (causeIsEseAndUnauthorized)
-                ? new ElasticsearchSecurityException("unauthorized", RestStatus.UNAUTHORIZED, null, (Object[]) null)
-                : new ElasticsearchSecurityException("different error", RestStatus.BAD_REQUEST, null, (Object[]) null);
+            ? new ElasticsearchSecurityException("unauthorized", RestStatus.UNAUTHORIZED, null, (Object[]) null)
+            : new ElasticsearchSecurityException("different error", RestStatus.BAD_REQUEST, null, (Object[]) null);
         final Exception cause = causeIsElasticsearchSecurityException ? eseCause : new Exception("other error");
         final boolean withAuthenticateHeader = randomBoolean();
         final String selectedScheme = randomFrom(bearerAuthScheme, basicAuthScheme, negotiateAuthScheme);
@@ -88,8 +91,11 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
 
         if (causeIsElasticsearchSecurityException) {
             if (causeIsEseAndUnauthorized) {
-                final ElasticsearchSecurityException ese = failureHandler.exceptionProcessingRequest(mock(RestRequest.class), cause,
-                        new ThreadContext(Settings.builder().build()));
+                final ElasticsearchSecurityException ese = failureHandler.exceptionProcessingRequest(
+                    mock(RestRequest.class),
+                    cause,
+                    new ThreadContext(Settings.builder().build())
+                );
                 assertThat(ese, is(notNullValue()));
                 assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
                 assertThat(ese, is(sameInstance(cause)));
@@ -104,12 +110,21 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
                 }
                 assertThat(ese.getMessage(), equalTo("unauthorized"));
             } else {
-                expectThrows(AssertionError.class, () -> failureHandler.exceptionProcessingRequest(mock(RestRequest.class), cause,
-                        new ThreadContext(Settings.builder().build())));
+                expectThrows(
+                    AssertionError.class,
+                    () -> failureHandler.exceptionProcessingRequest(
+                        mock(RestRequest.class),
+                        cause,
+                        new ThreadContext(Settings.builder().build())
+                    )
+                );
             }
         } else {
-            final ElasticsearchSecurityException ese = failureHandler.exceptionProcessingRequest(mock(RestRequest.class), cause,
-                    new ThreadContext(Settings.builder().build()));
+            final ElasticsearchSecurityException ese = failureHandler.exceptionProcessingRequest(
+                mock(RestRequest.class),
+                cause,
+                new ThreadContext(Settings.builder().build())
+            );
             assertThat(ese, is(notNullValue()));
             assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));
             assertThat(ese.getMessage(), equalTo("error attempting to authenticate request"));
@@ -129,8 +144,11 @@ public class DefaultAuthenticationFailureHandlerTests extends ESTestCase {
         failureResponeHeaders.put("WWW-Authenticate", supportedSchemes);
         final DefaultAuthenticationFailureHandler failuerHandler = new DefaultAuthenticationFailureHandler(failureResponeHeaders);
 
-        final ElasticsearchSecurityException ese = failuerHandler.exceptionProcessingRequest(mock(RestRequest.class), null,
-                new ThreadContext(Settings.builder().build()));
+        final ElasticsearchSecurityException ese = failuerHandler.exceptionProcessingRequest(
+            mock(RestRequest.class),
+            null,
+            new ThreadContext(Settings.builder().build())
+        );
 
         assertThat(ese, is(notNullValue()));
         assertThat(ese.getHeader("WWW-Authenticate"), is(notNullValue()));

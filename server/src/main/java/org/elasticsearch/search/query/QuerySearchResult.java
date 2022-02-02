@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.query;
@@ -26,6 +15,7 @@ import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -34,7 +24,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -43,7 +33,6 @@ import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
 public final class QuerySearchResult extends SearchPhaseResult {
-
     private int from;
     private int size;
     private TopDocsAndMaxScore topDocsAndMaxScore;
@@ -63,7 +52,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
-    private ProfileShardResult profileShardResults;
+    private SearchProfileQueryPhaseResult profileShardResults;
     private boolean hasProfileResults;
     private long serviceTimeEWMA = -1;
     private int nodeQueueSize = -1;
@@ -75,6 +64,15 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public QuerySearchResult(StreamInput in) throws IOException {
+        this(in, false);
+    }
+
+    /**
+     * Read the object, but using a delayed aggregations field when delayedAggregations=true. Using this, the caller must ensure that
+     * either `consumeAggs` or `releaseAggs` is called if `hasAggs() == true`.
+     * @param delayedAggregations whether to use delayed aggregations or not
+     */
+    public QuerySearchResult(StreamInput in, boolean delayedAggregations) throws IOException {
         super(in);
         if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
             isNull = in.readBoolean();
@@ -83,7 +81,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         if (isNull == false) {
             ShardSearchContextId id = new ShardSearchContextId(in);
-            readFromWithId(id, in);
+            readFromWithId(id, in, delayedAggregations);
         }
     }
 
@@ -172,8 +170,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (topDocs.topDocs.scoreDocs.length > 0 && topDocs.topDocs.scoreDocs[0] instanceof FieldDoc) {
             int numFields = ((FieldDoc) topDocs.topDocs.scoreDocs[0]).fields.length;
             if (numFields != sortValueFormats.length) {
-                throw new IllegalArgumentException("The number of sort fields does not match: "
-                        + numFields + " != " + sortValueFormats.length);
+                throw new IllegalArgumentException(
+                    "The number of sort fields does not match: " + numFields + " != " + sortValueFormats.length
+                );
             }
         }
         this.sortValueFormats = sortValueFormats;
@@ -201,16 +200,27 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns and nulls out the aggregation for this search results. This allows to free up memory once the aggregation is consumed.
      * @throws IllegalStateException if the aggregations have already been consumed.
      */
-    public DelayableWriteable<InternalAggregations> consumeAggs() {
+    public InternalAggregations consumeAggs() {
         if (aggregations == null) {
             throw new IllegalStateException("aggs already consumed");
         }
-        DelayableWriteable<InternalAggregations> aggs = aggregations;
-        aggregations = null;
-        return aggs;
+        try {
+            return aggregations.expand();
+        } finally {
+            aggregations.close();
+            aggregations = null;
+        }
+    }
+
+    public void releaseAggs() {
+        if (aggregations != null) {
+            aggregations.close();
+            aggregations = null;
+        }
     }
 
     public void aggregations(InternalAggregations aggregations) {
+        assert this.aggregations == null : "aggregations already set to [" + this.aggregations + "]";
         this.aggregations = aggregations == null ? null : DelayableWriteable.referencing(aggregations);
         hasAggs = aggregations != null;
     }
@@ -224,11 +234,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * This allows to free up memory once the profiled result is consumed.
      * @throws IllegalStateException if the profiled result has already been consumed.
      */
-    public ProfileShardResult consumeProfileResult() {
+    public SearchProfileQueryPhaseResult consumeProfileResult() {
         if (profileShardResults == null) {
             throw new IllegalStateException("profile results already consumed");
         }
-        ProfileShardResult result = profileShardResults;
+        SearchProfileQueryPhaseResult result = profileShardResults;
         profileShardResults = null;
         return result;
     }
@@ -244,16 +254,14 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (hasConsumedTopDocs() == false) {
             consumeTopDocs();
         }
-        if (hasAggs()) {
-            consumeAggs();
-        }
+        releaseAggs();
     }
 
     /**
      * Sets the finalized profiling results for this query
      * @param shardResults The finalized profile
      */
-    public void profileResults(ProfileShardResult shardResults) {
+    public void profileResults(SearchProfileQueryPhaseResult shardResults) {
         this.profileShardResults = shardResults;
         hasProfileResults = shardResults != null;
     }
@@ -309,7 +317,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns <code>true</code> if this result has any suggest score docs
      */
     public boolean hasSuggestHits() {
-      return (suggest != null && suggest.hasScoreDocs());
+        return (suggest != null && suggest.hasScoreDocs());
     }
 
     public boolean hasSearchContext() {
@@ -317,6 +325,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public void readFromWithId(ShardSearchContextId id, StreamInput in) throws IOException {
+        readFromWithId(id, in, false);
+    }
+
+    private void readFromWithId(ShardSearchContextId id, StreamInput in, boolean delayedAggregations) throws IOException {
         this.contextId = id;
         from = in.readVInt();
         size = in.readVInt();
@@ -330,26 +342,44 @@ public final class QuerySearchResult extends SearchPhaseResult {
             }
         }
         setTopDocs(readTopDocs(in));
-        if (hasAggs = in.readBoolean()) {
-            aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
-        }
-        if (in.readBoolean()) {
-            suggest = new Suggest(in);
-        }
-        searchTimedOut = in.readBoolean();
-        terminatedEarly = in.readOptionalBoolean();
-        profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
-        hasProfileResults = profileShardResults != null;
-        serviceTimeEWMA = in.readZLong();
-        nodeQueueSize = in.readInt();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
-            setRescoreDocIds(new RescoreDocIds(in));
+        hasAggs = in.readBoolean();
+        boolean success = false;
+        try {
+            if (hasAggs) {
+                if (delayedAggregations) {
+                    aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
+                } else {
+                    aggregations = DelayableWriteable.referencing(InternalAggregations::readFrom, in);
+                }
+            }
+            if (in.readBoolean()) {
+                suggest = new Suggest(in);
+            }
+            searchTimedOut = in.readBoolean();
+            terminatedEarly = in.readOptionalBoolean();
+            profileShardResults = in.readOptionalWriteable(SearchProfileQueryPhaseResult::new);
+            hasProfileResults = profileShardResults != null;
+            serviceTimeEWMA = in.readZLong();
+            nodeQueueSize = in.readInt();
+            if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+                setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+                setRescoreDocIds(new RescoreDocIds(in));
+            }
+            success = true;
+        } finally {
+            if (success == false) {
+                // in case we were not able to deserialize the full message we must release the aggregation buffer
+                Releasables.close(aggregations);
+            }
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        // we do not know that it is being sent over transport, but this at least protects all writes from happening, including sending.
+        if (aggregations != null && aggregations.isSerialized()) {
+            throw new IllegalStateException("cannot send serialized version since it will leak");
+        }
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeBoolean(isNull);
         }

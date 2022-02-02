@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -22,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -44,9 +46,8 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
         ConstructingObjectParser<OneHotEncoding, PreProcessorParseContext> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            (a, c) -> new OneHotEncoding((String)a[0],
-                (Map<String, String>)a[1],
-                a[2] == null ? c.isCustomByDefault() : (Boolean)a[2]));
+            (a, c) -> new OneHotEncoding((String) a[0], (Map<String, String>) a[1], a[2] == null ? c.isCustomByDefault() : (Boolean) a[2])
+        );
         parser.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         parser.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), HOT_MAP);
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), CUSTOM);
@@ -54,11 +55,11 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
     }
 
     public static OneHotEncoding fromXContentStrict(XContentParser parser, PreProcessorParseContext context) {
-        return STRICT_PARSER.apply(parser, context == null ?  PreProcessorParseContext.DEFAULT : context);
+        return STRICT_PARSER.apply(parser, context == null ? PreProcessorParseContext.DEFAULT : context);
     }
 
     public static OneHotEncoding fromXContentLenient(XContentParser parser, PreProcessorParseContext context) {
-        return LENIENT_PARSER.apply(parser, context == null ?  PreProcessorParseContext.DEFAULT : context);
+        return LENIENT_PARSER.apply(parser, context == null ? PreProcessorParseContext.DEFAULT : context);
     }
 
     private final String field;
@@ -67,13 +68,13 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
 
     public OneHotEncoding(String field, Map<String, String> hotMap, Boolean custom) {
         this.field = ExceptionsHelper.requireNonNull(field, FIELD);
-        this.hotMap = Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(hotMap, HOT_MAP));
-        this.custom = custom == null ? false : custom;
+        this.hotMap = Collections.unmodifiableMap(new TreeMap<>(ExceptionsHelper.requireNonNull(hotMap, HOT_MAP)));
+        this.custom = custom != null && custom;
     }
 
     public OneHotEncoding(StreamInput in) throws IOException {
         this.field = in.readString();
-        this.hotMap = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
+        this.hotMap = Collections.unmodifiableMap(new TreeMap<>(in.readMap(StreamInput::readString, StreamInput::readString)));
         this.custom = in.readBoolean();
     }
 
@@ -161,9 +162,7 @@ public class OneHotEncoding implements LenientlyParsedPreProcessor, StrictlyPars
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         OneHotEncoding that = (OneHotEncoding) o;
-        return Objects.equals(field, that.field)
-            && Objects.equals(hotMap, that.hotMap)
-            && Objects.equals(custom, that.custom);
+        return Objects.equals(field, that.field) && Objects.equals(hotMap, that.hotMap) && Objects.equals(custom, that.custom);
     }
 
     @Override

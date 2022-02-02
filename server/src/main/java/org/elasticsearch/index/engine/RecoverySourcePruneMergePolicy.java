@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.engine;
@@ -33,7 +22,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
-import org.apache.lucene.search.ConjunctionDISI;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -42,6 +31,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
+import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -106,8 +96,9 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                             // we can't return null here lucenes DocIdMerger expects an instance
                             intersection = DocIdSetIterator.empty();
                         } else {
-                            intersection = ConjunctionDISI.intersectIterators(Arrays.asList(numeric,
-                                new BitSetIterator(recoverySourceToKeep, recoverySourceToKeep.length())));
+                            intersection = ConjunctionUtils.intersectIterators(
+                                Arrays.asList(numeric, new BitSetIterator(recoverySourceToKeep, recoverySourceToKeep.length()))
+                            );
                         }
                         return new FilterNumericDocValues(numeric) {
                             @Override
@@ -134,8 +125,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
         @Override
         public StoredFieldsReader getFieldsReader() {
-            return new RecoverySourcePruningStoredFieldsReader(
-                    super.getFieldsReader(), recoverySourceToKeep, recoverySourceField);
+            return new RecoverySourcePruningStoredFieldsReader(super.getFieldsReader(), recoverySourceToKeep, recoverySourceField);
         }
 
         @Override
@@ -189,11 +179,6 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             public void close() throws IOException {
                 in.close();
             }
-
-            @Override
-            public long ramBytesUsed() {
-                return in.ramBytesUsed();
-            }
         }
 
         private abstract static class FilterStoredFieldsReader extends StoredFieldsReader {
@@ -202,11 +187,6 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
             FilterStoredFieldsReader(StoredFieldsReader fieldsReader) {
                 this.in = fieldsReader;
-            }
-
-            @Override
-            public long ramBytesUsed() {
-                return in.ramBytesUsed();
             }
 
             @Override
@@ -266,49 +246,6 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                 return new RecoverySourcePruningStoredFieldsReader(in.clone(), recoverySourceToKeep, recoverySourceField);
             }
 
-        }
-
-        private static class FilterStoredFieldVisitor extends StoredFieldVisitor {
-            private final StoredFieldVisitor visitor;
-
-            FilterStoredFieldVisitor(StoredFieldVisitor visitor) {
-                this.visitor = visitor;
-            }
-
-            @Override
-            public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
-                visitor.binaryField(fieldInfo, value);
-            }
-
-            @Override
-            public void stringField(FieldInfo fieldInfo, byte[] value) throws IOException {
-                visitor.stringField(fieldInfo, value);
-            }
-
-            @Override
-            public void intField(FieldInfo fieldInfo, int value) throws IOException {
-                visitor.intField(fieldInfo, value);
-            }
-
-            @Override
-            public void longField(FieldInfo fieldInfo, long value) throws IOException {
-                visitor.longField(fieldInfo, value);
-            }
-
-            @Override
-            public void floatField(FieldInfo fieldInfo, float value) throws IOException {
-                visitor.floatField(fieldInfo, value);
-            }
-
-            @Override
-            public void doubleField(FieldInfo fieldInfo, double value) throws IOException {
-                visitor.doubleField(fieldInfo, value);
-            }
-
-            @Override
-            public Status needsField(FieldInfo fieldInfo) throws IOException {
-                return visitor.needsField(fieldInfo);
-            }
         }
     }
 }

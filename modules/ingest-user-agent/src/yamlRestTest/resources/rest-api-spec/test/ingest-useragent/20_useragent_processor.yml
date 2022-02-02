@@ -32,7 +32,6 @@
   - match: { _source.user_agent.original: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36" }
   - match: { _source.user_agent.os: {"name":"Mac OS X", "version":"10.9.2", "full":"Mac OS X 10.9.2"} }
   - match: { _source.user_agent.version: "33.0.1750.149" }
-  - match: { _source.user_agent.device: {"name": "Mac" }}
 
 ---
 "Test user agent processor with parameters":

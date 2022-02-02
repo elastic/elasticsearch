@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.Status;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,19 +37,37 @@ import java.util.Optional;
 public class TransportFollowInfoAction extends TransportMasterNodeReadAction<FollowInfoAction.Request, FollowInfoAction.Response> {
 
     @Inject
-    public TransportFollowInfoAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(FollowInfoAction.NAME, transportService, clusterService, threadPool, actionFilters, FollowInfoAction.Request::new,
-            indexNameExpressionResolver, FollowInfoAction.Response::new, ThreadPool.Names.SAME);
+    public TransportFollowInfoAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            FollowInfoAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            FollowInfoAction.Request::new,
+            indexNameExpressionResolver,
+            FollowInfoAction.Response::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
-    protected void masterOperation(Task task, FollowInfoAction.Request request,
-                                   ClusterState state,
-                                   ActionListener<FollowInfoAction.Response> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        FollowInfoAction.Request request,
+        ClusterState state,
+        ActionListener<FollowInfoAction.Response> listener
+    ) throws Exception {
 
-        List<String> concreteFollowerIndices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state,
-            IndicesOptions.STRICT_EXPAND_OPEN_CLOSED, request.getFollowerIndices()));
+        List<String> concreteFollowerIndices = Arrays.asList(
+            indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.STRICT_EXPAND_OPEN_CLOSED, request.getFollowerIndices())
+        );
 
         List<FollowerInfo> followerInfos = getFollowInfos(concreteFollowerIndices, state);
         listener.onResponse(new FollowInfoAction.Response(followerInfos));
@@ -68,7 +88,8 @@ public class TransportFollowInfoAction extends TransportMasterNodeReadAction<Fol
             if (ccrCustomData != null) {
                 Optional<ShardFollowTask> result;
                 if (persistentTasks != null) {
-                    result = persistentTasks.findTasks(ShardFollowTask.NAME, task -> true).stream()
+                    result = persistentTasks.findTasks(ShardFollowTask.NAME, task -> true)
+                        .stream()
                         .map(task -> (ShardFollowTask) task.getParams())
                         .filter(shardFollowTask -> index.equals(shardFollowTask.getFollowShardId().getIndexName()))
                         .findAny();

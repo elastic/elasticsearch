@@ -1,36 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -122,6 +111,10 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     }
 
     public static FetchSourceContext fromXContent(XContentParser parser) throws IOException {
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
+
         XContentParser.Token token = parser.currentToken();
         boolean fetchSource = true;
         String[] includes = Strings.EMPTY_ARRAY;
@@ -129,10 +122,10 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         if (token == XContentParser.Token.VALUE_BOOLEAN) {
             fetchSource = parser.booleanValue();
         } else if (token == XContentParser.Token.VALUE_STRING) {
-            includes = new String[]{parser.text()};
+            includes = new String[] { parser.text() };
         } else if (token == XContentParser.Token.START_ARRAY) {
             ArrayList<String> list = new ArrayList<>();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 list.add(parser.text());
             }
             includes = list.toArray(new String[list.size()]);
@@ -148,8 +141,11 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                             if (token == XContentParser.Token.VALUE_STRING) {
                                 includesList.add(parser.text());
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token
-                                        + " in [" + currentFieldName + "].", parser.getTokenLocation());
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                                    parser.getTokenLocation()
+                                );
                             }
                         }
                         includes = includesList.toArray(new String[includesList.size()]);
@@ -159,32 +155,57 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                             if (token == XContentParser.Token.VALUE_STRING) {
                                 excludesList.add(parser.text());
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token
-                                        + " in [" + currentFieldName + "].", parser.getTokenLocation());
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                                    parser.getTokenLocation()
+                                );
                             }
                         }
                         excludes = excludesList.toArray(new String[excludesList.size()]);
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token
-                                + " in [" + currentFieldName + "].", parser.getTokenLocation());
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                            parser.getTokenLocation()
+                        );
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (INCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        includes = new String[] {parser.text()};
+                        includes = new String[] { parser.text() };
                     } else if (EXCLUDES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        excludes = new String[] {parser.text()};
+                        excludes = new String[] { parser.text() };
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token
-                            + " in [" + currentFieldName + "].", parser.getTokenLocation());
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                            parser.getTokenLocation()
+                        );
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                            parser.getTokenLocation());
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                        parser.getTokenLocation()
+                    );
                 }
             }
         } else {
-            throw new ParsingException(parser.getTokenLocation(), "Expected one of [" + XContentParser.Token.VALUE_BOOLEAN + ", "
-                    + XContentParser.Token.START_OBJECT + "] but found [" + token + "]", parser.getTokenLocation());
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Expected one of ["
+                    + XContentParser.Token.VALUE_BOOLEAN
+                    + ", "
+                    + XContentParser.Token.VALUE_STRING
+                    + ", "
+                    + XContentParser.Token.START_ARRAY
+                    + ", "
+                    + XContentParser.Token.START_OBJECT
+                    + "] but found ["
+                    + token
+                    + "]",
+                parser.getTokenLocation()
+            );
         }
         return new FetchSourceContext(fetchSource, includes, excludes);
     }
@@ -210,8 +231,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         FetchSourceContext that = (FetchSourceContext) o;
 
         if (fetchSource != that.fetchSource) return false;
-        if (!Arrays.equals(excludes, that.excludes)) return false;
-        if (!Arrays.equals(includes, that.includes)) return false;
+        if (Arrays.equals(excludes, that.excludes) == false) return false;
+        if (Arrays.equals(includes, that.includes) == false) return false;
 
         return true;
     }

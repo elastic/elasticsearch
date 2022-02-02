@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -12,10 +13,10 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
@@ -31,11 +32,23 @@ import java.util.Map;
 public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransportMasterNodeAction<Request> {
 
     @Inject
-    public TransportActivateAutoFollowPatternAction(TransportService transportService, ClusterService clusterService,
-                                                    ThreadPool threadPool, ActionFilters actionFilters,
-                                                    IndexNameExpressionResolver resolver) {
-        super(ActivateAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new, resolver,
-                ThreadPool.Names.SAME);
+    public TransportActivateAutoFollowPatternAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver resolver
+    ) {
+        super(
+            ActivateAutoFollowPatternAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            Request::new,
+            resolver,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
@@ -44,21 +57,22 @@ public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransp
     }
 
     @Override
-    protected void masterOperation(final Task task, final Request request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) throws Exception {
-        clusterService.submitStateUpdateTask("activate-auto-follow-pattern-" + request.getName(),
-            new AckedClusterStateUpdateTask<>(request, listener) {
-
+    protected void masterOperation(
+        final Task task,
+        final Request request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
+        clusterService.submitStateUpdateTask(
+            "activate-auto-follow-pattern-" + request.getName(),
+            new AckedClusterStateUpdateTask(request, listener) {
                 @Override
-                protected AcknowledgedResponse newResponse(final boolean acknowledged) {
-                    return AcknowledgedResponse.of(acknowledged);
-                }
-
-                @Override
-                public ClusterState execute(final ClusterState currentState) throws Exception {
+                public ClusterState execute(final ClusterState currentState) {
                     return innerActivate(request, currentState);
                 }
-            });
+            },
+            ClusterStateTaskExecutor.unbatched()
+        );
     }
 
     static ClusterState innerActivate(final Request request, ClusterState currentState) {
@@ -78,10 +92,12 @@ public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransp
         }
 
         final Map<String, AutoFollowMetadata.AutoFollowPattern> newPatterns = new HashMap<>(patterns);
-        newPatterns.put(request.getName(),
+        newPatterns.put(
+            request.getName(),
             new AutoFollowMetadata.AutoFollowPattern(
                 previousAutoFollowPattern.getRemoteCluster(),
                 previousAutoFollowPattern.getLeaderIndexPatterns(),
+                previousAutoFollowPattern.getLeaderIndexExclusionPatterns(),
                 previousAutoFollowPattern.getFollowIndexPattern(),
                 previousAutoFollowPattern.getSettings(),
                 request.isActive(),
@@ -94,13 +110,15 @@ public class TransportActivateAutoFollowPatternAction extends AcknowledgedTransp
                 previousAutoFollowPattern.getMaxWriteBufferCount(),
                 previousAutoFollowPattern.getMaxWriteBufferSize(),
                 previousAutoFollowPattern.getMaxRetryDelay(),
-                previousAutoFollowPattern.getReadPollTimeout()));
+                previousAutoFollowPattern.getReadPollTimeout()
+            )
+        );
 
-        return ClusterState.builder(currentState)
-            .metadata(Metadata.builder(currentState.getMetadata())
-                .putCustom(AutoFollowMetadata.TYPE,
-                    new AutoFollowMetadata(newPatterns, autoFollowMetadata.getFollowedLeaderIndexUUIDs(), autoFollowMetadata.getHeaders()))
-                .build())
-            .build();
+        return currentState.copyAndUpdateMetadata(
+            metadata -> metadata.putCustom(
+                AutoFollowMetadata.TYPE,
+                new AutoFollowMetadata(newPatterns, autoFollowMetadata.getFollowedLeaderIndexUUIDs(), autoFollowMetadata.getHeaders())
+            )
+        );
     }
 }

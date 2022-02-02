@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.cat;
@@ -25,7 +14,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -34,12 +22,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -54,13 +39,6 @@ import static org.mockito.Mockito.when;
 
 public class RestShardsActionTests extends ESTestCase {
 
-    private RestShardsAction action;
-
-    @Before
-    public void setUpAction() {
-        action = new RestShardsAction();
-    }
-
     public void testBuildTable() {
         final int numShards = randomIntBetween(1, 5);
         DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -71,10 +49,17 @@ public class RestShardsActionTests extends ESTestCase {
         for (int i = 0; i < numShards; i++) {
             ShardRoutingState shardRoutingState = ShardRoutingState.fromValue((byte) randomIntBetween(2, 3));
             ShardRouting shardRouting = TestShardRouting.newShardRouting(index, i, localNode.getId(), randomBoolean(), shardRoutingState);
-            Path path = createTempDir().resolve("indices").resolve(shardRouting.shardId().getIndex().getUUID())
+            Path path = createTempDir().resolve("indices")
+                .resolve(shardRouting.shardId().getIndex().getUUID())
                 .resolve(String.valueOf(shardRouting.shardId().id()));
-            ShardStats shardStats = new ShardStats(shardRouting, new ShardPath(false, path, path, shardRouting.shardId()),
-                null, null, null, null);
+            ShardStats shardStats = new ShardStats(
+                shardRouting,
+                new ShardPath(false, path, path, shardRouting.shardId()),
+                null,
+                null,
+                null,
+                null
+            );
             shardStatsMap.put(shardRouting, shardStats);
             shardRoutings.add(shardRouting);
         }
@@ -128,17 +113,5 @@ public class RestShardsActionTests extends ESTestCase {
             assertThat(row.get(69).value, equalTo(shardStats.getDataPath()));
             assertThat(row.get(70).value, equalTo(shardStats.getStatePath()));
         }
-    }
-
-    public void testCatNodesWithLocalDeprecationWarning() {
-        TestThreadPool threadPool = new TestThreadPool(RestNodesActionTests.class.getName());
-        NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-        FakeRestRequest request = new FakeRestRequest();
-        request.params().put("local", randomFrom("", "true", "false"));
-
-        action.doCatRequest(request, client);
-        assertWarnings(RestShardsAction.LOCAL_DEPRECATED_MESSAGE);
-
-        terminate(threadPool);
     }
 }

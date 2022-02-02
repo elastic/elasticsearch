@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -39,7 +28,7 @@ import org.elasticsearch.client.ccr.ResumeAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -53,7 +42,10 @@ import static org.hamcrest.Matchers.nullValue;
 public class CcrRequestConvertersTests extends ESTestCase {
 
     public void testPutFollow() throws Exception {
-        PutFollowRequest putFollowRequest = new PutFollowRequest(randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4),
+        PutFollowRequest putFollowRequest = new PutFollowRequest(
+            randomAlphaOfLength(4),
+            randomAlphaOfLength(4),
+            randomAlphaOfLength(4),
             randomBoolean() ? randomFrom(ActiveShardCount.NONE, ActiveShardCount.ONE, ActiveShardCount.DEFAULT, ActiveShardCount.ALL) : null
         );
         randomizeRequest(putFollowRequest);
@@ -98,11 +90,12 @@ public class CcrRequestConvertersTests extends ESTestCase {
 
     public void testForgetFollower() throws IOException {
         final ForgetFollowerRequest request = new ForgetFollowerRequest(
-                randomAlphaOfLength(8),
-                randomAlphaOfLength(8),
-                randomAlphaOfLength(8),
-                randomAlphaOfLength(8),
-                randomAlphaOfLength(8));
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8)
+        );
         final Request convertedRequest = CcrRequestConverters.forgetFollower(request);
         assertThat(convertedRequest.getMethod(), equalTo(HttpPost.METHOD_NAME));
         assertThat(convertedRequest.getEndpoint(), equalTo("/" + request.leaderIndex() + "/_ccr/forget_follower"));
@@ -111,8 +104,12 @@ public class CcrRequestConvertersTests extends ESTestCase {
     }
 
     public void testPutAutofollowPattern() throws Exception {
-        PutAutoFollowPatternRequest putAutoFollowPatternRequest = new PutAutoFollowPatternRequest(randomAlphaOfLength(4),
-            randomAlphaOfLength(4), Arrays.asList(generateRandomStringArray(4, 4, false)));
+        PutAutoFollowPatternRequest putAutoFollowPatternRequest = new PutAutoFollowPatternRequest(
+            randomAlphaOfLength(4),
+            randomAlphaOfLength(4),
+            Arrays.asList(generateRandomStringArray(4, 4, false)),
+            Arrays.asList(generateRandomStringArray(4, 4, false))
+        );
         if (randomBoolean()) {
             putAutoFollowPatternRequest.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }

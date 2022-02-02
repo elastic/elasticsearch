@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml;
 
@@ -16,8 +17,10 @@ import java.util.List;
 import java.util.Map;
 
 public class MachineLearningPainlessExtension implements PainlessExtension {
-    private static final Whitelist WHITELIST =
-        WhitelistLoader.loadFromResourceFiles(MachineLearningPainlessExtension.class, "whitelist.txt");
+    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(
+        MachineLearningPainlessExtension.class,
+        "whitelist.txt"
+    );
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {

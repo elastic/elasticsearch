@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.logging;
@@ -41,8 +30,8 @@ import org.apache.logging.log4j.status.StatusLogger;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 
@@ -209,11 +198,10 @@ public class LogConfigurator {
                     }
                 }
                 // end hack
-                return new PropertiesConfigurationBuilder()
-                        .setConfigurationSource(source)
-                        .setRootProperties(properties)
-                        .setLoggerContext(loggerContext)
-                        .build();
+                return new PropertiesConfigurationBuilder().setConfigurationSource(source)
+                    .setRootProperties(properties)
+                    .setLoggerContext(loggerContext)
+                    .build();
             }
         };
         final Set<FileVisitOption> options = EnumSet.of(FileVisitOption.FOLLOW_LINKS);
@@ -228,9 +216,7 @@ public class LogConfigurator {
         });
 
         if (configurations.isEmpty()) {
-            throw new UserException(
-                    ExitCodes.CONFIG,
-                    "no log4j2.properties found; tried [" + configsPath + "] and its subdirectories");
+            throw new UserException(ExitCodes.CONFIG, "no log4j2.properties found; tried [" + configsPath + "] and its subdirectories");
         }
 
         context.start(new CompositeConfiguration(configurations));
@@ -239,10 +225,14 @@ public class LogConfigurator {
 
         final String deprecatedLocationsString = String.join("\n  ", locationsWithDeprecatedPatterns);
         if (deprecatedLocationsString.length() > 0) {
-            LogManager.getLogger(LogConfigurator.class).warn("Some logging configurations have %marker but don't have %node_name. "
-                    + "We will automatically add %node_name to the pattern to ease the migration for users who customize "
-                    + "log4j2.properties but will stop this behavior in 7.0. You should manually replace `%node_name` with "
-                    + "`[%node_name]%marker ` in these locations:\n  {}", deprecatedLocationsString);
+            LogManager.getLogger(LogConfigurator.class)
+                .warn(
+                    "Some logging configurations have %marker but don't have %node_name. "
+                        + "We will automatically add %node_name to the pattern to ease the migration for users who customize "
+                        + "log4j2.properties but will stop this behavior in 7.0. You should manually replace `%node_name` with "
+                        + "`[%node_name]%marker ` in these locations:\n  {}",
+                    deprecatedLocationsString
+                );
         }
 
         // Redirect stdout/stderr to log4j. While we ensure Elasticsearch code does not write to those streams,
@@ -270,10 +260,11 @@ public class LogConfigurator {
         }
         Loggers.LOG_LEVEL_SETTING.getAllConcreteSettings(settings)
             // do not set a log level for a logger named level (from the default log setting)
-            .filter(s -> s.getKey().equals(Loggers.LOG_DEFAULT_LEVEL_SETTING.getKey()) == false).forEach(s -> {
-            final Level level = s.get(settings);
-            Loggers.setLevel(LogManager.getLogger(s.getKey().substring("logger.".length())), level);
-        });
+            .filter(s -> s.getKey().equals(Loggers.LOG_DEFAULT_LEVEL_SETTING.getKey()) == false)
+            .forEach(s -> {
+                final Level level = s.get(settings);
+                Loggers.setLevel(LogManager.getLogger(s.getKey().substring("logger.".length())), level);
+            });
     }
 
     /**

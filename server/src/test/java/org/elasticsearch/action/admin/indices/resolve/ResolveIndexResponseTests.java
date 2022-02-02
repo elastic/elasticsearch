@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.resolve;
@@ -25,9 +14,9 @@ import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Resolve
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -113,20 +102,25 @@ public class ResolveIndexResponseTests extends AbstractSerializingTestCase<Respo
         args -> new ResolvedIndex(
             (String) args[0],
             args[1] != null ? ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY) : new String[0],
-            ((List<String>) args[2]).toArray(Strings.EMPTY_ARRAY), (String) args[3]
-        ));
+            ((List<String>) args[2]).toArray(Strings.EMPTY_ARRAY),
+            (String) args[3]
+        )
+    );
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Response, Void> RESPONSE_PARSER = new ConstructingObjectParser<>(
         "resolve_index_response",
-        args -> new Response((List<ResolvedIndex>) args[0], (List<ResolvedAlias>) args[1], (List<ResolvedDataStream>) args[2]));
+        args -> new Response((List<ResolvedIndex>) args[0], (List<ResolvedAlias>) args[1], (List<ResolvedDataStream>) args[2])
+    );
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ResolvedAlias, Void> ALIAS_PARSER = new ConstructingObjectParser<>(
         "resolved_alias",
-        args -> new ResolvedAlias((String) args[0], ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY)));
+        args -> new ResolvedAlias((String) args[0], ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY))
+    );
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ResolvedDataStream, Void> DATA_STREAM_PARSER = new ConstructingObjectParser<>(
         "resolved_data_stream",
-        args -> new ResolvedDataStream((String) args[0], ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY), (String) args[2]));
+        args -> new ResolvedDataStream((String) args[0], ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY), (String) args[2])
+    );
 
     static {
         INDEX_PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
@@ -137,8 +131,11 @@ public class ResolveIndexResponseTests extends AbstractSerializingTestCase<Respo
         ALIAS_PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES_FIELD);
         RESPONSE_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> indexFromXContent(p), INDICES_FIELD);
         RESPONSE_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> aliasFromXContent(p), ALIASES_FIELD);
-        RESPONSE_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> dataStreamFromXContent(p),
-            DATA_STREAMS_FIELD);
+        RESPONSE_PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> dataStreamFromXContent(p),
+            DATA_STREAMS_FIELD
+        );
         DATA_STREAM_PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
         DATA_STREAM_PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), BACKING_INDICES_FIELD);
         DATA_STREAM_PARSER.declareString(ConstructingObjectParser.constructorArg(), TIMESTAMP_FIELD);

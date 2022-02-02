@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.datastreams;
@@ -11,9 +12,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,36 +38,37 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
 
         // Create a template
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/mysql-error");
-        putComposableIndexTemplateRequest.setJsonEntity(
-            "{"
-                + "\"index_patterns\":[\"logs-mysql-*\"],"
-                + "\"priority\":200,"
-                + "\"composed_of\":[\"logs-mappings\",\"logs-settings\"],"
-                + "\"data_stream\":{},"
-                + "\"template\":{"
-                + "\"mappings\":{"
-                + "\"properties\":{"
-                + "\"thread_id\":{\"type\":\"long\"}"
-                + "}"
-                + "},"
-                + "\"settings\":{"
-                + "\"index.default_pipeline\":\"mysql-error1\""
-                + "}"
-                + "}"
-                + "}"
-        );
+        putComposableIndexTemplateRequest.setJsonEntity("""
+            {
+              "index_patterns": [ "logs-mysql-*" ],
+              "priority": 200,
+              "composed_of": [ "logs-mappings", "logs-settings" ],
+              "data_stream": {},
+              "template": {
+                "mappings": {
+                  "properties": {
+                    "thread_id": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "settings": {
+                  "index.default_pipeline": "mysql-error1"
+                }
+              }
+            }""");
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         // Create a data stream and index first doc
         Request indexRequest = new Request("POST", "/logs-mysql-error/_doc");
-        indexRequest.setJsonEntity("{\"@timestamp\": \"2020-12-12\",\"message\":\"abc\",\"thread_id\":23}");
+        indexRequest.setJsonEntity("""
+            {"@timestamp": "2020-12-12","message":"abc","thread_id":23}""");
         assertOK(client().performRequest(indexRequest));
 
         // Create new pipeline and update default pipeline:
         putPipelineRequest = new Request("PUT", "/_ingest/pipeline/mysql-error2");
-        putPipelineRequest.setJsonEntity(
-            "{\"processors\":[{\"rename\":{\"field\":\"thread_id\",\"target_field\":\"thread.id\"," + "\"ignore_failure\":true}}]}"
-        );
+        putPipelineRequest.setJsonEntity("""
+            {"processors":[{"rename":{"field":"thread_id","target_field":"thread.id","ignore_failure":true}}]}""");
         assertOK(client().performRequest(putPipelineRequest));
         Request updateSettingsRequest = new Request("PUT", "/logs-mysql-error/_settings");
         updateSettingsRequest.setJsonEntity("{ \"index\": { \"default_pipeline\" : \"mysql-error2\" }}");
@@ -74,34 +76,36 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
 
         // Update template
         putComposableIndexTemplateRequest = new Request("POST", "/_index_template/mysql-error");
-        putComposableIndexTemplateRequest.setJsonEntity(
-            "{"
-                + "\"index_patterns\":[\"logs-mysql-*\"],"
-                + "\"priority\":200,"
-                + "\"composed_of\":[\"logs-mappings\",\"logs-settings\"],"
-                + "\"data_stream\":{},"
-                + "\"template\":{"
-                + "\"mappings\":{"
-                + "\"properties\":{"
-                + "\"thread\":{"
-                + "\"properties\":{"
-                + "\"id\":{\"type\":\"long\"}"
-                + "}"
-                + "}"
-                + "}"
-                + "},"
-                + "\"settings\":{"
-                + "\"index.default_pipeline\":\"mysql-error2\""
-                + "}"
-                + "}"
-                + "}"
-        );
+        putComposableIndexTemplateRequest.setJsonEntity("""
+            {
+              "index_patterns": [ "logs-mysql-*" ],
+              "priority": 200,
+              "composed_of": [ "logs-mappings", "logs-settings" ],
+              "data_stream": {},
+              "template": {
+                "mappings": {
+                  "properties": {
+                    "thread": {
+                      "properties": {
+                        "id": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "settings": {
+                  "index.default_pipeline": "mysql-error2"
+                }
+              }
+            }""");
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         // Update mapping
         Request putMappingRequest = new Request("PUT", "/logs-mysql-error/_mappings");
         putMappingRequest.addParameters(Map.of("write_index_only", "true"));
-        putMappingRequest.setJsonEntity("{\"properties\":{\"thread\":{\"properties\":{\"id\":{\"type\":\"long\"}}}}}");
+        putMappingRequest.setJsonEntity("""
+            {"properties":{"thread":{"properties":{"id":{"type":"long"}}}}}""");
         assertOK(client().performRequest(putMappingRequest));
 
         // Delete old pipeline
@@ -110,10 +114,12 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
 
         // Index more docs
         indexRequest = new Request("POST", "/logs-mysql-error/_doc");
-        indexRequest.setJsonEntity("{\"@timestamp\": \"2020-12-12\",\"message\":\"abc\",\"thread_id\":24}");
+        indexRequest.setJsonEntity("""
+            {"@timestamp": "2020-12-12","message":"abc","thread_id":24}""");
         assertOK(client().performRequest(indexRequest));
         indexRequest = new Request("POST", "/logs-mysql-error/_doc");
-        indexRequest.setJsonEntity("{\"@timestamp\": \"2020-12-12\",\"message\":\"abc\",\"thread\":{\"id\":24}}");
+        indexRequest.setJsonEntity("""
+            {"@timestamp": "2020-12-12","message":"abc","thread":{"id":24}}""");
         assertOK(client().performRequest(indexRequest));
 
         Request refreshRequest = new Request("POST", "/logs-mysql-error/_refresh");
@@ -133,24 +139,25 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
 
         // Create a template
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/mysql-error");
-        putComposableIndexTemplateRequest.setJsonEntity(
-            "{"
-                + "\"index_patterns\":[\"logs-mysql-*\"],"
-                + "\"priority\":200,"
-                + "\"composed_of\":[\"logs-mappings\",\"logs-settings\"],"
-                + "\"data_stream\":{},"
-                + "\"template\":{"
-                + "\"mappings\":{"
-                + "\"properties\":{"
-                + "\"thread\":{\"type\":\"long\"}"
-                + "}"
-                + "},"
-                + "\"settings\":{"
-                + "\"index.default_pipeline\":\"mysql-error1\""
-                + "}"
-                + "}"
-                + "}"
-        );
+        putComposableIndexTemplateRequest.setJsonEntity("""
+            {
+              "index_patterns": [ "logs-mysql-*" ],
+              "priority": 200,
+              "composed_of": [ "logs-mappings", "logs-settings" ],
+              "data_stream": {},
+              "template": {
+                "mappings": {
+                  "properties": {
+                    "thread": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "settings": {
+                  "index.default_pipeline": "mysql-error1"
+                }
+              }
+            }""");
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         // Create a data stream and index first doc
@@ -160,9 +167,8 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
 
         // Create new pipeline and update default pipeline:
         putPipelineRequest = new Request("PUT", "/_ingest/pipeline/mysql-error2");
-        putPipelineRequest.setJsonEntity(
-            "{\"processors\":[{\"rename\":{\"field\":\"thread\",\"target_field\":\"thread.id\"," + "\"ignore_failure\":true}}]}"
-        );
+        putPipelineRequest.setJsonEntity("""
+            {"processors":[{"rename":{"field":"thread","target_field":"thread.id","ignore_failure":true}}]}""");
         assertOK(client().performRequest(putPipelineRequest));
         Request updateSettingsRequest = new Request("PUT", "/logs-mysql-error/_settings");
         updateSettingsRequest.setJsonEntity("{ \"index\": { \"default_pipeline\" : \"mysql-error2\" }}");
@@ -170,28 +176,29 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
 
         // Update template
         putComposableIndexTemplateRequest = new Request("POST", "/_index_template/mysql-error");
-        putComposableIndexTemplateRequest.setJsonEntity(
-            "{"
-                + "\"index_patterns\":[\"logs-mysql-*\"],"
-                + "\"priority\":200,"
-                + "\"composed_of\":[\"logs-mappings\",\"logs-settings\"],"
-                + "\"data_stream\":{},"
-                + "\"template\":{"
-                + "\"mappings\":{"
-                + "\"properties\":{"
-                + "\"thread\":{"
-                + "\"properties\":{"
-                + "\"id\":{\"type\":\"long\"}"
-                + "}"
-                + "}"
-                + "}"
-                + "},"
-                + "\"settings\":{"
-                + "\"index.default_pipeline\":\"mysql-error2\""
-                + "}"
-                + "}"
-                + "}"
-        );
+        putComposableIndexTemplateRequest.setJsonEntity("""
+            {
+              "index_patterns": [ "logs-mysql-*" ],
+              "priority": 200,
+              "composed_of": [ "logs-mappings", "logs-settings" ],
+              "data_stream": {},
+              "template": {
+                "mappings": {
+                  "properties": {
+                    "thread": {
+                      "properties": {
+                        "id": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "settings": {
+                  "index.default_pipeline": "mysql-error2"
+                }
+              }
+            }""");
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         // Update mapping
@@ -211,16 +218,19 @@ public class DataStreamUpgradeRestIT extends ESRestTestCase {
 
         // Index more docs
         indexRequest = new Request("POST", "/logs-mysql-error/_doc");
-        indexRequest.setJsonEntity("{\"@timestamp\": \"2020-12-12\",\"message\":\"abc\",\"thread\":24}");
+        indexRequest.setJsonEntity("""
+            {"@timestamp": "2020-12-12","message":"abc","thread":24}""");
         assertOK(client().performRequest(indexRequest));
         indexRequest = new Request("POST", "/logs-mysql-error/_doc");
-        indexRequest.setJsonEntity("{\"@timestamp\": \"2020-12-12\",\"message\":\"abc\",\"thread\":{\"id\":24}}");
+        indexRequest.setJsonEntity("""
+            {"@timestamp": "2020-12-12","message":"abc","thread":{"id":24}}""");
         assertOK(client().performRequest(indexRequest));
 
         Request refreshRequest = new Request("POST", "/logs-mysql-error/_refresh");
         assertOK(client().performRequest(refreshRequest));
 
-        verifyTotalHitCount("logs-mysql-error", "{\"query\":{\"match\":{\"thread.id\": 24}}}", 2, "thread.id");
+        verifyTotalHitCount("logs-mysql-error", """
+            {"query":{"match":{"thread.id": 24}}}""", 2, "thread.id");
 
         Request deleteDateStreamRequest = new Request("DELETE", "/_data_stream/logs-mysql-error");
         assertOK(client().performRequest(deleteDateStreamRequest));

@@ -1,0 +1,29 @@
+integ_test_role:
+  cluster:
+    - manage_enrich
+    - manage_ingest_pipelines
+    - monitor
+  indices:
+    - names: [ 'my-index', 'my-source-index' ]
+      privileges:
+        - manage
+        - read
+        - write
+    - names: [ 'fls-source-index' ]
+      privileges:
+        - read
+        - create_index
+        - view_index_metadata
+      field_security:
+        grant:
+          - host
+          - tld
+          - tldRank
+    - names: [ 'dls-source-index' ]
+      privileges:
+        - read
+        - create_index
+        - view_index_metadata
+      query:
+        match:
+          host: elastic.co

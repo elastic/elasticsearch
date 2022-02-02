@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -29,12 +18,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportConnectionListener;
@@ -42,6 +32,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -71,20 +62,28 @@ public class FollowersChecker {
     public static final String FOLLOWER_CHECK_ACTION_NAME = "internal:coordination/fault_detection/follower_check";
 
     // the time between checks sent to each node
-    public static final Setting<TimeValue> FOLLOWER_CHECK_INTERVAL_SETTING =
-        Setting.timeSetting("cluster.fault_detection.follower_check.interval",
-            TimeValue.timeValueMillis(1000), TimeValue.timeValueMillis(100), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> FOLLOWER_CHECK_INTERVAL_SETTING = Setting.timeSetting(
+        "cluster.fault_detection.follower_check.interval",
+        TimeValue.timeValueMillis(1000),
+        TimeValue.timeValueMillis(100),
+        Setting.Property.NodeScope
+    );
 
     // the timeout for each check sent to each node
-    public static final Setting<TimeValue> FOLLOWER_CHECK_TIMEOUT_SETTING =
-        Setting.timeSetting("cluster.fault_detection.follower_check.timeout",
-            TimeValue.timeValueMillis(10000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> FOLLOWER_CHECK_TIMEOUT_SETTING = Setting.timeSetting(
+        "cluster.fault_detection.follower_check.timeout",
+        TimeValue.timeValueMillis(10000),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
 
     // the number of failed checks that must happen before the follower is considered to have failed.
-    public static final Setting<Integer> FOLLOWER_CHECK_RETRY_COUNT_SETTING =
-        Setting.intSetting("cluster.fault_detection.follower_check.retry_count", 3, 1, Setting.Property.NodeScope);
-
-    private final Settings settings;
+    public static final Setting<Integer> FOLLOWER_CHECK_RETRY_COUNT_SETTING = Setting.intSetting(
+        "cluster.fault_detection.follower_check.retry_count",
+        3,
+        1,
+        Setting.Property.NodeScope
+    );
 
     private final TimeValue followerCheckInterval;
     private final TimeValue followerCheckTimeout;
@@ -100,10 +99,13 @@ public class FollowersChecker {
     private final NodeHealthService nodeHealthService;
     private volatile FastResponseState fastResponseState;
 
-    public FollowersChecker(Settings settings, TransportService transportService,
-                            Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
-                            BiConsumer<DiscoveryNode, String> onNodeFailure, NodeHealthService nodeHealthService) {
-        this.settings = settings;
+    public FollowersChecker(
+        Settings settings,
+        TransportService transportService,
+        Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
+        BiConsumer<DiscoveryNode, String> onNodeFailure,
+        NodeHealthService nodeHealthService
+    ) {
         this.transportService = transportService;
         this.handleRequestAndUpdateState = handleRequestAndUpdateState;
         this.onNodeFailure = onNodeFailure;
@@ -114,8 +116,14 @@ public class FollowersChecker {
         followerCheckRetryCount = FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings);
 
         updateFastResponseState(0, Mode.CANDIDATE);
-        transportService.registerRequestHandler(FOLLOWER_CHECK_ACTION_NAME, Names.SAME, false, false, FollowerCheckRequest::new,
-            (request, transportChannel, task) -> handleFollowerCheck(request, transportChannel));
+        transportService.registerRequestHandler(
+            FOLLOWER_CHECK_ACTION_NAME,
+            Names.SAME,
+            false,
+            false,
+            FollowerCheckRequest::new,
+            (request, transportChannel, task) -> handleFollowerCheck(request, transportChannel)
+        );
         transportService.addConnectionListener(new TransportConnectionListener() {
             @Override
             public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
@@ -166,8 +174,10 @@ public class FollowersChecker {
     private void handleFollowerCheck(FollowerCheckRequest request, TransportChannel transportChannel) throws IOException {
         final StatusInfo statusInfo = nodeHealthService.getHealth();
         if (statusInfo.getStatus() == UNHEALTHY) {
-            final String message
-                = "handleFollowerCheck: node is unhealthy [" + statusInfo.getInfo() + "], rejecting " + statusInfo.getInfo();
+            final String message = "handleFollowerCheck: node is unhealthy ["
+                + statusInfo.getInfo()
+                + "], rejecting "
+                + statusInfo.getInfo();
             logger.debug(message);
             throw new NodeHealthCheckFailureException(message);
         }
@@ -219,14 +229,20 @@ public class FollowersChecker {
 
     @Override
     public String toString() {
-        return "FollowersChecker{" +
-            "followerCheckInterval=" + followerCheckInterval +
-            ", followerCheckTimeout=" + followerCheckTimeout +
-            ", followerCheckRetryCount=" + followerCheckRetryCount +
-            ", followerCheckers=" + followerCheckers +
-            ", faultyNodes=" + faultyNodes +
-            ", fastResponseState=" + fastResponseState +
-            '}';
+        return "FollowersChecker{"
+            + "followerCheckInterval="
+            + followerCheckInterval
+            + ", followerCheckTimeout="
+            + followerCheckTimeout
+            + ", followerCheckRetryCount="
+            + followerCheckRetryCount
+            + ", followerCheckers="
+            + followerCheckers
+            + ", faultyNodes="
+            + faultyNodes
+            + ", fastResponseState="
+            + fastResponseState
+            + '}';
     }
 
     // For assertions
@@ -250,23 +266,7 @@ public class FollowersChecker {
         }
     }
 
-    static class FastResponseState {
-        final long term;
-        final Mode mode;
-
-        FastResponseState(final long term, final Mode mode) {
-            this.term = term;
-            this.mode = mode;
-        }
-
-        @Override
-        public String toString() {
-            return "FastResponseState{" +
-                "term=" + term +
-                ", mode=" + mode +
-                '}';
-        }
-    }
+    record FastResponseState(long term, Mode mode) {}
 
     /**
      * A checker for an individual follower.
@@ -274,6 +274,7 @@ public class FollowersChecker {
     private class FollowerChecker {
         private final DiscoveryNode discoveryNode;
         private int failureCountSinceLastSuccess;
+        private int timeoutCountSinceLastSuccess;
 
         FollowerChecker(DiscoveryNode discoveryNode) {
             this.discoveryNode = discoveryNode;
@@ -297,22 +298,22 @@ public class FollowersChecker {
             final FollowerCheckRequest request = new FollowerCheckRequest(fastResponseState.term, transportService.getLocalNode());
             logger.trace("handleWakeUp: checking {} with {}", discoveryNode, request);
 
-            transportService.sendRequest(discoveryNode, FOLLOWER_CHECK_ACTION_NAME, request,
-                TransportRequestOptions.builder().withTimeout(followerCheckTimeout).withType(Type.PING).build(),
-                new TransportResponseHandler<Empty>() {
-                    @Override
-                    public Empty read(StreamInput in) {
-                        return Empty.INSTANCE;
-                    }
+            transportService.sendRequest(
+                discoveryNode,
+                FOLLOWER_CHECK_ACTION_NAME,
+                request,
+                TransportRequestOptions.of(followerCheckTimeout, Type.PING),
+                new TransportResponseHandler.Empty() {
 
                     @Override
-                    public void handleResponse(Empty response) {
+                    public void handleResponse(TransportResponse.Empty response) {
                         if (running() == false) {
                             logger.trace("{} no longer running", FollowerChecker.this);
                             return;
                         }
 
                         failureCountSinceLastSuccess = 0;
+                        timeoutCountSinceLastSuccess = 0;
                         logger.trace("{} check successful", FollowerChecker.this);
                         scheduleNextWakeUp();
                     }
@@ -324,19 +325,26 @@ public class FollowersChecker {
                             return;
                         }
 
-                        failureCountSinceLastSuccess++;
+                        if (exp instanceof ReceiveTimeoutTransportException) {
+                            timeoutCountSinceLastSuccess++;
+                        } else {
+                            failureCountSinceLastSuccess++;
+                        }
 
                         final String reason;
-                        if (exp instanceof ConnectTransportException
-                            || exp.getCause() instanceof ConnectTransportException) {
+                        if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                             logger.debug(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
                             reason = "disconnected";
                         } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
                             logger.debug(() -> new ParameterizedMessage("{} health check failed", FollowerChecker.this), exp);
                             reason = "health check failed";
-                        } else if (failureCountSinceLastSuccess >= followerCheckRetryCount) {
+                        } else if (failureCountSinceLastSuccess + timeoutCountSinceLastSuccess >= followerCheckRetryCount) {
                             logger.debug(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
-                            reason = "followers check retry count exceeded";
+                            reason = "followers check retry count exceeded [timeouts="
+                                + timeoutCountSinceLastSuccess
+                                + ", failures="
+                                + failureCountSinceLastSuccess
+                                + "]";
                         } else {
                             logger.debug(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
                             scheduleNextWakeUp();
@@ -345,13 +353,8 @@ public class FollowersChecker {
 
                         failNode(reason);
                     }
-
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
-                    }
-                });
+                }
+            );
         }
 
         void failNode(String reason) {
@@ -393,11 +396,18 @@ public class FollowersChecker {
 
         @Override
         public String toString() {
-            return "FollowerChecker{" +
-                "discoveryNode=" + discoveryNode +
-                ", failureCountSinceLastSuccess=" + failureCountSinceLastSuccess +
-                ", [" + FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey() + "]=" + followerCheckRetryCount +
-                '}';
+            return "FollowerChecker{"
+                + "discoveryNode="
+                + discoveryNode
+                + ", failureCountSinceLastSuccess="
+                + failureCountSinceLastSuccess
+                + ", timeoutCountSinceLastSuccess="
+                + timeoutCountSinceLastSuccess
+                + ", ["
+                + FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey()
+                + "]="
+                + followerCheckRetryCount
+                + '}';
         }
     }
 
@@ -438,16 +448,12 @@ public class FollowersChecker {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             FollowerCheckRequest that = (FollowerCheckRequest) o;
-            return term == that.term &&
-                Objects.equals(sender, that.sender);
+            return term == that.term && Objects.equals(sender, that.sender);
         }
 
         @Override
         public String toString() {
-            return "FollowerCheckRequest{" +
-                "term=" + term +
-                ", sender=" + sender +
-                '}';
+            return "FollowerCheckRequest{" + "term=" + term + ", sender=" + sender + '}';
         }
 
         @Override

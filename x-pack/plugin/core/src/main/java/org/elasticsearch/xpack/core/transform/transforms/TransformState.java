@@ -1,23 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformField;
 
@@ -25,8 +26,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class TransformState implements Task.Status, PersistentTaskState {
     public static final String NAME = TransformField.TASK_NAME;
@@ -48,7 +49,7 @@ public class TransformState implements Task.Status, PersistentTaskState {
     public static final ParseField TASK_STATE = new ParseField("task_state");
     public static final ParseField INDEXER_STATE = new ParseField("indexer_state");
 
-    // 7.3 BWC: current_position only exists in 7.2.  In 7.3+ it is replaced by position.
+    // 7.3 BWC: current_position only exists in 7.2. In 7.3+ it is replaced by position.
     public static final ParseField CURRENT_POSITION = new ParseField("current_position");
     public static final ParseField POSITION = new ParseField("position");
     public static final ParseField CHECKPOINT = new ParseField("checkpoint");
@@ -57,36 +58,35 @@ public class TransformState implements Task.Status, PersistentTaskState {
     public static final ParseField NODE = new ParseField("node");
     public static final ParseField SHOULD_STOP_AT_NEXT_CHECKPOINT = new ParseField("should_stop_at_checkpoint");
 
-
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<TransformState, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        true,
-        args -> {
-            TransformTaskState taskState = (TransformTaskState) args[0];
-            IndexerState indexerState = (IndexerState) args[1];
-            Map<String, Object> bwcCurrentPosition = (Map<String, Object>) args[2];
-            TransformIndexerPosition transformIndexerPosition = (TransformIndexerPosition) args[3];
+    public static final ConstructingObjectParser<TransformState, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
+        TransformTaskState taskState = (TransformTaskState) args[0];
+        IndexerState indexerState = (IndexerState) args[1];
+        Map<String, Object> bwcCurrentPosition = (Map<String, Object>) args[2];
+        TransformIndexerPosition transformIndexerPosition = (TransformIndexerPosition) args[3];
 
-            // BWC handling, translate current_position to position iff position isn't set
-            if (bwcCurrentPosition != null && transformIndexerPosition == null) {
-                transformIndexerPosition = new TransformIndexerPosition(bwcCurrentPosition, null);
-            }
+        // BWC handling, translate current_position to position iff position isn't set
+        if (bwcCurrentPosition != null && transformIndexerPosition == null) {
+            transformIndexerPosition = new TransformIndexerPosition(bwcCurrentPosition, null);
+        }
 
-            long checkpoint = (long) args[4];
-            String reason = (String) args[5];
-            TransformProgress progress = (TransformProgress) args[6];
-            NodeAttributes node = (NodeAttributes) args[7];
-            boolean shouldStopAtNextCheckpoint = args[8] == null ? false : (boolean)args[8];
+        long checkpoint = (long) args[4];
+        String reason = (String) args[5];
+        TransformProgress progress = (TransformProgress) args[6];
+        NodeAttributes node = (NodeAttributes) args[7];
+        boolean shouldStopAtNextCheckpoint = args[8] == null ? false : (boolean) args[8];
 
-            return new TransformState(taskState,
-                indexerState,
-                transformIndexerPosition,
-                checkpoint,
-                reason,
-                progress,
-                node,
-                shouldStopAtNextCheckpoint);
-        });
+        return new TransformState(
+            taskState,
+            indexerState,
+            transformIndexerPosition,
+            checkpoint,
+            reason,
+            progress,
+            node,
+            shouldStopAtNextCheckpoint
+        );
+    });
 
     static {
         PARSER.declareField(constructorArg(), p -> TransformTaskState.fromString(p.text()), TASK_STATE, ValueType.STRING);
@@ -100,14 +100,16 @@ public class TransformState implements Task.Status, PersistentTaskState {
         PARSER.declareBoolean(optionalConstructorArg(), SHOULD_STOP_AT_NEXT_CHECKPOINT);
     }
 
-    public TransformState(TransformTaskState taskState,
-                          IndexerState indexerState,
-                          @Nullable TransformIndexerPosition position,
-                          long checkpoint,
-                          @Nullable String reason,
-                          @Nullable TransformProgress progress,
-                          @Nullable NodeAttributes node,
-                          boolean shouldStopAtNextCheckpoint) {
+    public TransformState(
+        TransformTaskState taskState,
+        IndexerState indexerState,
+        @Nullable TransformIndexerPosition position,
+        long checkpoint,
+        @Nullable String reason,
+        @Nullable TransformProgress progress,
+        @Nullable NodeAttributes node,
+        boolean shouldStopAtNextCheckpoint
+    ) {
         this.taskState = taskState;
         this.indexerState = indexerState;
         this.position = position;
@@ -118,22 +120,26 @@ public class TransformState implements Task.Status, PersistentTaskState {
         this.shouldStopAtNextCheckpoint = shouldStopAtNextCheckpoint;
     }
 
-    public TransformState(TransformTaskState taskState,
-                          IndexerState indexerState,
-                          @Nullable TransformIndexerPosition position,
-                          long checkpoint,
-                          @Nullable String reason,
-                          @Nullable TransformProgress progress,
-                          @Nullable NodeAttributes node) {
+    public TransformState(
+        TransformTaskState taskState,
+        IndexerState indexerState,
+        @Nullable TransformIndexerPosition position,
+        long checkpoint,
+        @Nullable String reason,
+        @Nullable TransformProgress progress,
+        @Nullable NodeAttributes node
+    ) {
         this(taskState, indexerState, position, checkpoint, reason, progress, node, false);
     }
 
-    public TransformState(TransformTaskState taskState,
-                          IndexerState indexerState,
-                          @Nullable TransformIndexerPosition position,
-                          long checkpoint,
-                          @Nullable String reason,
-                          @Nullable TransformProgress progress) {
+    public TransformState(
+        TransformTaskState taskState,
+        IndexerState indexerState,
+        @Nullable TransformIndexerPosition position,
+        long checkpoint,
+        @Nullable String reason,
+        @Nullable TransformProgress progress
+    ) {
         this(taskState, indexerState, position, checkpoint, reason, progress, null);
     }
 
@@ -266,14 +272,14 @@ public class TransformState implements Task.Status, PersistentTaskState {
 
         TransformState that = (TransformState) other;
 
-        return Objects.equals(this.taskState, that.taskState) &&
-            Objects.equals(this.indexerState, that.indexerState) &&
-            Objects.equals(this.position, that.position) &&
-            this.checkpoint == that.checkpoint &&
-            Objects.equals(this.reason, that.reason) &&
-            Objects.equals(this.progress, that.progress) &&
-            Objects.equals(this.shouldStopAtNextCheckpoint, that.shouldStopAtNextCheckpoint) &&
-            Objects.equals(this.node, that.node);
+        return Objects.equals(this.taskState, that.taskState)
+            && Objects.equals(this.indexerState, that.indexerState)
+            && Objects.equals(this.position, that.position)
+            && this.checkpoint == that.checkpoint
+            && Objects.equals(this.reason, that.reason)
+            && Objects.equals(this.progress, that.progress)
+            && Objects.equals(this.shouldStopAtNextCheckpoint, that.shouldStopAtNextCheckpoint)
+            && Objects.equals(this.node, that.node);
     }
 
     @Override

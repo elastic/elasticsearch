@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
@@ -23,7 +24,10 @@ public class DataAttachmentTests extends ESTestCase {
         Attachment attachment = DataAttachment.JSON.create("data", data);
         InputStream input = attachment.bodyPart().getDataHandler().getInputStream();
         String content = Streams.copyToString(new InputStreamReader(input, StandardCharsets.UTF_8));
-        assertThat(content, is("{\n  \"key\" : \"value\"\n}"));
+        assertThat(content, is("""
+            {
+              "key" : "value"
+            }"""));
     }
 
     public void testCreateYaml() throws Exception {
@@ -33,6 +37,9 @@ public class DataAttachmentTests extends ESTestCase {
         String content = Streams.copyToString(new InputStreamReader(input, StandardCharsets.UTF_8));
         // the yaml factory in es always emits unix line breaks
         // this seems to be a bug in jackson yaml factory that doesn't default to the platform line break
-        assertThat(content, is("---\nkey: \"value\"\n"));
+        assertThat(content, is("""
+            ---
+            key: "value"
+            """));
     }
 }

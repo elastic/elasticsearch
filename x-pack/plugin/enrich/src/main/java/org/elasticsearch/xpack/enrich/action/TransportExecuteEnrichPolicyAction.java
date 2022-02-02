@@ -1,31 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
-import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
-import org.elasticsearch.xpack.enrich.EnrichPolicyLocks;
 
+/**
+ * Coordinates enrich policy executions. This is a master node action,
+ * so that policy executions can be accounted. For example that no more
+ * than X policy executions occur or only a single policy execution occurs
+ * for each policy. The actual execution of the enrich policy is performed
+ * via {@link InternalExecutePolicyAction}.
+ */
 public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeAction<
     ExecuteEnrichPolicyAction.Request,
     ExecuteEnrichPolicyAction.Response> {
@@ -34,14 +36,12 @@ public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeActio
 
     @Inject
     public TransportExecuteEnrichPolicyAction(
-        Settings settings,
-        Client client,
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        EnrichPolicyLocks enrichPolicyLocks
+        EnrichPolicyExecutor enrichPolicyExecutor
     ) {
         super(
             ExecuteEnrichPolicyAction.NAME,
@@ -54,16 +54,7 @@ public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeActio
             ExecuteEnrichPolicyAction.Response::new,
             ThreadPool.Names.SAME
         );
-        this.executor = new EnrichPolicyExecutor(
-            settings,
-            clusterService,
-            client,
-            transportService.getTaskManager(),
-            threadPool,
-            indexNameExpressionResolver,
-            enrichPolicyLocks,
-            System::currentTimeMillis
-        );
+        this.executor = enrichPolicyExecutor;
     }
 
     @Override
@@ -73,29 +64,7 @@ public class TransportExecuteEnrichPolicyAction extends TransportMasterNodeActio
         ClusterState state,
         ActionListener<ExecuteEnrichPolicyAction.Response> listener
     ) {
-        if (state.getNodes().getIngestNodes().isEmpty()) {
-            // if we don't fail here then reindex will fail with a more complicated error.
-            // (EnrichPolicyRunner uses a pipeline with reindex)
-            throw new IllegalStateException("no ingest nodes in this cluster");
-        }
-
-        if (request.isWaitForCompletion()) {
-            executor.runPolicy(request, new ActionListener<>() {
-                @Override
-                public void onResponse(ExecuteEnrichPolicyStatus executionStatus) {
-                    listener.onResponse(new ExecuteEnrichPolicyAction.Response(executionStatus));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
-        } else {
-            Task executeTask = executor.runPolicy(request, LoggingTaskListener.instance());
-            TaskId taskId = new TaskId(clusterService.localNode().getId(), executeTask.getId());
-            listener.onResponse(new ExecuteEnrichPolicyAction.Response(taskId));
-        }
+        executor.coordinatePolicyExecution(request, listener);
     }
 
     @Override

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gateway;
 
@@ -29,18 +18,18 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -68,8 +57,11 @@ public abstract class MetadataStateFormat<T> {
     public static final String STATE_FILE_EXTENSION = ".st";
 
     private static final String STATE_FILE_CODEC = "state";
+    // original version format
     private static final int MIN_COMPATIBLE_STATE_FILE_VERSION = 1;
-    private static final int STATE_FILE_VERSION = 1;
+    // Lucene directory API changed to LE, ES 8.0
+    private static final int LE_VERSION = 2;
+    private static final int CURRENT_VERSION = LE_VERSION;
     private final String prefix;
     private final Pattern stateFilePattern;
 
@@ -101,11 +93,11 @@ public abstract class MetadataStateFormat<T> {
     }
 
     private void writeStateToFirstLocation(final T state, Path stateLocation, Directory stateDir, String tmpFileName)
-            throws WriteStateException {
+        throws WriteStateException {
         try {
             deleteFileIfExists(stateLocation, stateDir, tmpFileName);
             try (IndexOutput out = stateDir.createOutput(tmpFileName, IOContext.DEFAULT)) {
-                CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
+                CodecUtil.writeHeader(out, STATE_FILE_CODEC, CURRENT_VERSION);
                 out.writeInt(FORMAT.index());
                 try (XContentBuilder builder = newXContentBuilder(FORMAT, new IndexOutputOutputStream(out) {
                     @Override
@@ -123,13 +115,15 @@ public abstract class MetadataStateFormat<T> {
 
             stateDir.sync(Collections.singleton(tmpFileName));
         } catch (Exception e) {
-            throw new WriteStateException(false, "failed to write state to the first location tmp file " +
-                    stateLocation.resolve(tmpFileName), e);
+            throw new WriteStateException(
+                false,
+                "failed to write state to the first location tmp file " + stateLocation.resolve(tmpFileName),
+                e
+            );
         }
     }
 
-    private static void copyStateToExtraLocations(List<Tuple<Path, Directory>> stateDirs, String tmpFileName)
-            throws WriteStateException {
+    private static void copyStateToExtraLocations(List<Tuple<Path, Directory>> stateDirs, String tmpFileName) throws WriteStateException {
         Directory srcStateDir = stateDirs.get(0).v2();
         for (int i = 1; i < stateDirs.size(); i++) {
             Tuple<Path, Directory> extraStatePathAndDir = stateDirs.get(i);
@@ -145,14 +139,17 @@ public abstract class MetadataStateFormat<T> {
         }
     }
 
-    private static void performRenames(String tmpFileName, String fileName, final List<Tuple<Path, Directory>> stateDirectories) throws
-            WriteStateException {
+    private static void performRenames(String tmpFileName, String fileName, final List<Tuple<Path, Directory>> stateDirectories)
+        throws WriteStateException {
         Directory firstStateDirectory = stateDirectories.get(0).v2();
         try {
             firstStateDirectory.rename(tmpFileName, fileName);
         } catch (IOException e) {
-            throw new WriteStateException(false, "failed to rename tmp file to final name in the first state location " +
-                    stateDirectories.get(0).v1().resolve(tmpFileName), e);
+            throw new WriteStateException(
+                false,
+                "failed to rename tmp file to final name in the first state location " + stateDirectories.get(0).v1().resolve(tmpFileName),
+                e
+            );
         }
 
         for (int i = 1; i < stateDirectories.size(); i++) {
@@ -160,8 +157,11 @@ public abstract class MetadataStateFormat<T> {
             try {
                 extraStateDirectory.rename(tmpFileName, fileName);
             } catch (IOException e) {
-                throw new WriteStateException(true, "failed to rename tmp file to final name in extra state location " +
-                        stateDirectories.get(i).v1().resolve(tmpFileName), e);
+                throw new WriteStateException(
+                    true,
+                    "failed to rename tmp file to final name in extra state location " + stateDirectories.get(i).v1().resolve(tmpFileName),
+                    e
+                );
             }
         }
     }
@@ -263,7 +263,7 @@ public abstract class MetadataStateFormat<T> {
         return newGenerationId;
     }
 
-    protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream ) throws IOException {
+    protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream) throws IOException {
         return XContentFactory.contentBuilder(type, stream);
     }
 
@@ -288,21 +288,31 @@ public abstract class MetadataStateFormat<T> {
             try (IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
-                CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION, STATE_FILE_VERSION);
-                final XContentType xContentType = XContentType.values()[indexInput.readInt()];
+                final int format = CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION, CURRENT_VERSION);
+                final XContentType xContentType;
+                if (format < LE_VERSION) {
+                    xContentType = XContentType.values()[Integer.reverseBytes(indexInput.readInt())];
+                } else {
+                    xContentType = XContentType.values()[indexInput.readInt()];
+                }
                 if (xContentType != FORMAT) {
                     throw new IllegalStateException("expected state in " + file + " to be " + FORMAT + " format but was " + xContentType);
                 }
                 long filePointer = indexInput.getFilePointer();
                 long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
                 try (IndexInput slice = indexInput.slice("state_xcontent", filePointer, contentSize)) {
-                    try (XContentParser parser = XContentFactory.xContent(FORMAT)
-                            .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE,
-                                    new InputStreamIndexInput(slice, contentSize))) {
+                    try (
+                        XContentParser parser = XContentFactory.xContent(FORMAT)
+                            .createParser(
+                                namedXContentRegistry,
+                                LoggingDeprecationHandler.INSTANCE,
+                                new InputStreamIndexInput(slice, contentSize)
+                            )
+                    ) {
                         return fromXContent(parser);
                     }
                 }
-            } catch(CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 // we trick this into a dedicated exception with the original stacktrace
                 throw new CorruptStateException(ex);
             }
@@ -310,9 +320,8 @@ public abstract class MetadataStateFormat<T> {
     }
 
     protected Directory newDirectory(Path dir) throws IOException {
-        return new SimpleFSDirectory(dir);
+        return new NIOFSDirectory(dir);
     }
-
 
     /**
      * Clean ups all state files not matching passed generation.
@@ -345,7 +354,7 @@ public abstract class MetadataStateFormat<T> {
      * @return maximum id of state file or -1 if no such files are found
      * @throws IOException if IOException occurs
      */
-    private long findMaxGenerationId(final String prefix, Path... locations) throws IOException {
+    long findMaxGenerationId(final String prefix, Path... locations) throws IOException {
         long maxId = -1;
         for (Path dataLocation : locations) {
             final Path resolve = dataLocation.resolve(STATE_DIR_NAME);
@@ -364,7 +373,7 @@ public abstract class MetadataStateFormat<T> {
         return maxId;
     }
 
-    private List<Path> findStateFilesByGeneration(final long generation, Path... locations) {
+    List<Path> findStateFilesByGeneration(final long generation, Path... locations) {
         List<Path> files = new ArrayList<>();
         if (generation == -1) {
             return files;
@@ -406,16 +415,17 @@ public abstract class MetadataStateFormat<T> {
                 return state;
             } catch (Exception e) {
                 exceptions.add(new IOException("failed to read " + stateFile, e));
-                logger.debug(() -> new ParameterizedMessage(
-                        "{}: failed to read [{}], ignoring...", stateFile, prefix), e);
+                logger.debug(() -> new ParameterizedMessage("{}: failed to read [{}], ignoring...", stateFile, prefix), e);
             }
         }
         // if we reach this something went wrong
         ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
         if (stateFiles.size() > 0) {
             // We have some state files but none of them gave us a usable state
-            throw new IllegalStateException("Could not find a state file to recover from among " +
-                    stateFiles.stream().map(Object::toString).collect(Collectors.joining(", ")));
+            throw new IllegalStateException(
+                "Could not find a state file to recover from among "
+                    + stateFiles.stream().map(Object::toString).collect(Collectors.joining(", "))
+            );
         }
         return null;
     }
@@ -428,16 +438,21 @@ public abstract class MetadataStateFormat<T> {
      * @return tuple of the latest state and generation. (null, -1) if no state is found.
      */
     public Tuple<T, Long> loadLatestStateWithGeneration(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations)
-            throws IOException {
+        throws IOException {
         long generation = findMaxGenerationId(prefix, dataLocations);
         T state = loadGeneration(logger, namedXContentRegistry, generation, dataLocations);
 
+        // It may not be possible to get into this state, if there's a bad state file the above
+        // call will throw ElasticsearchException. If there are no state files, we won't find a
+        // generation.
         if (generation > -1 && state == null) {
-            throw new IllegalStateException("unable to find state files with generation id " + generation +
-                    " returned by findMaxGenerationId function, in data folders [" +
-                    Arrays.stream(dataLocations).
-                            map(Object::toString).collect(Collectors.joining(", ")) +
-                    "], concurrent writes?");
+            throw new IllegalStateException(
+                "unable to find state files with generation id "
+                    + generation
+                    + " returned by findMaxGenerationId function, in data folders ["
+                    + Arrays.stream(dataLocations).map(Object::toString).collect(Collectors.joining(", "))
+                    + "], concurrent writes?"
+            );
         }
         return Tuple.tuple(state, generation);
     }
@@ -449,8 +464,7 @@ public abstract class MetadataStateFormat<T> {
      * @param dataLocations the data-locations to try.
      * @return the latest state or <code>null</code> if no state was found.
      */
-    public T loadLatestState(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations) throws
-            IOException {
+    public T loadLatestState(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations) throws IOException {
         return loadLatestStateWithGeneration(logger, namedXContentRegistry, dataLocations).v1();
     }
 

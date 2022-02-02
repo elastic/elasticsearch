@@ -62,6 +62,12 @@ POST /_ingest/pipeline/my-pipeline-id/_simulate
 
 `GET /_ingest/pipeline/_simulate`
 
+[[simulate-pipeline-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`read_pipeline`, `manage_pipeline`, `manage_ingest_pipelines`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[simulate-pipeline-api-desc]]
 ==== {api-description-title}
@@ -78,9 +84,9 @@ or supply a pipeline definition in the body of the request.
 ==== {api-path-parms-title}
 
 `<pipeline>`::
-(Optional, string)
-Pipeline ID used to simulate an ingest.
-
+(Required*, string)
+Pipeline to test. If you don't specify a `pipeline` in the request body, this
+parameter is required.
 
 [[simulate-pipeline-api-query-params]]
 ==== {api-query-parms-title}
@@ -92,49 +98,46 @@ the response includes output data
 for each processor in the executed pipeline.
 
 
+[role="child_attributes"]
 [[simulate-pipeline-api-request-body]]
 ==== {api-request-body-title}
 
-`description`::
-(Optional, string)
-Description of the ingest pipeline.
-
-`processors`::
+`pipeline`::
+(Required*, object)
+Pipeline to test. If you don't specify the `<pipeline>` request path parameter,
+this parameter is required. If you specify both this and the request path
+parameter, the API only uses the request path parameter.
 +
---
-(Optional, array of <<ingest-processors,processor objects>>)
-Array of processors used to pre-process documents
-during ingest.
-
-Processors are executed in the order provided.
-
-See <<ingest-processors>> for processor object definitions
-and a list of built-in processors.
---
+.Properties of `pipeline`
+[%collapsible%open]
+====
+include::put-pipeline.asciidoc[tag=pipeline-object]
+====
 
 `docs`::
+(Required, array of objects)
+Sample documents to test in the pipeline.
 +
---
-(Required, array)
-Array of documents
-ingested by the pipeline.
-
-Document object parameters include:
+.Properties of `docs` objects
+[%collapsible%open]
+====
+`_id`::
+(Optional, string)
+Unique identifier for the document. This ID must be unique within the `_index`.
 
 `_index`::
 (Optional, string)
 Name of the index containing the document.
 
-`_id`::
+`_routing`::
 (Optional, string)
-Unique identifier for the document.
-This ID is only unique within the index.
+Value used to send the document to a specific primary shard. See the
+<<mapping-routing-field,`_routing`>> field.
 
 `_source`::
 (Required, object)
 JSON body for the document.
---
-
+====
 
 [[simulate-pipeline-api-example]]
 ==== {api-examples-title}
@@ -294,7 +297,7 @@ you can add the `verbose` parameter to the request.
 
 [source,console]
 ----
-POST /_ingest/pipeline/_simulate?verbose
+POST /_ingest/pipeline/_simulate?verbose=true
 {
   "pipeline" :
   {

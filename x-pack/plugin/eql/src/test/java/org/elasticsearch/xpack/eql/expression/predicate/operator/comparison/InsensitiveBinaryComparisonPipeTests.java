@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.predicate.operator.comparison;
@@ -35,11 +36,12 @@ public class InsensitiveBinaryComparisonPipeTests extends AbstractNodeTestCase<I
     }
 
     public static InsensitiveBinaryComparisonPipe randomInsensitiveBinaryComparisonPipe() {
-        return (InsensitiveBinaryComparisonPipe) (new InsensitiveEquals(randomSource(),
+        return (InsensitiveBinaryComparisonPipe) (new InsensitiveEquals(
+            randomSource(),
             randomStringLiteral(),
             randomStringLiteral(),
-            TestUtils.UTC).
-            makePipe());
+            TestUtils.UTC
+        ).makePipe());
     }
 
     @Override
@@ -53,9 +55,12 @@ public class InsensitiveBinaryComparisonPipeTests extends AbstractNodeTestCase<I
             newExpression,
             pipe.left(),
             pipe.right(),
-            pipe.asProcessor().function());
-        assertEquals(newPipe,
-            pipe.transformPropertiesOnly(v -> Objects.equals(v, pipe.expression()) ? newExpression : v, Expression.class));
+            pipe.asProcessor().function()
+        );
+        assertEquals(
+            newPipe,
+            pipe.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, pipe.expression()) ? newExpression : v)
+        );
 
         InsensitiveBinaryComparisonPipe anotherPipe = randomInstance();
         Source newLoc = randomValueOtherThan(anotherPipe.source(), SourceTests::randomSource);
@@ -64,9 +69,9 @@ public class InsensitiveBinaryComparisonPipeTests extends AbstractNodeTestCase<I
             anotherPipe.expression(),
             anotherPipe.left(),
             anotherPipe.right(),
-            anotherPipe.asProcessor().function());
-        assertEquals(newPipe,
-            anotherPipe.transformPropertiesOnly(v -> Objects.equals(v, anotherPipe.source()) ? newLoc : v, Source.class));
+            anotherPipe.asProcessor().function()
+        );
+        assertEquals(newPipe, anotherPipe.transformPropertiesOnly(Source.class, v -> Objects.equals(v, anotherPipe.source()) ? newLoc : v));
     }
 
     @Override
@@ -74,8 +79,13 @@ public class InsensitiveBinaryComparisonPipeTests extends AbstractNodeTestCase<I
         InsensitiveBinaryComparisonPipe pipe = randomInstance();
         Pipe newLeft = pipe(((Expression) randomValueOtherThan(pipe.left(), FunctionTestUtils::randomStringLiteral)));
         Pipe newRight = pipe(((Expression) randomValueOtherThan(pipe.right(), FunctionTestUtils::randomStringLiteral)));
-        InsensitiveBinaryComparisonPipe newPipe =
-            new InsensitiveBinaryComparisonPipe(pipe.source(), pipe.expression(), pipe.left(), pipe.right(), pipe.asProcessor().function());
+        InsensitiveBinaryComparisonPipe newPipe = new InsensitiveBinaryComparisonPipe(
+            pipe.source(),
+            pipe.expression(),
+            pipe.left(),
+            pipe.right(),
+            pipe.asProcessor().function()
+        );
 
         InsensitiveBinaryComparisonPipe transformed = newPipe.replaceChildren(newLeft, pipe.right());
         assertEquals(transformed.source(), pipe.source());
@@ -99,31 +109,45 @@ public class InsensitiveBinaryComparisonPipeTests extends AbstractNodeTestCase<I
     @Override
     protected InsensitiveBinaryComparisonPipe mutate(InsensitiveBinaryComparisonPipe instance) {
         List<Function<InsensitiveBinaryComparisonPipe, InsensitiveBinaryComparisonPipe>> randoms = new ArrayList<>();
-        randoms.add(f -> new InsensitiveBinaryComparisonPipe(f.source(),
-            f.expression(),
-            pipe(((Expression) randomValueOtherThan(f.left(), FunctionTestUtils::randomStringLiteral))),
-            f.right(),
-            f.asProcessor().function()));
-        randoms.add(f -> new InsensitiveBinaryComparisonPipe(f.source(),
-            f.expression(),
-            f.left(),
-            pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomStringLiteral))),
-            f.asProcessor().function()));
-        randoms.add(f -> new InsensitiveBinaryComparisonPipe(f.source(),
-            f.expression(),
-            pipe(((Expression) randomValueOtherThan(f.left(), FunctionTestUtils::randomStringLiteral))),
-            pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomStringLiteral))),
-            f.asProcessor().function()));
+        randoms.add(
+            f -> new InsensitiveBinaryComparisonPipe(
+                f.source(),
+                f.expression(),
+                pipe(((Expression) randomValueOtherThan(f.left(), FunctionTestUtils::randomStringLiteral))),
+                f.right(),
+                f.asProcessor().function()
+            )
+        );
+        randoms.add(
+            f -> new InsensitiveBinaryComparisonPipe(
+                f.source(),
+                f.expression(),
+                f.left(),
+                pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomStringLiteral))),
+                f.asProcessor().function()
+            )
+        );
+        randoms.add(
+            f -> new InsensitiveBinaryComparisonPipe(
+                f.source(),
+                f.expression(),
+                pipe(((Expression) randomValueOtherThan(f.left(), FunctionTestUtils::randomStringLiteral))),
+                pipe(((Expression) randomValueOtherThan(f.right(), FunctionTestUtils::randomStringLiteral))),
+                f.asProcessor().function()
+            )
+        );
 
         return randomFrom(randoms).apply(instance);
     }
 
     @Override
     protected InsensitiveBinaryComparisonPipe copy(InsensitiveBinaryComparisonPipe instance) {
-        return new InsensitiveBinaryComparisonPipe(instance.source(),
+        return new InsensitiveBinaryComparisonPipe(
+            instance.source(),
             instance.expression(),
             instance.left(),
             instance.right(),
-            instance.asProcessor().function());
+            instance.asProcessor().function()
+        );
     }
 }

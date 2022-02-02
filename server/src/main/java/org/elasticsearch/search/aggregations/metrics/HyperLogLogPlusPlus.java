@@ -1,33 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -99,7 +88,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     @Override
     public long maxOrd() {
-        return hll.runLens.size() >>> hll.precision();
+        return hll.maxOrd();
     }
 
     @Override
@@ -152,10 +141,11 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     }
 
     void upgradeToHll(long bucketOrd) {
-        hll.ensureCapacity(bucketOrd + 1);
-        final AbstractLinearCounting.HashesIterator hashes = lc.values(bucketOrd);
         // We need to copy values into an arrays as we will override
         // the values on the buffer
+        hll.ensureCapacity(bucketOrd + 1);
+        // It's safe to reuse lc's readSpare because we're single threaded.
+        final AbstractLinearCounting.HashesIterator hashes = new LinearCountingIterator(lc, lc.readSpare, bucketOrd);
         final IntArray values = lc.bigArrays.newIntArray(hashes.size());
         try {
             int i = 0;
@@ -212,16 +202,19 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
     private static class HyperLogLog extends AbstractHyperLogLog implements Releasable {
         private final BigArrays bigArrays;
-        private final HyperLogLogIterator iterator;
+        private final int precision;
         // array for holding the runlens.
         private ByteArray runLens;
 
-
         HyperLogLog(BigArrays bigArrays, long initialBucketCount, int precision) {
             super(precision);
-            this.runLens =  bigArrays.newByteArray(initialBucketCount << precision);
+            this.runLens = bigArrays.newByteArray(initialBucketCount << precision);
             this.bigArrays = bigArrays;
-            this.iterator = new HyperLogLogIterator(this, precision, m);
+            this.precision = precision;
+        }
+
+        public long maxOrd() {
+            return runLens.size() >>> precision();
         }
 
         @Override
@@ -232,8 +225,7 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
         @Override
         protected RunLenIterator getRunLens(long bucketOrd) {
-            iterator.reset(bucketOrd);
-            return iterator;
+            return new HyperLogLogIterator(this, bucketOrd);
         }
 
         protected void reset(long bucketOrd) {
@@ -253,25 +245,18 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     private static class HyperLogLogIterator implements AbstractHyperLogLog.RunLenIterator {
 
         private final HyperLogLog hll;
-        private final int m, p;
         int pos;
         long start;
         private byte value;
 
-        HyperLogLogIterator(HyperLogLog hll, int p, int m) {
+        HyperLogLogIterator(HyperLogLog hll, long bucket) {
             this.hll = hll;
-            this.m = m;
-            this.p = p;
-        }
-
-        void reset(long bucket) {
-            pos = 0;
-            start = bucket << p;
+            start = bucket << hll.p;
         }
 
         @Override
         public boolean next() {
-            if (pos < m) {
+            if (pos < hll.m) {
                 value = hll.runLens.get(start + pos);
                 pos++;
                 return true;
@@ -292,9 +277,9 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         private final BytesRef readSpare;
         private final ByteBuffer writeSpare;
         private final BigArrays bigArrays;
-        private final LinearCountingIterator iterator;
         // We are actually using HyperLogLog's runLens array but interpreting it as a hash set for linear counting.
         private final HyperLogLog hll;
+        private final int capacity;
         // Number of elements stored.
         private IntArray sizes;
 
@@ -302,13 +287,12 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             super(p);
             this.bigArrays = bigArrays;
             this.hll = hll;
-            final int capacity = (1 << p) / 4; // because ints take 4 bytes
+            this.capacity = (1 << p) / 4; // because ints take 4 bytes
             threshold = (int) (capacity * MAX_LOAD_FACTOR);
             mask = capacity - 1;
             sizes = bigArrays.newIntArray(initialBucketCount);
             readSpare = new BytesRef();
             writeSpare = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
-            iterator = new LinearCountingIterator(this, capacity);
         }
 
         @Override
@@ -316,7 +300,8 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             sizes = bigArrays.grow(sizes, bucketOrd + 1);
             assert encoded != 0;
             for (int i = (encoded & mask);; i = (i + 1) & mask) {
-                final int v = get(bucketOrd, i);
+                hll.runLens.get(index(bucketOrd, i), 4, readSpare);
+                final int v = ByteUtils.readIntLE(readSpare.bytes, readSpare.offset);
                 if (v == 0) {
                     // means unused, take it!
                     set(bucketOrd, i, encoded);
@@ -340,17 +325,12 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
         @Override
         protected HashesIterator values(long bucketOrd) {
-            iterator.reset(bucketOrd, size(bucketOrd));
-            return iterator;
+            // Make a fresh BytesRef for reading scratch work because this method can be called on many threads
+            return new LinearCountingIterator(this, new BytesRef(), bucketOrd);
         }
 
         private long index(long bucketOrd, int index) {
             return (bucketOrd << p) + (index << 2);
-        }
-
-        private int get(long bucketOrd, int index) {
-            hll.runLens.get(index(bucketOrd, index), 4, readSpare);
-            return ByteUtils.readIntLE(readSpare.bytes, readSpare.offset);
         }
 
         private void set(long bucketOrd, int index, int value) {
@@ -359,9 +339,14 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
         }
 
         private int recomputedSize(long bucketOrd) {
+            if (bucketOrd >= hll.maxOrd()) {
+                return 0;
+            }
             int size = 0;
+            BytesRef spare = new BytesRef();
             for (int i = 0; i <= mask; ++i) {
-                final int v = get(bucketOrd, i);
+                hll.runLens.get(index(bucketOrd, i), 4, spare);
+                final int v = ByteUtils.readIntLE(spare.bytes, spare.offset);
                 if (v != 0) {
                     ++size;
                 }
@@ -378,20 +363,18 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
     private static class LinearCountingIterator implements AbstractLinearCounting.HashesIterator {
 
         private final LinearCounting lc;
-        private final int capacity;
-        private int pos, size;
-        private long bucketOrd;
+        private final BytesRef spare;
+        private final long bucketOrd;
+        private final int size;
+        private int pos;
         private int value;
 
-        LinearCountingIterator(LinearCounting lc, int capacity) {
+        LinearCountingIterator(LinearCounting lc, BytesRef spare, long bucketOrd) {
             this.lc = lc;
-            this.capacity = capacity;
-        }
-
-        void reset(long bucketOrd, int size) {
+            this.spare = spare;
             this.bucketOrd = bucketOrd;
-            this.size = size;
-            this.pos = size == 0 ? capacity : 0;
+            this.size = lc.size(bucketOrd);
+            this.pos = size == 0 ? lc.capacity : 0;
         }
 
         @Override
@@ -401,9 +384,10 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
 
         @Override
         public boolean next() {
-            if (pos < capacity) {
-                for (; pos < capacity; ++pos) {
-                    final int k = lc.get(bucketOrd, pos);
+            if (pos < lc.capacity) {
+                for (; pos < lc.capacity; ++pos) {
+                    lc.hll.runLens.get(lc.index(bucketOrd, pos), 4, spare);
+                    int k = ByteUtils.readIntLE(spare.bytes, spare.offset);
                     if (k != 0) {
                         ++pos;
                         value = k;

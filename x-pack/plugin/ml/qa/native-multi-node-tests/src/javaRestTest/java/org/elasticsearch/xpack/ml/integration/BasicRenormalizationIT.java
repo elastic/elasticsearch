@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -33,7 +33,7 @@ public class BasicRenormalizationIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testDefaultRenormalization() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/44613", Constants.WINDOWS);
+
         String jobId = "basic-renormalization-it-test-default-renormalization-job";
         createAndRunJob(jobId, null);
 
@@ -70,18 +70,17 @@ public class BasicRenormalizationIT extends MlNativeAutodetectIntegTestCase {
 
         Job.Builder job = buildAndRegisterJob(jobId, bucketSpan, renormalizationWindow);
         openJob(job.getId());
-        postData(job.getId(), generateData(startTime, bucketSpan, 50,
-                bucketIndex -> {
-                    if (bucketIndex == 35) {
-                        // First anomaly is 10 events
-                        return 10;
-                    } else if (bucketIndex == 45) {
-                        // Second anomaly is 100, should get the highest score and should bring the first score down
-                        return 100;
-                    } else {
-                        return 1;
-                    }
-                }).stream().collect(Collectors.joining()));
+        postData(job.getId(), generateData(startTime, bucketSpan, 50, bucketIndex -> {
+            if (bucketIndex == 35) {
+                // First anomaly is 10 events
+                return 10;
+            } else if (bucketIndex == 45) {
+                // Second anomaly is 100, should get the highest score and should bring the first score down
+                return 100;
+            } else {
+                return 1;
+            }
+        }).stream().collect(Collectors.joining()));
         closeJob(job.getId());
     }
 
@@ -96,7 +95,6 @@ public class BasicRenormalizationIT extends MlNativeAutodetectIntegTestCase {
         if (renormalizationWindow != null) {
             job.setRenormalizationWindowDays(renormalizationWindow);
         }
-        registerJob(job);
         putJob(job);
         return job;
     }

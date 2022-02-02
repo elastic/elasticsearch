@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  * AbstractHyperLogLogPlusPlus instance that only supports linear counting. The maximum number of hashes supported
@@ -93,7 +82,6 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
     private static class LinearCounting extends AbstractLinearCounting implements Releasable {
 
         private final BigArrays bigArrays;
-        private final LinearCountingIterator iterator;
         // We are actually using HyperLogLog's runLens array but interpreting it as a hash set for linear counting.
         // Number of elements stored.
         private ObjectArray<IntArray> values;
@@ -116,7 +104,6 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
             }
             this.values = values;
             this.sizes = sizes;
-            iterator = new LinearCountingIterator();
         }
 
         @Override
@@ -149,8 +136,7 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
 
         @Override
         protected HashesIterator values(long bucketOrd) {
-            iterator.reset(values.get(bucketOrd), size(bucketOrd));
-            return iterator;
+            return new LinearCountingIterator(values.get(bucketOrd), size(bucketOrd));
         }
 
         private int set(long bucketOrd, int value) {
@@ -187,17 +173,14 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
 
     private static class LinearCountingIterator implements AbstractLinearCounting.HashesIterator {
 
-        IntArray values;
-        int size, value;
+        private final IntArray values;
+        private final int size;
+        private int value;
         private long pos;
 
-        LinearCountingIterator() {
-        }
-
-        void reset(IntArray values, int size) {
+        LinearCountingIterator(IntArray values, int size) {
             this.values = values;
             this.size = size;
-            this.pos = 0;
         }
 
         @Override

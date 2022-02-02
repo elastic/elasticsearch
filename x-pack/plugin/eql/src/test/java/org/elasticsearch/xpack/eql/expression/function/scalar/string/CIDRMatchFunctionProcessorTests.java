@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
@@ -35,38 +36,47 @@ public class CIDRMatchFunctionProcessorTests extends ESTestCase {
         ArrayList<Expression> addresses = new ArrayList<>();
 
         // Invalid source address
-        EqlIllegalArgumentException e = expectThrows(EqlIllegalArgumentException.class,
-                () -> new CIDRMatch(EMPTY, l("10.6.48"), addresses).makePipe().asProcessor().process(null));
+        EqlIllegalArgumentException e = expectThrows(
+            EqlIllegalArgumentException.class,
+            () -> new CIDRMatch(EMPTY, l("10.6.48"), addresses).makePipe().asProcessor().process(null)
+        );
 
         assertEquals("'10.6.48' is not an IP string literal.", e.getMessage());
 
         // Invalid match ip address
         addresses.add(l("10.6.48"));
-        e = expectThrows(EqlIllegalArgumentException.class,
-                () -> new CIDRMatch(EMPTY, l("10.6.48.157"), addresses).makePipe().asProcessor().process(null));
+        e = expectThrows(
+            EqlIllegalArgumentException.class,
+            () -> new CIDRMatch(EMPTY, l("10.6.48.157"), addresses).makePipe().asProcessor().process(null)
+        );
 
         assertEquals("'10.6.48' is not an IP string literal.", e.getMessage());
         addresses.clear();
 
         // Invalid CIDR
         addresses.add(l("10.6.12/12"));
-        e = expectThrows(EqlIllegalArgumentException.class,
-                () -> new CIDRMatch(EMPTY, l("10.6.48.157"), addresses).makePipe().asProcessor().process(null));
+        e = expectThrows(
+            EqlIllegalArgumentException.class,
+            () -> new CIDRMatch(EMPTY, l("10.6.48.157"), addresses).makePipe().asProcessor().process(null)
+        );
 
         assertEquals("'10.6.12' is not an IP string literal.", e.getMessage());
         addresses.clear();
 
         // Invalid source type
-        QlIllegalArgumentException eqe = expectThrows(QlIllegalArgumentException.class,
-                () -> new CIDRMatch(EMPTY, l(12345), addresses).makePipe().asProcessor().process(null));
+        QlIllegalArgumentException eqe = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> new CIDRMatch(EMPTY, l(12345), addresses).makePipe().asProcessor().process(null)
+        );
 
         assertEquals("A string/char is required; received [12345]", eqe.getMessage());
 
-
         // Invalid cidr type
         addresses.add(l(5678));
-        eqe = expectThrows(QlIllegalArgumentException.class,
-                () -> new CIDRMatch(EMPTY, l("10.6.48.157"), addresses).makePipe().asProcessor().process(null));
+        eqe = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> new CIDRMatch(EMPTY, l("10.6.48.157"), addresses).makePipe().asProcessor().process(null)
+        );
 
         assertEquals("A string/char is required; received [5678]", eqe.getMessage());
     }

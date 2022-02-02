@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util;
@@ -76,7 +65,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
     private final int capacity;
     private final double fpp;
     private Consumer<Long> breaker = aLong -> {
-        //noop
+        // noop
     };
 
     // cached here for performance reasons
@@ -100,7 +89,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         }
 
         // We have to ensure that, in the worst case, two full sets can be converted into
-        // one cuckoo filter without overflowing.  This keeps merging logic simpler
+        // one cuckoo filter without overflowing. This keeps merging logic simpler
         if (threshold * 2 > FILTER_CAPACITY) {
             throw new IllegalArgumentException("[threshold] must be smaller than [" + (FILTER_CAPACITY / 2) + "]");
         }
@@ -112,23 +101,6 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         this.rng = rng;
         this.capacity = FILTER_CAPACITY;
         this.fpp = fpp;
-    }
-
-    public SetBackedScalingCuckooFilter(SetBackedScalingCuckooFilter other) {
-        this.threshold = other.threshold;
-        this.isSetMode = other.isSetMode;
-        this.rng = other.rng;
-        this.breaker = other.breaker;
-        this.capacity = other.capacity;
-        this.fpp = other.fpp;
-        if (isSetMode) {
-            this.hashes = new HashSet<>(other.hashes);
-        } else {
-            this.filters = new ArrayList<>(other.filters);
-            this.numBuckets = filters.get(0).getNumBuckets();
-            this.fingerprintMask = filters.get(0).getFingerprintMask();
-            this.bitsPerEntry = filters.get(0).getBitsPerEntry();
-        }
     }
 
     public SetBackedScalingCuckooFilter(StreamInput in, Random rng) throws IOException {
@@ -159,6 +131,27 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         } else {
             out.writeList(filters);
         }
+    }
+
+    /**
+     * Returns the number of distinct values that are tracked before converting to an approximate representation.
+     * */
+    public int getThreshold() {
+        return threshold;
+    }
+
+    /**
+     * Returns the random number generator used for the cuckoo hashing process.
+     * */
+    public Random getRng() {
+        return rng;
+    }
+
+    /**
+     * Returns the false-positive rate used for the cuckoo filters.
+     * */
+    public double getFpp() {
+        return fpp;
     }
 
     /**
@@ -272,8 +265,9 @@ public class SetBackedScalingCuckooFilter implements Writeable {
      */
     void convert() {
         if (isSetMode == false) {
-            throw new IllegalStateException("Cannot convert SetBackedScalingCuckooFilter to approximate " +
-                "when it has already been converted.");
+            throw new IllegalStateException(
+                "Cannot convert SetBackedScalingCuckooFilter to approximate " + "when it has already been converted."
+            );
         }
         long oldSize = getSizeInBytes();
 
@@ -310,7 +304,6 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         return bytes;
     }
 
-
     /**
      * Merge `other` cuckoo filter into this cuckoo.  After merging, this filter's state will
      * be the union of the two.  During the merging process, the internal Set may be upgraded
@@ -319,16 +312,19 @@ public class SetBackedScalingCuckooFilter implements Writeable {
     public void merge(SetBackedScalingCuckooFilter other) {
         // Some basic sanity checks to make sure we can merge
         if (this.threshold != other.threshold) {
-            throw new IllegalStateException("Cannot merge other CuckooFilter because thresholds do not match: ["
-                + this.threshold + "] vs [" + other.threshold + "]");
+            throw new IllegalStateException(
+                "Cannot merge other CuckooFilter because thresholds do not match: [" + this.threshold + "] vs [" + other.threshold + "]"
+            );
         }
         if (this.capacity != other.capacity) {
-            throw new IllegalStateException("Cannot merge other CuckooFilter because capacities do not match: ["
-                + this.capacity + "] vs [" + other.capacity + "]");
+            throw new IllegalStateException(
+                "Cannot merge other CuckooFilter because capacities do not match: [" + this.capacity + "] vs [" + other.capacity + "]"
+            );
         }
         if (this.fpp != other.fpp) {
-            throw new IllegalStateException("Cannot merge other CuckooFilter because precisions do not match: ["
-                + this.fpp + "] vs [" + other.fpp + "]");
+            throw new IllegalStateException(
+                "Cannot merge other CuckooFilter because precisions do not match: [" + this.fpp + "] vs [" + other.fpp + "]"
+            );
         }
 
         if (isSetMode && other.isSetMode) {
@@ -337,7 +333,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
             maybeConvert();
         } else if (isSetMode && other.isSetMode == false) {
             // Other is in cuckoo mode, so we convert our set to a cuckoo, then
-            // call the merge function again.  Since both are now in set-mode
+            // call the merge function again. Since both are now in set-mode
             // this will fall through to the last conditional and do a cuckoo-cuckoo merge
             convert();
             merge(other);
@@ -360,7 +356,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
                     long[] fingerprints = iter.next();
 
                     // We check to see if the fingerprint is present in any of the existing filters
-                    // (in the same bucket/alternate bucket), or if the fingerprint is empty.  In these cases
+                    // (in the same bucket/alternate bucket), or if the fingerprint is empty. In these cases
                     // we can skip the fingerprint
                     for (long fingerprint : fingerprints) {
                         if (fingerprint == CuckooFilter.EMPTY || mightContainFingerprint(bucket, (int) fingerprint)) {
@@ -381,7 +377,6 @@ public class SetBackedScalingCuckooFilter implements Writeable {
             }
         }
     }
-
 
     @Override
     public int hashCode() {

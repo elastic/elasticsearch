@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package oldes;
@@ -51,16 +40,13 @@ public class OldElasticsearch {
         // 0.90 must be explicitly foregrounded
         boolean explicitlyForeground;
         switch (args[2]) {
-        case "true":
-            explicitlyForeground = true;
-            break;
-        case "false":
-            explicitlyForeground = false;
-            break;
-        default:
-            System.err.println("the third argument must be true or false");
-            System.exit(1);
-            return;
+            case "true" -> explicitlyForeground = true;
+            case "false" -> explicitlyForeground = false;
+            default -> {
+                System.err.println("the third argument must be true or false");
+                System.exit(1);
+                return;
+            }
         }
 
         Iterator<Path> children = Files.list(unzipDir).iterator();
@@ -70,8 +56,13 @@ public class OldElasticsearch {
         }
         Path esDir = children.next();
         if (children.hasNext()) {
-            System.err.println("expected the es directory to contains a single child directory but contained [" + esDir + "] and ["
-                    + children.next() + "].");
+            System.err.println(
+                "expected the es directory to contains a single child directory but contained ["
+                    + esDir
+                    + "] and ["
+                    + children.next()
+                    + "]."
+            );
             System.exit(1);
         }
         if (false == Files.isDirectory(esDir)) {
@@ -82,7 +73,15 @@ public class OldElasticsearch {
         Path bin = esDir.resolve("bin").resolve("elasticsearch" + (Constants.WINDOWS ? ".bat" : ""));
         Path config = esDir.resolve("config").resolve("elasticsearch.yml");
 
-        Files.write(config, Arrays.asList("http.port: 0", "transport.tcp.port: 0", "network.host: 127.0.0.1"), StandardCharsets.UTF_8);
+        List<String> configOptions = new ArrayList<>();
+        configOptions.addAll(Arrays.asList("http.port: 0", "transport.tcp.port: 0", "network.host: 127.0.0.1"));
+        if (args.length > 3) {
+            for (int i = 3; i < args.length; i++) {
+                configOptions.add(args[i]);
+            }
+        }
+
+        Files.write(config, configOptions, StandardCharsets.UTF_8);
 
         List<String> command = new ArrayList<>();
         command.add(bin.toString());
@@ -90,7 +89,8 @@ public class OldElasticsearch {
             command.add("-f");
         }
         command.add("-p");
-        command.add("../pid");
+        Path pidPath = baseDir.relativize(baseDir.resolve("pid"));
+        command.add(pidPath.toString().replaceAll("&", "\\&"));
         ProcessBuilder subprocess = new ProcessBuilder(command);
         Process process = subprocess.start();
         System.out.println("Running " + command);
@@ -99,7 +99,9 @@ public class OldElasticsearch {
         int port = 0;
 
         Pattern pidPattern = Pattern.compile("pid\\[(\\d+)\\]");
-        Pattern httpPortPattern = Pattern.compile("\\[http\\s+\\].+bound_address.+127\\.0\\.0\\.1:(\\d+)");
+        Pattern httpPortPattern = Pattern.compile(
+            "(\\[http\\s+\\]|Netty4HttpServerTransport|HttpServer).+bound_address.+127\\.0\\.0\\.1:(\\d+)"
+        );
         try (BufferedReader stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = stdout.readLine()) != null && (pid == 0 || port == 0)) {
@@ -112,7 +114,7 @@ public class OldElasticsearch {
                 }
                 m = httpPortPattern.matcher(line);
                 if (m.find()) {
-                    port = Integer.parseInt(m.group(1));
+                    port = Integer.parseInt(m.group(2));
                     System.out.println("Found port:  " + port);
                     continue;
                 }
@@ -127,5 +129,9 @@ public class OldElasticsearch {
         Path tmp = Files.createTempFile(baseDir, null, null);
         Files.write(tmp, Integer.toString(port).getBytes(StandardCharsets.UTF_8));
         Files.move(tmp, baseDir.resolve("ports"), StandardCopyOption.ATOMIC_MOVE);
+
+        tmp = Files.createTempFile(baseDir, null, null);
+        Files.write(tmp, Integer.toString(pid).getBytes(StandardCharsets.UTF_8));
+        Files.move(tmp, baseDir.resolve("pid"), StandardCopyOption.ATOMIC_MOVE);
     }
 }

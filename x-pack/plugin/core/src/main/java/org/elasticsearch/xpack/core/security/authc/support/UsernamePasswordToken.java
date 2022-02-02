@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc.support;
 
-import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 import java.nio.CharBuffer;
@@ -39,7 +40,7 @@ public class UsernamePasswordToken implements AuthenticationToken {
             chars.put(username).put(':').put(passwd.getChars());
             charBytes = CharArrays.toUtf8Bytes(chars.array());
 
-            //TODO we still have passwords in Strings in headers. Maybe we can look into using a CharSequence?
+            // TODO we still have passwords in Strings in headers. Maybe we can look into using a CharSequence?
             String basicToken = Base64.getEncoder().encodeToString(charBytes);
             return "Basic " + basicToken;
         } finally {
@@ -72,8 +73,7 @@ public class UsernamePasswordToken implements AuthenticationToken {
 
         UsernamePasswordToken that = (UsernamePasswordToken) o;
 
-        return Objects.equals(password, that.password) &&
-                Objects.equals(username, that.username);
+        return Objects.equals(password, that.password) && Objects.equals(username, that.username);
     }
 
     @Override
@@ -90,8 +90,7 @@ public class UsernamePasswordToken implements AuthenticationToken {
         if (Strings.isNullOrEmpty(headerValue)) {
             return null;
         }
-        if (headerValue.regionMatches(IGNORE_CASE_AUTH_HEADER_MATCH, 0, BASIC_AUTH_PREFIX, 0,
-                BASIC_AUTH_PREFIX.length()) == false) {
+        if (headerValue.regionMatches(IGNORE_CASE_AUTH_HEADER_MATCH, 0, BASIC_AUTH_PREFIX, 0, BASIC_AUTH_PREFIX.length()) == false) {
             // the header does not start with 'Basic ' so we cannot use it, but it may be valid for another realm
             return null;
         }
@@ -114,8 +113,9 @@ public class UsernamePasswordToken implements AuthenticationToken {
         }
 
         return new UsernamePasswordToken(
-                new String(Arrays.copyOfRange(userpasswd, 0, i)),
-                new SecureString(Arrays.copyOfRange(userpasswd, i + 1, userpasswd.length)));
+            new String(Arrays.copyOfRange(userpasswd, 0, i)),
+            new SecureString(Arrays.copyOfRange(userpasswd, i + 1, userpasswd.length))
+        );
     }
 
     public static void putTokenHeader(ThreadContext context, UsernamePasswordToken token) {
@@ -125,7 +125,7 @@ public class UsernamePasswordToken implements AuthenticationToken {
     /**
      * Like String.indexOf for for an array of chars
      */
-    private static int indexOfColon(char[] array) {
+    public static int indexOfColon(char[] array) {
         for (int i = 0; (i < array.length); i++) {
             if (array[i] == ':') {
                 return i;

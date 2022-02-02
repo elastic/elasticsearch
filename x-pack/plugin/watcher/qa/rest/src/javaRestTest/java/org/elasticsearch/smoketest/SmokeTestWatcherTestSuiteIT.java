@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.smoketest;
 
@@ -12,18 +13,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.WatcherRestTestCase;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
-import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -70,18 +70,37 @@ public class SmokeTestWatcherTestSuiteIT extends WatcherRestTestCase {
             // trigger
             builder.startObject("trigger").startObject("schedule").field("interval", "1s").endObject().endObject();
             // input
-            builder.startObject("input").startObject("http").startObject("request").field("host", host).field("port", port)
+            builder.startObject("input")
+                .startObject("http")
+                .startObject("request")
+                .field("host", host)
+                .field("port", port)
                 .field("path", "/_cluster/health")
                 .field("scheme", "http")
-                .startObject("auth").startObject("basic")
-                .field("username", TEST_ADMIN_USERNAME).field("password", TEST_ADMIN_PASSWORD)
-                .endObject().endObject()
-                .endObject().endObject().endObject();
+                .startObject("auth")
+                .startObject("basic")
+                .field("username", TEST_ADMIN_USERNAME)
+                .field("password", TEST_ADMIN_PASSWORD)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
             // condition
-            builder.startObject("condition").startObject("compare").startObject("ctx.payload.number_of_data_nodes").field("lt", 10)
-                .endObject().endObject().endObject();
+            builder.startObject("condition")
+                .startObject("compare")
+                .startObject("ctx.payload.number_of_data_nodes")
+                .field("lt", 10)
+                .endObject()
+                .endObject()
+                .endObject();
             // actions
-            builder.startObject("actions").startObject("log").startObject("logging").field("text", "executed").endObject().endObject()
+            builder.startObject("actions")
+                .startObject("log")
+                .startObject("logging")
+                .field("text", "executed")
+                .endObject()
+                .endObject()
                 .endObject();
 
             builder.endObject();
@@ -188,7 +207,7 @@ public class SmokeTestWatcherTestSuiteIT extends WatcherRestTestCase {
                 logger.info("Found [{}] hits in watcher history", totalHits);
                 assertThat(totalHits, is(greaterThanOrEqualTo(1)));
                 String foundWatchId = objectPath.evaluate("hits.hits.0._source.watch_id");
-                logger.info("Watch hit 0 has id [{}] (expecting [{}])", foundWatchId,  watchId);
+                logger.info("Watch hit 0 has id [{}] (expecting [{}])", foundWatchId, watchId);
                 assertThat("watch_id for hit 0 in watcher history", foundWatchId, is(watchId));
                 objectPathReference.set(objectPath);
             } catch (ResponseException e) {

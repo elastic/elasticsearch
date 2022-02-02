@@ -1,35 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
@@ -44,6 +29,10 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -56,8 +45,10 @@ import java.util.function.LongConsumer;
  * A {@link CompositeValuesSourceBuilder} that builds a {@link RoundingValuesSource} from a {@link Script} or
  * a field name using the provided interval.
  */
-public class DateHistogramValuesSourceBuilder
-    extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder> implements DateIntervalConsumer {
+public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<DateHistogramValuesSourceBuilder>
+    implements
+        DateIntervalConsumer<DateHistogramValuesSourceBuilder> {
+
     @FunctionalInterface
     public interface DateHistogramCompositeSupplier {
         CompositeValuesSourceConfig apply(
@@ -67,6 +58,7 @@ public class DateHistogramValuesSourceBuilder
             boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
             String format,
             boolean missingBucket,
+            MissingOrder missingOrder,
             SortOrder order
         );
     }
@@ -77,8 +69,10 @@ public class DateHistogramValuesSourceBuilder
         DateHistogramCompositeSupplier.class
     );
 
-    static final ObjectParser<DateHistogramValuesSourceBuilder, String> PARSER =
-            ObjectParser.fromBuilder(TYPE, DateHistogramValuesSourceBuilder::new);
+    static final ObjectParser<DateHistogramValuesSourceBuilder, String> PARSER = ObjectParser.fromBuilder(
+        TYPE,
+        DateHistogramValuesSourceBuilder::new
+    );
     static {
         PARSER.declareString(DateHistogramValuesSourceBuilder::format, new ParseField("format"));
         DateIntervalWrapper.declareIntervalFields(PARSER);
@@ -144,53 +138,12 @@ public class DateHistogramValuesSourceBuilder
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         DateHistogramValuesSourceBuilder other = (DateHistogramValuesSourceBuilder) obj;
-        return Objects.equals(dateHistogramInterval, other.dateHistogramInterval)
-            && Objects.equals(timeZone, other.timeZone);
+        return Objects.equals(dateHistogramInterval, other.dateHistogramInterval) && Objects.equals(timeZone, other.timeZone);
     }
 
     @Override
     public String type() {
         return TYPE;
-    }
-
-    /**
-     * Returns the interval in milliseconds that is set on this source
-     **/
-    @Deprecated
-    public long interval() {
-        return dateHistogramInterval.interval();
-    }
-
-    /**
-     * Sets the interval on this source.
-     * If both {@link #interval()} and {@link #dateHistogramInterval()} are set,
-     * then the {@link #dateHistogramInterval()} wins.
-     *
-     * @deprecated Use {@link #calendarInterval(DateHistogramInterval)} or {@link #fixedInterval(DateHistogramInterval)} instead
-     * @since 7.2.0
-     **/
-    @Deprecated
-    public DateHistogramValuesSourceBuilder interval(long interval) {
-        dateHistogramInterval.interval(interval);
-        return this;
-    }
-
-    /**
-     * Returns the date interval that is set on this source
-     **/
-    @Deprecated
-    public DateHistogramInterval dateHistogramInterval() {
-        return dateHistogramInterval.dateHistogramInterval();
-    }
-
-    /**
-     * @deprecated Use {@link #calendarInterval(DateHistogramInterval)} or {@link #fixedInterval(DateHistogramInterval)} instead
-     * @since 7.2.0
-     */
-    @Deprecated
-    public DateHistogramValuesSourceBuilder dateHistogramInterval(DateHistogramInterval interval) {
-        dateHistogramInterval.dateHistogramInterval(interval);
-        return this;
     }
 
     /**
@@ -223,7 +176,10 @@ public class DateHistogramValuesSourceBuilder
      *  {@code null} then it means that the interval is expressed as a fixed
      *  {@link TimeValue} and may be accessed via {@link #getIntervalAsFixed()} ()}. */
     public DateHistogramInterval getIntervalAsCalendar() {
-        return dateHistogramInterval.getAsCalendarInterval();
+        if (dateHistogramInterval.getIntervalType().equals(DateIntervalWrapper.IntervalTypeEnum.CALENDAR)) {
+            return dateHistogramInterval.getAsCalendarInterval();
+        }
+        return null;
     }
 
     /**
@@ -231,7 +187,10 @@ public class DateHistogramValuesSourceBuilder
      * the interval cannot be parsed as a fixed time.
      */
     public DateHistogramInterval getIntervalAsFixed() {
-        return dateHistogramInterval.getAsFixedInterval();
+        if (dateHistogramInterval.getIntervalType().equals(DateIntervalWrapper.IntervalTypeEnum.FIXED)) {
+            return dateHistogramInterval.getAsFixedInterval();
+        }
+        return null;
     }
 
     /**
@@ -273,7 +232,7 @@ public class DateHistogramValuesSourceBuilder
         builder.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
-            (valuesSourceConfig, rounding, name, hasScript, format, missingBucket, order) -> {
+            (valuesSourceConfig, rounding, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it
                 // here
@@ -289,6 +248,7 @@ public class DateHistogramValuesSourceBuilder
                     docValueFormat,
                     order,
                     missingBucket,
+                    missingOrder,
                     hasScript,
                     (
                         BigArrays bigArrays,
@@ -297,20 +257,21 @@ public class DateHistogramValuesSourceBuilder
                         LongConsumer addRequestCircuitBreakerBytes,
                         CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
                         final RoundingValuesSource roundingValuesSource = (RoundingValuesSource) compositeValuesSourceConfig.valuesSource();
-                        return new LongValuesSource(
+                        return new DateHistogramValuesSource(
                             bigArrays,
                             compositeValuesSourceConfig.fieldType(),
-                            roundingValuesSource::longValues,
-                            roundingValuesSource::round,
+                            roundingValuesSource,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
+                            compositeValuesSourceConfig.missingOrder(),
                             size,
                             compositeValuesSourceConfig.reverseMul()
                         );
                     }
                 );
             },
-            false);
+            false
+        );
     }
 
     @Override
@@ -322,6 +283,6 @@ public class DateHistogramValuesSourceBuilder
     protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
         Rounding rounding = dateHistogramInterval.createRounding(timeZone(), offset);
         return registry.getAggregator(REGISTRY_KEY, config)
-            .apply(config, rounding, name, config.script() != null, format(), missingBucket(), order());
+            .apply(config, rounding, name, config.script() != null, format(), missingBucket(), missingOrder(), order());
     }
 }

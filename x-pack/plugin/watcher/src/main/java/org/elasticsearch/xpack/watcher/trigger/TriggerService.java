@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -29,12 +30,12 @@ import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArg
 public class TriggerService {
 
     private final GroupedConsumer consumer = new GroupedConsumer();
-    private final Map<String, TriggerEngine> engines;
+    private final Map<String, TriggerEngine<?, ?>> engines;
     private final Map<String, TriggerWatchStats> perWatchStats = new ConcurrentHashMap<>();
 
-    public TriggerService(Set<TriggerEngine> engines) {
-        Map<String, TriggerEngine> builder = new HashMap<>();
-        for (TriggerEngine engine : engines) {
+    public TriggerService(Set<TriggerEngine<?, ?>> engines) {
+        Map<String, TriggerEngine<?, ?>> builder = new HashMap<>();
+        for (TriggerEngine<?, ?> engine : engines) {
             builder.put(engine.type(), engine);
             engine.register(consumer);
         }
@@ -42,14 +43,14 @@ public class TriggerService {
     }
 
     public synchronized void start(Collection<Watch> watches) {
-        for (TriggerEngine engine : engines.values()) {
+        for (TriggerEngine<?, ?> engine : engines.values()) {
             engine.start(watches);
         }
         watches.forEach(this::addToStats);
     }
 
     public synchronized void stop() {
-        for (TriggerEngine engine : engines.values()) {
+        for (TriggerEngine<?, ?> engine : engines.values()) {
             engine.stop();
         }
         perWatchStats.clear();
@@ -156,7 +157,7 @@ public class TriggerService {
      */
     public boolean remove(String jobName) {
         perWatchStats.remove(jobName);
-        for (TriggerEngine engine : engines.values()) {
+        for (TriggerEngine<?, ?> engine : engines.values()) {
             if (engine.remove(jobName)) {
                 return true;
             }
@@ -169,7 +170,7 @@ public class TriggerService {
     }
 
     public TriggerEvent simulateEvent(String type, String jobId, Map<String, Object> data) {
-        TriggerEngine engine = engines.get(type);
+        TriggerEngine<?, ?> engine = engines.get(type);
         if (engine == null) {
             throw illegalArgument("could not simulate trigger event. unknown trigger type [{}]", type);
         }
@@ -181,26 +182,37 @@ public class TriggerService {
         assert token == XContentParser.Token.START_OBJECT;
         token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ElasticsearchParseException("could not parse trigger for [{}]. expected trigger type string field, but found [{}]",
-                    jobName, token);
+            throw new ElasticsearchParseException(
+                "could not parse trigger for [{}]. expected trigger type string field, but found [{}]",
+                jobName,
+                token
+            );
         }
         String type = parser.currentName();
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("could not parse trigger [{}] for [{}]. expected trigger an object as the trigger body," +
-                    " but found [{}]", type, jobName, token);
+            throw new ElasticsearchParseException(
+                "could not parse trigger [{}] for [{}]. expected trigger an object as the trigger body," + " but found [{}]",
+                type,
+                jobName,
+                token
+            );
         }
         Trigger trigger = parseTrigger(jobName, type, parser);
         token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchParseException("could not parse trigger [{}] for [{}]. expected [END_OBJECT] token, but found [{}]",
-                    type, jobName, token);
+            throw new ElasticsearchParseException(
+                "could not parse trigger [{}] for [{}]. expected [END_OBJECT] token, but found [{}]",
+                type,
+                jobName,
+                token
+            );
         }
         return trigger;
     }
 
     public Trigger parseTrigger(String jobName, String type, XContentParser parser) throws IOException {
-        TriggerEngine engine = engines.get(type);
+        TriggerEngine<?, ?> engine = engines.get(type);
         if (engine == null) {
             throw new ElasticsearchParseException("could not parse trigger [{}] for [{}]. unknown trigger type [{}]", type, jobName, type);
         }
@@ -212,26 +224,39 @@ public class TriggerService {
         assert token == XContentParser.Token.START_OBJECT;
         token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ElasticsearchParseException("could not parse trigger event for [{}] for watch [{}]. expected trigger type string " +
-                    "field, but found [{}]", context, watchId, token);
+            throw new ElasticsearchParseException(
+                "could not parse trigger event for [{}] for watch [{}]. expected trigger type string " + "field, but found [{}]",
+                context,
+                watchId,
+                token
+            );
         }
         String type = parser.currentName();
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("could not parse trigger event for [{}] for watch [{}]. expected trigger an object as " +
-                    "the trigger body, but found [{}]", context, watchId, token);
+            throw new ElasticsearchParseException(
+                "could not parse trigger event for [{}] for watch [{}]. expected trigger an object as "
+                    + "the trigger body, but found [{}]",
+                context,
+                watchId,
+                token
+            );
         }
         TriggerEvent trigger = parseTriggerEvent(watchId, context, type, parser);
         token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchParseException("could not parse trigger [{}] for [{}]. expected [END_OBJECT] token, but found [{}]",
-                    type, context, token);
+            throw new ElasticsearchParseException(
+                "could not parse trigger [{}] for [{}]. expected [END_OBJECT] token, but found [{}]",
+                type,
+                context,
+                token
+            );
         }
         return trigger;
     }
 
     public TriggerEvent parseTriggerEvent(String watchId, String context, String type, XContentParser parser) throws IOException {
-        TriggerEngine engine = engines.get(type);
+        TriggerEngine<?, ?> engine = engines.get(type);
         if (engine == null) {
             throw new ElasticsearchParseException("Unknown trigger type [{}]", type);
         }

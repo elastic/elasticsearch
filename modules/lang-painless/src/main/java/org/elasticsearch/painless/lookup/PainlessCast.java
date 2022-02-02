@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.lookup;
@@ -33,7 +22,11 @@ public class PainlessCast {
 
     /** Create a cast where the original type will be unboxed, and then the cast will be performed. */
     public static PainlessCast unboxOriginalType(
-            Class<?> originalType, Class<?> targetType, boolean explicitCast, Class<?> unboxOriginalType) {
+        Class<?> originalType,
+        Class<?> targetType,
+        boolean explicitCast,
+        Class<?> unboxOriginalType
+    ) {
 
         Objects.requireNonNull(originalType);
         Objects.requireNonNull(targetType);
@@ -43,8 +36,7 @@ public class PainlessCast {
     }
 
     /** Create a cast where the target type will be unboxed, and then the cast will be performed. */
-    public static PainlessCast unboxTargetType(
-            Class<?> originalType, Class<?> targetType, boolean explicitCast, Class<?> unboxTargetType) {
+    public static PainlessCast unboxTargetType(Class<?> originalType, Class<?> targetType, boolean explicitCast, Class<?> unboxTargetType) {
 
         Objects.requireNonNull(originalType);
         Objects.requireNonNull(targetType);
@@ -54,8 +46,7 @@ public class PainlessCast {
     }
 
     /** Create a cast where the original type will be boxed, and then the cast will be performed. */
-    public static PainlessCast boxOriginalType(
-            Class<?> originalType, Class<?> targetType, boolean explicitCast, Class<?> boxOriginalType) {
+    public static PainlessCast boxOriginalType(Class<?> originalType, Class<?> targetType, boolean explicitCast, Class<?> boxOriginalType) {
 
         Objects.requireNonNull(originalType);
         Objects.requireNonNull(targetType);
@@ -65,8 +56,7 @@ public class PainlessCast {
     }
 
     /** Create a cast where the target type will be boxed, and then the cast will be performed. */
-    public static PainlessCast boxTargetType(
-            Class<?> originalType, Class<?> targetType, boolean explicitCast, Class<?> boxTargetType) {
+    public static PainlessCast boxTargetType(Class<?> originalType, Class<?> targetType, boolean explicitCast, Class<?> boxTargetType) {
 
         Objects.requireNonNull(originalType);
         Objects.requireNonNull(targetType);
@@ -92,8 +82,15 @@ public class PainlessCast {
     public final Class<?> boxOriginalType;
     public final Class<?> boxTargetType;
 
-    private PainlessCast(Class<?> originalType, Class<?> targetType, boolean explicitCast,
-                         Class<?> unboxOriginalType, Class<?> unboxTargetType, Class<?> boxOriginalType, Class<?> boxTargetType) {
+    private PainlessCast(
+        Class<?> originalType,
+        Class<?> targetType,
+        boolean explicitCast,
+        Class<?> unboxOriginalType,
+        Class<?> unboxTargetType,
+        Class<?> boxOriginalType,
+        Class<?> boxTargetType
+    ) {
 
         this.originalType = originalType;
         this.targetType = targetType;
@@ -114,15 +111,15 @@ public class PainlessCast {
             return false;
         }
 
-        PainlessCast that = (PainlessCast)object;
+        PainlessCast that = (PainlessCast) object;
 
-        return explicitCast == that.explicitCast &&
-            Objects.equals(originalType, that.originalType) &&
-            Objects.equals(targetType, that.targetType) &&
-            Objects.equals(unboxOriginalType, that.unboxOriginalType) &&
-            Objects.equals(unboxTargetType, that.unboxTargetType) &&
-            Objects.equals(boxOriginalType, that.boxOriginalType) &&
-            Objects.equals(boxTargetType, that.boxTargetType);
+        return explicitCast == that.explicitCast
+            && Objects.equals(originalType, that.originalType)
+            && Objects.equals(targetType, that.targetType)
+            && Objects.equals(unboxOriginalType, that.unboxOriginalType)
+            && Objects.equals(unboxTargetType, that.unboxTargetType)
+            && Objects.equals(boxOriginalType, that.boxOriginalType)
+            && Objects.equals(boxTargetType, that.boxTargetType);
     }
 
     @Override

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -25,12 +14,13 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class BooleanFieldMapperTests extends MapperTestCase {
 
@@ -84,7 +74,8 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\"field\":{\"type\":\"boolean\"}}", Strings.toString(builder));
+        assertEquals("""
+            {"field":{"type":"boolean"}}""", Strings.toString(builder));
 
         // now change some parameters
         defaultMapper = createDocumentMapper(fieldMapping(b -> {
@@ -96,32 +87,38 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         builder = XContentFactory.jsonBuilder().startObject();
         mapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\"field\":{\"type\":\"boolean\",\"doc_values\":false,\"null_value\":true}}", Strings.toString(builder));
+        assertEquals("""
+            {"field":{"type":"boolean","doc_values":false,"null_value":true}}""", Strings.toString(builder));
     }
 
     public void testParsesBooleansStrict() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         // omit "false"/"true" here as they should still be parsed correctly
-        for (String value : new String[]{"off", "no", "0", "on", "yes", "1"}) {
-            MapperParsingException ex = expectThrows(MapperParsingException.class,
-                () -> defaultMapper.parse(source(b -> b.field("field", value))));
-            assertEquals("failed to parse field [field] of type [boolean] in document with id '1'. " +
-                "Preview of field's value: '" + value + "'", ex.getMessage());
+        for (String value : new String[] { "off", "no", "0", "on", "yes", "1" }) {
+            MapperParsingException ex = expectThrows(
+                MapperParsingException.class,
+                () -> defaultMapper.parse(source(b -> b.field("field", value)))
+            );
+            assertEquals(
+                "failed to parse field [field] of type [boolean] in document with id '1'. " + "Preview of field's value: '" + value + "'",
+                ex.getMessage()
+            );
         }
     }
 
     public void testParsesBooleansNestedStrict() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        MapperParsingException ex = expectThrows(MapperParsingException.class,
-                () -> defaultMapper.parse(source(b -> {
-                    b.startObject("field");
-                    {
-                        b.field("inner_field", "no");
-                    }
-                    b.endObject();
-                })));
-        assertEquals("failed to parse field [field] of type [boolean] in document with id '1'. " +
-            "Preview of field's value: '{inner_field=no}'", ex.getMessage());
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> defaultMapper.parse(source(b -> {
+            b.startObject("field");
+            {
+                b.field("inner_field", "no");
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "failed to parse field [field] of type [boolean] in document with id '1'. " + "Preview of field's value: '{inner_field=no}'",
+            ex.getMessage()
+        );
     }
 
     public void testMultiFields() throws IOException {
@@ -161,7 +158,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             b.field("bool3", true);
         }));
 
-        Document doc = parsedDoc.rootDoc();
+        LuceneDocument doc = parsedDoc.rootDoc();
         IndexableField[] fields = doc.getFields("bool1");
         assertEquals(2, fields.length);
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
@@ -172,5 +169,25 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         fields = doc.getFields("bool3");
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
         assertEquals(DocValuesType.SORTED_NUMERIC, fields[1].fieldType().docValuesType());
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        return switch (between(0, 3)) {
+            case 0 -> randomBoolean();
+            case 1 -> randomBoolean() ? "true" : "false";
+            case 2 -> randomBoolean() ? "true" : "";
+            case 3 -> randomBoolean() ? "true" : null;
+            default -> throw new IllegalStateException();
+        };
+    }
+
+    public void testScriptAndPrecludedParameters() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "boolean");
+            b.field("script", "test");
+            b.field("null_value", true);
+        })));
+        assertThat(e.getMessage(), equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
     }
 }

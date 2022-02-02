@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
@@ -28,8 +29,7 @@ public final class IDGenerator {
 
     private final TreeMap<String, Object> objectsForIDGeneration = new TreeMap<>();
 
-    public IDGenerator() {
-    }
+    public IDGenerator() {}
 
     /**
      * Add a value to the generator
@@ -93,7 +93,7 @@ public final class IDGenerator {
         } else if (value instanceof Integer) {
             return Numbers.intToBytes((Integer) value);
         } else if (value instanceof Boolean) {
-            return new byte[] { (Boolean)value ? (byte)1 : (byte)0 };
+            return new byte[] { (Boolean) value ? (byte) 1 : (byte) 0 };
         }
 
         throw new IllegalArgumentException("Value of type [" + value.getClass() + "] is not supported");

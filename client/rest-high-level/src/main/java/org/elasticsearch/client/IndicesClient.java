@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -92,7 +81,13 @@ import static java.util.Collections.singleton;
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Indices API.
  * <p>
  * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices.html">Indices API on elastic.co</a>
+ *
+ * @deprecated The High Level Rest Client is deprecated in favor of the
+ * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/introduction.html">
+ * Elasticsearch Java API Client</a>
  */
+@Deprecated(since = "7.16.0", forRemoval = true)
+@SuppressWarnings("removal")
 public final class IndicesClient {
     private final RestHighLevelClient restHighLevelClient;
 
@@ -110,8 +105,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse delete(DeleteIndexRequest deleteIndexRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(deleteIndexRequest, IndicesRequestConverters::deleteIndex, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            deleteIndexRequest,
+            IndicesRequestConverters::deleteIndex,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -123,11 +123,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteAsync(DeleteIndexRequest deleteIndexRequest, RequestOptions options,
-                                   ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(deleteIndexRequest,
-            IndicesRequestConverters::deleteIndex, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable deleteAsync(
+        DeleteIndexRequest deleteIndexRequest,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            deleteIndexRequest,
+            IndicesRequestConverters::deleteIndex,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -139,10 +147,14 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public CreateIndexResponse create(CreateIndexRequest createIndexRequest,
-                                      RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(createIndexRequest, IndicesRequestConverters::createIndex, options,
-            CreateIndexResponse::fromXContent, emptySet());
+    public CreateIndexResponse create(CreateIndexRequest createIndexRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            createIndexRequest,
+            IndicesRequestConverters::createIndex,
+            options,
+            CreateIndexResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -154,11 +166,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable createAsync(CreateIndexRequest createIndexRequest,
-                                   RequestOptions options,
-                                   ActionListener<CreateIndexResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(createIndexRequest, IndicesRequestConverters::createIndex, options,
-            CreateIndexResponse::fromXContent, listener, emptySet());
+    public Cancellable createAsync(
+        CreateIndexRequest createIndexRequest,
+        RequestOptions options,
+        ActionListener<CreateIndexResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            createIndexRequest,
+            IndicesRequestConverters::createIndex,
+            options,
+            CreateIndexResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -172,10 +192,15 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse createDataStream(CreateDataStreamRequest createDataStreamRequest,
-                                                 RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(createDataStreamRequest, IndicesRequestConverters::putDataStream, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+    public AcknowledgedResponse createDataStream(CreateDataStreamRequest createDataStreamRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            createDataStreamRequest,
+            IndicesRequestConverters::putDataStream,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -189,11 +214,19 @@ public final class IndicesClient {
      * @param listener                the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable createDataStreamAsync(CreateDataStreamRequest createDataStreamRequest,
-                                             RequestOptions options,
-                                             ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(createDataStreamRequest, IndicesRequestConverters::putDataStream,
-            options, AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable createDataStreamAsync(
+        CreateDataStreamRequest createDataStreamRequest,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            createDataStreamRequest,
+            IndicesRequestConverters::putDataStream,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -207,10 +240,15 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse deleteDataStream(DeleteDataStreamRequest deleteDataStreamRequest,
-                                                 RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(deleteDataStreamRequest, IndicesRequestConverters::deleteDataStream,
-            options, AcknowledgedResponse::fromXContent, emptySet());
+    public AcknowledgedResponse deleteDataStream(DeleteDataStreamRequest deleteDataStreamRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            deleteDataStreamRequest,
+            IndicesRequestConverters::deleteDataStream,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -224,10 +262,19 @@ public final class IndicesClient {
      * @param listener                the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteDataStreamAsync(DeleteDataStreamRequest deleteDataStreamRequest, RequestOptions options,
-                                             ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(deleteDataStreamRequest, IndicesRequestConverters::deleteDataStream,
-            options, AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable deleteDataStreamAsync(
+        DeleteDataStreamRequest deleteDataStreamRequest,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            deleteDataStreamRequest,
+            IndicesRequestConverters::deleteDataStream,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -241,8 +288,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetDataStreamResponse getDataStream(GetDataStreamRequest dataStreamRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(dataStreamRequest, IndicesRequestConverters::getDataStreams, options,
-            GetDataStreamResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            dataStreamRequest,
+            IndicesRequestConverters::getDataStreams,
+            options,
+            GetDataStreamResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -255,10 +307,19 @@ public final class IndicesClient {
      * @param listener          the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getDataStreamAsync(GetDataStreamRequest dataStreamRequest, RequestOptions options,
-                                          ActionListener<GetDataStreamResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(dataStreamRequest, IndicesRequestConverters::getDataStreams, options,
-            GetDataStreamResponse::fromXContent, listener, emptySet());
+    public Cancellable getDataStreamAsync(
+        GetDataStreamRequest dataStreamRequest,
+        RequestOptions options,
+        ActionListener<GetDataStreamResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            dataStreamRequest,
+            IndicesRequestConverters::getDataStreams,
+            options,
+            GetDataStreamResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -274,8 +335,13 @@ public final class IndicesClient {
      */
     public DataStreamsStatsResponse dataStreamsStats(DataStreamsStatsRequest dataStreamsStatsRequest, RequestOptions options)
         throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(dataStreamsStatsRequest, IndicesRequestConverters::dataStreamsStats,
-            options, DataStreamsStatsResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            dataStreamsStatsRequest,
+            IndicesRequestConverters::dataStreamsStats,
+            options,
+            DataStreamsStatsResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -289,10 +355,19 @@ public final class IndicesClient {
      * @param listener                the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable dataStreamsStatsAsync(DataStreamsStatsRequest dataStreamsStatsRequest, RequestOptions options,
-                                             ActionListener<DataStreamsStatsResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(dataStreamsStatsRequest, IndicesRequestConverters::dataStreamsStats,
-            options, DataStreamsStatsResponse::fromXContent, listener, emptySet());
+    public Cancellable dataStreamsStatsAsync(
+        DataStreamsStatsRequest dataStreamsStatsRequest,
+        RequestOptions options,
+        ActionListener<DataStreamsStatsResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            dataStreamsStatsRequest,
+            IndicesRequestConverters::dataStreamsStats,
+            options,
+            DataStreamsStatsResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -305,8 +380,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse putMapping(PutMappingRequest putMappingRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(putMappingRequest, IndicesRequestConverters::putMapping, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            putMappingRequest,
+            IndicesRequestConverters::putMapping,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -318,10 +398,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable putMappingAsync(PutMappingRequest putMappingRequest, RequestOptions options,
-                                       ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(putMappingRequest, IndicesRequestConverters::putMapping, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable putMappingAsync(
+        PutMappingRequest putMappingRequest,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            putMappingRequest,
+            IndicesRequestConverters::putMapping,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -334,11 +423,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetMappingsResponse getMapping(GetMappingsRequest getMappingsRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(getMappingsRequest,
+        return restHighLevelClient.performRequestAndParseEntity(
+            getMappingsRequest,
             IndicesRequestConverters::getMappings,
             options,
             GetMappingsResponse::fromXContent,
-            emptySet());
+            emptySet()
+        );
     }
 
     /**
@@ -350,14 +441,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getMappingAsync(GetMappingsRequest getMappingsRequest, RequestOptions options,
-                                       ActionListener<GetMappingsResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(getMappingsRequest,
+    public Cancellable getMappingAsync(
+        GetMappingsRequest getMappingsRequest,
+        RequestOptions options,
+        ActionListener<GetMappingsResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            getMappingsRequest,
             IndicesRequestConverters::getMappings,
             options,
             GetMappingsResponse::fromXContent,
             listener,
-            emptySet());
+            emptySet()
+        );
     }
 
     /**
@@ -369,10 +465,14 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetFieldMappingsResponse getFieldMapping(GetFieldMappingsRequest getFieldMappingsRequest,
-            RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(getFieldMappingsRequest, IndicesRequestConverters::getFieldMapping,
-            options, GetFieldMappingsResponse::fromXContent, emptySet()
+    public GetFieldMappingsResponse getFieldMapping(GetFieldMappingsRequest getFieldMappingsRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            getFieldMappingsRequest,
+            IndicesRequestConverters::getFieldMapping,
+            options,
+            GetFieldMappingsResponse::fromXContent,
+            emptySet()
         );
     }
 
@@ -385,11 +485,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getFieldMappingAsync(GetFieldMappingsRequest getFieldMappingsRequest,
-                                            RequestOptions options, ActionListener<GetFieldMappingsResponse> listener) {
+    public Cancellable getFieldMappingAsync(
+        GetFieldMappingsRequest getFieldMappingsRequest,
+        RequestOptions options,
+        ActionListener<GetFieldMappingsResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
-            getFieldMappingsRequest, IndicesRequestConverters::getFieldMapping, options,
-            GetFieldMappingsResponse::fromXContent, listener, emptySet());
+            getFieldMappingsRequest,
+            IndicesRequestConverters::getFieldMapping,
+            options,
+            GetFieldMappingsResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -402,8 +510,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse updateAliases(IndicesAliasesRequest indicesAliasesRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(indicesAliasesRequest, IndicesRequestConverters::updateAliases, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            indicesAliasesRequest,
+            IndicesRequestConverters::updateAliases,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -415,11 +528,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable updateAliasesAsync(IndicesAliasesRequest indicesAliasesRequest, RequestOptions options,
-                                          ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(indicesAliasesRequest,
-            IndicesRequestConverters::updateAliases, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable updateAliasesAsync(
+        IndicesAliasesRequest indicesAliasesRequest,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            indicesAliasesRequest,
+            IndicesRequestConverters::updateAliases,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -432,8 +553,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public OpenIndexResponse open(OpenIndexRequest openIndexRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(openIndexRequest, IndicesRequestConverters::openIndex, options,
-                OpenIndexResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            openIndexRequest,
+            IndicesRequestConverters::openIndex,
+            options,
+            OpenIndexResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -446,8 +572,14 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable openAsync(OpenIndexRequest openIndexRequest, RequestOptions options, ActionListener<OpenIndexResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(openIndexRequest, IndicesRequestConverters::openIndex, options,
-                OpenIndexResponse::fromXContent, listener, emptySet());
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            openIndexRequest,
+            IndicesRequestConverters::openIndex,
+            options,
+            OpenIndexResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -460,8 +592,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public CloseIndexResponse close(CloseIndexRequest closeIndexRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(closeIndexRequest, IndicesRequestConverters::closeIndex, options,
-            CloseIndexResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            closeIndexRequest,
+            IndicesRequestConverters::closeIndex,
+            options,
+            CloseIndexResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -473,13 +610,20 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable closeAsync(CloseIndexRequest closeIndexRequest, RequestOptions options,
-                                  ActionListener<CloseIndexResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(closeIndexRequest,
-            IndicesRequestConverters::closeIndex, options,
-            CloseIndexResponse::fromXContent, listener, emptySet());
+    public Cancellable closeAsync(
+        CloseIndexRequest closeIndexRequest,
+        RequestOptions options,
+        ActionListener<CloseIndexResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            closeIndexRequest,
+            IndicesRequestConverters::closeIndex,
+            options,
+            CloseIndexResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
-
 
     /**
      * Checks if one or more aliases exist using the Aliases Exist API.
@@ -491,8 +635,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request
      */
     public boolean existsAlias(GetAliasesRequest getAliasesRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequest(getAliasesRequest, IndicesRequestConverters::existsAlias, options,
-                RestHighLevelClient::convertExistsResponse, emptySet());
+        return restHighLevelClient.performRequest(
+            getAliasesRequest,
+            IndicesRequestConverters::existsAlias,
+            options,
+            RestHighLevelClient::convertExistsResponse,
+            emptySet()
+        );
     }
 
     /**
@@ -505,8 +654,14 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable existsAliasAsync(GetAliasesRequest getAliasesRequest, RequestOptions options, ActionListener<Boolean> listener) {
-        return restHighLevelClient.performRequestAsync(getAliasesRequest, IndicesRequestConverters::existsAlias, options,
-                RestHighLevelClient::convertExistsResponse, listener, emptySet());
+        return restHighLevelClient.performRequestAsync(
+            getAliasesRequest,
+            IndicesRequestConverters::existsAlias,
+            options,
+            RestHighLevelClient::convertExistsResponse,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -518,8 +673,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public RefreshResponse refresh(RefreshRequest refreshRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(refreshRequest, IndicesRequestConverters::refresh, options,
-                RefreshResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            refreshRequest,
+            IndicesRequestConverters::refresh,
+            options,
+            RefreshResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -531,8 +691,14 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable refreshAsync(RefreshRequest refreshRequest, RequestOptions options, ActionListener<RefreshResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(refreshRequest, IndicesRequestConverters::refresh, options,
-                RefreshResponse::fromXContent, listener, emptySet());
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            refreshRequest,
+            IndicesRequestConverters::refresh,
+            options,
+            RefreshResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -544,8 +710,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public FlushResponse flush(FlushRequest flushRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(flushRequest, IndicesRequestConverters::flush, options,
-                FlushResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            flushRequest,
+            IndicesRequestConverters::flush,
+            options,
+            FlushResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -557,8 +728,14 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable flushAsync(FlushRequest flushRequest, RequestOptions options, ActionListener<FlushResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(flushRequest, IndicesRequestConverters::flush, options,
-                FlushResponse::fromXContent, listener, emptySet());
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            flushRequest,
+            IndicesRequestConverters::flush,
+            options,
+            FlushResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -571,8 +748,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetSettingsResponse getSettings(GetSettingsRequest getSettingsRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(getSettingsRequest, IndicesRequestConverters::getSettings, options,
-            GetSettingsResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            getSettingsRequest,
+            IndicesRequestConverters::getSettings,
+            options,
+            GetSettingsResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -584,10 +766,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getSettingsAsync(GetSettingsRequest getSettingsRequest, RequestOptions options,
-                                        ActionListener<GetSettingsResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(getSettingsRequest, IndicesRequestConverters::getSettings, options,
-            GetSettingsResponse::fromXContent, listener, emptySet());
+    public Cancellable getSettingsAsync(
+        GetSettingsRequest getSettingsRequest,
+        RequestOptions options,
+        ActionListener<GetSettingsResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            getSettingsRequest,
+            IndicesRequestConverters::getSettings,
+            options,
+            GetSettingsResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -600,8 +791,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetIndexResponse get(GetIndexRequest getIndexRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(getIndexRequest, IndicesRequestConverters::getIndex, options,
-            GetIndexResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            getIndexRequest,
+            IndicesRequestConverters::getIndex,
+            options,
+            GetIndexResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -613,10 +809,15 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getAsync(GetIndexRequest getIndexRequest, RequestOptions options,
-                                ActionListener<GetIndexResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(getIndexRequest, IndicesRequestConverters::getIndex, options,
-            GetIndexResponse::fromXContent, listener, emptySet());
+    public Cancellable getAsync(GetIndexRequest getIndexRequest, RequestOptions options, ActionListener<GetIndexResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            getIndexRequest,
+            IndicesRequestConverters::getIndex,
+            options,
+            GetIndexResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -644,8 +845,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ForceMergeResponse forcemerge(ForceMergeRequest forceMergeRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(forceMergeRequest, IndicesRequestConverters::forceMerge, options,
-                ForceMergeResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            forceMergeRequest,
+            IndicesRequestConverters::forceMerge,
+            options,
+            ForceMergeResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -659,8 +865,11 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     @Deprecated
-    public Cancellable forceMergeAsync(ForceMergeRequest forceMergeRequest, RequestOptions options,
-                                       ActionListener<ForceMergeResponse> listener) {
+    public Cancellable forceMergeAsync(
+        ForceMergeRequest forceMergeRequest,
+        RequestOptions options,
+        ActionListener<ForceMergeResponse> listener
+    ) {
         return forcemergeAsync(forceMergeRequest, options, listener);
     }
 
@@ -673,11 +882,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable forcemergeAsync(ForceMergeRequest forceMergeRequest, RequestOptions options,
-                                       ActionListener<ForceMergeResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(forceMergeRequest,
-                IndicesRequestConverters::forceMerge, options,
-                ForceMergeResponse::fromXContent, listener, emptySet());
+    public Cancellable forcemergeAsync(
+        ForceMergeRequest forceMergeRequest,
+        RequestOptions options,
+        ActionListener<ForceMergeResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            forceMergeRequest,
+            IndicesRequestConverters::forceMerge,
+            options,
+            ForceMergeResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -689,10 +906,15 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public ClearIndicesCacheResponse clearCache(ClearIndicesCacheRequest clearIndicesCacheRequest,
-                                                RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(clearIndicesCacheRequest, IndicesRequestConverters::clearCache, options,
-                ClearIndicesCacheResponse::fromXContent, emptySet());
+    public ClearIndicesCacheResponse clearCache(ClearIndicesCacheRequest clearIndicesCacheRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            clearIndicesCacheRequest,
+            IndicesRequestConverters::clearCache,
+            options,
+            ClearIndicesCacheResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -704,11 +926,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable clearCacheAsync(ClearIndicesCacheRequest clearIndicesCacheRequest, RequestOptions options,
-                                       ActionListener<ClearIndicesCacheResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(clearIndicesCacheRequest,
-                IndicesRequestConverters::clearCache, options,
-                ClearIndicesCacheResponse::fromXContent, listener, emptySet());
+    public Cancellable clearCacheAsync(
+        ClearIndicesCacheRequest clearIndicesCacheRequest,
+        RequestOptions options,
+        ActionListener<ClearIndicesCacheResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            clearIndicesCacheRequest,
+            IndicesRequestConverters::clearCache,
+            options,
+            ClearIndicesCacheResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -741,12 +971,12 @@ public final class IndicesClient {
      */
     public Cancellable existsAsync(GetIndexRequest request, RequestOptions options, ActionListener<Boolean> listener) {
         return restHighLevelClient.performRequestAsync(
-                request,
-                IndicesRequestConverters::indicesExist,
-                options,
-                RestHighLevelClient::convertExistsResponse,
-                listener,
-                Collections.emptySet()
+            request,
+            IndicesRequestConverters::indicesExist,
+            options,
+            RestHighLevelClient::convertExistsResponse,
+            listener,
+            Collections.emptySet()
         );
     }
 
@@ -760,8 +990,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ResizeResponse shrink(ResizeRequest resizeRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(resizeRequest, IndicesRequestConverters::shrink, options,
-                ResizeResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            resizeRequest,
+            IndicesRequestConverters::shrink,
+            options,
+            ResizeResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -776,9 +1011,16 @@ public final class IndicesClient {
      */
     @Deprecated
     public org.elasticsearch.action.admin.indices.shrink.ResizeResponse shrink(
-        org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(resizeRequest, IndicesRequestConverters::shrink, options,
-            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent, emptySet());
+        org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest,
+        RequestOptions options
+    ) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            resizeRequest,
+            IndicesRequestConverters::shrink,
+            options,
+            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -791,8 +1033,14 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable shrinkAsync(ResizeRequest resizeRequest, RequestOptions options, ActionListener<ResizeResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, IndicesRequestConverters::shrink, options,
-                ResizeResponse::fromXContent, listener, emptySet());
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            resizeRequest,
+            IndicesRequestConverters::shrink,
+            options,
+            ResizeResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -806,10 +1054,19 @@ public final class IndicesClient {
      * @deprecated use {@link #shrinkAsync(ResizeRequest, RequestOptions, ActionListener)}
      */
     @Deprecated
-    public Cancellable shrinkAsync(org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options,
-                                   ActionListener<org.elasticsearch.action.admin.indices.shrink.ResizeResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, IndicesRequestConverters::shrink, options,
-            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent, listener, emptySet());
+    public Cancellable shrinkAsync(
+        org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest,
+        RequestOptions options,
+        ActionListener<org.elasticsearch.action.admin.indices.shrink.ResizeResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            resizeRequest,
+            IndicesRequestConverters::shrink,
+            options,
+            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -822,8 +1079,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ResizeResponse split(ResizeRequest resizeRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(resizeRequest, IndicesRequestConverters::split, options,
-                ResizeResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            resizeRequest,
+            IndicesRequestConverters::split,
+            options,
+            ResizeResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -838,9 +1100,16 @@ public final class IndicesClient {
      */
     @Deprecated
     public org.elasticsearch.action.admin.indices.shrink.ResizeResponse split(
-        org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(resizeRequest, IndicesRequestConverters::split, options,
-            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent, emptySet());
+        org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest,
+        RequestOptions options
+    ) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            resizeRequest,
+            IndicesRequestConverters::split,
+            options,
+            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -853,8 +1122,14 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable splitAsync(ResizeRequest resizeRequest, RequestOptions options, ActionListener<ResizeResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, IndicesRequestConverters::split, options,
-                ResizeResponse::fromXContent, listener, emptySet());
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            resizeRequest,
+            IndicesRequestConverters::split,
+            options,
+            ResizeResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -868,10 +1143,19 @@ public final class IndicesClient {
      * @deprecated use {@link #splitAsync(ResizeRequest, RequestOptions, ActionListener)}
      */
     @Deprecated
-    public Cancellable splitAsync(org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options,
-                                  ActionListener<org.elasticsearch.action.admin.indices.shrink.ResizeResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, IndicesRequestConverters::split, options,
-            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent, listener, emptySet());
+    public Cancellable splitAsync(
+        org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest,
+        RequestOptions options,
+        ActionListener<org.elasticsearch.action.admin.indices.shrink.ResizeResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            resizeRequest,
+            IndicesRequestConverters::split,
+            options,
+            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -884,8 +1168,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ResizeResponse clone(ResizeRequest resizeRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(resizeRequest, IndicesRequestConverters::clone, options,
-            ResizeResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            resizeRequest,
+            IndicesRequestConverters::clone,
+            options,
+            ResizeResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -900,9 +1189,16 @@ public final class IndicesClient {
      */
     @Deprecated
     public org.elasticsearch.action.admin.indices.shrink.ResizeResponse clone(
-        org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(resizeRequest, IndicesRequestConverters::clone, options,
-            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent, emptySet());
+        org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest,
+        RequestOptions options
+    ) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            resizeRequest,
+            IndicesRequestConverters::clone,
+            options,
+            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -915,8 +1211,14 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable cloneAsync(ResizeRequest resizeRequest, RequestOptions options, ActionListener<ResizeResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, IndicesRequestConverters::clone, options,
-            ResizeResponse::fromXContent, listener, emptySet());
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            resizeRequest,
+            IndicesRequestConverters::clone,
+            options,
+            ResizeResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -930,10 +1232,19 @@ public final class IndicesClient {
      * @deprecated use {@link #cloneAsync(ResizeRequest, RequestOptions, ActionListener)}
      */
     @Deprecated
-    public Cancellable cloneAsync(org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest, RequestOptions options,
-                                  ActionListener<org.elasticsearch.action.admin.indices.shrink.ResizeResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(resizeRequest, IndicesRequestConverters::clone, options,
-            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent, listener, emptySet());
+    public Cancellable cloneAsync(
+        org.elasticsearch.action.admin.indices.shrink.ResizeRequest resizeRequest,
+        RequestOptions options,
+        ActionListener<org.elasticsearch.action.admin.indices.shrink.ResizeResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            resizeRequest,
+            IndicesRequestConverters::clone,
+            options,
+            org.elasticsearch.action.admin.indices.shrink.ResizeResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -946,8 +1257,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public RolloverResponse rollover(RolloverRequest rolloverRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(rolloverRequest, IndicesRequestConverters::rollover, options,
-                RolloverResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            rolloverRequest,
+            IndicesRequestConverters::rollover,
+            options,
+            RolloverResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -960,8 +1276,14 @@ public final class IndicesClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable rolloverAsync(RolloverRequest rolloverRequest, RequestOptions options, ActionListener<RolloverResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(rolloverRequest, IndicesRequestConverters::rollover, options,
-                RolloverResponse::fromXContent, listener, emptySet());
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            rolloverRequest,
+            IndicesRequestConverters::rollover,
+            options,
+            RolloverResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -974,8 +1296,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetAliasesResponse getAlias(GetAliasesRequest getAliasesRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(getAliasesRequest, IndicesRequestConverters::getAlias, options,
-                GetAliasesResponse::fromXContent, singleton(RestStatus.NOT_FOUND.getStatus()));
+        return restHighLevelClient.performRequestAndParseEntity(
+            getAliasesRequest,
+            IndicesRequestConverters::getAlias,
+            options,
+            GetAliasesResponse::fromXContent,
+            singleton(RestStatus.NOT_FOUND.getStatus())
+        );
     }
 
     /**
@@ -987,11 +1314,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getAliasAsync(GetAliasesRequest getAliasesRequest, RequestOptions options,
-                                     ActionListener<GetAliasesResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(getAliasesRequest,
-            IndicesRequestConverters::getAlias, options,
-            GetAliasesResponse::fromXContent, listener, singleton(RestStatus.NOT_FOUND.getStatus()));
+    public Cancellable getAliasAsync(
+        GetAliasesRequest getAliasesRequest,
+        RequestOptions options,
+        ActionListener<GetAliasesResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            getAliasesRequest,
+            IndicesRequestConverters::getAlias,
+            options,
+            GetAliasesResponse::fromXContent,
+            listener,
+            singleton(RestStatus.NOT_FOUND.getStatus())
+        );
     }
 
     /**
@@ -1004,8 +1339,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse putSettings(UpdateSettingsRequest updateSettingsRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(updateSettingsRequest, IndicesRequestConverters::indexPutSettings, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            updateSettingsRequest,
+            IndicesRequestConverters::indexPutSettings,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1017,11 +1357,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable putSettingsAsync(UpdateSettingsRequest updateSettingsRequest, RequestOptions options,
-                                        ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(updateSettingsRequest,
-            IndicesRequestConverters::indexPutSettings, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable putSettingsAsync(
+        UpdateSettingsRequest updateSettingsRequest,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            updateSettingsRequest,
+            IndicesRequestConverters::indexPutSettings,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1033,11 +1381,14 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse putTemplate(
-            PutIndexTemplateRequest putIndexTemplateRequest,
-            RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(putIndexTemplateRequest, IndicesRequestConverters::putTemplate, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+    public AcknowledgedResponse putTemplate(PutIndexTemplateRequest putIndexTemplateRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            putIndexTemplateRequest,
+            IndicesRequestConverters::putTemplate,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1049,11 +1400,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable putTemplateAsync(PutIndexTemplateRequest putIndexTemplateRequest,
-                                        RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest,
-            IndicesRequestConverters::putTemplate, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable putTemplateAsync(
+        PutIndexTemplateRequest putIndexTemplateRequest,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            putIndexTemplateRequest,
+            IndicesRequestConverters::putTemplate,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1067,8 +1426,13 @@ public final class IndicesClient {
      */
     public AcknowledgedResponse putIndexTemplate(PutComposableIndexTemplateRequest putIndexTemplateRequest, RequestOptions options)
         throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(putIndexTemplateRequest, IndicesRequestConverters::putIndexTemplate,
-            options, AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            putIndexTemplateRequest,
+            IndicesRequestConverters::putIndexTemplate,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1080,10 +1444,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable putIndexTemplateAsync(PutComposableIndexTemplateRequest putIndexTemplateRequest,
-                                             RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(putIndexTemplateRequest, IndicesRequestConverters::putIndexTemplate,
-            options, AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable putIndexTemplateAsync(
+        PutComposableIndexTemplateRequest putIndexTemplateRequest,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            putIndexTemplateRequest,
+            IndicesRequestConverters::putIndexTemplate,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1097,10 +1470,17 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public SimulateIndexTemplateResponse simulateIndexTemplate(SimulateIndexTemplateRequest simulateIndexTemplateRequest,
-                                                               RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(simulateIndexTemplateRequest,
-            IndicesRequestConverters::simulateIndexTemplate, options, SimulateIndexTemplateResponse::fromXContent, emptySet());
+    public SimulateIndexTemplateResponse simulateIndexTemplate(
+        SimulateIndexTemplateRequest simulateIndexTemplateRequest,
+        RequestOptions options
+    ) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            simulateIndexTemplateRequest,
+            IndicesRequestConverters::simulateIndexTemplate,
+            options,
+            SimulateIndexTemplateResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1114,10 +1494,19 @@ public final class IndicesClient {
      * @param listener                     the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable simulateIndexTemplateAsync(SimulateIndexTemplateRequest simulateIndexTemplateRequest,
-                                                  RequestOptions options, ActionListener<SimulateIndexTemplateResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(simulateIndexTemplateRequest,
-            IndicesRequestConverters::simulateIndexTemplate, options, SimulateIndexTemplateResponse::fromXContent, listener, emptySet());
+    public Cancellable simulateIndexTemplateAsync(
+        SimulateIndexTemplateRequest simulateIndexTemplateRequest,
+        RequestOptions options,
+        ActionListener<SimulateIndexTemplateResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            simulateIndexTemplateRequest,
+            IndicesRequestConverters::simulateIndexTemplate,
+            options,
+            SimulateIndexTemplateResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1130,11 +1519,14 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public ValidateQueryResponse validateQuery(ValidateQueryRequest validateQueryRequest,
-                                               RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(validateQueryRequest,
-            IndicesRequestConverters::validateQuery, options,
-            ValidateQueryResponse::fromXContent, emptySet());
+    public ValidateQueryResponse validateQuery(ValidateQueryRequest validateQueryRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            validateQueryRequest,
+            IndicesRequestConverters::validateQuery,
+            options,
+            ValidateQueryResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1147,11 +1539,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable validateQueryAsync(ValidateQueryRequest validateQueryRequest, RequestOptions options,
-                                          ActionListener<ValidateQueryResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(validateQueryRequest,
-            IndicesRequestConverters::validateQuery, options,
-            ValidateQueryResponse::fromXContent, listener, emptySet());
+    public Cancellable validateQueryAsync(
+        ValidateQueryRequest validateQueryRequest,
+        RequestOptions options,
+        ActionListener<ValidateQueryResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            validateQueryRequest,
+            IndicesRequestConverters::validateQuery,
+            options,
+            ValidateQueryResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1163,10 +1563,17 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetComposableIndexTemplatesResponse getIndexTemplate(GetComposableIndexTemplateRequest getIndexTemplatesRequest,
-                                                                RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(getIndexTemplatesRequest, IndicesRequestConverters::getIndexTemplates,
-            options, GetComposableIndexTemplatesResponse::fromXContent, emptySet());
+    public GetComposableIndexTemplatesResponse getIndexTemplate(
+        GetComposableIndexTemplateRequest getIndexTemplatesRequest,
+        RequestOptions options
+    ) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            getIndexTemplatesRequest,
+            IndicesRequestConverters::getIndexTemplates,
+            options,
+            GetComposableIndexTemplatesResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1178,10 +1585,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getIndexTemplateAsync(GetComposableIndexTemplateRequest getIndexTemplatesRequest, RequestOptions options,
-                                             ActionListener<GetComposableIndexTemplatesResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(getIndexTemplatesRequest,
-            IndicesRequestConverters::getIndexTemplates, options, GetComposableIndexTemplatesResponse::fromXContent, listener, emptySet());
+    public Cancellable getIndexTemplateAsync(
+        GetComposableIndexTemplateRequest getIndexTemplatesRequest,
+        RequestOptions options,
+        ActionListener<GetComposableIndexTemplatesResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            getIndexTemplatesRequest,
+            IndicesRequestConverters::getIndexTemplates,
+            options,
+            GetComposableIndexTemplatesResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1193,11 +1609,15 @@ public final class IndicesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetIndexTemplatesResponse getIndexTemplate(GetIndexTemplatesRequest getIndexTemplatesRequest,
-                                                      RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(getIndexTemplatesRequest,
+    public GetIndexTemplatesResponse getIndexTemplate(GetIndexTemplatesRequest getIndexTemplatesRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            getIndexTemplatesRequest,
             IndicesRequestConverters::getTemplates,
-            options, GetIndexTemplatesResponse::fromXContent, emptySet());
+            options,
+            GetIndexTemplatesResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1209,11 +1629,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getIndexTemplateAsync(GetIndexTemplatesRequest getIndexTemplatesRequest, RequestOptions options,
-                                             ActionListener<GetIndexTemplatesResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(getIndexTemplatesRequest,
+    public Cancellable getIndexTemplateAsync(
+        GetIndexTemplatesRequest getIndexTemplatesRequest,
+        RequestOptions options,
+        ActionListener<GetIndexTemplatesResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            getIndexTemplatesRequest,
             IndicesRequestConverters::getTemplates,
-            options, GetIndexTemplatesResponse::fromXContent, listener, emptySet());
+            options,
+            GetIndexTemplatesResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1224,11 +1652,14 @@ public final class IndicesClient {
      * @return true if any index templates in the request exist, false otherwise
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public boolean existsTemplate(IndexTemplatesExistRequest indexTemplatesRequest,
-                                  RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequest(indexTemplatesRequest,
-            IndicesRequestConverters::templatesExist, options,
-            RestHighLevelClient::convertExistsResponse, emptySet());
+    public boolean existsTemplate(IndexTemplatesExistRequest indexTemplatesRequest, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequest(
+            indexTemplatesRequest,
+            IndicesRequestConverters::templatesExist,
+            options,
+            RestHighLevelClient::convertExistsResponse,
+            emptySet()
+        );
     }
 
     /**
@@ -1238,13 +1669,20 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion. The listener will be called with the value {@code true}
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable existsTemplateAsync(IndexTemplatesExistRequest indexTemplatesExistRequest,
-                                           RequestOptions options,
-                                           ActionListener<Boolean> listener) {
+    public Cancellable existsTemplateAsync(
+        IndexTemplatesExistRequest indexTemplatesExistRequest,
+        RequestOptions options,
+        ActionListener<Boolean> listener
+    ) {
 
-        return restHighLevelClient.performRequestAsync(indexTemplatesExistRequest,
-            IndicesRequestConverters::templatesExist, options,
-            RestHighLevelClient::convertExistsResponse, listener, emptySet());
+        return restHighLevelClient.performRequestAsync(
+            indexTemplatesExistRequest,
+            IndicesRequestConverters::templatesExist,
+            options,
+            RestHighLevelClient::convertExistsResponse,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1255,11 +1693,15 @@ public final class IndicesClient {
      * @return true if any index templates in the request exist, false otherwise
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public boolean existsIndexTemplate(ComposableIndexTemplateExistRequest indexTemplatesRequest,
-                                       RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequest(indexTemplatesRequest,
-            IndicesRequestConverters::templatesExist, options,
-            RestHighLevelClient::convertExistsResponse, emptySet());
+    public boolean existsIndexTemplate(ComposableIndexTemplateExistRequest indexTemplatesRequest, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequest(
+            indexTemplatesRequest,
+            IndicesRequestConverters::templatesExist,
+            options,
+            RestHighLevelClient::convertExistsResponse,
+            emptySet()
+        );
     }
 
     /**
@@ -1269,13 +1711,20 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion. The listener will be called with the value {@code true}
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable existsIndexTemplateAsync(ComposableIndexTemplateExistRequest indexTemplatesExistRequest,
-                                                RequestOptions options,
-                                                ActionListener<Boolean> listener) {
+    public Cancellable existsIndexTemplateAsync(
+        ComposableIndexTemplateExistRequest indexTemplatesExistRequest,
+        RequestOptions options,
+        ActionListener<Boolean> listener
+    ) {
 
-        return restHighLevelClient.performRequestAsync(indexTemplatesExistRequest,
-            IndicesRequestConverters::templatesExist, options,
-            RestHighLevelClient::convertExistsResponse, listener, emptySet());
+        return restHighLevelClient.performRequestAsync(
+            indexTemplatesExistRequest,
+            IndicesRequestConverters::templatesExist,
+            options,
+            RestHighLevelClient::convertExistsResponse,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1287,8 +1736,13 @@ public final class IndicesClient {
      * @param options   the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
     public AnalyzeResponse analyze(AnalyzeRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::analyze, options,
-            AnalyzeResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndicesRequestConverters::analyze,
+            options,
+            AnalyzeResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1300,10 +1754,15 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable analyzeAsync(AnalyzeRequest request, RequestOptions options,
-                                    ActionListener<AnalyzeResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::analyze, options,
-            AnalyzeResponse::fromXContent, listener, emptySet());
+    public Cancellable analyzeAsync(AnalyzeRequest request, RequestOptions options, ActionListener<AnalyzeResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndicesRequestConverters::analyze,
+            options,
+            AnalyzeResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1313,8 +1772,13 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
     public ShardsAcknowledgedResponse freeze(FreezeIndexRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::freezeIndex, options,
-            ShardsAcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndicesRequestConverters::freezeIndex,
+            options,
+            ShardsAcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1324,10 +1788,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable freezeAsync(FreezeIndexRequest request, RequestOptions options,
-                                   ActionListener<ShardsAcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::freezeIndex, options,
-            ShardsAcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable freezeAsync(
+        FreezeIndexRequest request,
+        RequestOptions options,
+        ActionListener<ShardsAcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndicesRequestConverters::freezeIndex,
+            options,
+            ShardsAcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1337,8 +1810,13 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
     public ShardsAcknowledgedResponse unfreeze(UnfreezeIndexRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::unfreezeIndex, options,
-            ShardsAcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndicesRequestConverters::unfreezeIndex,
+            options,
+            ShardsAcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1348,11 +1826,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable unfreezeAsync(UnfreezeIndexRequest request, RequestOptions options,
-                                     ActionListener<ShardsAcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
-            IndicesRequestConverters::unfreezeIndex, options,
-            ShardsAcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable unfreezeAsync(
+        UnfreezeIndexRequest request,
+        RequestOptions options,
+        ActionListener<ShardsAcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndicesRequestConverters::unfreezeIndex,
+            options,
+            ShardsAcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1365,8 +1851,13 @@ public final class IndicesClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse deleteTemplate(DeleteIndexTemplateRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::deleteTemplate,
-            options, AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndicesRequestConverters::deleteTemplate,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1378,10 +1869,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteTemplateAsync(DeleteIndexTemplateRequest request, RequestOptions options,
-                                           ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::deleteTemplate,
-            options, AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable deleteTemplateAsync(
+        DeleteIndexTemplateRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndicesRequestConverters::deleteTemplate,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1393,10 +1893,15 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse deleteIndexTemplate(DeleteComposableIndexTemplateRequest request,
-                                                    RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::deleteIndexTemplate,
-            options, AcknowledgedResponse::fromXContent, emptySet());
+    public AcknowledgedResponse deleteIndexTemplate(DeleteComposableIndexTemplateRequest request, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndicesRequestConverters::deleteIndexTemplate,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1408,10 +1913,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteIndexTemplateAsync(DeleteComposableIndexTemplateRequest request, RequestOptions options,
-                                                ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::deleteIndexTemplate,
-            options, AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable deleteIndexTemplateAsync(
+        DeleteComposableIndexTemplateRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndicesRequestConverters::deleteIndexTemplate,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1421,8 +1935,13 @@ public final class IndicesClient {
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
     public ReloadAnalyzersResponse reloadAnalyzers(ReloadAnalyzersRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::reloadAnalyzers, options,
-                ReloadAnalyzersResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndicesRequestConverters::reloadAnalyzers,
+            options,
+            ReloadAnalyzersResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1432,10 +1951,19 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable reloadAnalyzersAsync(ReloadAnalyzersRequest request, RequestOptions options,
-                                            ActionListener<ReloadAnalyzersResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::reloadAnalyzers, options,
-                ReloadAnalyzersResponse::fromXContent, listener, emptySet());
+    public Cancellable reloadAnalyzersAsync(
+        ReloadAnalyzersRequest request,
+        RequestOptions options,
+        ActionListener<ReloadAnalyzersResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndicesRequestConverters::reloadAnalyzers,
+            options,
+            ReloadAnalyzersResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -1443,10 +1971,15 @@ public final class IndicesClient {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      */
-    public org.elasticsearch.client.core.AcknowledgedResponse deleteAlias(DeleteAliasRequest request,
-                                                                          RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndicesRequestConverters::deleteAlias, options,
-            org.elasticsearch.client.core.AcknowledgedResponse::fromXContent, emptySet());
+    public org.elasticsearch.client.core.AcknowledgedResponse deleteAlias(DeleteAliasRequest request, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndicesRequestConverters::deleteAlias,
+            options,
+            org.elasticsearch.client.core.AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -1456,9 +1989,18 @@ public final class IndicesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteAliasAsync(DeleteAliasRequest request, RequestOptions options,
-                                                ActionListener<org.elasticsearch.client.core.AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndicesRequestConverters::deleteAlias, options,
-            org.elasticsearch.client.core.AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable deleteAliasAsync(
+        DeleteAliasRequest request,
+        RequestOptions options,
+        ActionListener<org.elasticsearch.client.core.AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndicesRequestConverters::deleteAlias,
+            options,
+            org.elasticsearch.client.core.AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 }

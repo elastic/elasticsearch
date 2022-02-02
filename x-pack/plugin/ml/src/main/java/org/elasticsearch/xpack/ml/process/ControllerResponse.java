@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.process;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,7 +24,9 @@ public class ControllerResponse implements ToXContentObject {
     public static final ParseField REASON = new ParseField("reason");
 
     public static final ConstructingObjectParser<ControllerResponse, Void> PARSER = new ConstructingObjectParser<>(
-        TYPE.getPreferredName(), a -> new ControllerResponse((int) a[0], (boolean) a[1], (String) a[2]));
+        TYPE.getPreferredName(),
+        a -> new ControllerResponse((int) a[0], (boolean) a[1], (String) a[2])
+    );
 
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), COMMAND_ID);
@@ -74,9 +77,7 @@ public class ControllerResponse implements ToXContentObject {
             return false;
         }
         ControllerResponse that = (ControllerResponse) o;
-        return this.commandId == that.commandId &&
-            this.success == that.success &&
-            Objects.equals(this.reason, that.reason);
+        return this.commandId == that.commandId && this.success == that.success && Objects.equals(this.reason, that.reason);
     }
 
     @Override

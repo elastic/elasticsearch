@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Future;
@@ -49,11 +38,15 @@ public interface Scheduler {
      * Notice that if any scheduled jobs fail with an exception, these will bubble up to the uncaught exception handler where they will
      * be logged as a warning. This includes jobs started using execute, submit and schedule.
      * @param settings the settings to use
+     * @param schedulerName a string that identifies the threads belonging to this scheduler
      * @return executor
      */
-    static ScheduledThreadPoolExecutor initScheduler(Settings settings) {
-        final ScheduledThreadPoolExecutor scheduler = new SafeScheduledThreadPoolExecutor(1,
-                EsExecutors.daemonThreadFactory(settings, "scheduler"), new EsAbortPolicy());
+    static ScheduledThreadPoolExecutor initScheduler(Settings settings, String schedulerName) {
+        final ScheduledThreadPoolExecutor scheduler = new SafeScheduledThreadPoolExecutor(
+            1,
+            EsExecutors.daemonThreadFactory(settings, schedulerName),
+            new EsAbortPolicy()
+        );
         scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         scheduler.setRemoveOnCancelPolicy(true);
@@ -70,8 +63,11 @@ public interface Scheduler {
         return awaitTermination(scheduledThreadPoolExecutor, timeout, timeUnit);
     }
 
-    static boolean awaitTermination(final ScheduledThreadPoolExecutor scheduledThreadPoolExecutor,
-            final long timeout, final TimeUnit timeUnit) {
+    static boolean awaitTermination(
+        final ScheduledThreadPoolExecutor scheduledThreadPoolExecutor,
+        final long timeout,
+        final TimeUnit timeUnit
+    ) {
         try {
             if (scheduledThreadPoolExecutor.awaitTermination(timeout, timeUnit)) {
                 return true;
@@ -131,7 +127,6 @@ public interface Scheduler {
         return new ScheduledCancellableAdapter(scheduledFuture);
     }
 
-
     /**
      * This interface represents an object whose execution may be cancelled during runtime.
      */
@@ -152,7 +147,7 @@ public interface Scheduler {
     /**
      * A scheduled cancellable allow cancelling and reading the remaining delay of a scheduled task.
      */
-    interface ScheduledCancellable extends Delayed, Cancellable { }
+    interface ScheduledCancellable extends Delayed, Cancellable {}
 
     /**
      * This class encapsulates the scheduling of a {@link Runnable} that needs to be repeated on a interval. For example, checking a value
@@ -183,8 +178,14 @@ public interface Scheduler {
          * @param executor the executor where this runnable should be scheduled to run
          * @param scheduler the {@link Scheduler} instance to use for scheduling
          */
-        ReschedulingRunnable(Runnable runnable, TimeValue interval, String executor, Scheduler scheduler,
-                             Consumer<Exception> rejectionConsumer, Consumer<Exception> failureConsumer) {
+        ReschedulingRunnable(
+            Runnable runnable,
+            TimeValue interval,
+            String executor,
+            Scheduler scheduler,
+            Consumer<Exception> rejectionConsumer,
+            Consumer<Exception> failureConsumer
+        ) {
             this.runnable = runnable;
             this.interval = interval;
             this.executor = executor;
@@ -239,10 +240,7 @@ public interface Scheduler {
 
         @Override
         public String toString() {
-            return "ReschedulingRunnable{" +
-                "runnable=" + runnable +
-                ", interval=" + interval +
-                '}';
+            return "ReschedulingRunnable{" + "runnable=" + runnable + ", interval=" + interval + '}';
         }
     }
 

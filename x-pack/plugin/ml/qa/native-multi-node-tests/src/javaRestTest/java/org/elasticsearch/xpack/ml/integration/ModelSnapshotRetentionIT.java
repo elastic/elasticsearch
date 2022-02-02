@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.integration;
@@ -18,18 +19,17 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -69,8 +69,13 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
     @Before
     public void addMlState() {
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), future);
+        createStateIndexAndAliasIfNecessary(
+            client(),
+            ClusterState.EMPTY_STATE,
+            TestIndexNameExpressionResolver.newInstance(),
+            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+            future
+        );
         future.actionGet();
     }
 
@@ -146,9 +151,9 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
             // - Nothing older than modelSnapshotRetentionDays
             // - Everything newer than dailyModelSnapshotRetentionAfterDays
             // - The first snapshot of each day in between
-            if (timeMs >= now - MS_IN_DAY * modelSnapshotRetentionDays &&
-                (timeMs >= now - MS_IN_DAY * dailyModelSnapshotRetentionAfterDays ||
-                    (now - timeMs) % MS_IN_DAY < MS_IN_DAY / numSnapshotsPerDay)) {
+            if (timeMs >= now - MS_IN_DAY * modelSnapshotRetentionDays
+                && (timeMs >= now - MS_IN_DAY * dailyModelSnapshotRetentionAfterDays
+                    || (now - timeMs) % MS_IN_DAY < MS_IN_DAY / numSnapshotsPerDay)) {
                 expectedModelSnapshotDocIds.add(ModelSnapshot.documentId(jobId, snapshotId));
                 for (int j = 1; j <= numDocsPerSnapshot; ++j) {
                     expectedModelStateDocIds.add(ModelState.documentId(jobId, snapshotId, j));
@@ -221,14 +226,14 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
         }
     }
 
-    private void persistModelSnapshotDoc(String jobId, String snapshotId, Date timestamp, int numDocs,
-                                         boolean immediateRefresh) throws IOException {
+    private void persistModelSnapshotDoc(String jobId, String snapshotId, Date timestamp, int numDocs, boolean immediateRefresh)
+        throws IOException {
         ModelSnapshot.Builder modelSnapshotBuilder = new ModelSnapshot.Builder();
         modelSnapshotBuilder.setJobId(jobId).setSnapshotId(snapshotId).setTimestamp(timestamp).setSnapshotDocCount(numDocs);
 
-        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
-            .id(ModelSnapshot.documentId(jobId, snapshotId))
-            .setRequireAlias(true);
+        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).id(
+            ModelSnapshot.documentId(jobId, snapshotId)
+        ).setRequireAlias(true);
         if (immediateRefresh) {
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         }
@@ -245,8 +250,9 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
 
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 1; i <= numDocs; ++i) {
-            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
-                .id(ModelState.documentId(jobId, snapshotId, i))
+            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).id(
+                ModelState.documentId(jobId, snapshotId, i)
+            )
                 // The exact contents of the model state doesn't matter - we are not going to try and restore it
                 .source(Collections.singletonMap("compressed", Collections.singletonList("foo")))
                 .setRequireAlias(true);

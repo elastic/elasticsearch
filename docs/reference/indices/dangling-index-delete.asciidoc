@@ -15,6 +15,12 @@ DELETE /_dangling/<index-uuid>?accept_data_loss=true
 --------------------------------------------------
 // TEST[skip:Difficult to set up]
 
+[[dangling-index-delete-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[dangling-index-delete-api-desc]]
 ==== {api-description-title}
 
@@ -41,4 +47,4 @@ UUID of the index to delete. You can find this using the
 This field must be set to `true` in order to carry out the import, since it will
 no longer be possible to recover the data from the dangling index.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

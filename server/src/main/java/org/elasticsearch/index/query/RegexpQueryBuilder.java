@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -26,18 +15,18 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -49,7 +38,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     public static final String NAME = "regexp";
 
     public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
-    public static final int DEFAULT_MAX_DETERMINIZED_STATES = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+    public static final int DEFAULT_MAX_DETERMINIZED_STATES = Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
     public static final boolean DEFAULT_CASE_INSENSITIVITY = false;
 
     private static final ParseField FLAGS_VALUE_FIELD = new ParseField("flags_value");
@@ -240,8 +229,10 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[regexp] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[regexp] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     }
                 }
@@ -252,12 +243,11 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             }
         }
 
-        RegexpQueryBuilder result = new RegexpQueryBuilder(fieldName, value)
-                .flags(flagsValue)
-                .maxDeterminizedStates(maxDeterminizedStates)
-                .rewrite(rewrite)
-                .boost(boost)
-                .queryName(queryName);
+        RegexpQueryBuilder result = new RegexpQueryBuilder(fieldName, value).flags(flagsValue)
+            .maxDeterminizedStates(maxDeterminizedStates)
+            .rewrite(rewrite)
+            .boost(boost)
+            .queryName(queryName);
         result.caseInsensitive(caseInsensitive);
         return result;
     }
@@ -268,14 +258,20 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws QueryShardException, IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws QueryShardException, IOException {
         final int maxAllowedRegexLength = context.getIndexSettings().getMaxRegexLength();
         if (value.length() > maxAllowedRegexLength) {
             throw new IllegalArgumentException(
-                "The length of regex ["  + value.length() +  "] used in the Regexp Query request has exceeded " +
-                    "the allowed maximum of [" + maxAllowedRegexLength + "]. " +
-                    "This maximum can be set by changing the [" +
-                    IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey() + "] index level setting.");
+                "The length of regex ["
+                    + value.length()
+                    + "] used in the Regexp Query request has exceeded "
+                    + "the allowed maximum of ["
+                    + maxAllowedRegexLength
+                    + "]. "
+                    + "This maximum can be set by changing the ["
+                    + IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()
+                    + "] index level setting."
+            );
         }
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
@@ -289,8 +285,12 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             query = fieldType.regexpQuery(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates, method, context);
         }
         if (query == null) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), sanitisedSyntaxFlag,
-                matchFlagsValue, maxDeterminizedStates);
+            RegexpQuery regexpQuery = new RegexpQuery(
+                new Term(fieldName, BytesRefs.toBytesRef(value)),
+                sanitisedSyntaxFlag,
+                matchFlagsValue,
+                maxDeterminizedStates
+            );
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);
             }
@@ -306,11 +306,11 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
     @Override
     protected boolean doEquals(RegexpQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-                Objects.equals(value, other.value) &&
-                Objects.equals(syntaxFlagsValue, other.syntaxFlagsValue) &&
-                Objects.equals(caseInsensitive, other.caseInsensitive) &&
-                Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
-                Objects.equals(rewrite, other.rewrite);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(value, other.value)
+            && Objects.equals(syntaxFlagsValue, other.syntaxFlagsValue)
+            && Objects.equals(caseInsensitive, other.caseInsensitive)
+            && Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates)
+            && Objects.equals(rewrite, other.rewrite);
     }
 }

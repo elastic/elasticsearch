@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.geometry.utils;
 
@@ -35,21 +24,51 @@ import java.util.Collection;
  * NOTE: this will replace {@code org.elasticsearch.common.geo.GeoHashUtils}
  */
 public class Geohash {
-    private static final char[] BASE_32 = {'0', '1', '2', '3', '4', '5', '6',
-        '7', '8', '9', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'm', 'n',
-        'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
+    private static final char[] BASE_32 = {
+        '0',
+        '1',
+        '2',
+        '3',
+        '4',
+        '5',
+        '6',
+        '7',
+        '8',
+        '9',
+        'b',
+        'c',
+        'd',
+        'e',
+        'f',
+        'g',
+        'h',
+        'j',
+        'k',
+        'm',
+        'n',
+        'p',
+        'q',
+        'r',
+        's',
+        't',
+        'u',
+        'v',
+        'w',
+        'x',
+        'y',
+        'z' };
 
     private static final String BASE_32_STRING = new String(BASE_32);
     /** maximum precision for geohash strings */
     public static final int PRECISION = 12;
     /** number of bits used for quantizing latitude and longitude values */
     private static final short BITS = 32;
-    private static final double LAT_SCALE = (0x1L<<(BITS-1))/180.0D;
-    private static final double LAT_DECODE = 180.0D/(0x1L<<BITS);
-    private static final double LON_SCALE = (0x1L<<(BITS-1))/360.0D;
-    private static final double LON_DECODE = 360.0D/(0x1L<<BITS);
+    private static final double LAT_SCALE = (0x1L << (BITS - 1)) / 180.0D;
+    private static final double LAT_DECODE = 180.0D / (0x1L << BITS);
+    private static final double LON_SCALE = (0x1L << (BITS - 1)) / 360.0D;
+    private static final double LON_DECODE = 360.0D / (0x1L << BITS);
 
-    private static final short MORTON_OFFSET = (BITS<<1) - (PRECISION*5);
+    private static final short MORTON_OFFSET = (BITS << 1) - (PRECISION * 5);
     /** Bit encoded representation of the latitude of north pole */
     private static final long MAX_LAT_BITS = (0x1L << (PRECISION * 5 / 2)) - 1;
 
@@ -58,19 +77,18 @@ public class Geohash {
     static {
         precisionToLatHeight = new double[PRECISION + 1];
         precisionToLonWidth = new double[PRECISION + 1];
-        precisionToLatHeight[0] = 90*2;
-        precisionToLonWidth[0] = 180*2;
+        precisionToLatHeight[0] = 90 * 2;
+        precisionToLonWidth[0] = 180 * 2;
         boolean even = false;
-        for(int i = 1; i <= PRECISION; i++) {
-            precisionToLatHeight[i] = precisionToLatHeight[i-1] / (even ? 8 : 4);
-            precisionToLonWidth[i] = precisionToLonWidth[i-1] / (even ? 4 : 8);
-            even = ! even;
+        for (int i = 1; i <= PRECISION; i++) {
+            precisionToLatHeight[i] = precisionToLatHeight[i - 1] / (even ? 8 : 4);
+            precisionToLonWidth[i] = precisionToLonWidth[i - 1] / (even ? 4 : 8);
+            even = even == false;
         }
     }
 
     // no instance:
-    private Geohash() {
-    }
+    private Geohash() {}
 
     /** Returns a {@link Point} instance from a geohash string */
     public static Point toPoint(final String geohash) throws IllegalArgumentException {
@@ -97,14 +115,14 @@ public class Geohash {
         final int shift = (12 - len) * 5 + 2;
         if (lat < MAX_LAT_BITS) {
             // add 1 to lat and lon to get topRight
-            ghLong = BitUtil.interleave((int)(lat + 1), (int)(lon + 1)) << 4 | len;
+            ghLong = BitUtil.interleave((int) (lat + 1), (int) (lon + 1)) << 4 | len;
             final long mortonHash = BitUtil.flipFlop((ghLong >>> 4) << shift);
             Point topRight = new Point(decodeLongitude(mortonHash), decodeLatitude(mortonHash));
             return new Rectangle(bottomLeft.getX(), topRight.getX(), topRight.getY(), bottomLeft.getY());
         } else {
             // We cannot go north of north pole, so just using 90 degrees instead of calculating it using
             // add 1 to lon to get lon of topRight, we are going to use 90 for lat
-            ghLong = BitUtil.interleave((int)lat, (int)(lon + 1)) << 4 | len;
+            ghLong = BitUtil.interleave((int) lat, (int) (lon + 1)) << 4 | len;
             final long mortonHash = BitUtil.flipFlop((ghLong >>> 4) << shift);
             Point topRight = new Point(decodeLongitude(mortonHash), decodeLatitude(mortonHash));
             return new Rectangle(bottomLeft.getX(), topRight.getX(), 90D, bottomLeft.getY());
@@ -114,9 +132,9 @@ public class Geohash {
     /** Array of geohashes one level below the baseGeohash. Sorted. */
     public static String[] getSubGeohashes(String baseGeohash) {
         String[] hashes = new String[BASE_32.length];
-        for (int i = 0; i < BASE_32.length; i++) {//note: already sorted
+        for (int i = 0; i < BASE_32.length; i++) {// note: already sorted
             char c = BASE_32[i];
-            hashes[i] = baseGeohash+c;
+            hashes[i] = baseGeohash + c;
         }
         return hashes;
     }
@@ -130,6 +148,7 @@ public class Geohash {
     public static Collection<? extends CharSequence> getNeighbors(String geohash) {
         return addNeighborsAtLevel(geohash, geohash.length(), new ArrayList<CharSequence>(8));
     }
+
     /**
      * Add all geohashes of the cells next to a given geohash to a list.
      *
@@ -149,8 +168,7 @@ public class Geohash {
      * @param neighbors list to add the neighbors to
      * @return the given list
      */
-    public static final <E extends Collection<? super String>> E addNeighborsAtLevel(String geohash,
-                                                                                     int level, E neighbors) {
+    public static final <E extends Collection<? super String>> E addNeighborsAtLevel(String geohash, int level, E neighbors) {
         String south = getNeighbor(geohash, level, 0, -1);
         String north = getNeighbor(geohash, level, 0, +1);
         if (north != null) {
@@ -181,7 +199,7 @@ public class Geohash {
      * @return geohash of the defined cell
      */
     public static final String getNeighbor(String geohash, int level, int dx, int dy) {
-        int cell = BASE_32_STRING.indexOf(geohash.charAt(level -1));
+        int cell = BASE_32_STRING.indexOf(geohash.charAt(level - 1));
 
         // Decoding the Geohash bit pattern to determine grid coordinates
         int x0 = cell & 1;  // first bit of x
@@ -237,7 +255,7 @@ public class Geohash {
      */
     public static final long longEncode(final double lon, final double lat, final int level) {
         // shift to appropriate level
-        final short msf = (short)(((12 - level) * 5) + (MORTON_OFFSET - 2));
+        final short msf = (short) (((12 - level) * 5) + (MORTON_OFFSET - 2));
         return ((encodeLatLon(lat, lon) >>> msf) << 4) | level;
     }
 
@@ -263,13 +281,13 @@ public class Geohash {
      * Encode to a geohash string from the geohash based long format
      */
     public static final String stringEncode(long geoHashLong) {
-        int level = (int)geoHashLong&15;
+        int level = (int) geoHashLong & 15;
         geoHashLong >>>= 4;
         char[] chars = new char[level];
         do {
-            chars[--level] = BASE_32[(int) (geoHashLong&31L)];
-            geoHashLong>>>=5;
-        } while(level > 0);
+            chars[--level] = BASE_32[(int) (geoHashLong & 31L)];
+            geoHashLong >>>= 5;
+        } while (level > 0);
 
         return new String(chars);
     }
@@ -286,9 +304,9 @@ public class Geohash {
         int level = length - 1;
         long b;
         long l = 0L;
-        for(char c : hash.toCharArray()) {
-            b = (long)(BASE_32_STRING.indexOf(c));
-            l |= (b<<(level--*5));
+        for (char c : hash.toCharArray()) {
+            b = (long) (BASE_32_STRING.indexOf(c));
+            l |= (b << (level-- * 5));
             if (level < 0) {
                 // We cannot handle more than 12 levels
                 break;
@@ -307,12 +325,12 @@ public class Geohash {
         int level = 11;
         long b;
         long l = 0L;
-        for(char c : hash.toCharArray()) {
-            b = (long)(BASE_32_STRING.indexOf(c));
+        for (char c : hash.toCharArray()) {
+            b = (long) (BASE_32_STRING.indexOf(c));
             if (b < 0) {
                 throw new IllegalArgumentException("unsupported symbol [" + c + "] in geohash [" + hash + "]");
             }
-            l |= (b<<((level--*5) + (MORTON_OFFSET - 2)));
+            l |= (b << ((level-- * 5) + (MORTON_OFFSET - 2)));
             if (level < 0) {
                 // We cannot handle more than 12 levels
                 break;
@@ -337,7 +355,6 @@ public class Geohash {
         final int lonEnc = encodeLongitude(lon) ^ 0x80000000;
         return BitUtil.interleave(latEnc, lonEnc) >>> 2;
     }
-
 
     /** encode latitude to integer */
     public static int encodeLatitude(double latitude) {

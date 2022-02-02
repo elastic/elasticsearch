@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -29,8 +30,13 @@ public class SamlInitiateSingleSignOnResponse extends ActionResponse {
         this.error = in.readOptionalString();
     }
 
-    public SamlInitiateSingleSignOnResponse(String entityId, String postUrl, String samlResponse, String samlStatus,
-                                            @Nullable String error) {
+    public SamlInitiateSingleSignOnResponse(
+        String entityId,
+        String postUrl,
+        String samlResponse,
+        String samlStatus,
+        @Nullable String error
+    ) {
         this.entityId = entityId;
         this.postUrl = postUrl;
         this.samlResponse = samlResponse;

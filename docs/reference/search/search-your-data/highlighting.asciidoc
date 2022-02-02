@@ -72,10 +72,10 @@ The `fvh` highlighter uses the Lucene Fast Vector highlighter.
 This highlighter can be used on fields with `term_vector` set to
 `with_positions_offsets` in the mapping. The fast vector highlighter:
 
-* Can be customized with  a <<boundary-scanners,`boundary_scanner`>>.
+* Can be customized with a <<boundary-scanners,`boundary_scanner`>>.
 * Requires setting `term_vector` to `with_positions_offsets` which
   increases the size of the index
-* Can combine matches from multiple fields into one result.  See
+* Can combine matches from multiple fields into one result. See
   `matched_fields`
 * Can assign different weights to matches at different positions allowing
   for things like phrase matches being sorted above term matches when
@@ -117,7 +117,7 @@ needs highlighting. The `plain` highlighter always uses plain highlighting.
 Plain highlighting for large texts may require substantial amount of time and memory.
 To protect against this, the maximum number of text characters that will be analyzed has been
 limited to 1000000. This default limit can be changed
-for a particular index with the index setting `index.highlight.max_analyzed_offset`.
+for a particular index with the index setting <<index-max-analyzed-offset,`index.highlight.max_analyzed_offset`>>.
 
 [discrete]
 [[highlighting-settings]]
@@ -137,7 +137,7 @@ boundary_scanner:: Specifies how to break the highlighted fragments: `chars`,
 Defaults to `sentence` for the `unified` highlighter. Defaults to `chars` for
 the `fvh` highlighter.
 `chars`::: Use the characters specified by `boundary_chars` as highlighting
-boundaries.  The `boundary_max_scan` setting controls how far to scan for
+boundaries. The `boundary_max_scan` setting controls how far to scan for
 boundary characters. Only valid for the `fvh` highlighter.
 `sentence`::: Break highlighted fragments at the next sentence boundary, as
 determined by Java's
@@ -200,7 +200,7 @@ include the search query as part of the `highlight_query`.
 
 matched_fields:: Combine matches on multiple fields to highlight a single field.
 This is most intuitive for multifields that analyze the same string in different
-ways.  All `matched_fields` must have `term_vector` set to
+ways. All `matched_fields` must have `term_vector` set to
 `with_positions_offsets`, but only the field to which
 the matches are combined is loaded so only that field benefits from having
 `store` set to `yes`. Only valid for the `fvh` highlighter.
@@ -216,7 +216,7 @@ handy when you need to highlight short texts such as a title or
 address, but fragmentation is not required. If `number_of_fragments`
 is 0, `fragment_size` is ignored. Defaults to 5.
 
-order:: Sorts highlighted fragments by score when set to `score`.  By default,
+order:: Sorts highlighted fragments by score when set to `score`. By default,
 fragments will be output in the order they appear in the field (order: `none`).
 Setting this option to `score` will output the most relevant fragments first.
 Each highlighter applies its own logic to compute relevancy scores. See
@@ -241,6 +241,17 @@ in `<em>` and `</em>` tags. Specify as an array of strings.
 require_field_match:: By default, only fields that contains a query match are
 highlighted. Set `require_field_match` to `false` to highlight all fields.
 Defaults to `true`.
+
+[[max-analyzed-offset]]
+max_analyzed_offset:: By default, the maximum number of characters
+analyzed for a highlight request is bounded by the value defined in the
+<<index-max-analyzed-offset, `index.highlight.max_analyzed_offset`>> setting,
+and when the number of characters exceeds this limit an error is returned. If
+this setting is set to a non-negative value, the highlighting stops at this defined
+maximum limit, and the rest of the text is not processed, thus not highlighted and
+no error is returned. The <<max-analyzed-offset, `max_analyzed_offset`>> query setting
+does *not* override the <<index-max-analyzed-offset, `index.highlight.max_analyzed_offset`>>
+which prevails when it's set to lower value than the query setting.
 
 tags_schema:: Set to `styled` to use the built-in tag schema. The `styled`
 schema defines the following `pre_tags` and defines `post_tags` as
@@ -516,8 +527,8 @@ GET /_search
 WARNING: This is only supported by the `fvh` highlighter
 
 The Fast Vector Highlighter can combine matches on multiple fields to
-highlight a single field.  This is most intuitive for multifields that
-analyze the same string in different ways.  All `matched_fields` must have
+highlight a single field. This is most intuitive for multifields that
+analyze the same string in different ways. All `matched_fields` must have
 `term_vector` set to `with_positions_offsets` but only the field to which
 the matches are combined is loaded so only that field would benefit from having
 `store` set to `yes`.
@@ -611,7 +622,7 @@ it is just fine not to list the field to which the matches are combined
 [NOTE]
 Technically it is also fine to add fields to `matched_fields` that
 don't share the same underlying string as the field to which the matches
-are combined.  The results might not make much sense and if one of the
+are combined. The results might not make much sense and if one of the
 matches is off the end of the text then the whole query will fail.
 
 [NOTE]
@@ -647,7 +658,7 @@ to
 [discrete]
 == Explicitly order highlighted fields
 Elasticsearch highlights the fields in the order that they are sent, but per the
-JSON spec, objects are unordered.  If you need to be explicit about the order
+JSON spec, objects are unordered. If you need to be explicit about the order
 in which fields are highlighted specify the `fields` as an array:
 
 [source,console]
@@ -853,7 +864,8 @@ Response:
         "_id": "1",
         "_score": 1.6011951,
         "_source": {
-          "message": "some message with the number 1"
+          "message": "some message with the number 1",
+          "context": "bar"
         },
         "highlight": {
           "message": [
@@ -907,7 +919,8 @@ Response:
         "_id": "1",
         "_score": 1.6011951,
         "_source": {
-          "message": "some message with the number 1"
+          "message": "some message with the number 1",
+          "context": "bar"
         },
         "highlight": {
           "message": [

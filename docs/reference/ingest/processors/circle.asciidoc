@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[ingest-circle-processor]]
 === Circle processor
 ++++
@@ -56,6 +55,8 @@ Using the above pipeline, we can attempt to index a document into the `circles` 
 The circle can be represented as either a WKT circle or a GeoJSON circle. The resulting
 polygon will be represented and indexed using the same format as the input circle. WKT will
 be translated to a WKT polygon, and GeoJSON circles will be translated to GeoJSON polygons.
+
+IMPORTANT: Circles that contain a pole are not supported.
 
 ==== Example: Circle defined in Well Known Text
 

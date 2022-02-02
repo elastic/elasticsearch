@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.antlr;
@@ -32,7 +21,7 @@ import org.elasticsearch.painless.Location;
  */
 final class ParserErrorStrategy extends DefaultErrorStrategy {
     final String sourceName;
-    
+
     ParserErrorStrategy(String sourceName) {
         this.sourceName = sourceName;
     }
@@ -45,8 +34,12 @@ final class ParserErrorStrategy extends DefaultErrorStrategy {
         if (token == null) {
             message = "no parse token found.";
         } else if (re instanceof InputMismatchException) {
-            message = "unexpected token [" + getTokenErrorDisplay(token) + "]" +
-                    " was expecting one of [" + re.getExpectedTokens().toString(recognizer.getVocabulary()) + "].";
+            message = "unexpected token ["
+                + getTokenErrorDisplay(token)
+                + "]"
+                + " was expecting one of ["
+                + re.getExpectedTokens().toString(recognizer.getVocabulary())
+                + "].";
         } else if (re instanceof NoViableAltException) {
             if (token.getType() == PainlessParser.EOF) {
                 message = "unexpected end of script.";
@@ -54,7 +47,7 @@ final class ParserErrorStrategy extends DefaultErrorStrategy {
                 message = "invalid sequence of tokens near [" + getTokenErrorDisplay(token) + "].";
             }
         } else {
-            message =  "unexpected token near [" + getTokenErrorDisplay(token) + "].";
+            message = "unexpected token near [" + getTokenErrorDisplay(token) + "].";
         }
 
         Location location = new Location(sourceName, token == null ? -1 : token.getStartIndex());
@@ -64,14 +57,17 @@ final class ParserErrorStrategy extends DefaultErrorStrategy {
     @Override
     public Token recoverInline(final Parser recognizer) throws RecognitionException {
         final Token token = recognizer.getCurrentToken();
-        final String message = "unexpected token [" + getTokenErrorDisplay(token) + "]" +
-            " was expecting one of [" + recognizer.getExpectedTokens().toString(recognizer.getVocabulary()) + "].";
+        final String message = "unexpected token ["
+            + getTokenErrorDisplay(token)
+            + "]"
+            + " was expecting one of ["
+            + recognizer.getExpectedTokens().toString(recognizer.getVocabulary())
+            + "].";
 
         Location location = new Location(sourceName, token.getStartIndex());
         throw location.createError(new IllegalArgumentException(message));
     }
 
     @Override
-    public void sync(final Parser recognizer) {
-    }
+    public void sync(final Parser recognizer) {}
 }

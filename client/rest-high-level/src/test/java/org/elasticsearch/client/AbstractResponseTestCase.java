@@ -1,37 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -55,7 +42,8 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
         final XContentParser parser = xContent.createParser(
             NamedXContentRegistry.EMPTY,
             LoggingDeprecationHandler.INSTANCE,
-            bytes.streamInput());
+            bytes.streamInput()
+        );
         final C clientInstance = doParseToClientInstance(parser);
         assertInstances(serverTestInstance, clientInstance);
     }
@@ -91,12 +79,7 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
     }
 
     protected static <T> void assertMapEquals(ImmutableOpenMap<String, T> expected, Map<String, T> actual) {
-        Set<String> expectedKeys = new HashSet<>();
-        Iterator<String> keysIt = expected.keysIt();
-        while (keysIt.hasNext()) {
-            expectedKeys.add(keysIt.next());
-        }
-
+        Set<String> expectedKeys = expected.keySet();
         assertEquals(expectedKeys, actual.keySet());
         for (String key : expectedKeys) {
             assertEquals(expected.get(key), actual.get(key));

@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -26,10 +16,11 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -37,51 +28,60 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.BucketedSort.ExtraData;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Test case that lets you easilly build {@link MapperService} based on some
@@ -102,7 +102,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return SETTINGS;
     }
 
+    protected final Settings.Builder getIndexSettingsBuilder() {
+        return Settings.builder().put(getIndexSettings());
+    }
+
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
+        return createIndexAnalyzers();
+    }
+
+    protected static IndexAnalyzers createIndexAnalyzers() {
         return new IndexAnalyzers(
             Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             Map.of(),
@@ -146,48 +154,67 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
-    protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
+    protected final MapperService createMapperService(Settings settings, String mappings) throws IOException {
+        MapperService mapperService = createMapperService(Version.CURRENT, settings, () -> true, mapping(b -> {}));
+        merge(mapperService, mappings);
+        return mapperService;
+    }
+
+    protected MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
         return createMapperService(version, getIndexSettings(), () -> true, mapping);
     }
 
     /**
      * Create a {@link MapperService} like we would for an index.
      */
-    protected final MapperService createMapperService(Version version,
-                                                      Settings settings,
-                                                      BooleanSupplier idFieldDataEnabled,
-                                                      XContentBuilder mapping) throws IOException {
+    protected final MapperService createMapperService(
+        Version version,
+        Settings settings,
+        BooleanSupplier idFieldDataEnabled,
+        XContentBuilder mapping
+    ) throws IOException {
+
+        MapperService mapperService = createMapperService(version, settings, idFieldDataEnabled);
+        merge(mapperService, mapping);
+        return mapperService;
+    }
+
+    protected final MapperService createMapperService(Version version, Settings settings, BooleanSupplier idFieldDataEnabled) {
+        IndexSettings indexSettings = createIndexSettings(version, settings);
+        MapperRegistry mapperRegistry = new IndicesModule(
+            getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
+        ).getMapperRegistry();
+
+        SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
+        return new MapperService(
+            indexSettings,
+            createIndexAnalyzers(indexSettings),
+            parserConfig(),
+            similarityService,
+            mapperRegistry,
+            () -> { throw new UnsupportedOperationException(); },
+            new IdFieldMapper(idFieldDataEnabled),
+            this::compileScript
+        );
+    }
+
+    /**
+     *  This is the injection point for tests that require mock scripts.  Test cases should override this to return the
+     *  mock script factory of their choice.
+     */
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        throw new UnsupportedOperationException("Cannot compile script " + Strings.toString(script));
+    }
+
+    protected static IndexSettings createIndexSettings(Version version, Settings settings) {
         settings = Settings.builder()
             .put("index.number_of_replicas", 0)
             .put("index.number_of_shards", 1)
             .put(settings)
             .put("index.version.created", version)
             .build();
-        IndexMetadata meta = IndexMetadata.builder("index")
-            .settings(settings)
-            .build();
-        IndexSettings indexSettings = new IndexSettings(meta, settings);
-        MapperRegistry mapperRegistry = new IndicesModule(
-            getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
-        ).getMapperRegistry();
-        ScriptModule scriptModule = new ScriptModule(
-            Settings.EMPTY,
-            getPlugins().stream().filter(p -> p instanceof ScriptPlugin).map(p -> (ScriptPlugin) p).collect(toList())
-        );
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
-        SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Map.of());
-        MapperService mapperService = new MapperService(
-            indexSettings,
-            createIndexAnalyzers(indexSettings),
-            xContentRegistry(),
-            similarityService,
-            mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
-            idFieldDataEnabled,
-            scriptService
-        );
-        merge(mapperService, mapping);
-        return mapperService;
+        IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
+        return new IndexSettings(meta, settings);
     }
 
     protected final void withLuceneIndex(
@@ -195,10 +222,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> builder,
         CheckedConsumer<IndexReader, IOException> test
     ) throws IOException {
-        try (
-            Directory dir = newDirectory();
-            RandomIndexWriter iw = new RandomIndexWriter(random(), dir, new IndexWriterConfig(mapperService.indexAnalyzer()))
-        ) {
+        IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService));
+        try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)) {
             builder.accept(iw);
             try (IndexReader reader = iw.getReader()) {
                 test.accept(reader);
@@ -212,14 +237,33 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     protected final SourceToParse source(String id, CheckedConsumer<XContentBuilder, IOException> build, @Nullable String routing)
         throws IOException {
+        return source("test", id, build, routing, Map.of());
+    }
+
+    protected final SourceToParse source(
+        String id,
+        CheckedConsumer<XContentBuilder, IOException> build,
+        @Nullable String routing,
+        Map<String, String> dynamicTemplates
+    ) throws IOException {
+        return source("text", id, build, routing, dynamicTemplates);
+    }
+
+    protected final SourceToParse source(
+        String index,
+        String id,
+        CheckedConsumer<XContentBuilder, IOException> build,
+        @Nullable String routing,
+        Map<String, String> dynamicTemplates
+    ) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse("test", id, BytesReference.bytes(builder), XContentType.JSON, routing);
+        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
     }
 
     protected final SourceToParse source(String source) {
-        return new SourceToParse("test", "1", new BytesArray(source), XContentType.JSON);
+        return new SourceToParse("1", new BytesArray(source), XContentType.JSON);
     }
 
     /**
@@ -236,12 +280,14 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         mapperService.merge(null, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
+    protected final void merge(MapperService mapperService, MapperService.MergeReason reason, String mapping) throws IOException {
+        mapperService.merge(null, new CompressedXContent(mapping), reason);
+    }
+
     /**
      * Merge a new mapping into the one in the provided {@link MapperService} with a specific {@code MergeReason}
      */
-    protected final void merge(MapperService mapperService,
-                               MapperService.MergeReason reason,
-                               XContentBuilder mapping) throws IOException {
+    protected final void merge(MapperService mapperService, MapperService.MergeReason reason, XContentBuilder mapping) throws IOException {
         mapperService.merge(null, new CompressedXContent(BytesReference.bytes(mapping)), reason);
     }
 
@@ -271,11 +317,44 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         });
     }
 
-    private AggregationContext aggregationContext(MapperService mapperService, IndexSearcher searcher, Query query) {
+    protected final XContentBuilder runtimeFieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
+        return runtimeMapping(b -> {
+            b.startObject("field");
+            buildField.accept(b);
+            b.endObject();
+        });
+    }
+
+    protected final XContentBuilder runtimeMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("runtime");
+        buildFields.accept(builder);
+        return builder.endObject().endObject().endObject();
+    }
+
+    private AggregationContext aggregationContext(
+        ValuesSourceRegistry valuesSourceRegistry,
+        MapperService mapperService,
+        IndexSearcher searcher,
+        Query query,
+        Supplier<SearchLookup> lookupSupplier
+    ) {
         return new AggregationContext() {
+            private final CircuitBreaker breaker = mock(CircuitBreaker.class);
+            private final MultiBucketConsumer multiBucketConsumer = new MultiBucketConsumer(Integer.MAX_VALUE, breaker);
+
             @Override
             public IndexSearcher searcher() {
                 return searcher;
+            }
+
+            @Override
+            public Aggregator profileIfEnabled(Aggregator agg) throws IOException {
+                return agg;
+            }
+
+            @Override
+            public boolean profiling() {
+                return false;
             }
 
             @Override
@@ -289,18 +368,34 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public Analyzer getNamedAnalyzer(String analyzer) {
+                return null;
+            }
+
+            @Override
+            public Analyzer buildCustomAnalyzer(
+                IndexSettings indexSettings,
+                boolean normalizer,
+                NameOrDefinition tokenizer,
+                List<NameOrDefinition> charFilters,
+                List<NameOrDefinition> tokenFilters
+            ) {
+                return null;
+            }
+
+            @Override
             public boolean isFieldMapped(String field) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
             public SearchLookup lookup() {
-                throw new UnsupportedOperationException();
+                return lookupSupplier.get();
             }
 
             @Override
             public ValuesSourceRegistry getValuesSourceRegistry() {
-                throw new UnsupportedOperationException();
+                return valuesSourceRegistry;
             }
 
             @Override
@@ -314,8 +409,14 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+            public Set<String> getMatchingFieldNames(String pattern) {
                 throw new UnsupportedOperationException();
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+                return compileScript(script, context);
             }
 
             @Override
@@ -325,6 +426,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             public Query buildQuery(QueryBuilder builder) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Query filterQuery(Query query) {
                 throw new UnsupportedOperationException();
             }
 
@@ -339,12 +445,82 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public ObjectMapper getObjectMapper(String path) {
+            public NestedLookup nestedLookup() {
                 throw new UnsupportedOperationException();
             }
 
             @Override
             public NestedScope nestedScope() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public SubSearchContext subSearchContext() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void addReleasable(Aggregator aggregator) {
+                // TODO we'll have to handle this in the tests eventually
+            }
+
+            @Override
+            public MultiBucketConsumer multiBucketConsumer() {
+                return multiBucketConsumer;
+            }
+
+            @Override
+            public BitsetFilterCache bitsetFilterCache() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public BucketedSort buildBucketedSort(SortBuilder<?> sort, int size, ExtraData values) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int shardRandomSeed() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long getRelativeTimeInMillis() {
+                return 0;
+            }
+
+            @Override
+            public boolean isCancelled() {
+                return false;
+            }
+
+            @Override
+            public CircuitBreaker breaker() {
+                return breaker;
+            }
+
+            @Override
+            public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean isCacheable() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean enableRewriteToFilterByFilter() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean isInSortOrderExecutionRequired() {
+                return false;
+            }
+
+            @Override
+            public void close() {
                 throw new UnsupportedOperationException();
             }
         };
@@ -355,40 +531,101 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         List<SourceToParse> docs,
         CheckedConsumer<AggregationContext, IOException> test
     ) throws IOException {
-        withAggregationContext(mapperService, docs, null, test);
+        withAggregationContext(mapperService, docs, test, () -> { throw new UnsupportedOperationException(); });
     }
 
     protected final void withAggregationContext(
         MapperService mapperService,
         List<SourceToParse> docs,
+        CheckedConsumer<AggregationContext, IOException> test,
+        Supplier<SearchLookup> lookupSupplier
+    ) throws IOException {
+        withAggregationContext(null, mapperService, docs, null, test, lookupSupplier);
+    }
+
+    protected final void withAggregationContext(
+        ValuesSourceRegistry valuesSourceRegistry,
+        MapperService mapperService,
+        List<SourceToParse> docs,
         Query query,
         CheckedConsumer<AggregationContext, IOException> test
     ) throws IOException {
-        withLuceneIndex(
+        withAggregationContext(
+            valuesSourceRegistry,
             mapperService,
-            writer -> {
-                for (SourceToParse doc: docs) {
-                    writer.addDocuments(mapperService.documentMapper().parse(doc).docs());
-                }
-            },
-            reader -> test.accept(aggregationContext(mapperService, new IndexSearcher(reader), query))
+            docs,
+            query,
+            test,
+            () -> { throw new UnsupportedOperationException(); }
         );
     }
 
-    protected QueryShardContext createQueryShardContext(MapperService mapperService) {
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.getFieldType(anyString())).thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()));
-        when(queryShardContext.isFieldMapped(anyString()))
-            .thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()) != null);
-        when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
-        when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
-        when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
-            inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
+    protected final void withAggregationContext(
+        ValuesSourceRegistry valuesSourceRegistry,
+        MapperService mapperService,
+        List<SourceToParse> docs,
+        Query query,
+        CheckedConsumer<AggregationContext, IOException> test,
+        Supplier<SearchLookup> lookupSupplier
+    ) throws IOException {
+        withLuceneIndex(mapperService, writer -> {
+            for (SourceToParse doc : docs) {
+                writer.addDocuments(mapperService.documentMapper().parse(doc).docs());
+
+            }
+        },
+            reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, new IndexSearcher(reader), query, lookupSupplier))
         );
-        when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
-        when(queryShardContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
-            throw new UnsupportedOperationException("search lookup not available");
-        }));
-        return queryShardContext;
+    }
+
+    protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService) {
+        return createSearchExecutionContext(mapperService, null, Settings.EMPTY);
+    }
+
+    protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService, IndexSearcher searcher) {
+        return createSearchExecutionContext(mapperService, searcher, Settings.EMPTY);
+    }
+
+    protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService, IndexSearcher searcher, Settings settings) {
+        Settings mergedSettings = Settings.builder().put(mapperService.getIndexSettings().getSettings()).put(settings).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder(mapperService.getIndexSettings().getIndexMetadata())
+            .settings(mergedSettings)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        final SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
+        final long nowInMillis = randomNonNegativeLong();
+        return new SearchExecutionContext(0, 0, indexSettings, new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+
+            }
+        }),
+            (ft, idxName, lookup) -> ft.fielddataBuilder(idxName, lookup)
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            mapperService,
+            mapperService.mappingLookup(),
+            similarityService,
+            null,
+            parserConfig(),
+            writableRegistry(),
+            null,
+            searcher,
+            () -> nowInMillis,
+            null,
+            null,
+            () -> true,
+            null,
+            Collections.emptyMap()
+        );
+    }
+
+    protected BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {
+        return (mft, lookupSource) -> mft.fielddataBuilder("test", lookupSource)
+            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 }

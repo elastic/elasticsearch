@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.Arrays;
 import java.util.List;
@@ -54,12 +55,14 @@ public final class EvaluationFields {
      */
     private final boolean predictedProbabilityFieldNested;
 
-    public EvaluationFields(@Nullable String actualField,
-                            @Nullable String predictedField,
-                            @Nullable String topClassesField,
-                            @Nullable String predictedClassField,
-                            @Nullable String predictedProbabilityField,
-                            boolean predictedProbabilityFieldNested) {
+    public EvaluationFields(
+        @Nullable String actualField,
+        @Nullable String predictedField,
+        @Nullable String topClassesField,
+        @Nullable String predictedClassField,
+        @Nullable String predictedProbabilityField,
+        boolean predictedProbabilityFieldNested
+    ) {
 
         this.actualField = actualField;
         this.predictedField = predictedField;
@@ -117,7 +120,8 @@ public final class EvaluationFields {
             Tuple.tuple(PREDICTED_FIELD.getPreferredName(), predictedField),
             Tuple.tuple(TOP_CLASSES_FIELD.getPreferredName(), topClassesField),
             Tuple.tuple(PREDICTED_CLASS_FIELD.getPreferredName(), predictedClassField),
-            Tuple.tuple(PREDICTED_PROBABILITY_FIELD.getPreferredName(), predictedProbabilityField));
+            Tuple.tuple(PREDICTED_PROBABILITY_FIELD.getPreferredName(), predictedProbabilityField)
+        );
     }
 
     @Override
@@ -136,6 +140,12 @@ public final class EvaluationFields {
     @Override
     public int hashCode() {
         return Objects.hash(
-            actualField, predictedField, topClassesField, predictedClassField, predictedProbabilityField, predictedProbabilityFieldNested);
+            actualField,
+            predictedField,
+            topClassesField,
+            predictedClassField,
+            predictedProbabilityField,
+            predictedProbabilityFieldNested
+        );
     }
 }

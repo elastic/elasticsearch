@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
@@ -26,8 +27,7 @@ public class WebhookActionFactory extends ActionFactory {
 
     @Override
     public ExecutableWebhookAction parseExecutable(String watchId, String actionId, XContentParser parser) throws IOException {
-        return new ExecutableWebhookAction(WebhookAction.parse(watchId, actionId, parser),
-                actionLogger, httpClient, templateEngine);
+        return new ExecutableWebhookAction(WebhookAction.parse(watchId, actionId, parser), actionLogger, httpClient, templateEngine);
 
     }
 }

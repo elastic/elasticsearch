@@ -1,33 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.queries.spans.SpanWithinQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanQuery;
-import org.apache.lucene.search.spans.SpanWithinQuery;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,7 +24,7 @@ import java.util.Objects;
 import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
 
 /**
- * Builder for {@link org.apache.lucene.search.spans.SpanWithinQuery}.
+ * Builder for {@link org.apache.lucene.queries.spans.SpanWithinQuery}.
  */
 public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_within";
@@ -133,8 +122,10 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
                     little = (SpanQueryBuilder) query;
                     checkNoBoost(NAME, currentFieldName, parser, little);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[span_within] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[span_within] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                 boost = parser.floatValue();
@@ -158,7 +149,7 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         Query innerBig = big.toQuery(context);
         assert innerBig instanceof SpanQuery;
         Query innerLittle = little.toQuery(context);
@@ -173,8 +164,7 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
 
     @Override
     protected boolean doEquals(SpanWithinQueryBuilder other) {
-        return Objects.equals(big, other.big) &&
-               Objects.equals(little, other.little);
+        return Objects.equals(big, other.big) && Objects.equals(little, other.little);
     }
 
     @Override

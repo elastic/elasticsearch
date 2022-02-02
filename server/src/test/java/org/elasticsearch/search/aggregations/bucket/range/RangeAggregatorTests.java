@@ -121,6 +121,26 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testMinAndMaxLongRangeBounds() throws IOException {
+        final String fieldName = "long_field";
+        MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.LONG);
+        double from = Long.valueOf(Long.MIN_VALUE).doubleValue();
+        double to = Long.valueOf(Long.MAX_VALUE).doubleValue();
+        testCase(
+            new RangeAggregationBuilder("0").field(fieldName).addRange(Long.MIN_VALUE, Long.MAX_VALUE),
+            new MatchAllDocsQuery(),
+            iw -> { iw.addDocument(singleton(new NumericDocValuesField(fieldName, randomLong()))); },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(1, ranges.size());
+                assertEquals(from + "-" + to, ranges.get(0).getKeyAsString());
+                assertEquals(1, ranges.get(0).getDocCount());
+            },
+            field
+        );
+    }
+
     public void testFloatRangeFromAndToValues() throws IOException {
         final String fieldName = "test";
         MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.FLOAT);
@@ -179,6 +199,52 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 assertEquals("6.0", ranges.get(1).getFromAsString());
                 assertEquals("10.6", ranges.get(1).getToAsString());
                 assertEquals(1, ranges.get(0).getDocCount());
+                assertEquals(2, ranges.get(1).getDocCount());
+            },
+            field
+        );
+    }
+
+    public void testDoubleRangeWithLongField() throws IOException {
+        final String fieldName = "long_field";
+        MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.LONG);
+        testCase(
+            new RangeAggregationBuilder("0").field(fieldName).addRange(990.0, 999.9).addUnboundedFrom(999.9),
+            new MatchAllDocsQuery(),
+            iw -> {
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, 998)));
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, 999)));
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, 1000)));
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, 1001)));
+            },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals(2, ranges.get(0).getDocCount());
+                assertEquals(2, ranges.get(1).getDocCount());
+            },
+            field
+        );
+    }
+
+    public void testDoubleRangeWithIntegerField() throws IOException {
+        final String fieldName = "integer_field";
+        MappedFieldType field = new NumberFieldMapper.NumberFieldType(fieldName, NumberType.INTEGER);
+        testCase(
+            new RangeAggregationBuilder("0").field(fieldName).addRange(990.0, 999.9).addUnboundedFrom(999.9),
+            new MatchAllDocsQuery(),
+            iw -> {
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, 998)));
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, 999)));
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, 1000)));
+                iw.addDocument(singleton(new NumericDocValuesField(fieldName, 1001)));
+            },
+            result -> {
+                InternalRange<?, ?> range = (InternalRange<?, ?>) result;
+                List<? extends InternalRange.Bucket> ranges = range.getBuckets();
+                assertEquals(2, ranges.size());
+                assertEquals(2, ranges.get(0).getDocCount());
                 assertEquals(2, ranges.get(1).getDocCount());
             },
             field

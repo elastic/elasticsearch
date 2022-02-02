@@ -109,6 +109,7 @@ Do not increase this setting without carefully verifying that your cluster has
 the resources available to handle the extra load that will result.
 
 [discrete]
+[[recovery-settings-for-managed-services]]
 ==== Recovery settings for managed services
 
 NOTE: {cloud-only}

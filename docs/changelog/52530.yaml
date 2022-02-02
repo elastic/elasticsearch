@@ -1,0 +1,6 @@
+pr: 52530
+summary: Introduce first query
+area: Search
+type: feature
+issues:
+ - 52482

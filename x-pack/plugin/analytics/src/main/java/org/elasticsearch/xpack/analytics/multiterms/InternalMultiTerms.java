@@ -460,18 +460,10 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
                 InternalMultiTerms agg = (InternalMultiTerms) aggregation;
                 KeyConverter keyConverter = agg.keyConverters.get(i);
                 switch (keyConverter) {
-                    case DOUBLE:
-                        hasDouble = true;
-                        break;
-                    case LONG:
-                        hasLong = true;
-                        break;
-                    case UNSIGNED_LONG:
-                        hasUnsignedLong = true;
-                        break;
-                    default:
-                        hasNonNumber = true;
-                        break;
+                    case DOUBLE -> hasDouble = true;
+                    case LONG -> hasLong = true;
+                    case UNSIGNED_LONG -> hasUnsignedLong = true;
+                    default -> hasNonNumber = true;
                 }
             }
             if (hasNonNumber && (hasDouble || hasUnsignedLong || hasLong)) {

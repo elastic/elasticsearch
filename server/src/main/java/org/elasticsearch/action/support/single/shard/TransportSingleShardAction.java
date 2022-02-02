@@ -203,14 +203,14 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         }
 
         private void perform(@Nullable final Exception currentFailure) {
-            Exception lastFailureRef = this.lastFailure;
-            if (lastFailureRef == null || TransportActions.isReadOverrideException(currentFailure)) {
-                lastFailureRef = currentFailure;
+            Exception lastFailure = this.lastFailure;
+            if (lastFailure == null || TransportActions.isReadOverrideException(currentFailure)) {
+                lastFailure = currentFailure;
                 this.lastFailure = currentFailure;
             }
             final ShardRouting shardRouting = shardIt.nextOrNull();
             if (shardRouting == null) {
-                Exception failure = lastFailureRef;
+                Exception failure = lastFailure;
                 if (failure == null || isShardNotAvailableException(failure)) {
                     failure = new NoShardAvailableActionException(
                         null,

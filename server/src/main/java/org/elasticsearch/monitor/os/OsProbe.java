@@ -441,15 +441,9 @@ public class OsProbe {
         for (final String line : lines) {
             final String[] fields = line.split("\\s+");
             switch (fields[0]) {
-                case "nr_periods":
-                    numberOfPeriods = Long.parseLong(fields[1]);
-                    break;
-                case "nr_throttled":
-                    numberOfTimesThrottled = Long.parseLong(fields[1]);
-                    break;
-                case "throttled_time":
-                    timeThrottledNanos = Long.parseLong(fields[1]);
-                    break;
+                case "nr_periods" -> numberOfPeriods = Long.parseLong(fields[1]);
+                case "nr_throttled" -> numberOfTimesThrottled = Long.parseLong(fields[1]);
+                case "throttled_time" -> timeThrottledNanos = Long.parseLong(fields[1]);
             }
         }
         assert numberOfPeriods != -1;

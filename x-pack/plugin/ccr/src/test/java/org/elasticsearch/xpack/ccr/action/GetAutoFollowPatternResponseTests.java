@@ -11,13 +11,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 public class GetAutoFollowPatternResponseTests extends AbstractWireSerializingTestCase<GetAutoFollowPatternAction.Response> {
@@ -30,7 +30,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractWireSerializingTe
     @Override
     protected GetAutoFollowPatternAction.Response createTestInstance() {
         int numPatterns = randomIntBetween(1, 8);
-        Map<String, AutoFollowPattern> patterns = new HashMap<>(numPatterns);
+        Map<String, AutoFollowPattern> patterns = Maps.newMapWithExpectedSize(numPatterns);
         for (int i = 0; i < numPatterns; i++) {
             AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
                 "remote",

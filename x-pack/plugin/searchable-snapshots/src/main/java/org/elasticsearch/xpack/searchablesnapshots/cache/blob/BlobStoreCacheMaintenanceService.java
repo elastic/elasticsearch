@@ -27,8 +27,8 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -61,7 +61,6 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.sort.ShardDocSortField;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -256,8 +255,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
     private static boolean hasSearchableSnapshotWith(final ClusterState state, final String snapshotId, final String indexId) {
         for (IndexMetadata indexMetadata : state.metadata()) {
-            final Settings indexSettings = indexMetadata.getSettings();
-            if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
+            if (indexMetadata.isSearchableSnapshot()) {
+                final Settings indexSettings = indexMetadata.getSettings();
                 if (Objects.equals(snapshotId, SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings))
                     && Objects.equals(indexId, SNAPSHOT_INDEX_ID_SETTING.get(indexSettings))) {
                     return true;
@@ -270,8 +269,8 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
     private static Map<String, Set<String>> listSearchableSnapshots(final ClusterState state) {
         Map<String, Set<String>> snapshots = null;
         for (IndexMetadata indexMetadata : state.metadata()) {
-            final Settings indexSettings = indexMetadata.getSettings();
-            if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings)) {
+            if (indexMetadata.isSearchableSnapshot()) {
+                final Settings indexSettings = indexMetadata.getSettings();
                 if (snapshots == null) {
                     snapshots = new HashMap<>();
                 }
@@ -312,10 +311,10 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 assert indexMetadata != null || state.metadata().indexGraveyard().containsIndex(deletedIndex)
                     : "no previous metadata found for " + deletedIndex;
                 if (indexMetadata != null) {
-                    final Settings indexSetting = indexMetadata.getSettings();
-                    if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSetting)) {
+                    if (indexMetadata.isSearchableSnapshot()) {
                         assert state.metadata().hasIndex(deletedIndex) == false;
 
+                        final Settings indexSetting = indexMetadata.getSettings();
                         final String snapshotId = SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSetting);
                         final String indexId = SNAPSHOT_INDEX_ID_SETTING.get(indexSetting);
 

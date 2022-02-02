@@ -1,0 +1,5 @@
+pr: 81617
+summary: Add support for `GeoShape` to the scripting fields API
+area: Infra/Scripting
+type: enhancement
+issues: []

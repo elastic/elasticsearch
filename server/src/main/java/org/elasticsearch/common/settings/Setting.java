@@ -488,9 +488,8 @@ public class Setting<T> implements ToXContentObject {
                     map = new HashMap<>();
                     while (it.hasNext()) {
                         final Setting<?> setting = it.next();
-                        if (setting instanceof AffixSetting) {
+                        if (setting instanceof AffixSetting<?> as) {
                             // Collect all possible concrete settings
-                            AffixSetting<?> as = ((AffixSetting<?>) setting);
                             for (String ns : as.getNamespaces(settings)) {
                                 Setting<?> s = as.getConcreteSettingForNamespace(ns);
                                 map.put(s, s.get(settings, false));
@@ -832,7 +831,7 @@ public class Setting<T> implements ToXContentObject {
          * @return the raw list of dependencies for this setting
          */
         public Set<AffixSettingDependency> getDependencies() {
-            return Collections.unmodifiableSet(dependencies);
+            return dependencies;
         }
 
         @Override
@@ -1638,7 +1637,16 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<List<String>> stringListSetting(String key, Property... properties) {
-        return listSetting(key, List.of(), Function.identity(), v -> {}, properties);
+        return stringListSetting(key, List.of(), properties);
+    }
+
+    public static Setting<List<String>> stringListSetting(String key, List<String> defValue, Property... properties) {
+        return new ListSetting<>(key, null, s -> defValue, Setting::parseableStringToList, v -> {}, properties) {
+            @Override
+            public List<String> get(Settings settings) {
+                return settings.getAsList(getKey(), defValue);
+            }
+        };
     }
 
     public static Setting<List<String>> stringListSetting(String key, Validator<List<String>> validator, Property... properties) {
@@ -1971,28 +1979,35 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, double maxValue, Property... properties) {
-        return new Setting<>(key, (s) -> Double.toString(defaultValue), (s) -> {
-            final double d = Double.parseDouble(s);
-            if (d < minValue) {
-                String err = "Failed to parse value"
-                    + (isFiltered(properties) ? "" : " [" + s + "]")
-                    + " for setting ["
-                    + key
-                    + "] must be >= "
-                    + minValue;
-                throw new IllegalArgumentException(err);
-            }
-            if (d > maxValue) {
-                String err = "Failed to parse value"
-                    + (isFiltered(properties) ? "" : " [" + s + "]")
-                    + " for setting ["
-                    + key
-                    + "] must be <= "
-                    + maxValue;
-                throw new IllegalArgumentException(err);
-            }
-            return d;
-        }, properties);
+        return new Setting<>(
+            key,
+            (s) -> Double.toString(defaultValue),
+            (s) -> parseDouble(s, minValue, maxValue, key, properties),
+            properties
+        );
+    }
+
+    public static Double parseDouble(String s, double minValue, double maxValue, String key, Property... properties) {
+        final double d = Double.parseDouble(s);
+        if (d < minValue) {
+            String err = "Failed to parse value"
+                + (isFiltered(properties) ? "" : " [" + s + "]")
+                + " for setting ["
+                + key
+                + "] must be >= "
+                + minValue;
+            throw new IllegalArgumentException(err);
+        }
+        if (d > maxValue) {
+            String err = "Failed to parse value"
+                + (isFiltered(properties) ? "" : " [" + s + "]")
+                + " for setting ["
+                + key
+                + "] must be <= "
+                + maxValue;
+            throw new IllegalArgumentException(err);
+        }
+        return d;
     }
 
     @Override

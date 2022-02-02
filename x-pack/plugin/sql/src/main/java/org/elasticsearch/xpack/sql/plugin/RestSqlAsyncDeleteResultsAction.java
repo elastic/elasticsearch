@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
-import static org.elasticsearch.xpack.sql.proto.Protocol.ID_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_ASYNC_DELETE_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.action.Protocol.ID_NAME;
+import static org.elasticsearch.xpack.sql.action.Protocol.SQL_ASYNC_DELETE_REST_ENDPOINT;
 
 public class RestSqlAsyncDeleteResultsAction extends BaseRestHandler {
     @Override

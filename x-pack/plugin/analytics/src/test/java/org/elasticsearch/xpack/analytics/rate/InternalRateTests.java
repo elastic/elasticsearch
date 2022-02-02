@@ -8,9 +8,11 @@
 package org.elasticsearch.xpack.analytics.rate;
 
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -21,6 +23,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.mockito.Mockito.mock;
 
 public class InternalRateTests extends InternalAggregationTestCase<InternalRate> {
 
@@ -38,7 +42,7 @@ public class InternalRateTests extends InternalAggregationTestCase<InternalRate>
     }
 
     @Override
-    protected List<InternalRate> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalRate> randomResultsToReduce(String name, int size) {
         double divider = randomDoubleBetween(0.0, 100000.0, false);
         List<InternalRate> inputs = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -46,7 +50,7 @@ public class InternalRateTests extends InternalAggregationTestCase<InternalRate>
             DocValueFormat formatter = randomNumericDocValueFormat();
             inputs.add(new InternalRate(name, randomDouble(), divider, formatter, null));
         }
-        return inputs;
+        return new BuilderAndToReduce<>(mock(AggregationBuilder.class), inputs);
     }
 
     @Override
@@ -68,25 +72,18 @@ public class InternalRateTests extends InternalAggregationTestCase<InternalRate>
         DocValueFormat formatter = instance.format();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                sum = randomDouble();
-                break;
-            case 2:
-                divider = randomDouble();
-                break;
-            case 3:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> sum = randomDouble();
+            case 2 -> divider = randomDouble();
+            case 3 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalRate(name, sum, divider, formatter, metadata);
     }

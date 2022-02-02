@@ -194,7 +194,7 @@ locations for an RPM-based system:
 
 | conf
 | Generated TLS keys and certificates for the transport and http layer.
-| /etc/elasticsearch/auto_config_tls_<timestamp>
+| /etc/elasticsearch/certs
 d|
 
 | data

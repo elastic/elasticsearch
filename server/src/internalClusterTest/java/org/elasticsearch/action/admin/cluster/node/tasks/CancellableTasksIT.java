@@ -24,7 +24,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -179,7 +179,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                 .get()
                 .getTasks();
             for (TaskInfo subTask : randomSubsetOf(runningTasks)) {
-                client().admin().cluster().prepareCancelTasks().setTargetTaskId(subTask.getTaskId()).waitForCompletion(false).get();
+                client().admin().cluster().prepareCancelTasks().setTargetTaskId(subTask.taskId()).waitForCompletion(false).get();
             }
         }
         try {
@@ -385,10 +385,10 @@ public class CancellableTasksIT extends ESIntegTestCase {
                 .get();
             List<TaskInfo> tasks = listTasksResponse.getTasks()
                 .stream()
-                .filter(t -> t.getDescription().equals(request.taskDescription()))
+                .filter(t -> t.description().equals(request.taskDescription()))
                 .collect(Collectors.toList());
             assertThat(tasks, hasSize(1));
-            taskId.set(tasks.get(0).getTaskId());
+            taskId.set(tasks.get(0).taskId());
         });
         return taskId.get();
     }

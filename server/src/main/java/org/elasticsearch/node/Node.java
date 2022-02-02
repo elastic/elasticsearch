@@ -29,8 +29,8 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
@@ -40,7 +40,7 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.metadata.AliasValidator;
+import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -96,6 +96,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -218,6 +219,11 @@ public class Node implements Closeable {
     public static final Setting<Boolean> WRITE_PORTS_FILE_SETTING = Setting.boolSetting("node.portsfile", false, Property.NodeScope);
 
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
+    public static final Setting<String> NODE_EXTERNAL_ID_SETTING = Setting.simpleString(
+        "node.external_id",
+        NODE_NAME_SETTING,
+        Property.NodeScope
+    );
     public static final Setting.AffixSetting<String> NODE_ATTRIBUTES = Setting.prefixKeySetting(
         "node.attr.",
         (key) -> new Setting<>(key, "", (value) -> {
@@ -236,13 +242,10 @@ public class Node implements Closeable {
         }, Property.NodeScope)
     );
     public static final Setting<String> BREAKER_TYPE_KEY = new Setting<>("indices.breaker.type", "hierarchy", (s) -> {
-        switch (s) {
-            case "hierarchy":
-            case "none":
-                return s;
-            default:
-                throw new IllegalArgumentException("indices.breaker.type must be one of [hierarchy, none] but was: " + s);
-        }
+        return switch (s) {
+            case "hierarchy", "none" -> s;
+            default -> throw new IllegalArgumentException("indices.breaker.type must be one of [hierarchy, none] but was: " + s);
+        };
     }, Setting.Property.NodeScope);
 
     public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING = Setting.positiveTimeSetting(
@@ -305,7 +308,7 @@ public class Node implements Closeable {
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
                 "version[{}], pid[{}], build[{}/{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-                Build.CURRENT.getQualifiedVersion(),
+                Build.CURRENT.qualifiedVersion(),
                 jvmInfo.pid(),
                 Build.CURRENT.flavor().displayName(),
                 Build.CURRENT.type().displayName(),
@@ -333,7 +336,7 @@ public class Node implements Closeable {
             if (Build.CURRENT.isProductionRelease() == false) {
                 logger.warn(
                     "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-                    Build.CURRENT.getQualifiedVersion()
+                    Build.CURRENT.qualifiedVersion()
                 );
             }
             if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {
@@ -553,10 +556,9 @@ public class Node implements Closeable {
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
             modules.add(settingsModule);
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
-            final PersistedClusterStateService lucenePersistedStateFactory = new PersistedClusterStateService(
+            final PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(
                 nodeEnvironment,
                 xContentRegistry,
-                bigArrays,
                 clusterService.getClusterSettings(),
                 threadPool::relativeTimeInMillis
             );
@@ -627,7 +629,12 @@ public class Node implements Closeable {
                 searchModule.getRequestCacheKeyDifferentiator()
             );
 
-            final AliasValidator aliasValidator = new AliasValidator();
+            IndexSettingProviders indexSettingProviders = new IndexSettingProviders(
+                pluginsService.filterPlugins(Plugin.class)
+                    .stream()
+                    .flatMap(p -> p.getAdditionalIndexSettingProviders().stream())
+                    .collect(Collectors.toSet())
+            );
 
             final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
             final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
@@ -635,19 +642,15 @@ public class Node implements Closeable {
                 clusterService,
                 indicesService,
                 clusterModule.getAllocationService(),
-                aliasValidator,
                 shardLimitValidator,
                 environment,
                 settingsModule.getIndexScopedSettings(),
                 threadPool,
                 xContentRegistry,
                 systemIndices,
-                forbidPrivateIndexSettings
+                forbidPrivateIndexSettings,
+                indexSettingProviders
             );
-            pluginsService.filterPlugins(Plugin.class)
-                .forEach(
-                    p -> p.getAdditionalIndexSettingProviders().forEach(metadataCreateIndexService::addAdditionalIndexSettingProvider)
-                );
 
             final MetadataCreateDataStreamService metadataCreateDataStreamService = new MetadataCreateDataStreamService(
                 threadPool,
@@ -731,7 +734,7 @@ public class Node implements Closeable {
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
-                Stream.of(Task.X_OPAQUE_ID_HTTP_HEADER, Task.TRACE_ID, Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER)
+                Task.HEADERS_TO_COPY.stream()
             ).collect(Collectors.toSet());
             final TransportService transportService = newTransportService(
                 settings,
@@ -888,6 +891,9 @@ public class Node implements Closeable {
             clusterService.addListener(pluginShutdownService);
 
             final RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
+            final DesiredNodesSettingsValidator desiredNodesSettingsValidator = new DesiredNodesSettingsValidator(
+                clusterService.getClusterSettings()
+            );
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -912,9 +918,8 @@ public class Node implements Closeable {
                 b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                 b.bind(MetadataUpgrader.class).toInstance(metadataUpgrader);
                 b.bind(MetaStateService.class).toInstance(metaStateService);
-                b.bind(PersistedClusterStateService.class).toInstance(lucenePersistedStateFactory);
+                b.bind(PersistedClusterStateService.class).toInstance(persistedClusterStateService);
                 b.bind(IndicesService.class).toInstance(indicesService);
-                b.bind(AliasValidator.class).toInstance(aliasValidator);
                 b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
                 b.bind(MetadataCreateDataStreamService.class).toInstance(metadataCreateDataStreamService);
                 b.bind(MetadataDataStreamsService.class).toInstance(metadataDataStreamsService);
@@ -968,6 +973,8 @@ public class Node implements Closeable {
                 b.bind(SystemIndices.class).toInstance(systemIndices);
                 b.bind(PluginShutdownService.class).toInstance(pluginShutdownService);
                 b.bind(ExecutorSelector.class).toInstance(executorSelector);
+                b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
+                b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
             });
             injector = modules.createInjector();
 

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client.core.tasks;
 
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.tasks.GetTaskResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.tasks.RawTaskStatus;

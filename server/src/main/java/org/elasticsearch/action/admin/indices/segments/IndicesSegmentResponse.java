@@ -57,17 +57,17 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         if (indicesSegments != null) {
             return indicesSegments;
         }
-        Map<String, IndexSegments> indicesSegmentsByIndex = new HashMap<>();
+        Map<String, IndexSegments> indicesSegments = new HashMap<>();
 
         final Map<String, List<ShardSegments>> segmentsByIndex = new HashMap<>();
         for (ShardSegments shard : shards) {
             segmentsByIndex.computeIfAbsent(shard.getShardRouting().getIndexName(), k -> new ArrayList<>()).add(shard);
         }
         for (Map.Entry<String, List<ShardSegments>> entry : segmentsByIndex.entrySet()) {
-            indicesSegmentsByIndex.put(entry.getKey(), new IndexSegments(entry.getKey(), entry.getValue()));
+            indicesSegments.put(entry.getKey(), new IndexSegments(entry.getKey(), entry.getValue()));
         }
-        this.indicesSegments = indicesSegmentsByIndex;
-        return indicesSegmentsByIndex;
+        this.indicesSegments = indicesSegments;
+        return indicesSegments;
     }
 
     @Override
@@ -87,7 +87,7 @@ public class IndicesSegmentResponse extends BroadcastResponse {
 
             builder.startObject(Fields.SHARDS);
             for (IndexShardSegments indexSegment : indexSegments) {
-                builder.startArray(Integer.toString(indexSegment.getShardId().id()));
+                builder.startArray(Integer.toString(indexSegment.shardId().id()));
                 for (ShardSegments shardSegments : indexSegment) {
                     builder.startObject();
 

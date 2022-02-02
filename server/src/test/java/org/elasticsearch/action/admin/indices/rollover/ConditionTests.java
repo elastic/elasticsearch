@@ -22,13 +22,13 @@ public class ConditionTests extends ESTestCase {
 
         long indexCreatedMatch = System.currentTimeMillis() - TimeValue.timeValueMinutes(61).getMillis();
         Condition.Result evaluate = maxAgeCondition.evaluate(new Condition.Stats(0, indexCreatedMatch, randomByteSize(), randomByteSize()));
-        assertThat(evaluate.condition, equalTo(maxAgeCondition));
-        assertThat(evaluate.matched, equalTo(true));
+        assertThat(evaluate.condition(), equalTo(maxAgeCondition));
+        assertThat(evaluate.matched(), equalTo(true));
 
         long indexCreatedNotMatch = System.currentTimeMillis() - TimeValue.timeValueMinutes(59).getMillis();
         evaluate = maxAgeCondition.evaluate(new Condition.Stats(0, indexCreatedNotMatch, randomByteSize(), randomByteSize()));
-        assertThat(evaluate.condition, equalTo(maxAgeCondition));
-        assertThat(evaluate.matched, equalTo(false));
+        assertThat(evaluate.condition(), equalTo(maxAgeCondition));
+        assertThat(evaluate.matched(), equalTo(false));
     }
 
     public void testMaxDocs() {
@@ -36,13 +36,13 @@ public class ConditionTests extends ESTestCase {
 
         long maxDocsMatch = randomIntBetween(100, 1000);
         Condition.Result evaluate = maxDocsCondition.evaluate(new Condition.Stats(maxDocsMatch, 0, randomByteSize(), randomByteSize()));
-        assertThat(evaluate.condition, equalTo(maxDocsCondition));
-        assertThat(evaluate.matched, equalTo(true));
+        assertThat(evaluate.condition(), equalTo(maxDocsCondition));
+        assertThat(evaluate.matched(), equalTo(true));
 
         long maxDocsNotMatch = randomIntBetween(0, 99);
         evaluate = maxDocsCondition.evaluate(new Condition.Stats(maxDocsNotMatch, 0, randomByteSize(), randomByteSize()));
-        assertThat(evaluate.condition, equalTo(maxDocsCondition));
-        assertThat(evaluate.matched, equalTo(false));
+        assertThat(evaluate.condition(), equalTo(maxDocsCondition));
+        assertThat(evaluate.matched(), equalTo(false));
     }
 
     public void testMaxSize() {
@@ -51,7 +51,7 @@ public class ConditionTests extends ESTestCase {
         Condition.Result result = maxSizeCondition.evaluate(
             new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(), ByteSizeValue.ofMb(0), randomByteSize())
         );
-        assertThat(result.matched, equalTo(false));
+        assertThat(result.matched(), equalTo(false));
 
         result = maxSizeCondition.evaluate(
             new Condition.Stats(
@@ -61,7 +61,7 @@ public class ConditionTests extends ESTestCase {
                 randomByteSize()
             )
         );
-        assertThat(result.matched, equalTo(false));
+        assertThat(result.matched(), equalTo(false));
 
         result = maxSizeCondition.evaluate(
             new Condition.Stats(
@@ -71,7 +71,7 @@ public class ConditionTests extends ESTestCase {
                 randomByteSize()
             )
         );
-        assertThat(result.matched, equalTo(true));
+        assertThat(result.matched(), equalTo(true));
     }
 
     public void testMaxPrimaryShardSize() {
@@ -82,7 +82,7 @@ public class ConditionTests extends ESTestCase {
         Condition.Result result = maxPrimaryShardSizeCondition.evaluate(
             new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomByteSize(), ByteSizeValue.ofMb(0))
         );
-        assertThat(result.matched, equalTo(false));
+        assertThat(result.matched(), equalTo(false));
 
         result = maxPrimaryShardSizeCondition.evaluate(
             new Condition.Stats(
@@ -92,7 +92,7 @@ public class ConditionTests extends ESTestCase {
                 ByteSizeValue.ofMb(randomIntBetween(0, 9))
             )
         );
-        assertThat(result.matched, equalTo(false));
+        assertThat(result.matched(), equalTo(false));
 
         result = maxPrimaryShardSizeCondition.evaluate(
             new Condition.Stats(
@@ -102,7 +102,7 @@ public class ConditionTests extends ESTestCase {
                 ByteSizeValue.ofMb(randomIntBetween(20, 1000))
             )
         );
-        assertThat(result.matched, equalTo(true));
+        assertThat(result.matched(), equalTo(true));
     }
 
     public void testEqualsAndHashCode() {

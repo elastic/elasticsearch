@@ -30,8 +30,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.action.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption.TEXT;
 
 /**
  * Templating class for displaying SQL responses in text formats.
@@ -78,6 +78,9 @@ enum TextFormat implements MediaType {
                 return formatter.formatWithoutHeader(response.rows());
             } else if (response.hasId()) {
                 // an async request has no results yet
+                return StringUtils.EMPTY;
+            } else if (response.rows().isEmpty()) {
+                // no data and no headers to return
                 return StringUtils.EMPTY;
             }
             // if this code is reached, it means it's a next page without cursor wrapping
@@ -171,14 +174,12 @@ enum TextFormat implements MediaType {
             }
             Character delimiter = delimiterParam.charAt(0);
             switch (delimiter) {
-                case '"':
-                case '\n':
-                case '\r':
-                    throw new IllegalArgumentException("illegal reserved character specified as delimiter [" + delimiter + "]");
-                case '\t':
-                    throw new IllegalArgumentException(
-                        "illegal delimiter [TAB] specified as delimiter for the [csv] format; " + "choose the [tsv] format instead"
-                    );
+                case '"', '\n', '\r' -> throw new IllegalArgumentException(
+                    "illegal reserved character specified as delimiter [" + delimiter + "]"
+                );
+                case '\t' -> throw new IllegalArgumentException(
+                    "illegal delimiter [TAB] specified as delimiter for the [csv] format; " + "choose the [tsv] format instead"
+                );
             }
             return delimiter;
         }
@@ -282,14 +283,9 @@ enum TextFormat implements MediaType {
             for (int i = 0; i < value.length(); i++) {
                 char c = value.charAt(i);
                 switch (c) {
-                    case '\n':
-                        sb.append("\\n");
-                        break;
-                    case '\t':
-                        sb.append("\\t");
-                        break;
-                    default:
-                        sb.append(c);
+                    case '\n' -> sb.append("\\n");
+                    case '\t' -> sb.append("\\t");
+                    default -> sb.append(c);
                 }
             }
 

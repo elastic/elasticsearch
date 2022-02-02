@@ -36,23 +36,12 @@ public class SnapshotShardsStats implements ToXContentObject {
         for (SnapshotIndexShardStatus shard : shards) {
             totalShards++;
             switch (shard.getStage()) {
-                case INIT:
-                    initializingShards++;
-                    break;
-                case STARTED:
-                    startedShards++;
-                    break;
-                case FINALIZE:
-                    finalizingShards++;
-                    break;
-                case DONE:
-                    doneShards++;
-                    break;
-                case FAILURE:
-                    failedShards++;
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unknown stage type " + shard.getStage());
+                case INIT -> initializingShards++;
+                case STARTED -> startedShards++;
+                case FINALIZE -> finalizingShards++;
+                case DONE -> doneShards++;
+                case FAILURE -> failedShards++;
+                default -> throw new IllegalArgumentException("Unknown stage type " + shard.getStage());
             }
         }
     }

@@ -145,7 +145,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      * Replay the wrapped collector, but only on a selection of buckets.
      */
     @Override
-    public void prepareSelectedBuckets(long... selectedBucketOrds) throws IOException {
+    public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
         if (finished == false) {
             throw new IllegalStateException("Cannot replay yet, collection is not finished: postCollect() has not been called");
         }
@@ -153,8 +153,8 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             throw new IllegalStateException("Already been replayed");
         }
 
-        this.selectedBuckets = new LongHash(selectedBucketOrds.length, BigArrays.NON_RECYCLING_INSTANCE);
-        for (long ord : selectedBucketOrds) {
+        this.selectedBuckets = new LongHash(selectedBuckets.length, BigArrays.NON_RECYCLING_INSTANCE);
+        for (long ord : selectedBuckets) {
             this.selectedBuckets.add(ord);
         }
 

@@ -70,12 +70,12 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
      * and to of each range. The ranges are also sorted before being returned.
      */
     protected Range[] processRanges(Function<Range, Range> rangeProcessor) {
-        Range[] processedRanges = new Range[this.ranges.size()];
-        for (int i = 0; i < processedRanges.length; i++) {
-            processedRanges[i] = rangeProcessor.apply(this.ranges.get(i));
+        Range[] ranges = new Range[this.ranges.size()];
+        for (int i = 0; i < ranges.length; i++) {
+            ranges[i] = rangeProcessor.apply(this.ranges.get(i));
         }
-        sortRanges(processedRanges);
-        return processedRanges;
+        sortRanges(ranges);
+        return ranges;
     }
 
     private static void sortRanges(final Range[] ranges) {

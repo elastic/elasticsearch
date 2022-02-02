@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -146,7 +147,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
             return this.indicesStatus;
         }
 
-        Map<String, SnapshotIndexStatus> indexStatusMap = new HashMap<>();
+        Map<String, SnapshotIndexStatus> indicesStatus = new HashMap<>();
 
         Set<String> indices = new HashSet<>();
         for (SnapshotIndexShardStatus shard : shards) {
@@ -154,15 +155,15 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
         }
 
         for (String index : indices) {
-            List<SnapshotIndexShardStatus> shardStatuses = new ArrayList<>();
+            List<SnapshotIndexShardStatus> shards = new ArrayList<>();
             for (SnapshotIndexShardStatus shard : this.shards) {
                 if (shard.getIndex().equals(index)) {
-                    shardStatuses.add(shard);
+                    shards.add(shard);
                 }
             }
-            indexStatusMap.put(index, new SnapshotIndexStatus(index, shardStatuses));
+            indicesStatus.put(index, new SnapshotIndexStatus(index, shards));
         }
-        this.indicesStatus = unmodifiableMap(indexStatusMap);
+        this.indicesStatus = unmodifiableMap(indicesStatus);
         return this.indicesStatus;
 
     }
@@ -240,7 +241,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
                 indicesStatus = emptyMap();
                 shards = emptyList();
             } else {
-                indicesStatus = new HashMap<>(indices.size());
+                indicesStatus = Maps.newMapWithExpectedSize(indices.size());
                 shards = new ArrayList<>();
                 for (SnapshotIndexStatus index : indices) {
                     indicesStatus.put(index.getIndex(), index);

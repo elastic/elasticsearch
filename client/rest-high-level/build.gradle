@@ -111,7 +111,7 @@ testClusters.configureEach {
   setting 'indices.lifecycle.poll_interval', '1000ms'
   setting 'indices.lifecycle.history_index_enabled', 'false'
   keystore 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
-  extraConfigFile 'roles.yml', file('roles.yml')
+  rolesFile file('roles.yml')
   user username: clusterUserNameProvider.get(),
     password: clusterPasswordProvider.get(),
     role: providers.systemProperty('tests.rest.cluster.role').orElse('admin').forUseAtConfigurationTime().get()

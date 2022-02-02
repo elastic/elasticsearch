@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.bucket.adjacency;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -29,7 +30,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -137,10 +137,10 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         }
     }
 
-    private void setFiltersAsMap(Map<String, QueryBuilder> filterByName) {
+    private void setFiltersAsMap(Map<String, QueryBuilder> filters) {
         // Convert uniquely named objects into internal KeyedFilters
-        this.filters = new ArrayList<>(filterByName.size());
-        for (Entry<String, QueryBuilder> kv : filterByName.entrySet()) {
+        this.filters = new ArrayList<>(filters.size());
+        for (Entry<String, QueryBuilder> kv : filters.entrySet()) {
             this.filters.add(new KeyedFilter(kv.getKey(), kv.getValue()));
         }
         // internally we want to have a fixed order of filters, regardless of
@@ -178,7 +178,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
      * Get the filters. This will be an unmodifiable map
      */
     public Map<String, QueryBuilder> filters() {
-        Map<String, QueryBuilder> result = new HashMap<>(this.filters.size());
+        Map<String, QueryBuilder> result = Maps.newMapWithExpectedSize(this.filters.size());
         for (KeyedFilter keyedFilter : this.filters) {
             result.put(keyedFilter.key(), keyedFilter.filter());
         }

@@ -366,15 +366,15 @@ public class BigArraysTests extends ESTestCase {
                 Collections.emptyList(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             );
-            BigArrays circuitBreakingBigArrays = new BigArrays(null, hcbs, CircuitBreaker.REQUEST).withCircuitBreaking();
+            BigArrays bigArrays = new BigArrays(null, hcbs, CircuitBreaker.REQUEST).withCircuitBreaking();
             Method create = BigArrays.class.getMethod("new" + type + "Array", long.class);
             final int size = scaledRandomIntBetween(10, maxSize / 16);
-            BigArray array = (BigArray) create.invoke(circuitBreakingBigArrays, size);
+            BigArray array = (BigArray) create.invoke(bigArrays, size);
             Method resize = BigArrays.class.getMethod("resize", array.getClass().getInterfaces()[0], long.class);
             while (true) {
                 long newSize = array.size() * 2;
                 try {
-                    array = (BigArray) resize.invoke(circuitBreakingBigArrays, array, newSize);
+                    array = (BigArray) resize.invoke(bigArrays, array, newSize);
                 } catch (InvocationTargetException e) {
                     assertTrue(e.getCause() instanceof CircuitBreakingException);
                     break;
@@ -498,8 +498,8 @@ public class BigArraysTests extends ESTestCase {
             Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
-        BigArrays circuitBreakingBigArrays = new BigArrays(null, hcbs, CircuitBreaker.REQUEST);
-        return (withBreaking ? circuitBreakingBigArrays.withCircuitBreaking() : circuitBreakingBigArrays);
+        BigArrays bigArrays = new BigArrays(null, hcbs, CircuitBreaker.REQUEST);
+        return (withBreaking ? bigArrays.withCircuitBreaking() : bigArrays);
     }
 
     private static class BigArraysHelper {

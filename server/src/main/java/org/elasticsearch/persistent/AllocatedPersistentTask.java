@@ -144,9 +144,9 @@ public class AllocatedPersistentTask extends CancellableTask {
         completeAndNotifyIfNeeded(null, Objects.requireNonNull(localAbortReason));
     }
 
-    private void completeAndNotifyIfNeeded(@Nullable Exception exception, @Nullable String localAbortReason) {
-        assert exception == null || localAbortReason == null
-            : "completion notification has both exception " + exception + " and local abort reason " + localAbortReason;
+    private void completeAndNotifyIfNeeded(@Nullable Exception failure, @Nullable String localAbortReason) {
+        assert failure == null || localAbortReason == null
+            : "completion notification has both exception " + failure + " and local abort reason " + localAbortReason;
         final State desiredState = (localAbortReason == null) ? State.COMPLETED : State.LOCAL_ABORTED;
         final State prevState = state.getAndUpdate(
             currentState -> (currentState != State.COMPLETED && currentState != State.LOCAL_ABORTED) ? desiredState : currentState
@@ -166,7 +166,7 @@ public class AllocatedPersistentTask extends CancellableTask {
                 } else {
                     throw new IllegalStateException(
                         "attempt to "
-                            + (exception != null ? "fail" : "complete")
+                            + (failure != null ? "fail" : "complete")
                             + " task ["
                             + getAction()
                             + "] with id ["
@@ -185,19 +185,19 @@ public class AllocatedPersistentTask extends CancellableTask {
                 );
             }
         } else {
-            if (exception != null) {
-                logger.warn(() -> new ParameterizedMessage("task [{}] failed with an exception", getPersistentTaskId()), exception);
+            if (failure != null) {
+                logger.warn(() -> new ParameterizedMessage("task [{}] failed with an exception", getPersistentTaskId()), failure);
             } else if (localAbortReason != null) {
                 logger.debug("task [{}] aborted locally: [{}]", getPersistentTaskId(), localAbortReason);
             }
             try {
-                this.failure = exception;
+                this.failure = failure;
                 if (prevState == State.STARTED) {
                     logger.trace("sending notification for completed task [{}] with id [{}]", getAction(), getPersistentTaskId());
                     persistentTasksService.sendCompletionRequest(
                         getPersistentTaskId(),
                         getAllocationId(),
-                        exception,
+                        failure,
                         localAbortReason,
                         new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
                             @Override

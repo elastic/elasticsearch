@@ -83,7 +83,6 @@ public final class ResultDeduplicator<T, R> {
         }
 
         @Override
-        @SuppressWarnings("HiddenField")
         public void onResponse(R response) {
             synchronized (this) {
                 this.response = response;
@@ -97,7 +96,6 @@ public final class ResultDeduplicator<T, R> {
         }
 
         @Override
-        @SuppressWarnings("HiddenField")
         public void onFailure(Exception failure) {
             synchronized (this) {
                 this.failure = failure;

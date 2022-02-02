@@ -29,7 +29,6 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
 
 /**
  * This {@link AllocationDecider} controls shard allocation based on
@@ -107,15 +106,15 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     }
 
     private void setForcedAwarenessAttributes(Settings forceSettings) {
-        Map<String, List<String>> forcedAwarenessAttrs = new HashMap<>();
+        Map<String, List<String>> forcedAwarenessAttributes = new HashMap<>();
         Map<String, Settings> forceGroups = forceSettings.getAsGroups();
         for (Map.Entry<String, Settings> entry : forceGroups.entrySet()) {
             List<String> aValues = entry.getValue().getAsList("values");
             if (aValues.size() > 0) {
-                forcedAwarenessAttrs.put(entry.getKey(), aValues);
+                forcedAwarenessAttributes.put(entry.getKey(), aValues);
             }
         }
-        this.forcedAwarenessAttributes = forcedAwarenessAttrs;
+        this.forcedAwarenessAttributes = forcedAwarenessAttributes;
     }
 
     private void setAwarenessAttributes(List<String> awarenessAttributes) {
@@ -164,7 +163,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         final boolean debug = allocation.debugDecision();
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
 
-        if (INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(indexMetadata.getSettings()).expandToAllNodes()) {
+        if (indexMetadata.getAutoExpandReplicas().expandToAllNodes()) {
             return YES_AUTO_EXPAND_ALL;
         }
 

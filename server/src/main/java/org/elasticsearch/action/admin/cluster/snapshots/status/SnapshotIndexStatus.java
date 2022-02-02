@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -122,7 +123,7 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
         ConstructingObjectParser<SnapshotIndexStatus, String> innerParser = new ConstructingObjectParser<>(
             "snapshot_index_status",
             true,
-            (Object[] parsedObjects, String indexName) -> {
+            (Object[] parsedObjects, String index) -> {
                 int i = 0;
                 SnapshotShardsStats shardsStats = ((SnapshotShardsStats) parsedObjects[i++]);
                 SnapshotStats stats = ((SnapshotStats) parsedObjects[i++]);
@@ -133,12 +134,12 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
                 if (shardStatuses == null || shardStatuses.isEmpty()) {
                     indexShards = emptyMap();
                 } else {
-                    indexShards = new HashMap<>(shardStatuses.size());
+                    indexShards = Maps.newMapWithExpectedSize(shardStatuses.size());
                     for (SnapshotIndexShardStatus shardStatus : shardStatuses) {
                         indexShards.put(shardStatus.getShardId().getId(), shardStatus);
                     }
                 }
-                return new SnapshotIndexStatus(indexName, indexShards, shardsStats, stats);
+                return new SnapshotIndexStatus(index, indexShards, shardsStats, stats);
             }
         );
         innerParser.declareObject(

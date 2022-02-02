@@ -14,7 +14,6 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.TaskAction;
-import org.gradle.internal.deprecation.DeprecatableConfiguration;
 
 import java.util.Collection;
 import java.util.stream.Collectors;
@@ -50,8 +49,7 @@ public class ResolveAllDependencies extends DefaultTask {
         if (configuration.isCanBeResolved() == false) {
             return false;
         }
-        if (configuration instanceof org.gradle.internal.deprecation.DeprecatableConfiguration) {
-            var deprecatableConfiguration = (DeprecatableConfiguration) configuration;
+        if (configuration instanceof org.gradle.internal.deprecation.DeprecatableConfiguration deprecatableConfiguration) {
             if (deprecatableConfiguration.canSafelyBeResolved() == false) {
                 return false;
             }

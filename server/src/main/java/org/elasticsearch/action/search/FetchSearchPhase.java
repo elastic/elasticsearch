@@ -123,7 +123,7 @@ final class FetchSearchPhase extends SearchPhase {
             // query AND fetch optimization
             finishPhase.run();
         } else {
-            ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
+            ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
             final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
             // no docs to fetch -- sidestep everything and return
             if (scoreDocs.length == 0) {
@@ -268,12 +268,12 @@ final class FetchSearchPhase extends SearchPhase {
     }
 
     private void moveToNextPhase(
-        SearchPhaseController controller,
+        SearchPhaseController searchPhaseController,
         AtomicArray<SearchPhaseResult> queryPhaseResults,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr
     ) {
-        final InternalSearchResponse internalResponse = controller.merge(
+        final InternalSearchResponse internalResponse = searchPhaseController.merge(
             context.getRequest().scroll() != null,
             reducedQueryPhase,
             fetchResultsArr.asList(),

@@ -13,7 +13,7 @@ apply plugin: 'elasticsearch.publish'
 dependencies {
   api project(":client:rest")
   api project(":client:sniffer")
-  api project(':libs:elasticsearch-nio')
+  api project(':modules:transport-netty4')
   api project(':libs:elasticsearch-ssl-config')
   api project(":server")
   api project(":libs:elasticsearch-cli")

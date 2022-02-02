@@ -104,12 +104,10 @@ public class GetApiKeyResponseTests extends ESTestCase {
             "user-b",
             "realm-y"
         );
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return new GetApiKeyResponse(Arrays.asList(apiKeyInfo));
-            default:
-                return new GetApiKeyResponse(Arrays.asList(apiKeyInfo));
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new GetApiKeyResponse(Arrays.asList(apiKeyInfo));
+            default -> new GetApiKeyResponse(Arrays.asList(apiKeyInfo));
+        };
     }
 
     private static ApiKey createApiKeyInfo(

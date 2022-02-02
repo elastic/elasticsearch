@@ -107,11 +107,10 @@ public class GetRoleMappingsResponseTests extends ESTestCase {
     }
 
     private static GetRoleMappingsResponse mutateTestItem(GetRoleMappingsResponse original) {
-        GetRoleMappingsResponse mutated = null;
-        switch (randomIntBetween(0, 1)) {
-            case 0:
-                final List<ExpressionRoleMapping> roleMappingsList1 = new ArrayList<>();
-                roleMappingsList1.add(
+        ExpressionRoleMapping originalRoleMapping = original.getMappings().get(0);
+        return switch (randomIntBetween(0, 1)) {
+            case 0 -> new GetRoleMappingsResponse(
+                List.of(
                     new ExpressionRoleMapping(
                         "ldapmapping",
                         FieldRoleMapperExpression.ofGroups("cn=ipausers,cn=groups,cn=accounts,dc=ipademo,dc=local"),
@@ -120,13 +119,10 @@ public class GetRoleMappingsResponseTests extends ESTestCase {
                         null,
                         false
                     )
-                );
-                mutated = new GetRoleMappingsResponse(roleMappingsList1);
-                break;
-            case 1:
-                final List<ExpressionRoleMapping> roleMappingsList2 = new ArrayList<>();
-                ExpressionRoleMapping originalRoleMapping = original.getMappings().get(0);
-                roleMappingsList2.add(
+                )
+            );
+            default -> new GetRoleMappingsResponse(
+                List.of(
                     new ExpressionRoleMapping(
                         originalRoleMapping.getName(),
                         FieldRoleMapperExpression.ofGroups("cn=ipausers,cn=groups,cn=accounts,dc=ipademo,dc=local"),
@@ -135,10 +131,8 @@ public class GetRoleMappingsResponseTests extends ESTestCase {
                         originalRoleMapping.getMetadata(),
                         originalRoleMapping.isEnabled() == false
                     )
-                );
-                mutated = new GetRoleMappingsResponse(roleMappingsList2);
-                break;
-        }
-        return mutated;
+                )
+            );
+        };
     }
 }

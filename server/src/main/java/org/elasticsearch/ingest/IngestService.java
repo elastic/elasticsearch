@@ -24,11 +24,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -87,8 +88,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public static final String INGEST_ORIGIN = "ingest";
 
     private static final Logger logger = LogManager.getLogger(IngestService.class);
-    private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_EXPRESSION_RESOLVER =
-        new IndexNameExpressionResolver.DateMathExpressionResolver();
 
     private final ClusterService clusterService;
     private final ScriptService scriptService;
@@ -263,7 +262,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private static String resolveIndexName(final String unresolvedIndexName, final long epochMillis) {
-        List<String> resolvedNames = DATE_MATH_EXPRESSION_RESOLVER.resolve(
+        List<String> resolvedNames = IndexNameExpressionResolver.DateMathExpressionResolver.resolve(
             new IndexNameExpressionResolver.ResolverContext(epochMillis),
             List.of(unresolvedIndexName)
         );
@@ -288,7 +287,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             public ClusterState execute(ClusterState currentState) {
                 return innerDelete(request, currentState);
             }
-        });
+        }, ClusterStateTaskExecutor.unbatched());
     }
 
     static ClusterState innerDelete(DeletePipelineRequest request, ClusterState currentState) {
@@ -441,7 +440,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 public ClusterState execute(ClusterState currentState) {
                     return innerPut(request, currentState);
                 }
-            });
+            }, ClusterStateTaskExecutor.unbatched());
         }, listener::onFailure));
     }
 

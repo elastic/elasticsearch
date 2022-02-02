@@ -17,10 +17,10 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.user.User;
@@ -83,6 +83,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
+        // The definition of TEST_ROLE here is intentionally different than the definition in the superclass.
         return """
             %s:
               cluster: [ all ]
@@ -113,7 +114,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
               indices:
                 - names: 'b'
                   privileges: [all]
-            """.formatted(SecuritySettingsSource.TEST_ROLE);
+            """.formatted(SecuritySettingsSource.TEST_ROLE) + '\n' + SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_YML;
     }
 
     @Override
@@ -168,7 +169,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
         try {
             client.prepareSearch("test", "test2").setQuery(matchAllQuery()).get();
-            fail("expected an authorization exception when one of mulitple indices is forbidden");
+            fail("expected an authorization exception when one of multiple indices is forbidden");
         } catch (ElasticsearchSecurityException e) {
             // expected
             assertThat(e.status(), is(RestStatus.FORBIDDEN));

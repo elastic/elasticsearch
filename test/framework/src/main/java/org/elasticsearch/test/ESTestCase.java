@@ -39,7 +39,7 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -59,6 +59,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -93,7 +94,7 @@ import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
+import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -123,7 +124,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -954,7 +954,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static <K, V> Map<K, V> randomMap(int minMapSize, int maxMapSize, Supplier<Tuple<K, V>> entryConstructor) {
         final int size = randomIntBetween(minMapSize, maxMapSize);
-        Map<K, V> list = new HashMap<>(size);
+        Map<K, V> list = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             Tuple<K, V> entry = entryConstructor.get();
             list.put(entry.v1(), entry.v2());
@@ -1248,11 +1248,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static String getTestTransportType() {
-        return MockNioTransportPlugin.MOCK_NIO_TRANSPORT_NAME;
+        return Netty4Plugin.NETTY_TRANSPORT_NAME;
     }
 
     public static Class<? extends Plugin> getTestTransportPlugin() {
-        return MockNioTransportPlugin.class;
+        return Netty4Plugin.class;
     }
 
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
@@ -1727,4 +1727,17 @@ public abstract class ESTestCase extends LuceneTestCase {
             return String.format(Locale.ROOT, "%s: %s", level.name(), message);
         }
     }
+
+    /**
+     * Call method at the beginning of a test to disable its execution
+     * until a given Lucene version is released and integrated into Elasticsearch
+     * @param luceneVersionWithFix the lucene release to wait for
+     * @param message an additional message or link with information on the fix
+     */
+    protected void skipTestWaitingForLuceneFix(org.apache.lucene.util.Version luceneVersionWithFix, String message) {
+        final boolean currentVersionHasFix = Version.CURRENT.luceneVersion.onOrAfter(luceneVersionWithFix);
+        assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
+        fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
+    }
+
 }

@@ -82,16 +82,16 @@ public final class AutoCreateIndex {
         }
 
         // One volatile read, so that all checks are done against the same instance:
-        final AutoCreate autoCreateCopy = this.autoCreate;
-        if (autoCreateCopy.autoCreateIndex == false) {
+        final AutoCreate autoCreate = this.autoCreate;
+        if (autoCreate.autoCreateIndex == false) {
             throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] is [false]", index);
         }
 
         // matches not set, default value of "true"
-        if (autoCreateCopy.expressions.isEmpty()) {
+        if (autoCreate.expressions.isEmpty()) {
             return true;
         }
-        for (Tuple<String, Boolean> expression : autoCreateCopy.expressions) {
+        for (Tuple<String, Boolean> expression : autoCreate.expressions) {
             String indexExpression = expression.v1();
             boolean include = expression.v2();
             if (Regex.simpleMatch(indexExpression, index)) {
@@ -108,7 +108,7 @@ public final class AutoCreateIndex {
                 );
             }
         }
-        throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] ([" + autoCreateCopy + "]) doesn't match", index);
+        throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] ([" + autoCreate + "]) doesn't match", index);
     }
 
     AutoCreate getAutoCreate() {

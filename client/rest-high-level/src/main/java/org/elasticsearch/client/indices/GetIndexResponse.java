@@ -149,20 +149,11 @@ public class GetIndexResponse {
             parser.nextToken();
             if (parser.currentToken() == Token.START_OBJECT) {
                 switch (parser.currentName()) {
-                    case "aliases":
-                        indexAliases = parseAliases(parser);
-                        break;
-                    case "mappings":
-                        indexMappings = parseMappings(parser);
-                        break;
-                    case "settings":
-                        indexSettings = Settings.fromXContent(parser);
-                        break;
-                    case "defaults":
-                        indexDefaultSettings = Settings.fromXContent(parser);
-                        break;
-                    default:
-                        parser.skipChildren();
+                    case "aliases" -> indexAliases = parseAliases(parser);
+                    case "mappings" -> indexMappings = parseMappings(parser);
+                    case "settings" -> indexSettings = Settings.fromXContent(parser);
+                    case "defaults" -> indexDefaultSettings = Settings.fromXContent(parser);
+                    default -> parser.skipChildren();
                 }
             } else if (parser.currentToken() == Token.VALUE_STRING) {
                 if (parser.currentName().equals("data_stream")) {

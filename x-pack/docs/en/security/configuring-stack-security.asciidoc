@@ -60,13 +60,9 @@ user when prompted:
 +
 [source,shell]
 ----
-curl --cacert config/tls_auto_config_<timestamp>/http_ca.crt \
--u elastic https://localhost:9200
+curl --cacert config/certs/http_ca.crt -u elastic https://localhost:9200
 ----
 // NOTCONSOLE
-+
-`<timestamp>`:: The timestamp of when the auto-configuration process created
-the security files directory in your Docker container.
 
 . From the directory where you installed {kib}, start {kib}.
 +
@@ -108,7 +104,7 @@ can <<encrypt-kibana-browser,encrypt traffic between your browser and {kib}>>.
 === Security certificates and keys
 
 When you start {es} for the first time, the following certificates and keys are
-generated in the `config/tls_auto_config_<timestamp>` directory,
+generated in the `config/certs` directory,
 which are used to connect a {kib} instance to your secured {es} cluster and
 to encrypt internode communication. The files are listed here for reference.
 
@@ -116,10 +112,10 @@ to encrypt internode communication. The files are listed here for reference.
 The CA certificate that is used to sign the certificates for the HTTP layer of
 this {es} cluster.
 
-`http_keystore_local_node.p12`::
+`http.p12`::
 Keystore that contains the key and certificate for the HTTP layer for this node.
 
-`transport_keystore_all_nodes.p12`::
+`transport.p12`::
 Keystore that contains the key and certificate for the transport layer for all
 the nodes in your cluster.
 

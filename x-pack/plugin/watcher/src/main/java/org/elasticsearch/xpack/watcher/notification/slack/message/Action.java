@@ -89,7 +89,6 @@ public class Action implements MessageElement {
         private TextTemplate url;
         private TextTemplate style;
 
-        @SuppressWarnings("HiddenField")
         public Action render(TextTemplateEngine engine, Map<String, Object> model) {
             String style = engine.render(this.style, model);
             String type = engine.render(this.type, model);

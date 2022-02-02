@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -696,17 +696,17 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(jobTask.getJobId()).thenReturn("foo");
         manager.openJob(jobTask, clusterState, DEFAULT_MASTER_NODE_TIMEOUT, (e, b) -> {});
         InputStream inputStream = createInputStream("");
-        DataCounts[] dataCountsArr = new DataCounts[1];
+        DataCounts[] dataCounts = new DataCounts[1];
         manager.processData(
             jobTask,
             analysisRegistry,
             inputStream,
             randomFrom(XContentType.values()),
             mock(DataLoadParams.class),
-            (dataCounts1, e) -> dataCountsArr[0] = dataCounts1
+            (dataCounts1, e) -> dataCounts[0] = dataCounts1
         );
 
-        assertThat(dataCountsArr[0], equalTo(new DataCounts("foo")));
+        assertThat(dataCounts[0], equalTo(new DataCounts("foo")));
     }
 
     public void testCreate_notEnoughThreads() throws IOException {
@@ -849,7 +849,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             createInputStream(""),
             randomFrom(XContentType.values()),
             mock(DataLoadParams.class),
-            (dataCounts1, e) -> {}
+            (dataCounts, e) -> {}
         );
         return manager;
     }

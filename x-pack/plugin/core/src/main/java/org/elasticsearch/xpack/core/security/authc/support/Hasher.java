@@ -497,71 +497,39 @@ public enum Hasher {
      * @return the hasher associated with the identifier
      */
     public static Hasher resolve(String name) {
-        switch (name.toLowerCase(Locale.ROOT)) {
-            case "bcrypt":
-                return BCRYPT;
-            case "bcrypt4":
-                return BCRYPT4;
-            case "bcrypt5":
-                return BCRYPT5;
-            case "bcrypt6":
-                return BCRYPT6;
-            case "bcrypt7":
-                return BCRYPT7;
-            case "bcrypt8":
-                return BCRYPT8;
-            case "bcrypt9":
-                return BCRYPT9;
-            case "bcrypt10":
-                return BCRYPT;
-            case "bcrypt11":
-                return BCRYPT11;
-            case "bcrypt12":
-                return BCRYPT12;
-            case "bcrypt13":
-                return BCRYPT13;
-            case "bcrypt14":
-                return BCRYPT14;
-            case "pbkdf2":
-                return PBKDF2;
-            case "pbkdf2_1000":
-                return PBKDF2_1000;
-            case "pbkdf2_10000":
-                return PBKDF2;
-            case "pbkdf2_50000":
-                return PBKDF2_50000;
-            case "pbkdf2_100000":
-                return PBKDF2_100000;
-            case "pbkdf2_500000":
-                return PBKDF2_500000;
-            case "pbkdf2_1000000":
-                return PBKDF2_1000000;
-            case "pbkdf2_stretch":
-                return PBKDF2_STRETCH;
-            case "pbkdf2_stretch_1000":
-                return PBKDF2_STRETCH_1000;
-            case "pbkdf2_stretch_10000":
-                return PBKDF2_STRETCH_10000;
-            case "pbkdf2_stretch_50000":
-                return PBKDF2_STRETCH_50000;
-            case "pbkdf2_stretch_100000":
-                return PBKDF2_STRETCH_100000;
-            case "pbkdf2_stretch_500000":
-                return PBKDF2_STRETCH_500000;
-            case "pbkdf2_stretch_1000000":
-                return PBKDF2_STRETCH_1000000;
-            case "sha1":
-                return SHA1;
-            case "md5":
-                return MD5;
-            case "ssha256":
-                return SSHA256;
-            case "noop":
-            case "clear_text":
-                return NOOP;
-            default:
-                throw new IllegalArgumentException("unknown hash function [" + name + "]");
-        }
+        return switch (name.toLowerCase(Locale.ROOT)) {
+            case "bcrypt" -> BCRYPT;
+            case "bcrypt4" -> BCRYPT4;
+            case "bcrypt5" -> BCRYPT5;
+            case "bcrypt6" -> BCRYPT6;
+            case "bcrypt7" -> BCRYPT7;
+            case "bcrypt8" -> BCRYPT8;
+            case "bcrypt9" -> BCRYPT9;
+            case "bcrypt10" -> BCRYPT;
+            case "bcrypt11" -> BCRYPT11;
+            case "bcrypt12" -> BCRYPT12;
+            case "bcrypt13" -> BCRYPT13;
+            case "bcrypt14" -> BCRYPT14;
+            case "pbkdf2" -> PBKDF2;
+            case "pbkdf2_1000" -> PBKDF2_1000;
+            case "pbkdf2_10000" -> PBKDF2;
+            case "pbkdf2_50000" -> PBKDF2_50000;
+            case "pbkdf2_100000" -> PBKDF2_100000;
+            case "pbkdf2_500000" -> PBKDF2_500000;
+            case "pbkdf2_1000000" -> PBKDF2_1000000;
+            case "pbkdf2_stretch" -> PBKDF2_STRETCH;
+            case "pbkdf2_stretch_1000" -> PBKDF2_STRETCH_1000;
+            case "pbkdf2_stretch_10000" -> PBKDF2_STRETCH_10000;
+            case "pbkdf2_stretch_50000" -> PBKDF2_STRETCH_50000;
+            case "pbkdf2_stretch_100000" -> PBKDF2_STRETCH_100000;
+            case "pbkdf2_stretch_500000" -> PBKDF2_STRETCH_500000;
+            case "pbkdf2_stretch_1000000" -> PBKDF2_STRETCH_1000000;
+            case "sha1" -> SHA1;
+            case "md5" -> MD5;
+            case "ssha256" -> SSHA256;
+            case "noop", "clear_text" -> NOOP;
+            default -> throw new IllegalArgumentException("unknown hash function [" + name + "]");
+        };
     }
 
     /**

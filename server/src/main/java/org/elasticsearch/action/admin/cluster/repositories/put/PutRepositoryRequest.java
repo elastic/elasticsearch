@@ -187,10 +187,10 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
      */
     public PutRepositoryRequest source(Map<String, Object> repositoryDefinition) {
         for (Map.Entry<String, Object> entry : repositoryDefinition.entrySet()) {
-            String key = entry.getKey();
-            if (key.equals("type")) {
+            String name = entry.getKey();
+            if (name.equals("type")) {
                 type(entry.getValue().toString());
-            } else if (key.equals("settings")) {
+            } else if (name.equals("settings")) {
                 if ((entry.getValue() instanceof Map) == false) {
                     throw new IllegalArgumentException("Malformed settings section, should include an inner object");
                 }

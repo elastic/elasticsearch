@@ -24,10 +24,10 @@ import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -336,14 +336,9 @@ public class Reindexer {
                 return;
             }
             switch (routingSpec) {
-                case "keep":
-                    super.copyRouting(request, routing);
-                    break;
-                case "discard":
-                    super.copyRouting(request, null);
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unsupported routing command");
+                case "keep" -> super.copyRouting(request, routing);
+                case "discard" -> super.copyRouting(request, null);
+                default -> throw new IllegalArgumentException("Unsupported routing command");
             }
         }
 

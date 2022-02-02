@@ -53,16 +53,12 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
      * @throws IllegalArgumentException if the edit distance is not in [0, 1, 2]
      */
     public static Fuzziness fromEdits(int edits) {
-        switch (edits) {
-            case 0:
-                return Fuzziness.ZERO;
-            case 1:
-                return Fuzziness.ONE;
-            case 2:
-                return Fuzziness.TWO;
-            default:
-                throw new IllegalArgumentException("Valid edit distances are [0, 1, 2] but was [" + edits + "]");
-        }
+        return switch (edits) {
+            case 0 -> Fuzziness.ZERO;
+            case 1 -> Fuzziness.ONE;
+            case 2 -> Fuzziness.TWO;
+            default -> throw new IllegalArgumentException("Valid edit distances are [0, 1, 2] but was [" + edits + "]");
+        };
     }
 
     /**
@@ -153,14 +149,11 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
 
     public static Fuzziness parse(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        switch (token) {
-            case VALUE_STRING:
-                return fromString(parser.text());
-            case VALUE_NUMBER:
-                return fromEdits(parser.intValue());
-            default:
-                throw new IllegalArgumentException("Can't parse fuzziness on token: [" + token + "]");
-        }
+        return switch (token) {
+            case VALUE_STRING -> fromString(parser.text());
+            case VALUE_NUMBER -> fromEdits(parser.intValue());
+            default -> throw new IllegalArgumentException("Can't parse fuzziness on token: [" + token + "]");
+        };
     }
 
     @Override

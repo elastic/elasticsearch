@@ -252,14 +252,14 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
             );
             // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
             // such that we can talk to them again in the next roundtrip.
-            String requestScrollId = null;
+            String scrollId = null;
             if (request.scroll() != null) {
-                requestScrollId = request.scrollId();
+                scrollId = request.scrollId();
             }
             listener.onResponse(
                 new SearchResponse(
                     internalResponse,
-                    requestScrollId,
+                    scrollId,
                     this.scrollId.getContext().length,
                     successfulOps.get(),
                     0,

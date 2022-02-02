@@ -203,24 +203,16 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
             if (results == null) {
                 return emptyMap();
             }
-            switch (element) {
-                case "counts":
-                    return results.getFieldCounts();
-                case "means":
-                    return results.getMeans();
-                case "variances":
-                    return results.getVariances();
-                case "skewness":
-                    return results.getSkewness();
-                case "kurtosis":
-                    return results.getKurtosis();
-                case "covariance":
-                    return results.getCovariances();
-                case "correlation":
-                    return results.getCorrelations();
-                default:
-                    throw new IllegalArgumentException("Found unknown path element [" + element + "] in [" + getName() + "]");
-            }
+            return switch (element) {
+                case "counts" -> results.getFieldCounts();
+                case "means" -> results.getMeans();
+                case "variances" -> results.getVariances();
+                case "skewness" -> results.getSkewness();
+                case "kurtosis" -> results.getKurtosis();
+                case "covariance" -> results.getCovariances();
+                case "correlation" -> results.getCorrelations();
+                default -> throw new IllegalArgumentException("Found unknown path element [" + element + "] in [" + getName() + "]");
+            };
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }

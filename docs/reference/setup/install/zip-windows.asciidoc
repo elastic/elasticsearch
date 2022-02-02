@@ -123,7 +123,7 @@ C:\elasticsearch-{version}{backslash}bin>\bin\elasticsearch-reset-password -u el
 ----
 
 NOTE: While a JRE can be used for the {es} service, due to its use of a client
-VM (as opposed to a server JVM which offers better performance for long-running 
+VM (as opposed to a server JVM which offers better performance for long-running
 applications) its usage is discouraged and a warning will be issued.
 
 NOTE: The system environment variable `ES_JAVA_HOME` should be set to the path
@@ -289,7 +289,7 @@ directory so that you do not delete important data later on.
 
 | conf
   | Generated TLS keys and certificates for the transport and HTTP layer.
-  | %ES_HOME%\config\tls_auto_config_<timestamp>
+  | %ES_HOME%\config\certs
  d|
 
 | data

@@ -9,8 +9,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -33,7 +33,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
-public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements ToXContentFragment {
+public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentFragment {
 
     private final String alias;
 
@@ -223,7 +223,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     }
 
     public static Diff<AliasMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(AliasMetadata::new, in);
+        return SimpleDiffable.readDiffFrom(AliasMetadata::new, in);
     }
 
     @Override

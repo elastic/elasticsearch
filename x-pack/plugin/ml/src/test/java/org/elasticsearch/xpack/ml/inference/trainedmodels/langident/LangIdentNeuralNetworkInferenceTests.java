@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.inference.trainedmodels.langident;
 
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -41,30 +41,30 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
             inferenceObj(""),
             classificationConfig
         );
-        assertThat(singleValueInferenceResults.valueAsString(), equalTo("ja"));
+        assertThat(singleValueInferenceResults.valueAsString(), equalTo("zxx"));
 
         singleValueInferenceResults = (ClassificationInferenceResults) inferenceDefinition.infer(
             inferenceObj("     "),
             classificationConfig
         );
-        assertThat(singleValueInferenceResults.valueAsString(), equalTo("ja"));
+        assertThat(singleValueInferenceResults.valueAsString(), equalTo("zxx"));
 
         singleValueInferenceResults = (ClassificationInferenceResults) inferenceDefinition.infer(
             inferenceObj("!@#$%^&*()"),
             classificationConfig
         );
-        assertThat(singleValueInferenceResults.valueAsString(), equalTo("ja"));
+        assertThat(singleValueInferenceResults.valueAsString(), equalTo("zxx"));
 
         singleValueInferenceResults = (ClassificationInferenceResults) inferenceDefinition.infer(
             inferenceObj("1234567890"),
             classificationConfig
         );
-        assertThat(singleValueInferenceResults.valueAsString(), equalTo("ja"));
+        assertThat(singleValueInferenceResults.valueAsString(), equalTo("zxx"));
         singleValueInferenceResults = (ClassificationInferenceResults) inferenceDefinition.infer(
             inferenceObj("-----=-=--=-=+__+_+__==-=-!@#$%^&*()"),
             classificationConfig
         );
-        assertThat(singleValueInferenceResults.valueAsString(), equalTo("ja"));
+        assertThat(singleValueInferenceResults.valueAsString(), equalTo("zxx"));
 
         singleValueInferenceResults = (ClassificationInferenceResults) inferenceDefinition.infer(inferenceObj("A"), classificationConfig);
         assertThat(singleValueInferenceResults.valueAsString(), equalTo("lb"));

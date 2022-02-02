@@ -8,8 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +30,7 @@ import java.util.Objects;
  * contains a field "foo", it's expected to contain all the necessary settings/mappings/etc for the
  * "foo" field. These component templates make up the individual pieces composing an index template.
  */
-public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> implements ToXContentObject {
+public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToXContentObject {
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField METADATA = new ParseField("_meta");
@@ -55,7 +55,7 @@ public class ComponentTemplate extends AbstractDiffable<ComponentTemplate> imple
     private final Map<String, Object> metadata;
 
     static Diff<ComponentTemplate> readComponentTemplateDiffFrom(StreamInput in) throws IOException {
-        return AbstractDiffable.readDiffFrom(ComponentTemplate::new, in);
+        return SimpleDiffable.readDiffFrom(ComponentTemplate::new, in);
     }
 
     public static ComponentTemplate parse(XContentParser parser) {

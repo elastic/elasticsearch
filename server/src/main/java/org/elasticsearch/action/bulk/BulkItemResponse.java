@@ -523,33 +523,23 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
     private static DocWriteResponse readResponse(ShardId shardId, StreamInput in) throws IOException {
         int type = in.readByte();
-        switch (type) {
-            case 0:
-                return new IndexResponse(shardId, in);
-            case 1:
-                return new DeleteResponse(shardId, in);
-            case 2:
-                return null;
-            case 3:
-                return new UpdateResponse(shardId, in);
-            default:
-                throw new IllegalArgumentException("Unexpected type [" + type + "]");
-        }
+        return switch (type) {
+            case 0 -> new IndexResponse(shardId, in);
+            case 1 -> new DeleteResponse(shardId, in);
+            case 2 -> null;
+            case 3 -> new UpdateResponse(shardId, in);
+            default -> throw new IllegalArgumentException("Unexpected type [" + type + "]");
+        };
     }
 
     private static DocWriteResponse readResponse(StreamInput in) throws IOException {
         int type = in.readByte();
-        switch (type) {
-            case 0:
-                return new IndexResponse(in);
-            case 1:
-                return new DeleteResponse(in);
-            case 2:
-                return null;
-            case 3:
-                return new UpdateResponse(in);
-            default:
-                throw new IllegalArgumentException("Unexpected type [" + type + "]");
-        }
+        return switch (type) {
+            case 0 -> new IndexResponse(in);
+            case 1 -> new DeleteResponse(in);
+            case 2 -> null;
+            case 3 -> new UpdateResponse(in);
+            default -> throw new IllegalArgumentException("Unexpected type [" + type + "]");
+        };
     }
 }

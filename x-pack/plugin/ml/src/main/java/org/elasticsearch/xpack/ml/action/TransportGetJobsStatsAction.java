@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
@@ -191,7 +190,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
             int slot = i;
             String jobId = closedJobIds.get(i);
             gatherForecastStats(jobId, forecastStats -> {
-                gatherDataCountsModelSizeStatsAndTimingStats(jobId, (dataCounts, modelSizeStats, timingStats) -> {
+                jobResultsProvider.getDataCountsModelSizeAndTimingStats(jobId, (dataCounts, modelSizeStats, timingStats) -> {
                     JobState jobState = MlTasks.getJobState(jobId, tasks);
                     PersistentTasksCustomMetadata.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
                     String assignmentExplanation = null;
@@ -236,26 +235,6 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
 
     void gatherForecastStats(String jobId, Consumer<ForecastStats> handler, Consumer<Exception> errorHandler) {
         jobResultsProvider.getForecastStats(jobId, handler, errorHandler);
-    }
-
-    void gatherDataCountsModelSizeStatsAndTimingStats(
-        String jobId,
-        TriConsumer<DataCounts, ModelSizeStats, TimingStats> handler,
-        Consumer<Exception> errorHandler
-    ) {
-        jobResultsProvider.dataCounts(jobId, dataCounts -> {
-            jobResultsProvider.modelSizeStats(
-                jobId,
-                modelSizeStats -> {
-                    jobResultsProvider.timingStats(
-                        jobId,
-                        timingStats -> { handler.apply(dataCounts, modelSizeStats, timingStats); },
-                        errorHandler
-                    );
-                },
-                errorHandler
-            );
-        }, errorHandler);
     }
 
     static TimeValue durationToTimeValue(Optional<Duration> duration) {

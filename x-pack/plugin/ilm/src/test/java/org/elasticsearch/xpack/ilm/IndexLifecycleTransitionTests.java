@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.core.ilm.AbstractStepTestCase;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests;
@@ -54,7 +54,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.eligibleToCheckForRefresh;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.refreshPhaseDefinition;
 import static org.elasticsearch.xpack.ilm.IndexLifecycleRunnerTests.createOneStepPolicyStepRegistry;
@@ -658,8 +658,8 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             false
         );
         IndexLifecycleRunnerTests.assertClusterStateOnNextStep(clusterState, index, errorStepKey, failedStepKey, nextClusterState, now);
-        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(nextClusterState.metadata().index(indexName));
-        assertThat("manual move to failed step should not count as a retry", executionState.getFailedStepRetryCount(), is(nullValue()));
+        LifecycleExecutionState executionState = nextClusterState.metadata().index(indexName).getLifecycleExecutionState();
+        assertThat("manual move to failed step should not count as a retry", executionState.failedStepRetryCount(), is(nullValue()));
     }
 
     public void testMoveClusterStateToFailedStepWithUnknownStep() {
@@ -808,8 +808,75 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             true
         );
         IndexLifecycleRunnerTests.assertClusterStateOnNextStep(clusterState, index, errorStepKey, failedStepKey, nextClusterState, now);
-        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(nextClusterState.metadata().index(indexName));
-        assertThat(executionState.getFailedStepRetryCount(), is(1));
+        LifecycleExecutionState executionState = nextClusterState.metadata().index(indexName).getLifecycleExecutionState();
+        assertThat(executionState.failedStepRetryCount(), is(1));
+    }
+
+    public void testMoveToFailedStepDoesntRefreshCachedPhaseWhenUnsafe() {
+        String initialPhaseDefinition = """
+            {
+                    "policy" : "my-policy",
+                    "phase_definition" : {
+                      "min_age" : "20m",
+                      "actions" : {
+                        "rollover" : {
+                          "max_age" : "5s"
+                        },
+                        "set_priority" : {
+                          "priority" : 150
+                        }
+                      }
+                    },
+                    "version" : 1,
+                    "modified_date_in_millis" : 1578521007076
+                  }""";
+        String failedStep = "check-rollover-ready";
+        LifecycleExecutionState.Builder currentExecutionState = LifecycleExecutionState.builder()
+            .setPhase("hot")
+            .setAction("rollover")
+            .setStep(ErrorStep.NAME)
+            .setFailedStep(failedStep)
+            // the phase definition contains the rollover action, but the actual policy does not contain rollover anymore
+            .setPhaseDefinition(initialPhaseDefinition);
+
+        IndexMetadata meta = buildIndexMetadata("my-policy", currentExecutionState);
+        String indexName = meta.getIndex().getName();
+
+        Map<String, LifecycleAction> actions = new HashMap<>();
+        actions.put("set_priority", new SetPriorityAction(100));
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
+        Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
+        LifecyclePolicy currentPolicy = new LifecyclePolicy("my-policy", phases);
+
+        List<LifecyclePolicyMetadata> policyMetadatas = new ArrayList<>();
+        policyMetadatas.add(
+            new LifecyclePolicyMetadata(currentPolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+        );
+
+        Step.StepKey errorStepKey = new Step.StepKey("hot", RolloverAction.NAME, ErrorStep.NAME);
+        PolicyStepsRegistry stepsRegistry = createOneStepPolicyStepRegistry("my-policy", new ErrorStep(errorStepKey));
+
+        ClusterState clusterState = buildClusterState(
+            indexName,
+            Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "my-policy"),
+            currentExecutionState.build(),
+            policyMetadatas
+        );
+        ClusterState newState = IndexLifecycleTransition.moveClusterStateToPreviouslyFailedStep(
+            clusterState,
+            indexName,
+            ESTestCase::randomNonNegativeLong,
+            stepsRegistry,
+            false
+        );
+
+        LifecycleExecutionState nextLifecycleExecutionState = newState.metadata().index(indexName).getLifecycleExecutionState();
+        assertThat(
+            "we musn't refresh the cache definition if the failed step is not part of the real policy anymore",
+            nextLifecycleExecutionState.phaseDefinition(),
+            is(initialPhaseDefinition)
+        );
+        assertThat(nextLifecycleExecutionState.step(), is(failedStep));
     }
 
     public void testRefreshPhaseJson() throws IOException {
@@ -853,7 +920,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         ClusterState changedState = refreshPhaseDefinition(existingState, index, policyMetadata);
 
         IndexMetadata newIdxMeta = changedState.metadata().index(index);
-        LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);
+        LifecycleExecutionState afterExState = newIdxMeta.getLifecycleExecutionState();
         Map<String, String> beforeState = new HashMap<>(exState.build().asMap());
         beforeState.remove("phase_definition");
         Map<String, String> afterState = new HashMap<>(afterExState.asMap());
@@ -862,7 +929,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertThat(beforeState, equalTo(afterState));
 
         // Check that the phase definition has been refreshed
-        assertThat(afterExState.getPhaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
+        assertThat(afterExState.phaseDefinition(), equalTo(XContentHelper.stripWhitespace("""
             {
               "policy": "my-policy",
               "phase_definition": {
@@ -1014,7 +1081,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             try (Client client = new NoOpClient(getTestName())) {
                 LifecycleExecutionState newState = moveStateToNextActionAndUpdateCachedPhase(
                     meta,
-                    LifecycleExecutionState.fromIndexMetadata(meta),
+                    meta.getLifecycleExecutionState(),
                     System::currentTimeMillis,
                     currentPolicy,
                     updatedPolicyMetadata,
@@ -1023,11 +1090,11 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
                 );
 
                 Step.StepKey hotPhaseCompleteStepKey = PhaseCompleteStep.finalStep("hot").getKey();
-                assertThat(newState.getAction(), is(hotPhaseCompleteStepKey.getAction()));
-                assertThat(newState.getStep(), is(hotPhaseCompleteStepKey.getName()));
+                assertThat(newState.action(), is(hotPhaseCompleteStepKey.getAction()));
+                assertThat(newState.step(), is(hotPhaseCompleteStepKey.getName()));
                 assertThat(
                     "the cached phase should not contain rollover anymore",
-                    newState.getPhaseDefinition(),
+                    newState.phaseDefinition(),
                     not(containsString(RolloverAction.NAME))
                 );
             }
@@ -1051,7 +1118,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             try (Client client = new NoOpClient(getTestName())) {
                 LifecycleExecutionState newState = moveStateToNextActionAndUpdateCachedPhase(
                     meta,
-                    LifecycleExecutionState.fromIndexMetadata(meta),
+                    meta.getLifecycleExecutionState(),
                     System::currentTimeMillis,
                     currentPolicy,
                     updatedPolicyMetadata,
@@ -1062,12 +1129,12 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
                 Step.StepKey hotPhaseCompleteStepKey = PhaseCompleteStep.finalStep("hot").getKey();
                 // the state was still moved into the next action, even if the updated policy still contained the action the index was
                 // currently executing
-                assertThat(newState.getAction(), is(hotPhaseCompleteStepKey.getAction()));
-                assertThat(newState.getStep(), is(hotPhaseCompleteStepKey.getName()));
-                assertThat(newState.getPhaseDefinition(), containsString(RolloverAction.NAME));
+                assertThat(newState.action(), is(hotPhaseCompleteStepKey.getAction()));
+                assertThat(newState.step(), is(hotPhaseCompleteStepKey.getName()));
+                assertThat(newState.phaseDefinition(), containsString(RolloverAction.NAME));
                 assertThat(
                     "the cached phase should not contain set_priority anymore",
-                    newState.getPhaseDefinition(),
+                    newState.phaseDefinition(),
                     not(containsString(SetPriorityAction.NAME))
                 );
             }
@@ -1150,33 +1217,33 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertNotSame(oldClusterState.metadata(), newMetadata);
         IndexMetadata newIndexMetadata = newMetadata.getIndexSafe(index);
         assertNotSame(oldClusterState.metadata().index(index), newIndexMetadata);
-        LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(index));
-        LifecycleExecutionState oldLifecycleState = LifecycleExecutionState.fromIndexMetadata(oldClusterState.metadata().index(index));
+        LifecycleExecutionState newLifecycleState = newClusterState.metadata().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
-        assertEquals(nextStep.getPhase(), newLifecycleState.getPhase());
-        assertEquals(nextStep.getAction(), newLifecycleState.getAction());
-        assertEquals(nextStep.getName(), newLifecycleState.getStep());
+        assertEquals(nextStep.getPhase(), newLifecycleState.phase());
+        assertEquals(nextStep.getAction(), newLifecycleState.action());
+        assertEquals(nextStep.getName(), newLifecycleState.step());
         if (currentStep.getPhase().equals(nextStep.getPhase())) {
             assertEquals(
                 "expected phase times to be the same but they were different",
-                oldLifecycleState.getPhaseTime(),
-                newLifecycleState.getPhaseTime()
+                oldLifecycleState.phaseTime(),
+                newLifecycleState.phaseTime()
             );
         } else {
-            assertEquals(now, newLifecycleState.getPhaseTime().longValue());
+            assertEquals(now, newLifecycleState.phaseTime().longValue());
         }
         if (currentStep.getAction().equals(nextStep.getAction())) {
             assertEquals(
                 "expected action times to be the same but they were different",
-                oldLifecycleState.getActionTime(),
-                newLifecycleState.getActionTime()
+                oldLifecycleState.actionTime(),
+                newLifecycleState.actionTime()
             );
         } else {
-            assertEquals(now, newLifecycleState.getActionTime().longValue());
+            assertEquals(now, newLifecycleState.actionTime().longValue());
         }
-        assertEquals(now, newLifecycleState.getStepTime().longValue());
-        assertEquals(null, newLifecycleState.getFailedStep());
-        assertEquals(null, newLifecycleState.getStepInfo());
+        assertEquals(now, newLifecycleState.stepTime().longValue());
+        assertEquals(null, newLifecycleState.failedStep());
+        assertEquals(null, newLifecycleState.stepInfo());
     }
 
     private IndexMetadata buildIndexMetadata(String policy, LifecycleExecutionState.Builder lifecycleState) {
@@ -1201,17 +1268,17 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertNotSame(oldClusterState.metadata(), newMetadata);
         IndexMetadata newIndexMetadata = newMetadata.getIndexSafe(index);
         assertNotSame(oldClusterState.metadata().index(index), newIndexMetadata);
-        LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(index));
-        LifecycleExecutionState oldLifecycleState = LifecycleExecutionState.fromIndexMetadata(oldClusterState.metadata().index(index));
+        LifecycleExecutionState newLifecycleState = newClusterState.metadata().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
-        assertEquals(currentStep.getPhase(), newLifecycleState.getPhase());
-        assertEquals(currentStep.getAction(), newLifecycleState.getAction());
-        assertEquals(ErrorStep.NAME, newLifecycleState.getStep());
-        assertEquals(currentStep.getName(), newLifecycleState.getFailedStep());
-        assertThat(newLifecycleState.getStepInfo(), containsString(expectedCauseValue));
-        assertEquals(oldLifecycleState.getPhaseTime(), newLifecycleState.getPhaseTime());
-        assertEquals(oldLifecycleState.getActionTime(), newLifecycleState.getActionTime());
-        assertEquals(now, newLifecycleState.getStepTime().longValue());
+        assertEquals(currentStep.getPhase(), newLifecycleState.phase());
+        assertEquals(currentStep.getAction(), newLifecycleState.action());
+        assertEquals(ErrorStep.NAME, newLifecycleState.step());
+        assertEquals(currentStep.getName(), newLifecycleState.failedStep());
+        assertThat(newLifecycleState.stepInfo(), containsString(expectedCauseValue));
+        assertEquals(oldLifecycleState.phaseTime(), newLifecycleState.phaseTime());
+        assertEquals(oldLifecycleState.actionTime(), newLifecycleState.actionTime());
+        assertEquals(now, newLifecycleState.stepTime().longValue());
     }
 
     private void assertClusterStateStepInfo(
@@ -1229,15 +1296,15 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
         assertNotSame(oldClusterState.metadata(), newMetadata);
         IndexMetadata newIndexMetadata = newMetadata.getIndexSafe(index);
         assertNotSame(oldClusterState.metadata().index(index), newIndexMetadata);
-        LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(index));
-        LifecycleExecutionState oldLifecycleState = LifecycleExecutionState.fromIndexMetadata(oldClusterState.metadata().index(index));
+        LifecycleExecutionState newLifecycleState = newClusterState.metadata().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
-        assertEquals(currentStep.getPhase(), newLifecycleState.getPhase());
-        assertEquals(currentStep.getAction(), newLifecycleState.getAction());
-        assertEquals(currentStep.getName(), newLifecycleState.getStep());
-        assertEquals(expectedstepInfoValue, newLifecycleState.getStepInfo());
-        assertEquals(oldLifecycleState.getPhaseTime(), newLifecycleState.getPhaseTime());
-        assertEquals(oldLifecycleState.getActionTime(), newLifecycleState.getActionTime());
-        assertEquals(newLifecycleState.getStepTime(), newLifecycleState.getStepTime());
+        assertEquals(currentStep.getPhase(), newLifecycleState.phase());
+        assertEquals(currentStep.getAction(), newLifecycleState.action());
+        assertEquals(currentStep.getName(), newLifecycleState.step());
+        assertEquals(expectedstepInfoValue, newLifecycleState.stepInfo());
+        assertEquals(oldLifecycleState.phaseTime(), newLifecycleState.phaseTime());
+        assertEquals(oldLifecycleState.actionTime(), newLifecycleState.actionTime());
+        assertEquals(newLifecycleState.stepTime(), newLifecycleState.stepTime());
     }
 }

@@ -45,6 +45,13 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(20, TimeUnit.SECONDS);
 
+    /**
+     * This has been found to be approximately 300MB on linux by manual testing.
+     * We also subtract 30MB that we always add as overhead (see MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD).
+     * TODO Check if it is substantially different in other platforms.
+     */
+    private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(270);
+
     public StartTrainedModelDeploymentAction() {
         super(NAME, CreateTrainedModelAllocationAction.Response::new);
     }
@@ -265,13 +272,6 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             return PARSER.apply(parser, null);
         }
 
-        /**
-         * This has been found to be approximately 300MB on linux by manual testing.
-         * We also subtract 30MB that we always add as overhead (see MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD).
-         * TODO Check if it is substantially different in other platforms.
-         */
-        private static final ByteSizeValue MEMORY_OVERHEAD = ByteSizeValue.ofMb(270);
-
         private final String modelId;
         private final long modelBytes;
         // How many threads are used by the model during inference. Used to increase inference speed.
@@ -301,8 +301,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         }
 
         public long estimateMemoryUsageBytes() {
-            // While loading the model in the process we need twice the model size.
-            return MEMORY_OVERHEAD.getBytes() + 2 * modelBytes;
+            return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(modelBytes);
         }
 
         public Version getMinimalSupportedVersion() {
@@ -387,5 +386,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             }
             return false;
         }
+    }
+
+    public static long estimateMemoryUsageBytes(long totalDefinitionLength) {
+        // While loading the model in the process we need twice the model size.
+        return MEMORY_OVERHEAD.getBytes() + 2 * totalDefinitionLength;
     }
 }

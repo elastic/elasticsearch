@@ -88,7 +88,7 @@ public class InjectAllowedWarnings extends FeatureInjector implements RestTestTr
 
     @Override
     public boolean shouldApply(RestTestContext testContext) {
-        return testName == null || testContext.getTestName().equals(testName);
+        return testName == null || testContext.testName().equals(testName);
     }
 
     @Input

@@ -80,14 +80,14 @@ public final class InternalAggregations extends Aggregations implements Writeabl
      * Get value to use when sorting by a descendant of the aggregation containing this.
      */
     public double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
-        InternalAggregation aggregation = get(head.name);
+        InternalAggregation aggregation = get(head.name());
         if (aggregation == null) {
-            throw new IllegalArgumentException("Cannot find aggregation named [" + head.name + "]");
+            throw new IllegalArgumentException("Cannot find aggregation named [" + head.name() + "]");
         }
         if (tail.hasNext()) {
             return aggregation.sortValue(tail.next(), tail);
         }
-        return aggregation.sortValue(head.key);
+        return aggregation.sortValue(head.key());
     }
 
     /**
@@ -152,7 +152,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             aggregations.sort(INTERNAL_AGG_COMPARATOR);
             InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
             if (first.mustReduceOnSingleInternalAgg() || aggregations.size() > 1) {
-                reducedAggregations.add(first.reduce(aggregations, context));
+                reducedAggregations.add(first.reduce(aggregations, context.forAgg(entry.getKey())));
             } else {
                 // no need for reduce phase
                 reducedAggregations.add(first);

@@ -457,6 +457,10 @@ public class Node implements Closeable {
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.addStateApplier(scriptService);
             resourcesToClose.add(clusterService);
+
+            final ReadinessService readinessService = new ReadinessService(environment);
+            clusterService.addListener(readinessService);
+
             final Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
             if (consistentSettings.isEmpty() == false) {
                 clusterService.addLocalNodeMasterListener(
@@ -975,6 +979,7 @@ public class Node implements Closeable {
                 b.bind(ExecutorSelector.class).toInstance(executorSelector);
                 b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
                 b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
+                b.bind(ReadinessService.class).toInstance(readinessService);
             });
             injector = modules.createInjector();
 
@@ -1104,6 +1109,7 @@ public class Node implements Closeable {
         logger.info("starting ...");
         pluginLifecycleComponents.forEach(LifecycleComponent::start);
 
+        injector.getInstance(ReadinessService.class).start();
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
@@ -1244,6 +1250,7 @@ public class Node implements Closeable {
         }
         logger.info("stopping ...");
 
+        injector.getInstance(ReadinessService.class).stop();
         injector.getInstance(ResourceWatcherService.class).close();
         injector.getInstance(HttpServerTransport.class).stop();
 
@@ -1324,6 +1331,7 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SearchService.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
+        toClose.add(injector.getInstance(ReadinessService.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));

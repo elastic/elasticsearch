@@ -94,6 +94,9 @@ public class GeoHashCellIdSource extends ValuesSource.Numeric {
 
         private boolean validHash(String hash) {
             final Rectangle rect = Geohash.toBoundingBox(hash);
+            // hashes should not cross in theory the dateline but due to precision
+            // errors and normalization computing the hash, it might happen that they actually
+            // crosses the dateline.
             if (rect.getMaxX() < rect.getMinX()) {
                 return intersects(-180, rect.getMaxX(), rect.getMinY(), rect.getMaxY())
                     || intersects(rect.getMinX(), 180, rect.getMinY(), rect.getMaxY());

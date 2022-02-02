@@ -31,6 +31,7 @@ public class SortedNumericDocValuesLongFieldScript extends AbstractLongFieldScri
 
     @Override
     protected void emitFromObject(Object v) {
+        // we only use doc-values, not _source, so no need to implement this method
         throw new UnsupportedOperationException();
     }
 

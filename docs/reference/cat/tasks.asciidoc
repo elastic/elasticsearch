@@ -8,10 +8,9 @@ beta::["The cat task management API is new and should still be considered a beta
 
 [IMPORTANT]
 ====
-cat APIs are only intended for human consumption using the
-{kibana-ref}/console-kibana.html[Kibana console] or command line. They are _not_
-intended for use by applications. For application consumption, we recommend
-using the <<tasks>>.
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<tasks>>.
 ====
 
 Returns information about tasks currently executing in the cluster,

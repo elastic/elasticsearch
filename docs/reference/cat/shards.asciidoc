@@ -6,9 +6,8 @@
 
 [IMPORTANT]
 ====
-cat APIs are only intended for human consumption using the
-{kibana-ref}/console-kibana.html[Kibana console] or command line. They are _not_
-intended for use by applications.
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications.
 ====
 
 The `shards` command is the detailed view of what nodes contain which

@@ -21,6 +21,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.threadpool.Scheduler;
@@ -75,7 +76,12 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
     }
 
     void setPollInterval(TimeValue newValue) {
-        LOGGER.info("updating [{}] setting from [{}] to [{}]", DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL.getKey(), pollInterval, newValue);
+        LOGGER.info(
+            "updating [{}] setting from [{}] to [{}]",
+            DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL.getKey(),
+            pollInterval,
+            newValue
+        );
         this.pollInterval = newValue;
     }
 
@@ -109,7 +115,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
                 if (mBuilder == null) {
                     mBuilder = Metadata.builder(current.metadata());
                 }
-                mBuilder.updateSettings(settings, head);
+                mBuilder.updateSettings(settings, head.getName());
                 Metadata.Builder finalMBuilder = mBuilder;
                 // Verify that all temporal ranges of each backing index is still valid:
                 dataStream.validate(finalMBuilder::get);

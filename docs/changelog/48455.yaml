@@ -1,0 +1,5 @@
+pr: 48455
+summary: Bootstrap check for PKI realms with no trust config
+area: Authentication
+type: enhancement
+issues: []

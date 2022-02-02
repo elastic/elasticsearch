@@ -1,0 +1,5 @@
+pr: 78997
+summary: Add 'flatten' parameter to object mappers
+area: Mapping
+type: enhancement
+issues: []

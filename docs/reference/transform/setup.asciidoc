@@ -33,19 +33,13 @@ the two main categories:
 {es} security privileges.
 * *<<transform-kib-security-privileges>>*: uses {transforms} in {kib}. This
 scenario requires {kib} feature privileges and {es} security privileges.
-Management features must also be visible in the relevant space.
-
-You can configure these privileges under **{stack-manage-app}** > **Security**
-in {kib} or via the respective {es} security APIs. There are built-in roles and
-privileges that make it easier to control which users can manage or view
-{transforms}. For more information, see <<security-privileges>> and
-<<built-in-roles>>.
 
 [discrete]
 [[transform-es-security-privileges]]
 === {es} API user
 
-To _manage_ {transforms}, you must have:
+To _manage_ {transforms}, you must have the following
+<<built-in-roles,built-in roles>> and <<security-privileges,privileges>>:
 
 * `transform_admin` built-in role or `manage_transform`
 cluster privileges
@@ -59,7 +53,7 @@ cluster privileges
 
 [discrete]
 [[transform-kib-security-privileges]]
-==== {kib} user
+=== {kib} user
 
 Within a {kib} space, for full access to {transforms}, you must have:
 
@@ -84,9 +78,14 @@ Within a {kib} space, for read-only access to {transforms}, you must have:
 * [ ] `read`, and `view_index_metadata` index privileges on source indices and
 destination indices
 
+For more information, see
+{kibana-ref}/kibana-role-management.html[{kib} role management] and
+{kibana-ref}/kibana-privileges.html[{kib} privileges].
+
+
 [discrete]
 [[transform-kib-spaces]]
-==== {kib} spaces
+== {kib} spaces
 
 {kibana-ref}/xpack-spaces.html[Spaces] enable you to organize your source and 
 destination indices and other saved objects in {kib} and to see only the objects 

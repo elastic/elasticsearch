@@ -18,7 +18,6 @@ rootProject.name = "elasticsearch"
 List projects = [
   'rest-api-spec',
   'docs',
-  'boot',
   'client:rest',
   'client:rest-high-level',
   'client:rest-high-level:qa:ssl-enabled',

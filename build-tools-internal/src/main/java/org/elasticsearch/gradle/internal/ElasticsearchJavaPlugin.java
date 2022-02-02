@@ -134,7 +134,9 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         // http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
         javadoc.configure(doc -> doc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath()));
 
-        javadoc.configure(doc -> doc.getOptions().modulePath(Util.getJavaMainSourceSet(project).get().getCompileClasspath().getFiles().stream().toList()));
+        javadoc.configure(
+            doc -> doc.getOptions().modulePath(Util.getJavaMainSourceSet(project).get().getCompileClasspath().getFiles().stream().toList())
+        );
 
         // ensure javadoc task is run with 'check'
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));

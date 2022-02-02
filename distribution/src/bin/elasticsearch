@@ -127,7 +127,7 @@ if [[ $DAEMONIZE = false ]]; then
     -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     --module-path "$ES_MODULEPATH" \
-    -m org.elasticsearch.boot/org.elasticsearch.boot.BootESLauncher \
+    -m org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch \
     "${ARG_LIST[@]}" <<<"$KEYSTORE_PASSWORD"
 else
   exec \
@@ -140,7 +140,7 @@ else
     -Des.distribution.type="$ES_DISTRIBUTION_TYPE" \
     -Des.bundled_jdk="$ES_BUNDLED_JDK" \
     --module-path "$ES_MODULEPATH" \
-    -m org.elasticsearch.boot/org.elasticsearch.boot.BootESLauncher \
+    -m org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch \
     "${ARG_LIST[@]}" \
     <<<"$KEYSTORE_PASSWORD" &
   retval=$?

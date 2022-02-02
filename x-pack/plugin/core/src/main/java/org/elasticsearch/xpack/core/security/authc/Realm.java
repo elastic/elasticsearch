@@ -79,14 +79,12 @@ public abstract class Realm implements Comparable<Realm> {
 
     @Override
     public final int compareTo(Realm other) {
-        // TODO first order by type then by order
-        int result = Integer.compare(config.order, other.config.order);
+        int result = Integer.compare(internalTypePriority(type()), internalTypePriority(other.type()));
         if (result == 0) {
-            // order by realm type, internal realms have priority
-            result = Integer.compare(internalTypePriority(config.type()), internalTypePriority(other.config.type()));
+            result = Integer.compare(order(), other.order());
             if (result == 0) {
                 // If same order, compare based on the realm name
-                result = config.name().compareTo(other.config.name());
+                result = name().compareTo(other.name());
             }
         }
         return result;

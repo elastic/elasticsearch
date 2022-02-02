@@ -254,7 +254,7 @@ public class MetadataIndexStateService {
                                                     }
                                                 }
                                             },
-                                            ClusterStateTaskExecutor.unbatched()
+                                            executor
                                         ),
                                         listener::onFailure
                                     )
@@ -940,7 +940,7 @@ public class MetadataIndexStateService {
                     return allocationService.reroute(updatedState, "indices opened [" + indicesAsString + "]");
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            executor
         );
     }
 

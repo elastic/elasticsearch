@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.health.components.controller.Controller;
+import org.elasticsearch.health.components.controller.ClusterCoordination;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -54,14 +54,14 @@ public class GetHealthActionIT extends ESIntegTestCase {
 
         GetHealthAction.Component controller = response.getComponents()
             .stream()
-            .filter(c -> c.name().equals("controller"))
+            .filter(c -> c.name().equals("cluster_coordination"))
             .findAny()
             .orElseThrow();
         assertEquals(1, controller.indicators().size());
-        GetHealthAction.Indicator nodeDoesNotHaveMaster = controller.indicators().get(Controller.INSTANCE_HAS_MASTER_NAME);
-        assertEquals(Controller.INSTANCE_HAS_MASTER_NAME, nodeDoesNotHaveMaster.getName());
+        GetHealthAction.Indicator nodeDoesNotHaveMaster = controller.indicators().get(ClusterCoordination.INSTANCE_HAS_MASTER_NAME);
+        assertEquals(ClusterCoordination.INSTANCE_HAS_MASTER_NAME, nodeDoesNotHaveMaster.getName());
         assertEquals(HealthStatus.GREEN, nodeDoesNotHaveMaster.getStatus());
-        assertEquals(Controller.INSTANCE_HAS_MASTER_GREEN_SUMMARY, nodeDoesNotHaveMaster.getSummary());
+        assertEquals(ClusterCoordination.INSTANCE_HAS_MASTER_GREEN_SUMMARY, nodeDoesNotHaveMaster.getSummary());
     }
 
     public void testGetHealthInstanceNoMaster() throws Exception {
@@ -85,14 +85,14 @@ public class GetHealthActionIT extends ESIntegTestCase {
                 assertEquals(2, response.getComponents().size());
                 GetHealthAction.Component controller = response.getComponents()
                     .stream()
-                    .filter(c -> c.name().equals("controller"))
+                    .filter(c -> c.name().equals("cluster_coordination"))
                     .findAny()
                     .orElseThrow();
                 assertEquals(1, controller.indicators().size());
-                GetHealthAction.Indicator instanceHasMaster = controller.indicators().get(Controller.INSTANCE_HAS_MASTER_NAME);
-                assertEquals(Controller.INSTANCE_HAS_MASTER_NAME, instanceHasMaster.getName());
+                GetHealthAction.Indicator instanceHasMaster = controller.indicators().get(ClusterCoordination.INSTANCE_HAS_MASTER_NAME);
+                assertEquals(ClusterCoordination.INSTANCE_HAS_MASTER_NAME, instanceHasMaster.getName());
                 assertEquals(HealthStatus.RED, instanceHasMaster.getStatus());
-                assertEquals(Controller.INSTANCE_HAS_MASTER_RED_SUMMARY, instanceHasMaster.getSummary());
+                assertEquals(ClusterCoordination.INSTANCE_HAS_MASTER_RED_SUMMARY, instanceHasMaster.getSummary());
             });
         } finally {
             internalCluster().clearDisruptionScheme(true);

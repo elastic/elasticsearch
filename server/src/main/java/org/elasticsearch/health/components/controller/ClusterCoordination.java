@@ -16,15 +16,15 @@ import org.elasticsearch.health.HealthStatus;
 
 import java.util.Collections;
 
-public final class Controller {
+public final class ClusterCoordination {
 
     public static final String INSTANCE_HAS_MASTER_NAME = "instance_has_master";
     public static final String INSTANCE_HAS_MASTER_GREEN_SUMMARY = "Health coordinating instance has a master node.";
     public static final String INSTANCE_HAS_MASTER_RED_SUMMARY = "Health coordinating instance does not have a master node.";
 
-    private Controller() {}
+    private ClusterCoordination() {}
 
-    public static GetHealthAction.Component createControllerComponent(
+    public static GetHealthAction.Component createClusterCoordinationComponent(
         final DiscoveryNode coordinatingNode,
         final ClusterState clusterState
     ) {
@@ -57,6 +57,7 @@ public final class Controller {
 
         // Only a single indicator currently so it determines the status
         final HealthStatus status = instanceHasMaster.getStatus();
-        return new GetHealthAction.Component("controller", status, Collections.singletonMap(INSTANCE_HAS_MASTER_NAME, instanceHasMaster));
+        return new GetHealthAction.Component("cluster_coordination", status,
+            Collections.singletonMap(INSTANCE_HAS_MASTER_NAME, instanceHasMaster));
     }
 }

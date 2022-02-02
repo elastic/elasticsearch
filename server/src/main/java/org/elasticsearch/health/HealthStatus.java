@@ -8,22 +8,30 @@
 
 package org.elasticsearch.health;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
 import java.util.stream.Stream;
 
-public enum HealthStatus {
-    GREEN,
-    YELLOW,
-    RED;
+public enum HealthStatus implements Writeable {
+
+    GREEN((byte) 0),
+    YELLOW((byte) 1),
+    RED((byte) 2);
+
+    private final byte value;
+
+    HealthStatus(byte value) {
+        this.value = value;
+    }
 
     public static HealthStatus aggregate(Stream<HealthStatus> statusStream) {
-        return statusStream.reduce(HealthStatus.GREEN, (healthStatus1, healthStatus2) -> {
-            if (healthStatus1.equals(RED) || healthStatus2.equals(RED)) {
-                return RED;
-            } else if (healthStatus1.equals(YELLOW) || healthStatus2.equals(YELLOW)) {
-                return YELLOW;
-            } else {
-                return GREEN;
-            }
-        });
+        return statusStream.max(HealthStatus::compareTo).orElse(GREEN);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeByte(value);
     }
 }

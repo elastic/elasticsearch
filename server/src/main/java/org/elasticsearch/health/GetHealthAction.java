@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.health.components.controller.Controller;
+import org.elasticsearch.health.components.controller.ClusterCoordination;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -117,7 +117,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             final ClusterState clusterState = clusterService.state();
-            final Component controller = Controller.createControllerComponent(clusterService.localNode(), clusterState);
+            final Component controller = ClusterCoordination.createClusterCoordinationComponent(clusterService.localNode(), clusterState);
             final Component snapshots = new Component("snapshots", HealthStatus.GREEN, Collections.emptyMap());
             final ClusterName clusterName = clusterService.getClusterName();
             listener.onResponse(new Response(clusterName, Arrays.asList(controller, snapshots)));

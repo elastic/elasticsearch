@@ -1,0 +1,6 @@
+pr: 80104
+summary: Always compress cluster state on transport layer
+area: Cluster Coordination
+type: enhancement
+issues:
+ - 79906

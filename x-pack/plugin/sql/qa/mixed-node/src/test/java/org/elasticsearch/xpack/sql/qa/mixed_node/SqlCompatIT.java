@@ -89,10 +89,12 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         assertEquals(Integer.valueOf(2), result.get(2));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83433")
     public void testNullsOrderWithMissingOrderSupportQueryingNewNode() throws IOException {
         testNullsOrderWithMissingOrderSupport(newNodesClient);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83433")
     public void testNullsOrderWithMissingOrderSupportQueryingOldNode() throws IOException {
         testNullsOrderWithMissingOrderSupport(oldNodesClient);
     }

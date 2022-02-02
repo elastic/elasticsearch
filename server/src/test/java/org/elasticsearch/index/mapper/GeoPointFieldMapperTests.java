@@ -198,7 +198,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
         assertThat(((GeoPointFieldMapper) fieldMapper).fieldType().isIndexed(), equalTo(false));
-        assertThat(((GeoPointFieldMapper) fieldMapper).fieldType().isSearchable(), equalTo(false));
+        assertThat(((GeoPointFieldMapper) fieldMapper).fieldType().isSearchable(), equalTo(true));
     }
 
     public void testMultiField() throws Exception {

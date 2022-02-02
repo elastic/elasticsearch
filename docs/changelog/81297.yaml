@@ -1,0 +1,5 @@
+pr: 81297
+summary: Add dedicated masters autoscaling decider
+area: Autoscaling
+type: enhancement
+issues: []

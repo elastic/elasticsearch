@@ -1,0 +1,15 @@
+pr: 73230
+summary: Deprecate updating replica count with auto-expand
+area: Distributed
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecate updating replica count with auto-expand
+  area: Distributed
+  body: |-
+    Today if you update `index.number_of_replicas` on indices that have
+    `index.auto_expand_replicas` set then the update is accepted but
+    silently ignored. Lenience like this is surprising. This commit
+    deprecates this behaviour so that it can be removed in a future release.
+
+    Relates #27835

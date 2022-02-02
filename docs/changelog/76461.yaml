@@ -1,0 +1,5 @@
+pr: 76461
+summary: Retract access to .enrich-* indices for the `enrich_user` builtin role
+area: Authorization
+type: bug
+issues: []

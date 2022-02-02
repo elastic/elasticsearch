@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.autoscaling.LocalStateAutoscaling;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;

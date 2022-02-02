@@ -276,8 +276,8 @@ setup:
 ---
 "Field caps for geo_point field with only doc values":
   - skip:
-      version: " - 8.1.99"
-      reason: "doc values search was added in 8.2.0"
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
   - do:
       field_caps:
         index: 'test1,test2,test3'

@@ -244,8 +244,8 @@ setup:
 ---
 "Test distance_feature query on date field where only doc values are enabled":
   - skip:
-      version: " - 8.1.99"
-      reason: "doc values search was added in 8.2.0"
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
 
   - do:
       search:
@@ -346,8 +346,8 @@ setup:
 ---
 "Test geo shape query on geo_point field where only doc values are enabled":
   - skip:
-      version: " - 8.1.99"
-      reason: "doc values search was added in 8.2.0"
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
 
   - do:
       search:
@@ -364,8 +364,8 @@ setup:
 ---
 "Test distance_feature query on geo_point field where only doc values are enabled":
   - skip:
-      version: " - 8.1.99"
-      reason: "doc values search was added in 8.2.0"
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
 
   - do:
       search:

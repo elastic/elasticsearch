@@ -8,7 +8,7 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'Elasticsearch Expanded Pack Plugin - Data Streams'
-  classname 'org.elasticsearch.xpack.datastreams.DataStreamsPlugin'
+  classname 'org.elasticsearch.datastreams.DataStreamsPlugin'
 }
 
 dependencies {

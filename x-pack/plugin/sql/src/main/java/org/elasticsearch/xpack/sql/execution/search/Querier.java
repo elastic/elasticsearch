@@ -20,6 +20,11 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -106,11 +111,6 @@ public class Querier {
     }
 
     public void query(List<Attribute> output, QueryContainer query, String index, ActionListener<Page> listener) {
-        if (cfg.task() != null && cfg.task().isCancelled()) {
-            listener.onFailure(new TaskCancelledException("cancelled"));
-            return;
-        }
-
         // prepare the request
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, cfg.filter(), cfg.pageSize());
 
@@ -133,7 +133,9 @@ public class Querier {
         List<Tuple<Integer, Comparator>> sortingColumns = query.sortingColumns();
         listener = sortingColumns.isEmpty() ? listener : new LocalAggregationSorterListener(listener, sortingColumns, query.limit());
 
-        if (query.isAggsOnly()) {
+        if (cfg.task() != null && cfg.task().isCancelled()) {
+            listener.onFailure(new TaskCancelledException("cancelled"));
+        } else if (query.isAggsOnly()) {
             ActionListener<SearchResponse> l;
             if (query.aggs().useImplicitGroupBy()) {
                 l = new ImplicitGroupActionListener(listener, client, cfg, output, query, search);
@@ -166,9 +168,7 @@ public class Querier {
 
     public static void closePointInTime(Client client, String pointInTimeId, ActionListener<Boolean> listener) {
         // request should not be made with the parent task assigned because the parent task might already be canceled
-        if (client instanceof ParentTaskAssigningClient ptac) {
-            client = ptac.unwrap();
-        }
+        client = client instanceof ParentTaskAssigningClient wrapperClient ? wrapperClient.unwrap() : client;
 
         if (pointInTimeId != null) {
             client.execute(
@@ -219,6 +219,29 @@ public class Querier {
             response.getTook(),
             response.isTimedOut()
         );
+    }
+
+    /**
+     * Deserializes the search source from a byte array.
+     */
+    public static SearchSourceBuilder deserializeQuery(NamedWriteableRegistry registry, byte[] source) throws IOException {
+        try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(source), registry)) {
+            return new SearchSourceBuilder(in);
+        }
+    }
+
+    /**
+     * Serializes the search source to a byte array.
+     */
+    public static byte[] serializeQuery(SearchSourceBuilder source) throws IOException {
+        if (source == null) {
+            return new byte[0];
+        }
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            source.writeTo(out);
+            return BytesReference.toBytes(out.bytes());
+        }
     }
 
     /**

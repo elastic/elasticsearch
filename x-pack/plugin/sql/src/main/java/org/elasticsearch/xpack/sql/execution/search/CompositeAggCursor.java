@@ -12,9 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -121,7 +118,7 @@ public class CompositeAggCursor implements Cursor {
     public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
         SearchSourceBuilder q;
         try {
-            q = deserializeQuery(registry, nextQuery);
+            q = Querier.deserializeQuery(registry, nextQuery);
         } catch (Exception ex) {
             listener.onFailure(ex);
             return;
@@ -187,7 +184,7 @@ public class CompositeAggCursor implements Cursor {
                 byte[] queryAsBytes = null;
                 if (afterKey != null) {
                     updateSourceAfterKey(afterKey, source);
-                    queryAsBytes = serializeQuery(source);
+                    queryAsBytes = Querier.serializeQuery(source);
                 }
 
                 Cursor next = rowSet.remainingData() == 0 ? Cursor.EMPTY : makeCursor.apply(queryAsBytes, rowSet);
@@ -241,29 +238,6 @@ public class CompositeAggCursor implements Cursor {
             comp.aggregateAfter(afterKey);
         } else {
             throw new SqlIllegalArgumentException("Invalid client request; expected a group-by but instead got {}", aggBuilder);
-        }
-    }
-
-    /**
-     * Deserializes the search source from a byte array.
-     */
-    private static SearchSourceBuilder deserializeQuery(NamedWriteableRegistry registry, byte[] source) throws IOException {
-        try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(source), registry)) {
-            return new SearchSourceBuilder(in);
-        }
-    }
-
-    /**
-     * Serializes the search source to a byte array.
-     */
-    private static byte[] serializeQuery(SearchSourceBuilder source) throws IOException {
-        if (source == null) {
-            return new byte[0];
-        }
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            source.writeTo(out);
-            return BytesReference.toBytes(out.bytes());
         }
     }
 

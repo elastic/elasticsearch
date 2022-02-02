@@ -1,0 +1,6 @@
+pr: 41531
+summary: Allow locally executed queries with count(*)
+area: SQL
+type: enhancement
+issues:
+ - 37051

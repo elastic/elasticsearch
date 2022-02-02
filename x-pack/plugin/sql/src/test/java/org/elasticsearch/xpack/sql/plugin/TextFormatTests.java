@@ -174,11 +174,11 @@ public class TextFormatTests extends ESTestCase {
 
     public void testPlainTextEmptyCursorWithoutColumns() {
         assertEquals(
-            "".stripTrailing(),
+            StringUtils.EMPTY,
             PLAIN_TEXT.format(
                 req(),
                 new SqlQueryResponse(StringUtils.EMPTY, Mode.JDBC, DATE_NANOS_SUPPORT_VERSION, false, null, emptyList())
-            ).stripTrailing()
+            )
         );
     }
 

@@ -211,6 +211,7 @@ setup:
                             source: "field('boolean').size()"
     - match: { hits.hits.0.fields.field.0: 0 }
 
+
 ---
 "date":
     - skip:
@@ -2136,3 +2137,4 @@ setup:
               script:
                 source: "/* avoid stash */ $('date', null).get(ChronoField.YEAR_OF_ERA)"
   - match: { hits.hits.0.fields.field.0: 2017 }
+

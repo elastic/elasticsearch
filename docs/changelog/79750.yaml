@@ -1,0 +1,5 @@
+pr: 79750
+summary: Reject aliases to internal field types
+area: Mapping
+type: enhancement
+issues: []

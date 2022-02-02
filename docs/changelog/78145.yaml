@@ -1,0 +1,20 @@
+pr: 78145
+summary: Remove deprecated boolean dates
+area: Aggregations
+type: breaking
+issues:
+ - 59255
+breaking:
+  title: Remove deprecated boolean dates
+  area: Aggregations
+  details: |-
+    Drop support for running date aggregations on boolean fields.  We
+    deprecated this a while ago, and it's basically always been a bug.  I
+    would honestly be surprised if anyone was doing this, even by accident,
+    but we did go through the deprecation process on it anyway.
+
+    CC @jakelandis
+
+    Resolves #59255
+  impact: Please describe the impact of this change to users
+  notable: false

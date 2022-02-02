@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -49,14 +50,21 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
     public void testRolloverClusterStateForDataStream() throws Exception {
         Instant now = Instant.now();
         String dataStreamName = "logs-my-app";
-        final DataStream dataStream = DataStreamTestHelper.newInstance(
+        final DataStream dataStream = new DataStream(
             dataStreamName,
             new DataStream.TimestampField("@timestamp"),
-            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid"))
+            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
+            1,
+            null,
+            false,
+            false,
+            false,
+            false,
+            IndexMode.TIME_SERIES
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
             .template(new Template(Settings.builder().put("index.mode", "time_series").build(), null, null))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES))
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);

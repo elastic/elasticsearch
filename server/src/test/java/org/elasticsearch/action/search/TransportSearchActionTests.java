@@ -17,8 +17,11 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
+import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -30,8 +33,11 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
@@ -41,12 +47,16 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -74,6 +84,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -102,6 +113,9 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportSearchActionTests extends ESTestCase {
 
@@ -1355,5 +1369,72 @@ public class TransportSearchActionTests extends ESTestCase {
         ).stream().filter(si -> si.shardId().equals(anotherShardId)).findFirst();
         assertTrue(anotherShardIterator.isPresent());
         assertThat(anotherShardIterator.get().getTargetNodeIds(), hasSize(1));
+    }
+
+    public void testCCSCompatibilityCheck() throws Exception {
+        Settings settings = Settings.builder()
+            .put("node.name", TransportSearchAction.class.getSimpleName())
+            .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
+            .build();
+        ActionFilters actionFilters = mock(ActionFilters.class);
+        when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
+        ThreadPool threadPool = new ThreadPool(settings);
+        try {
+            TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
+
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(new SearchSourceBuilder().query(new DummyQueryBuilder() {
+                @Override
+                protected void doWriteTo(StreamOutput out) throws IOException {
+                    throw new IllegalArgumentException("This query isn't serializable to nodes before " + Version.CURRENT);
+                }
+            }));
+            NodeClient client = new NodeClient(settings, threadPool);
+
+            SearchService searchService = mock(SearchService.class);
+            when(searchService.getRewriteContext(any())).thenReturn(new QueryRewriteContext(null, null, null, null));
+            ClusterService clusterService = new ClusterService(
+                settings,
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                threadPool
+            );
+            TransportSearchAction action = new TransportSearchAction(
+                threadPool,
+                new NoneCircuitBreakerService(),
+                transportService,
+                searchService,
+                new SearchTransportService(transportService, client, null),
+                null,
+                clusterService,
+                actionFilters,
+                null,
+                null,
+                null
+            );
+
+            CountDownLatch latch = new CountDownLatch(1);
+            action.doExecute(null, searchRequest, new ActionListener<>() {
+
+                @Override
+                public void onResponse(SearchResponse response) {
+                    latch.countDown();
+                    fail("should not be called");
+                }
+
+                @Override
+                public void onFailure(Exception ex) {
+                    assertThat(
+                        ex.getMessage(),
+                        containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version")
+                    );
+                    assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
+                    assertEquals("This query isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());
+                    latch.countDown();
+                }
+            });
+            latch.await();
+        } finally {
+            assertTrue(ESTestCase.terminate(threadPool));
+        }
     }
 }

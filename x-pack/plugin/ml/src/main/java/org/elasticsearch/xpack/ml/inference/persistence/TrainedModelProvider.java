@@ -1055,10 +1055,10 @@ public class TrainedModelProvider {
         Sum count = response.getAggregations().get(InferenceStats.INFERENCE_COUNT.getPreferredName());
         Max timeStamp = response.getAggregations().get(InferenceStats.TIMESTAMP.getPreferredName());
         return new InferenceStats(
-            missing == null ? 0L : Double.valueOf(missing.getValue()).longValue(),
-            count == null ? 0L : Double.valueOf(count.getValue()).longValue(),
-            failures == null ? 0L : Double.valueOf(failures.getValue()).longValue(),
-            cacheMiss == null ? 0L : Double.valueOf(cacheMiss.getValue()).longValue(),
+            missing == null ? 0L : Double.valueOf(missing.value()).longValue(),
+            count == null ? 0L : Double.valueOf(count.value()).longValue(),
+            failures == null ? 0L : Double.valueOf(failures.value()).longValue(),
+            cacheMiss == null ? 0L : Double.valueOf(cacheMiss.value()).longValue(),
             modelId,
             null,
             timeStamp == null || (Numbers.isValidDouble(timeStamp.getValue()) == false)

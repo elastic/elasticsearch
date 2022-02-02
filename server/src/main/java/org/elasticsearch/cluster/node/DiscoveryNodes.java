@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -82,6 +84,11 @@ public class DiscoveryNodes implements SimpleDiffable<DiscoveryNodes>, Iterable<
     @Override
     public Iterator<DiscoveryNode> iterator() {
         return nodes.valuesIt();
+    }
+
+    @Override
+    public Spliterator<DiscoveryNode> spliterator() {
+        return Spliterators.spliterator(nodes.valuesIt(), nodes.size(), Spliterator.SIZED);
     }
 
     /**

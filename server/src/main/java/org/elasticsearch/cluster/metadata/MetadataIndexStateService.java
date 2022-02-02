@@ -35,6 +35,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -117,6 +118,7 @@ public class MetadataIndexStateService {
     private final ThreadPool threadPool;
     private final NodeClient client;
     private final ActiveShardsObserver activeShardsObserver;
+    private final ClusterStateTaskExecutor<ClusterStateUpdateTask> executor;
 
     @Inject
     public MetadataIndexStateService(
@@ -136,6 +138,19 @@ public class MetadataIndexStateService {
         this.client = client;
         this.threadPool = threadPool;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
+        this.executor = (currentState, tasks) -> {
+            ClusterTasksResult.Builder<ClusterStateUpdateTask> builder = ClusterTasksResult.builder();
+            ClusterState state = currentState;
+            for (ClusterStateUpdateTask task : tasks) {
+                try {
+                    state = task.execute(state);
+                    builder.success(task);
+                } catch (Exception e) {
+                    builder.failure(task, e);
+                }
+            }
+            return builder.build(state);
+        };
     }
 
     /**
@@ -253,7 +268,7 @@ public class MetadataIndexStateService {
                     listener.onFailure(e);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            executor
         );
     }
 
@@ -513,7 +528,7 @@ public class MetadataIndexStateService {
                                                     listener.onResponse(new AddIndexBlockResponse(acknowledged, acknowledged, indices));
                                                 }
                                             },
-                                            ClusterStateTaskExecutor.unbatched()
+                                            executor
                                         ),
                                         listener::onFailure
                                     )
@@ -527,7 +542,7 @@ public class MetadataIndexStateService {
                     listener.onFailure(e);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            executor
         );
     }
 

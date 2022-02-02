@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
@@ -34,8 +33,6 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy
 import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexCompatibility;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -331,9 +328,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     "invalid [" + table + "] resolution to [" + indexResolution + "]"
                 );
             }
-            EsIndex esIndex = IndexCompatibility.compatible(indexResolution.get(), Version.fromId(configuration.version().id));
-            LogicalPlan logicalPlan = new EsRelation(plan.source(), esIndex, plan.frozen());
-            SubQueryAlias sa = new SubQueryAlias(plan.source(), logicalPlan, esIndex.toString());
+            LogicalPlan logicalPlan = new EsRelation(plan.source(), indexResolution.get(), plan.frozen());
+            SubQueryAlias sa = new SubQueryAlias(plan.source(), logicalPlan, indexResolution.get().toString());
 
             if (plan.alias() != null) {
                 sa = new SubQueryAlias(plan.source(), sa, plan.alias());

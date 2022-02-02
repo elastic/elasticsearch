@@ -421,7 +421,13 @@ public class FieldAttributeTests extends ESTestCase {
 
         for (SqlVersion version : List.of(preUnsignedLong, SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id), postUnsignedLong)) {
             SqlConfiguration config = SqlTestUtils.randomConfiguration(version);
-            analyzer = new Analyzer(config, functionRegistry, loadMapping("mapping-numeric.json"), new Verifier(new Metrics()));
+            // the mapping is mutated when making it "compatible", so it needs to be reloaded inside the loop.
+            analyzer = new Analyzer(
+                config,
+                functionRegistry,
+                loadCompatibleMapping("mapping-numeric.json", Version.fromId(version.id)),
+                new Verifier(new Metrics())
+            );
 
             LogicalPlan plan = plan(query);
             assertThat(plan, instanceOf(Project.class));

@@ -1,0 +1,6 @@
+pr: 78067
+summary: Fix leaking store ref on peer recovery connection drop at shutdown
+area: Recovery
+type: bug
+issues:
+ - 77178

@@ -12,12 +12,12 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,10 +93,8 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         newBuckets.add(new InternalHistogram.Bucket(Double.NaN, b.docCount, keyed, b.format, b.aggregations));
 
         InternalHistogram newHistogram = histogram.create(newBuckets);
-        newHistogram.reduce(
-            Arrays.asList(newHistogram, histogram2),
-            InternalAggregationTestCase.emptyReduceContextBuilder().forPartialReduction()
-        );
+        List<InternalAggregation> reduceMe = List.of(histogram, histogram2);
+        newHistogram.reduce(reduceMe, InternalAggregationTestCase.mockReduceContext(mockBuilder(reduceMe)).forPartialReduction());
     }
 
     public void testLargeReduce() {

@@ -1,5 +1,0 @@
-pr: 82228
-summary: "Script: track this pointer capture from blocks within lambdas"
-area: Infra/Scripting
-type: bug
-issues: []

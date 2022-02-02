@@ -74,7 +74,6 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -1604,28 +1603,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
-                return new AggregationReduceContext.ForPartial(bigArrays, scriptService, isCanceled);
+                return new AggregationReduceContext.ForPartial(bigArrays, scriptService, isCanceled, request.source().aggregations());
             }
 
             @Override
             public AggregationReduceContext forFinalReduction() {
-                PipelineTree pipelineTree = requestToPipelineTree(request);
                 return new AggregationReduceContext.ForFinal(
                     bigArrays,
                     scriptService,
-                    multiBucketConsumerService.create(),
-                    pipelineTree,
-                    isCanceled
+                    isCanceled,
+                    request.source().aggregations(),
+                    multiBucketConsumerService.create()
                 );
             }
         };
-    }
-
-    private static PipelineTree requestToPipelineTree(SearchRequest request) {
-        if (request.source() == null || request.source().aggregations() == null) {
-            return PipelineTree.EMPTY;
-        }
-        return request.source().aggregations().buildPipelineTree();
     }
 
     /**

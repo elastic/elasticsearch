@@ -301,24 +301,15 @@ public class RealmsTests extends ESTestCase {
         assertThat(iterator.hasNext(), is(true));
         Realm realm = iterator.next();
         assertThat(realm, is(reservedRealm));
-        if (false == fileRealmDisabled && false == nativeRealmDisabled) {
+        assertThat(reservedRealm.realmRef().getDomain(), nullValue());
+        if (false == fileRealmDisabled) {
             assertTrue(iterator.hasNext());
             realm = iterator.next();
             assertThat(realm.type(), is(FileRealmSettings.TYPE));
             assertThat(realm.name(), is(FileRealmSettings.DEFAULT_NAME));
             assertDomainForRealm(realm, nodeName, realmsForDomain);
-            assertTrue(iterator.hasNext());
-            realm = iterator.next();
-            assertThat(realm.type(), is(NativeRealmSettings.TYPE));
-            assertThat(realm.name(), is(NativeRealmSettings.DEFAULT_NAME));
-            assertDomainForRealm(realm, nodeName, realmsForDomain);
-        } else if (false == fileRealmDisabled) {
-            assertTrue(iterator.hasNext());
-            realm = iterator.next();
-            assertThat(realm.type(), is(FileRealmSettings.TYPE));
-            assertThat(realm.name(), is(FileRealmSettings.DEFAULT_NAME));
-            assertDomainForRealm(realm, nodeName, realmsForDomain);
-        } else if (false == nativeRealmDisabled) {
+        }
+        if (false == nativeRealmDisabled) {
             assertTrue(iterator.hasNext());
             realm = iterator.next();
             assertThat(realm.type(), is(NativeRealmSettings.TYPE));

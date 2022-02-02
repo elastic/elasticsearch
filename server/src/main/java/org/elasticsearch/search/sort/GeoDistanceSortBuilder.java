@@ -352,6 +352,11 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
+
+    @Override
     public boolean equals(Object object) {
         if (this == object) {
             return true;

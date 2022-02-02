@@ -1792,7 +1792,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             ImmutableOpenMap<String, IndexMetadata> indices
         ) {
             SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
-            Map<String, DataStream> indexToDataStreamLookup = new HashMap<>();
+            Map<String, IndexAbstraction.DataStream> indexToDataStreamLookup = new HashMap<>();
             // If there are no indices, then skip data streams. This happens only when metadata is read from disk
             if (dataStreamMetadata != null && indices.size() > 0) {
                 Map<String, List<String>> dataStreamToAliasLookup = new HashMap<>();
@@ -1817,6 +1817,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     assert dataStream.getIndices().isEmpty() == false;
 
                     List<String> aliases = dataStreamToAliasLookup.getOrDefault(dataStream.getName(), List.of());
+                    final IndexAbstraction.DataStream dsAbstraction = new IndexAbstraction.DataStream(dataStream, aliases);
                     IndexAbstraction existing = indicesLookup.put(
                         dataStream.getName(),
                         new IndexAbstraction.DataStream(dataStream, aliases)
@@ -1824,28 +1825,19 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     assert existing == null : "duplicate data stream for " + dataStream.getName();
 
                     for (Index i : dataStream.getIndices()) {
-                        indexToDataStreamLookup.put(i.getName(), dataStream);
+                        indexToDataStreamLookup.put(i.getName(), dsAbstraction);
                     }
                 }
             }
 
             Map<String, List<IndexMetadata>> aliasToIndices = new HashMap<>();
-            for (var indexMetadata : indices.values()) {
-                ConcreteIndex index;
-                DataStream parent = indexToDataStreamLookup.get(indexMetadata.getIndex().getName());
-                if (parent != null) {
-                    assert parent.getIndices()
-                        .stream()
-                        .map(Index::getName)
-                        .collect(Collectors.toList())
-                        .contains(indexMetadata.getIndex().getName())
-                        : "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
-                    index = new ConcreteIndex(indexMetadata, (IndexAbstraction.DataStream) indicesLookup.get(parent.getName()));
-                } else {
-                    index = new ConcreteIndex(indexMetadata);
-                }
-
-                IndexAbstraction existing = indicesLookup.put(indexMetadata.getIndex().getName(), index);
+            for (var entry : indices) {
+                final String name = entry.key;
+                final IndexMetadata indexMetadata = entry.value;
+                final IndexAbstraction.DataStream parent = indexToDataStreamLookup.get(name);
+                assert parent == null || parent.getIndices().stream().anyMatch(index -> name.equals(index.getName()))
+                    : "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
+                IndexAbstraction existing = indicesLookup.put(name, new ConcreteIndex(indexMetadata, parent));
                 assert existing == null : "duplicate for " + indexMetadata.getIndex();
 
                 for (var aliasCursor : indexMetadata.getAliases()) {

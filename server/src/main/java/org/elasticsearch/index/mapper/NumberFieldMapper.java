@@ -235,6 +235,11 @@ public class NumberFieldMapper extends FieldMapper {
                 return HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(result));
             }
 
+            @Override
+            public double reduceToStoredPrecision(double value) {
+                return parse(value, false).doubleValue();
+            }
+
             /**
              * Parse a query parameter or {@code _source} value to a float,
              * keeping float precision. Used by queries which need more
@@ -377,6 +382,11 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 validateParsed(result);
                 return result;
+            }
+
+            @Override
+            public double reduceToStoredPrecision(double value) {
+                return parse(value, false).doubleValue();
             }
 
             @Override
@@ -1167,6 +1177,18 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         public abstract IndexFieldData.Builder getFieldDataBuilder(String name);
+
+        /**
+         * Adjusts a value to the value it would have been had it been parsed by that mapper
+         * and then cast up to a double. This is meant to be an entry point to manipulate values
+         * before the actual value is parsed.
+         *
+         * @param value the value to reduce to the field stored value
+         * @return the double value
+         */
+        public double reduceToStoredPrecision(double value) {
+            return ((Number) value).doubleValue();
+        }
     }
 
     public static class NumberFieldType extends SimpleMappedFieldType {
@@ -1241,7 +1263,7 @@ public class NumberFieldMapper extends FieldMapper {
                 // Trying to parse infinite values into ints/longs throws. Understandably.
                 return value;
             }
-            return type.parse(value, false).doubleValue();
+            return type.reduceToStoredPrecision(value);
         }
 
         public NumericType numericType() {

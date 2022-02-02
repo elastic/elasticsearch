@@ -12,8 +12,8 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,7 +46,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
+public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject {
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
@@ -273,6 +273,13 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public DataStream rollover(Index writeIndex, long generation) {
         ensureNotReplicated();
 
+        return unsafeRollover(writeIndex, generation);
+    }
+
+    /**
+     * Like {@link #rollover(Index, long)}, but does no validation, use with care only.
+     */
+    public DataStream unsafeRollover(Index writeIndex, long generation) {
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(writeIndex);
         return new DataStream(
@@ -299,6 +306,13 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      */
     public Tuple<String, Long> nextWriteIndexAndGeneration(Metadata clusterMetadata) {
         ensureNotReplicated();
+        return unsafeNextWriteIndexAndGeneration(clusterMetadata);
+    }
+
+    /**
+     * Like {@link #nextWriteIndexAndGeneration(Metadata)}, but does no validation, use with care only.
+     */
+    public Tuple<String, Long> unsafeNextWriteIndexAndGeneration(Metadata clusterMetadata) {
         String newWriteIndexName;
         long generation = this.generation;
         long currentTimeMillis = timeProvider.getAsLong();
@@ -558,7 +572,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(DataStream::new, in);
+        return SimpleDiffable.readDiffFrom(DataStream::new, in);
     }
 
     @Override

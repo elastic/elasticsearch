@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -30,7 +31,10 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.junit.BeforeClass;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +64,13 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
 
     private static final String RAC_USER_NAME = "rac_user";
 
+    // Needed for testing in IDE
+    @SuppressForbidden(reason = "sets the feature flag")
+    @BeforeClass
+    public static void enableFeature() {
+        AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty("es.user_profile_feature_flag_enabled", "true"));
+    }
+
     @Override
     protected String configUsers() {
         return super.configUsers() + RAC_USER_NAME + ":" + TEST_PASSWORD_HASHED + "\n";
@@ -73,6 +84,14 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
     @Override
     protected String configUsersRoles() {
         return super.configUsersRoles() + "rac_role:" + RAC_USER_NAME + "\n";
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings());
+        // This setting tests that the setting is registered
+        builder.put("xpack.security.authc.domains.my_domain.realms", "file");
+        return builder.build();
     }
 
     public void testProfileIndexAutoCreation() {

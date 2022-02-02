@@ -163,18 +163,9 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
         Range[] ranges = processRanges(range -> {
             DocValueFormat parser = config.format();
             assert parser != null;
-            Double from = fixPrecision.applyAsDouble(range.from);
-            Double to = fixPrecision.applyAsDouble(range.to);
-            if (range.fromAsStr != null) {
-                from = parser.parseDouble(range.fromAsStr, false, context::nowInMillis);
-            }
-            if (range.toAsStr != null) {
-                to = parser.parseDouble(range.toAsStr, false, context::nowInMillis);
-            }
-            double originalFrom = range.fromAsStr != null ? from : range.from;
-            double originalTo = range.toAsStr != null ? to : range.to;
-            String key = range.key != null ? range.key : generateKey(originalFrom, originalTo, config.format());
-            return new Range(key, from, originalFrom, range.fromAsStr, to, originalTo, range.toAsStr);
+            double from = range.fromAsStr != null ? parser.parseDouble(range.fromAsStr, false, context::nowInMillis) : range.from;
+            double to = range.toAsStr != null ? parser.parseDouble(range.toAsStr, false, context::nowInMillis) : range.to;
+            return new Range(range.key, from, range.fromAsStr, to, range.toAsStr, fixPrecision);
         });
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");

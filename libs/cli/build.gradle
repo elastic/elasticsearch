@@ -21,8 +21,6 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-spotless {
-  java {
-    targetExclude 'src/main/java/module-info.java'
-  }
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-requires-automatic,-requires-transitive-automatic")
 }

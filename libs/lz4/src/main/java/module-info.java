@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-@SuppressWarnings({"requires-automatic","requires-transitive-automatic","module"})
 module org.elasticsearch.lz4 {
     requires transitive org.lz4.java;
 

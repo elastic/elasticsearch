@@ -126,8 +126,6 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             List<String> compilerArgs = compileOptions.getCompilerArgs();
             compilerArgs.add("-Werror");
             compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try,-removal");
-            compilerArgs.add("-Xlint:-exports"); // TODO: server has a lot of exports warnings, first reduce exports then fix remains
-            compilerArgs.add("-Xlint:-missing-explicit-ctor"); // TODO: this should be fixed by adding explicit ctors
             compilerArgs.add("-Xdoclint:all");
             compilerArgs.add("-Xdoclint:-missing");
             compileOptions.setEncoding("UTF-8");

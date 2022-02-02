@@ -7,7 +7,6 @@
  */
 
 /** Elasticsearch Command Line Interface. */
-@SuppressWarnings({ "requires-automatic", "requires-transitive-automatic" })
 module org.elasticsearch.cli {
     requires transitive jopt.simple;
     requires transitive org.elasticsearch.core;

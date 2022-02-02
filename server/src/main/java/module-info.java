@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-@SuppressWarnings({"requires-automatic","requires-transitive-automatic"})
 module org.elasticsearch.server {
     requires com.fasterxml.jackson.core;
     requires org.elasticsearch.lz4;

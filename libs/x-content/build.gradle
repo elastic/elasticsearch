@@ -44,3 +44,7 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.named("jarHell").configure { enabled = false }
+
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-missing-explicit-ctor")
+}

@@ -42,8 +42,6 @@ tasks.named("thirdPartyAudit").configure {
   )
 }
 
-spotless {
-  java {
-    targetExclude 'src/main/java/module-info.java'
-  }
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-missing-explicit-ctor,-requires-automatic,-requires-transitive-automatic")
 }

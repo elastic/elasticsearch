@@ -22,12 +22,6 @@ publishing {
 
 archivesBaseName = 'elasticsearch'
 
-spotless {
-  java {
-    targetExclude 'src/main/java/module-info.java'
-  }
-}
-
 allprojects {
   plugins.withType(JavaPlugin) {
     // Configure the version attribute.
@@ -243,4 +237,9 @@ tasks.named("licenseHeaders").configure {
     // Ignore temporary copies of impending 8.7 Lucene classes
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
+}
+
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-missing-explicit-ctor,-requires-automatic,-requires-transitive-automatic")
+  options.compilerArgs.add("-Xlint:-exports") // class XXX in module org.elasticsearch.server is not accessible to clients that require this module
 }

@@ -63,8 +63,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -543,9 +543,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     new AggregationReduceContext.ForFinal(
                         context.bigArrays(),
                         getMockScriptService(),
+                        () -> false,
+                        builder,
                         b -> {},
-                        PipelineTree.EMPTY,
-                        () -> false
+                        PipelineTree.EMPTY
                     )
                 );
                 InternalFilters filters = (InternalFilters) result;
@@ -828,15 +829,15 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 assertThat(b.getDocCount(), equalTo(1L));
                 InternalMax max = b.getAggregations().get("m");
                 assertThat(max.getValue(), equalTo(100.0));
-                InternalSum sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(100.0));
+                Sum sum = b.getAggregations().get("s");
+                assertThat(sum.value(), equalTo(100.0));
 
                 b = filters.getBucketByKey("q2");
                 assertThat(b.getDocCount(), equalTo(2L));
                 max = b.getAggregations().get("m");
                 assertThat(max.getValue(), equalTo(10.0));
                 sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(15.0));
+                assertThat(sum.value(), equalTo(15.0));
 
                 assertThat(impl, equalTo(FilterByFilterAggregator.class));
                 assertMap(
@@ -903,15 +904,15 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 assertThat(b.getDocCount(), equalTo(3334L));
                 InternalMax max = b.getAggregations().get("m");
                 assertThat(max.getValue(), equalTo(9999.0));
-                InternalSum sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(16668333.0));
+                Sum sum = b.getAggregations().get("s");
+                assertThat(sum.value(), equalTo(16668333.0));
 
                 b = filters.getBucketByKey("q2");
                 assertThat(b.getDocCount(), equalTo(6666L));
                 max = b.getAggregations().get("m");
                 assertThat(max.getValue(), equalTo(9998.0));
                 sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(33326667.0));
+                assertThat(sum.value(), equalTo(33326667.0));
 
                 assertThat(impl, equalTo(FilterByFilterAggregator.class));
                 assertMap(
@@ -981,15 +982,15 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 assertThat(b.getDocCount(), equalTo(3334L));
                 InternalMax max = b.getAggregations().get("m");
                 assertThat(max.getValue(), equalTo(9999.0));
-                InternalSum sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(16668333.0));
+                Sum sum = b.getAggregations().get("s");
+                assertThat(sum.value(), equalTo(16668333.0));
 
                 b = filters.getBucketByKey("2019-12-10 to 2020-01-09");
                 assertThat(b.getDocCount(), equalTo(6666L));
                 max = b.getAggregations().get("m");
                 assertThat(max.getValue(), equalTo(9998.0));
                 sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(33326667.0));
+                assertThat(sum.value(), equalTo(33326667.0));
 
                 assertThat(impl, equalTo(FilterByFilterAggregator.class));
                 assertMap(

@@ -45,21 +45,21 @@ public abstract class Realm implements Comparable<Realm> {
     /**
      * @return The type of this realm
      */
-    public final String type() {
+    public String type() {
         return config.type();
     }
 
     /**
      * @return The name of this realm.
      */
-    public final String name() {
+    public String name() {
         return config.name();
     }
 
     /**
      * @return The order of this realm within the executing realm chain.
      */
-    public final int order() {
+    public int order() {
         return config.order();
     }
 

@@ -1,5 +1,5 @@
 pr: 83456
-summary: Retry anomaly detection job to recovery during relocation
+summary: Retry anomaly detection job recovery during relocation
 area: Machine Learning
 type: bug
 issues: []

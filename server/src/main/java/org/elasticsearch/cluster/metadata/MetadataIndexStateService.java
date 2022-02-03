@@ -140,7 +140,12 @@ public class MetadataIndexStateService {
         this.threadPool = threadPool;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.opensExecutor = ClusterStateTaskExecutor.simpleBatched();
-        this.closesExecutor = ClusterStateTaskExecutor.simpleBatched();
+        this.closesExecutor = ClusterStateTaskExecutor.simpleBatched((originalState, updatedState) -> {
+            if (updatedState != originalState) {
+                updatedState = allocationService.reroute(updatedState, "indices closed");
+            }
+            return updatedState;
+        });
         this.blocksExecutor = ClusterStateTaskExecutor.simpleBatched();
     }
 
@@ -194,7 +199,7 @@ public class MetadataIndexStateService {
                                                     );
                                                     assert verifyResults.size() == closingResult.v2().size();
                                                     indices.addAll(closingResult.v2());
-                                                    return allocationService.reroute(closingResult.v1(), "indices closed");
+                                                    return closingResult.v1();
                                                 }
 
                                                 @Override

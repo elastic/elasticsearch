@@ -21,7 +21,7 @@ include::setup.asciidoc[]
 
 include::upgrade.asciidoc[]
 
-include::index-modules.asciidoc[]
+include::index-modules.asciidoc[leveloffset=+1]
 
 include::mapping.asciidoc[]
 

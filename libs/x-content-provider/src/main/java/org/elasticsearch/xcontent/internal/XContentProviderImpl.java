@@ -8,6 +8,8 @@
 
 package org.elasticsearch.xcontent.internal;
 
+import com.fasterxml.jackson.dataformat.smile.SmileConstants;
+
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.cbor.CborXContent;

@@ -21,9 +21,9 @@ public abstract class JsonXContent implements XContent {
 
     private static final XContentProvider.FormatProvider<JsonXContent> provider = XContentProvider.provider().getJsonXContent();
 
-    public static final XContentBuilder contentBuilder() throws IOException {
+    public static XContentBuilder contentBuilder() throws IOException {
         return provider.getContentBuilder();
     }
 
-    public static final JsonXContent jsonXContent = provider.XContent();
+    public static JsonXContent jsonXContent = provider.XContent();
 }

@@ -529,7 +529,7 @@ check end_time boundary with data_nano:
 check time_series default time bound value:
   - skip:
       version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      reason: introduced in 8.2.0
   - do:
       indices.create:
         index: test_index
@@ -539,8 +539,37 @@ check time_series default time bound value:
               mode: time_series
               routing_path: [metricset]
               time_series:
-                start_time: 1970-01-01T00:00:00Z
+                start_time: -9999-01-01T00:00:00Z
                 end_time: 9999-12-31T23:59:59.999Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date_nanos
+              metricset:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      index:
+        index: test_index
+        body: {
+          "@timestamp": "2021-09-26T03:09:52.123456789Z",
+          "metricset": "pod"
+        }
+
+---
+check time_series empty time bound value:
+  - skip:
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset]
           mappings:
             properties:
               "@timestamp":

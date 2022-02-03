@@ -33,7 +33,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
         createIndex("idx");
         createIndex("idx_unmapped");
         ensureSearchable();
-        final int numDocs = randomInt(5);
+        final int numDocs = between(1, 10);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
             final boolean singleValue = randomBoolean();

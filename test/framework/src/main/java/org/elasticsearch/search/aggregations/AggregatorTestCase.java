@@ -606,7 +606,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             AggregationReduceContext reduceContext = new AggregationReduceContext.ForPartial(
                 context.bigArrays(),
                 getMockScriptService(),
-                () -> false
+                () -> false,
+                builder
             );
             A reduced = (A) aggs.get(0).reduce(toReduce, reduceContext);
             aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
@@ -622,9 +623,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
             context.bigArrays(),
             getMockScriptService(),
+            () -> false,
+            builder,
             reduceBucketConsumer,
-            pipelines,
-            () -> false
+            pipelines
         );
 
         @SuppressWarnings("unchecked")
@@ -766,9 +768,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
             new AggregationReduceContext.ForFinal(
                 context.bigArrays(),
                 getMockScriptService(),
+                () -> false,
+                builder,
                 context.multiBucketConsumer(),
-                builder.buildPipelineTree(),
-                () -> false
+                builder.buildPipelineTree()
             )
         );
         @SuppressWarnings("unchecked") // We'll get a cast error in the test if we're wrong here and that is ok

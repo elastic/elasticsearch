@@ -19,6 +19,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -43,6 +44,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
 
 public class InternalMultiTermsTests extends InternalAggregationTestCase<InternalMultiTerms> {
 
@@ -174,7 +176,7 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
     }
 
     @Override
-    protected List<InternalMultiTerms> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalMultiTerms> randomResultsToReduce(String name, int size) {
         List<InternalMultiTerms> terms = new ArrayList<>();
         BucketOrder reduceOrder = BucketOrder.key(true);
         BucketOrder order = BucketOrder.key(true);
@@ -216,7 +218,7 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
                 )
             );
         }
-        return terms;
+        return new BuilderAndToReduce<>(mock(AggregationBuilder.class), terms);
     }
 
     @Override
@@ -352,7 +354,12 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             keyConverters2,
             null
         );
-        AggregationReduceContext context = new AggregationReduceContext.ForPartial(bigArrays, mockScriptService, () -> false);
+        AggregationReduceContext context = new AggregationReduceContext.ForPartial(
+            bigArrays,
+            mockScriptService,
+            () -> false,
+            mock(AggregationBuilder.class)
+        );
 
         InternalMultiTerms result = (InternalMultiTerms) terms1.reduce(List.of(terms1, terms2), context);
         assertThat(result.buckets, hasSize(3));

@@ -229,26 +229,6 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         expectThrows(IllegalArgumentException.class, () -> builder.precision(30));
 
         GeoBoundingBox bbox = randomBBox();
-        final double boundsTop = bbox.top();
-        final double boundsBottom = bbox.bottom();
-        final double boundsWestLeft;
-        final double boundsWestRight;
-        final double boundsEastLeft;
-        final double boundsEastRight;
-        final boolean crossesDateline;
-        if (bbox.right() < bbox.left()) {
-            boundsWestLeft = -180;
-            boundsWestRight = bbox.right();
-            boundsEastLeft = bbox.left();
-            boundsEastRight = 180;
-            crossesDateline = true;
-        } else { // only set east bounds
-            boundsEastLeft = bbox.left();
-            boundsEastRight = bbox.right();
-            boundsWestLeft = 0;
-            boundsWestRight = 0;
-            crossesDateline = false;
-        }
 
         Function<Double, Double> encodeDecodeLat = (lat) -> GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
         Function<Double, Double> encodeDecodeLon = (lon) -> GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
@@ -260,11 +240,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             double x = encodeDecodeLon.apply(p.getLon());
             double y = encodeDecodeLat.apply(p.getLat());
             Rectangle pointTile = getTile(x, y, precision);
-            boolean intersectsBounds = boundsTop > pointTile.getMinY()
-                && boundsBottom < pointTile.getMaxY()
-                && (boundsEastLeft < pointTile.getMaxX() && boundsEastRight > pointTile.getMinX()
-                    || (crossesDateline && boundsWestLeft < pointTile.getMaxX() && boundsWestRight > pointTile.getMinX()));
-            if (intersectsBounds) {
+            if (intersectsBounds(pointTile, bbox) || validPoint(x, y, bbox)) {
                 in++;
             }
             docs.add(new LatLonDocValuesField(FIELD_NAME, p.getLat(), p.getLon()));
@@ -289,7 +265,36 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         });
     }
 
-    private void testCase(
+    private boolean validPoint(double x, double y, GeoBoundingBox bbox) {
+        if (bbox.top() > y && bbox.bottom() < y) {
+            boolean crossesDateline = bbox.left() > bbox.right();
+            if (crossesDateline) {
+                return bbox.left() < x || bbox.right() > x;
+            } else {
+                return bbox.left() < x && bbox.right() > x;
+            }
+        }
+        return false;
+    }
+
+    private boolean intersectsBounds(Rectangle pointTile, GeoBoundingBox bbox) {
+        if (pointTile.getMinX() > pointTile.getMaxX()) {
+            Rectangle right = new Rectangle(pointTile.getMinX(), 180, pointTile.getMaxY(), pointTile.getMinY());
+            Rectangle left = new Rectangle(-180, pointTile.getMaxX(), pointTile.getMaxY(), pointTile.getMinY());
+            return intersectsBounds(left, bbox) || intersectsBounds(right, bbox);
+        }
+        if (bbox.top() > pointTile.getMinY() && bbox.bottom() < pointTile.getMaxY()) {
+            boolean crossesDateline = bbox.left() > bbox.right();
+            if (crossesDateline) {
+                return bbox.left() < pointTile.getMaxX() || bbox.right() > pointTile.getMinX();
+            } else {
+                return bbox.left() < pointTile.getMaxX() && bbox.right() > pointTile.getMinX();
+            }
+        }
+        return false;
+    }
+
+    protected void testCase(
         Query query,
         String field,
         int precision,
@@ -322,7 +327,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             assertThat(aggregationBuilder.geoBoundingBox(), equalTo(geoBoundingBox));
         }
 
-        MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType(FIELD_NAME);
+        MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType(aggregationBuilder.field());
 
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();

@@ -32,7 +32,7 @@ public class DelayedBucketTests extends ESTestCase {
 
     public void testReduced() {
         AtomicInteger buckets = new AtomicInteger();
-        AggregationReduceContext context = new AggregationReduceContext.ForFinal(null, null, buckets::addAndGet, null, () -> false);
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(null, null, () -> false, null, buckets::addAndGet);
         DelayedBucket<?> b = new DelayedBucket<>(mockReduce(context), context, List.of(bucket("test", 1), bucket("test", 2)));
         assertThat(b.getDocCount(), equalTo(3L));
         assertThat(b.reduced(), sameInstance(b.reduced()));
@@ -60,16 +60,16 @@ public class DelayedBucketTests extends ESTestCase {
         AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             null,
             null,
-            b -> fail("shouldn't be called"),
+            () -> false,
             null,
-            () -> false
+            b -> fail("shouldn't be called")
         );
         new DelayedBucket<>(mockReduce(context), context, List.of(bucket("test", 1))).nonCompetitive();
     }
 
     public void testNonCompetitiveReduced() {
         AtomicInteger buckets = new AtomicInteger();
-        AggregationReduceContext context = new AggregationReduceContext.ForFinal(null, null, buckets::addAndGet, null, () -> false);
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(null, null, () -> false, null, buckets::addAndGet);
         DelayedBucket<?> b = new DelayedBucket<>(mockReduce(context), context, List.of(bucket("test", 1)));
         b.reduced();
         assertEquals(1, buckets.get());

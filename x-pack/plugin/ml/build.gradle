@@ -61,7 +61,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('ilm'))
   testImplementation project(path: xpackModule('shutdown'))
-  testImplementation project(path: xpackModule('data-streams'))
+  testImplementation project(':modules:data-streams')
   testImplementation project(path: xpackModule('monitoring'))
   testImplementation project(':modules:ingest-common')
   testImplementation project(':modules:reindex')

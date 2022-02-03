@@ -37,7 +37,7 @@ A `change_point` aggregation looks like this in isolation:
 // NOTCONSOLE
 <1> The buckets containing the values to test against.
 
-[[avg-bucket-agg-response]]
+[[change-point-agg-response]]
 ==== Response body
 
 `bucket`::

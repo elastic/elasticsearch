@@ -28,7 +28,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.termsenum.action.MultiShardTermsEnum;
 import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
-import org.elasticsearch.xpack.core.termsenum.action.TermCount;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -89,11 +88,11 @@ public class MultiShardTermsEnumTests extends ESTestCase {
                     if (randomBoolean()) {
                         // Simulate fields like constant-keyword which use a SimpleTermCountEnum to present results
                         // rather than the raw TermsEnum from Lucene.
-                        ArrayList<TermCount> termCounts = new ArrayList<>();
+                        ArrayList<String> termCounts = new ArrayList<>();
                         while (te.next() != null) {
-                            termCounts.add(new TermCount(te.term().utf8ToString(), te.docFreq()));
+                            termCounts.add(te.term().utf8ToString());
                         }
-                        SimpleTermCountEnum simpleEnum = new SimpleTermCountEnum(termCounts.toArray(new TermCount[0]));
+                        SimpleTermCountEnum simpleEnum = new SimpleTermCountEnum(termCounts.toArray(new String[0]));
                         termsEnums.add(simpleEnum);
                     } else {
                         termsEnums.add(te);

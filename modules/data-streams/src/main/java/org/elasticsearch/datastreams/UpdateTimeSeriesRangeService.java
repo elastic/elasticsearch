@@ -30,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 
@@ -45,6 +46,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
 
     private volatile TimeValue pollInterval;
     private volatile Scheduler.Cancellable job;
+    private final AtomicBoolean running = new AtomicBoolean(false);
 
     UpdateTimeSeriesRangeService(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
         this.pollInterval = DataStreamsPlugin.TIME_SERIES_POLL_INTERVAL.get(settings);
@@ -54,25 +56,31 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
     }
 
     void perform(Runnable onComplete) {
-        job = null;
-        clusterService.submitStateUpdateTask("update_tsdb_data_stream_end_times", new ClusterStateUpdateTask(Priority.URGENT) {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                return updateTimeSeriesTemporalRange(currentState, Instant.now());
-            }
+        if (running.compareAndSet(false, true)) {
+            LOGGER.debug("starting tsdb update task");
+            clusterService.submitStateUpdateTask("update_tsdb_data_stream_end_times", new ClusterStateUpdateTask(Priority.URGENT) {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    return updateTimeSeriesTemporalRange(currentState, Instant.now());
+                }
 
-            @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                onComplete.run();
-            }
+                @Override
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                    running.set(false);
+                    onComplete.run();
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                LOGGER.warn("failed to update tsdb data stream end times", e);
-                onComplete.run();
-            }
+                @Override
+                public void onFailure(Exception e) {
+                    running.set(false);
+                    LOGGER.warn("failed to update tsdb data stream end times", e);
+                    onComplete.run();
+                }
 
-        }, ClusterStateTaskExecutor.unbatched());
+            }, ClusterStateTaskExecutor.unbatched());
+        } else {
+            LOGGER.debug("not starting tsdb update task, because another execution is still running");
+        }
     }
 
     void setPollInterval(TimeValue newValue) {
@@ -102,23 +110,32 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
             TimeValue lookAheadTime = IndexSettings.LOOK_AHEAD_TIME.get(im.getSettings());
             Instant newEnd = now.plus(lookAheadTime.getMillis(), ChronoUnit.MILLIS).plus(pollInterval.getMillis(), ChronoUnit.MILLIS);
             if (newEnd.isAfter(currentEnd)) {
-                Settings settings = Settings.builder()
-                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DEFAULT_DATE_TIME_FORMATTER.format(newEnd))
-                    .build();
-                LOGGER.debug(
-                    "updating [{}] setting from [{}] to [{}] for index [{}]",
-                    IndexSettings.TIME_SERIES_END_TIME.getKey(),
-                    currentEnd,
-                    newEnd,
-                    head
-                );
-                if (mBuilder == null) {
-                    mBuilder = Metadata.builder(current.metadata());
+                try {
+                    Settings settings = Settings.builder()
+                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DEFAULT_DATE_TIME_FORMATTER.format(newEnd))
+                        .build();
+                    LOGGER.debug(
+                        "updating [{}] setting from [{}] to [{}] for data stream [{}]",
+                        IndexSettings.TIME_SERIES_END_TIME.getKey(),
+                        currentEnd,
+                        newEnd,
+                        dataStream.getName()
+                    );
+                    if (mBuilder == null) {
+                        mBuilder = Metadata.builder(current.metadata());
+                    }
+                    mBuilder.updateSettings(settings, head.getName());
+                    Metadata.Builder finalMBuilder = mBuilder;
+                    // Verify that all temporal ranges of each backing index is still valid:
+                    dataStream.validate(finalMBuilder::get);
+                } catch (Exception e) {
+                    LOGGER.error(
+                        "unable to update [{}] for data stream [{}] and backing index [{}]",
+                        IndexSettings.TIME_SERIES_END_TIME.getKey(),
+                        dataStream.getName(),
+                        head.getName()
+                    );
                 }
-                mBuilder.updateSettings(settings, head.getName());
-                Metadata.Builder finalMBuilder = mBuilder;
-                // Verify that all temporal ranges of each backing index is still valid:
-                dataStream.validate(finalMBuilder::get);
             }
         }
 
@@ -132,7 +149,11 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
     void scheduleTask() {
         if (job == null) {
             LOGGER.debug("schedule tsdb update task");
-            job = threadPool.schedule(() -> perform(this::scheduleTask), pollInterval, ThreadPool.Names.SAME);
+            job = threadPool.scheduleWithFixedDelay(
+                () -> perform(() -> LOGGER.debug("completed tsdb update task")),
+                pollInterval,
+                ThreadPool.Names.SAME
+            );
         }
     }
 
@@ -154,7 +175,9 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
     }
 
     @Override
-    protected void doClose() throws IOException {}
+    protected void doClose() throws IOException {
+        unschedule();
+    }
 
     @Override
     public void onMaster() {

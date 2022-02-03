@@ -44,7 +44,8 @@ To _manage_ {transforms}, you must have the following
 * `transform_admin` built-in role or `manage_transform`
 cluster privileges
 * `read` and `view_index_metadata` index privileges on source indices
-* `read`, `create_index`, and `index` index privileges on destination indices
+* `create_index`, `index`, `manage`, and `read` index privileges on destination
+indices
 
 To view only the configuration and status of {transforms}, you must have:
 
@@ -66,7 +67,7 @@ for the Data View Management feature
 * [ ] `monitoring_user` built-in role
 * [ ] data views for your source indices
 * [ ] `read` and `view_index_metadata` index privileges on source indices
-* [ ] `create_index`, `index`, `read`, and `monitor` index privileges on
+* [ ] `create_index`, `index`, `manage`, and `read` index privileges on
 destination indices
 
 Within a {kib} space, for read-only access to {transforms}, you must have:

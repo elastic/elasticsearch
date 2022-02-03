@@ -83,7 +83,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.INTRODUCING_MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 
 // TODO: add retry/back-off
 public class Querier {
@@ -144,7 +144,7 @@ public class Querier {
     public static SearchRequest prepareRequest(SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen, String... indices) {
         source.timeout(timeout);
 
-        SearchRequest searchRequest = new SearchRequest(INTRODUCING_MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION);
+        SearchRequest searchRequest = new SearchRequest(INTRODUCING_UNSIGNED_LONG);
         searchRequest.indices(indices);
         searchRequest.source(source);
         searchRequest.allowPartialSearchResults(false);
@@ -468,7 +468,7 @@ public class Querier {
 
         private BucketExtractor createExtractor(FieldExtraction ref, BucketExtractor totalCount) {
             if (ref instanceof GroupByRef r) {
-                return new CompositeKeyExtractor(r.key(), r.property(), cfg.zoneId(), r.isDateTimeBased());
+                return new CompositeKeyExtractor(r.key(), r.property(), cfg.zoneId(), r.dataType());
             }
 
             if (ref instanceof MetricAggRef r) {

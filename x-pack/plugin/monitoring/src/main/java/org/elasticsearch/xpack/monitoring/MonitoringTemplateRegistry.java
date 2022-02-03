@@ -50,7 +50,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
      * continue to use the release version number in this registry, even though this is not standard practice for template
      * registries.
      */
-    public static final int REGISTRY_VERSION = Version.V_7_14_0.id;
+    public static final int REGISTRY_VERSION = Version.V_8_1_0.id;
     private static final String REGISTRY_VERSION_VARIABLE = "xpack.monitoring.template.release.version";
 
     /**

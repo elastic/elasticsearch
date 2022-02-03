@@ -26,7 +26,6 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
@@ -64,6 +63,7 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
@@ -72,7 +72,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
@@ -131,38 +130,12 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertThat(context.buildAnonymousFieldType("long"), instanceOf(NumberFieldMapper.NumberFieldType.class));
     }
 
-    @SuppressWarnings("rawtypes")
     public void testToQueryFails() {
         SearchExecutionContext context = createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
-        Exception exc = expectThrows(Exception.class, () -> context.toQuery(new AbstractQueryBuilder() {
-            @Override
-            public String getWriteableName() {
-                return null;
-            }
-
-            @Override
-            protected void doWriteTo(StreamOutput out) throws IOException {
-
-            }
-
-            @Override
-            protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-
-            }
-
+        Exception exc = expectThrows(Exception.class, () -> context.toQuery(new DummyQueryBuilder() {
             @Override
             protected Query doToQuery(SearchExecutionContext context) throws IOException {
                 throw new RuntimeException("boom");
-            }
-
-            @Override
-            protected boolean doEquals(AbstractQueryBuilder other) {
-                return false;
-            }
-
-            @Override
-            protected int doHashCode() {
-                return 0;
             }
         }));
         assertThat(exc.getMessage(), equalTo("failed to create query: boom"));

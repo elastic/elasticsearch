@@ -44,12 +44,8 @@ public final class BasicTokenFilter extends TokenFilter {
 
     private State current;
 
-    public static BasicTokenFilter buildFromSettings(
-        boolean isTokenizeCjkChars,
-        boolean isStripAccents,
-        List<String> neverSplit,
-        TokenStream input
-    ) throws IOException {
+    public static BasicTokenFilter build(boolean isTokenizeCjkChars, boolean isStripAccents, List<String> neverSplit, TokenStream input)
+        throws IOException {
         Analyzer analyzer = new Analyzer() {
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {
@@ -129,83 +125,13 @@ public final class BasicTokenFilter extends TokenFilter {
             if (neverSplitSet.contains(termAtt)) {
                 return true;
             }
-            int startOffset = offsetAtt.startOffset();
             // split punctuation and maybe cjk chars!!!
-            LinkedList<DelimitedToken> splits = new LinkedList<>();
-            int charIndex = 0;
-            int lastCharSplit = 0;
-            for (PrimitiveIterator.OfInt it = termAtt.codePoints().iterator(); it.hasNext();) {
-                int cp = it.next();
-                if (splitOn.test(cp)) {
-                    int charCount = charIndex - lastCharSplit;
-                    if (charCount > 0) {
-                        splits.add(
-                            new DelimitedToken(
-                                termAtt.subSequence(lastCharSplit, charIndex),
-                                lastCharSplit + startOffset,
-                                charIndex + startOffset
-                            )
-                        );
-                    }
-                    splits.add(
-                        new DelimitedToken(
-                            termAtt.subSequence(charIndex, charIndex + 1),
-                            charIndex + startOffset,
-                            charIndex + 1 + startOffset
-                        )
-                    );
-                    lastCharSplit = charIndex + 1;
-                }
-                charIndex += Character.charCount(cp);
-            }
-            if (lastCharSplit < termAtt.length()) {
-                splits.add(
-                    new DelimitedToken(
-                        termAtt.subSequence(lastCharSplit, termAtt.length()),
-                        lastCharSplit + startOffset,
-                        offsetAtt.endOffset()
-                    )
-                );
-            }
+            LinkedList<DelimitedToken> splits = split();
             // There is nothing to merge, nothing to store, simply return
             if (splits.size() == 1) {
                 return true;
             }
-            List<DelimitedToken> matchingTokens = new ArrayList<>();
-            CharSeqTokenTrieNode current = neverSplit;
-            for (DelimitedToken token : splits) {
-                CharSeqTokenTrieNode childNode = current.getChild(token.charSequence());
-                if (childNode == null) {
-                    if (current != neverSplit) {
-                        tokens.addAll(matchingTokens);
-                        matchingTokens = new ArrayList<>();
-                        current = neverSplit;
-                    }
-                    childNode = current.getChild(token.charSequence());
-                    if (childNode == null) {
-                        tokens.add(token);
-                    } else {
-                        matchingTokens.add(token);
-                        current = childNode;
-                    }
-                } else if (childNode.isLeaf()) {
-                    matchingTokens.add(token);
-                    DelimitedToken mergedToken = DelimitedToken.mergeTokens(matchingTokens);
-                    if (neverSplitSet.contains(mergedToken.charSequence())) {
-                        tokens.add(mergedToken);
-                    } else {
-                        tokens.addAll(matchingTokens);
-                    }
-                    matchingTokens = new ArrayList<>();
-                    current = neverSplit;
-                } else {
-                    matchingTokens.add(token);
-                    current = childNode;
-                }
-            }
-            if (matchingTokens.isEmpty() == false) {
-                tokens.addAll(matchingTokens);
-            }
+            tokens.addAll(mergeSplits(splits));
             this.current = captureState();
             DelimitedToken token = tokens.removeFirst();
             termAtt.setEmpty().append(token.charSequence());
@@ -242,6 +168,79 @@ public final class BasicTokenFilter extends TokenFilter {
             }
         }
         termAtt.setEmpty().append(accentBuffer);
+    }
+
+    private LinkedList<DelimitedToken> split() {
+        LinkedList<DelimitedToken> splits = new LinkedList<>();
+        int startOffset = offsetAtt.startOffset();
+        int charIndex = 0;
+        int lastCharSplit = 0;
+        for (PrimitiveIterator.OfInt it = termAtt.codePoints().iterator(); it.hasNext();) {
+            int cp = it.next();
+            if (splitOn.test(cp)) {
+                int charCount = charIndex - lastCharSplit;
+                if (charCount > 0) {
+                    splits.add(
+                        new DelimitedToken(
+                            termAtt.subSequence(lastCharSplit, charIndex),
+                            lastCharSplit + startOffset,
+                            charIndex + startOffset
+                        )
+                    );
+                }
+                splits.add(
+                    new DelimitedToken(termAtt.subSequence(charIndex, charIndex + 1), charIndex + startOffset, charIndex + 1 + startOffset)
+                );
+                lastCharSplit = charIndex + 1;
+            }
+            charIndex += Character.charCount(cp);
+        }
+        if (lastCharSplit < termAtt.length()) {
+            splits.add(
+                new DelimitedToken(termAtt.subSequence(lastCharSplit, termAtt.length()), lastCharSplit + startOffset, offsetAtt.endOffset())
+            );
+        }
+        return splits;
+    }
+
+    private LinkedList<DelimitedToken> mergeSplits(LinkedList<DelimitedToken> splits) {
+        LinkedList<DelimitedToken> mergedTokens = new LinkedList<>();
+        List<DelimitedToken> matchingTokens = new ArrayList<>();
+        CharSeqTokenTrieNode current = neverSplit;
+        for (DelimitedToken token : splits) {
+            CharSeqTokenTrieNode childNode = current.getChild(token.charSequence());
+            if (childNode == null) {
+                if (current != neverSplit) {
+                    mergedTokens.addAll(matchingTokens);
+                    matchingTokens = new ArrayList<>();
+                    current = neverSplit;
+                }
+                childNode = current.getChild(token.charSequence());
+                if (childNode == null) {
+                    mergedTokens.add(token);
+                } else {
+                    matchingTokens.add(token);
+                    current = childNode;
+                }
+            } else if (childNode.isLeaf()) {
+                matchingTokens.add(token);
+                DelimitedToken mergedToken = DelimitedToken.mergeTokens(matchingTokens);
+                if (neverSplitSet.contains(mergedToken.charSequence())) {
+                    mergedTokens.add(mergedToken);
+                } else {
+                    mergedTokens.addAll(matchingTokens);
+                }
+                matchingTokens = new ArrayList<>();
+                current = neverSplit;
+            } else {
+                matchingTokens.add(token);
+                current = childNode;
+            }
+        }
+        if (matchingTokens.isEmpty() == false) {
+            mergedTokens.addAll(matchingTokens);
+        }
+        return mergedTokens;
     }
 
     static boolean isPunctuationMark(int codePoint) {

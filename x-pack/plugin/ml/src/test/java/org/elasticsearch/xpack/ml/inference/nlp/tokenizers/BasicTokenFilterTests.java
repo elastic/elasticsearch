@@ -93,10 +93,7 @@ public class BasicTokenFilterTests extends BaseTokenStreamTestCase {
             protected TokenStreamComponents createComponents(String fieldName) {
                 Tokenizer t = new WhitespaceTokenizer();
                 try {
-                    return new TokenStreamComponents(
-                        t,
-                        BasicTokenFilter.buildFromSettings(isTokenizeCjkChars, isStripAccents, neverSplit, t)
-                    );
+                    return new TokenStreamComponents(t, BasicTokenFilter.build(isTokenizeCjkChars, isStripAccents, neverSplit, t));
                 } catch (IOException ex) {
                     throw new UncheckedIOException(ex);
                 }

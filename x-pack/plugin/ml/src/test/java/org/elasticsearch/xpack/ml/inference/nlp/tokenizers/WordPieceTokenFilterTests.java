@@ -51,7 +51,7 @@ public class WordPieceTokenFilterTests extends BaseTokenStreamTestCase {
         protected TokenStreamComponents createComponents(String fieldName) {
             try {
                 WhitespaceTokenizer tokenizer = new WhitespaceTokenizer(512);
-                WordPieceTokenFilter filter = WordPieceTokenFilter.buildFromSettings(
+                WordPieceTokenFilter filter = WordPieceTokenFilter.build(
                     false,
                     false,
                     false,

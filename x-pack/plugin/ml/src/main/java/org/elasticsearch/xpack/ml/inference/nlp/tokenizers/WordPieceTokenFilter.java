@@ -35,7 +35,7 @@ public final class WordPieceTokenFilter extends TokenFilter {
     private final int tokenizedUnknown;
     private final CharSequence unknownToken;
 
-    public static WordPieceTokenFilter buildFromSettings(
+    public static WordPieceTokenFilter build(
         boolean isLowerCase,
         boolean isTokenizeCjkChars,
         boolean isStripAccents,
@@ -50,7 +50,7 @@ public final class WordPieceTokenFilter extends TokenFilter {
         for (var word : dictionary) {
             vocabMap.put(word, i++);
         }
-        input = BasicTokenFilter.buildFromSettings(isTokenizeCjkChars, isStripAccents, neverSplit, input);
+        input = BasicTokenFilter.build(isTokenizeCjkChars, isStripAccents, neverSplit, input);
         return new WordPieceTokenFilter(input, new CharArraySet(neverSplit, isLowerCase), vocabMap, unknownToken, maxInputCharsPerWord);
     }
 

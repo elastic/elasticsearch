@@ -44,7 +44,7 @@ public class WordPieceAnalyzer extends Analyzer {
     protected TokenStreamComponents createComponents(String fieldName) {
         try {
             WhitespaceTokenizer tokenizer = new WhitespaceTokenizer(512);
-            innerTokenFilter = WordPieceTokenFilter.buildFromSettings(
+            innerTokenFilter = WordPieceTokenFilter.build(
                 doLowerCase,
                 doTokenizeCjKChars,
                 doStripAccents,

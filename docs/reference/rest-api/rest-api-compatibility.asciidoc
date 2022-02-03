@@ -1,0 +1,72 @@
+[[rest-api-compatibility]]
+== REST API compatibility
+
+REST API compatibility in a per-request opt-in feature that can help REST clients mitigate non compatible (breaking) changes to the REST API.
+
+{es} REST API's are generally stable across major versions. However, there are cases where {es} REST API's are changed in a non compatible ways (breaking) with the prior major version.
+For example, {es} 7.x supported custom mapping types in many of the URL paths, but {es} 8.0+ does not support
+custom mapping types (see <<removal-of-types>>). As a result a REST client that is still using custom types in the
+URL paths to communicating with {es} 8.0+ will error. If requested, REST API compatibility can allow that request to succeed even though mapping types are no longer supported.
+
+All non compatible (breaking) changes to the {es} REST API will be deprecated in the prior major version to where the non compatible (breaking) change occurs.
+For example, if a REST API is removed (or changed in some non compatible way) in 8.x it will be will be deprecated in 7.x and will emit deprecation logs anytime that API is invoked.
+This provides the opportunity to review the deprecation logs prior to a major version upgrade and take the appropriate actions. However, there are cases where
+identifying all usages of deprecated APIs could be difficult or impossible. This is where REST API compatibility can help.
+
+When requested, REST API compatibility instructs the {es} server to attempt to honor the REST API of the prior major version.
+For most API's REST API compatibility has no effect. Requests for compatibility only impacts APIs that have non compatible (breaking) changes from the prior major version.
+For example, custom mapping types were supported in URL paths for 7.x, but are not supported in 8.x. When compatibility is requested {es} will internally and automatically redirect any URL that
+includes the custom mapping type to it's non-typed equivalent URL. In this case, requesting compatibility effectively ignores the custom mapping type of the requested URL.
+Additionally, for requests that would have warranted a response that in 7.x that included a type field REST API compatibility will inject a _type field with a hard coded value of _doc as part of the response.
+
+REST API compatibility is not constrained only to the removal of mappings types.  REST API compatibility can be requested for any API and the {es} will attempt to apply the most compatible
+URL, request body, response body, and HTTP parameters. If the API does not have non compatible (breaking) changes then it is no different than a normal request.
+Additionally, there may be some cases where compatibility can not be automatically applied. For those cases an error will still occur.
+
+It is important to note that REST API compatibility does not result in the same behavior as the prior version. Rather REST API compatibility is a best effort by the {es} service to find the best way to automatically resolve any incompatibility introduced in the REST API.
+This level of compatibility may not work for all workflows and use cases. For example, if the custom mapping types are an integral part of a workflow then ignoring the custom type at the REST API will not help.
+
+Any time REST API compatibility is requested and is invoked due to a non compatible (breaking) change, an entry to the deprecation log with the category "compatible_api" is recorded. This can be used to help identify any gaps in usage and fully supported features.
+REST API compatibility should be a bridge help smooth out a major version upgrade, not a long term strategy. REST API compatibility is only honored across one major version (i.e. honor 7.x requests/response from 8.x).
+
+Review the release notes for REST API changes for additional details.  TODO: link to https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_rest_api_changes
+
+[discrete]
+[[request-rest-api-compatibility]]
+=== Requesting REST API compatibility
+
+REST API compatibility is implemented per request via the Accept and/or Content-Type headers.
+
+For example:
+
+[source]
+------------------------------------------------------------
+Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+------------------------------------------------------------
+
+The Accept header is always required and the Content-Type header is only required when a body is sent with the request.
+The following values are valid when communicating with a 7.x or 8.x {es} server:
+[source]
+------------------------------------------------------------
+"application/vnd.elasticsearch+json;compatible-with=7"
+"application/vnd.elasticsearch+yaml;compatible-with=7"
+"application/vnd.elasticsearch+smile;compatible-with=7"
+"application/vnd.elasticsearch+cbor;compatible-with=7"
+------------------------------------------------------------
+
+The link:/guide[officially supported Elasticsearch clients] can enable REST API compatibility for all requests. TODO: link to https://www.elastic.co/guide/en/elasticsearch/client/index.html
+To enable REST API compatibility for all requests set the environment variable `ELASTIC_CLIENT_APIVERSIONING` to true.
+
+[discrete]
+=== REST API compatibility workflow
+
+The recommended workflow for upgrading to a new major and leverage REST API compatibility is as follows (from 7.x to 8.x):
+
+1. Upgrade any officially supported Elasticsearch clients to the latest 7.x version and enable REST API compatibility. TODO: link to https://www.elastic.co/guide/en/elasticsearch/client/index.html
+2. Use the {kibana-ref}/upgrade-assistant.html[Kibana upgrade assistant] and review all critical issues. Some critical issues may be mitigated by REST API compatibility.
+3. From the {kibana-ref}/upgrade-assistant.html[Kibana upgrade assistant] explore the deprecation logs and resolve all critical issues
+4. Upgrade Elasticsearch to 8.x
+5. Review the deprecation logs. If compatibility is invoked it will be logged to the deprecation logs with the category "compatible_api". Review the workflow associated with any invoked compatibility.
+6. Upgrade the official {es} clients to the matching 8.x version resolving any cases where compatibility needs to be manually resolved.
+

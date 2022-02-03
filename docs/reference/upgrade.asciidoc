@@ -5,12 +5,12 @@
 --
 ifeval::["{release-state}"!="released"]
 [[upgrade-pre-release]]
-IMPORTANT: This documentation is for a pre-release of {es} {minor-version}. 
+IMPORTANT: This documentation is for a pre-release of {es} {minor-version}.
 Upgrades from pre-release builds are not supported and
-could result in errors or data loss. 
-If you upgrade from a released version to a pre-release verion for testing, 
+could result in errors or data loss.
+If you upgrade from a released version to a pre-release verion for testing,
 discard the contents of the cluster when you are done.
-Do not attempt to upgrade to the final release. 
+Do not attempt to upgrade to the final release.
 endif::[]
 
 {es} can usually be upgraded using a <<rolling-upgrades,Rolling upgrade>>
@@ -44,7 +44,7 @@ other functionality that may have changed.
 
 [cols="<1,3",options="header",]
 |====
-|Upgrade from   
+|Upgrade from
 |Recommended upgrade path to {version}
 
 ifeval::[ "{bare_version}" != "{minor-version}.0" ]
@@ -106,6 +106,14 @@ information about upgrading old indices, see <<reindex-upgrade, Reindex to upgra
 When upgrading to a new version of {es}, you need to upgrade each
 of the products in your Elastic Stack. For more information, see the
 {stack-ref}/upgrading-elastic-stack.html[Elastic Stack Installation and Upgrade Guide].
+
+[discrete]
+[[upgrade-rest-api-compatibility]]
+=== REST API compatibility
+
+REST API compatibility in a per-request opt-in feature that can help REST clients
+mitigate non compatible (breaking) changes to the REST API.
+See <<rest-api-compatibility>> for additional information.
 
 [discrete]
 [[upgrade-fips-java17]]

@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -93,8 +92,6 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
     @After
     public void cleanUp() throws Exception {
         awaitNoMoreRunningOperations();
-        DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { SLM_HISTORY_DATA_STREAM });
-        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, req).get());
     }
 
     @Override

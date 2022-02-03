@@ -82,8 +82,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             builder.array("impacts");
             builder.startObject("components");
             for (HealthComponentResult component : components) {
-                builder.field(component.name());
-                component.toXContent(builder, params);
+                builder.field(component.name(), component, params);
             }
             builder.endObject();
             return builder.endObject();

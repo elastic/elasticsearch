@@ -11,7 +11,6 @@ package org.elasticsearch.health;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.components.controller.ClusterCoordination;
 import org.elasticsearch.plugins.Plugin;
@@ -19,11 +18,10 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
-import java.util.stream.Collectors;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class GetHealthActionIT extends ESIntegTestCase {
@@ -68,7 +66,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
         Client client = internalCluster().coordOnlyNodeClient();
 
         final NetworkDisruption disruptionScheme = new NetworkDisruption(
-            new NetworkDisruption.IsolateAllNodes(new HashSet<>(getNodes())),
+            new NetworkDisruption.IsolateAllNodes(new HashSet<>(Arrays.asList(internalCluster().getNodeNames()))),
             NetworkDisruption.DISCONNECT
         );
 
@@ -97,19 +95,5 @@ public class GetHealthActionIT extends ESIntegTestCase {
         } finally {
             internalCluster().clearDisruptionScheme(true);
         }
-    }
-
-    private List<String> getNodes() {
-        return client().admin()
-            .cluster()
-            .prepareState()
-            .get()
-            .getState()
-            .nodes()
-            .getNodes()
-            .values()
-            .stream()
-            .map(DiscoveryNode::getName)
-            .collect(Collectors.toList());
     }
 }

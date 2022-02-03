@@ -1,6 +1,0 @@
-pr: 78750
-summary: Allow total memory to be overridden
-area: Packaging
-type: enhancement
-issues:
- - 65905

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -50,7 +50,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class holds the configuration details of a data frame transform
  */
-public class TransformConfig extends AbstractDiffable<TransformConfig> implements Writeable, ToXContentObject {
+public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeable, ToXContentObject {
 
     /**
      * Version of the last time the config defaults have been changed.

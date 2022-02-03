@@ -145,8 +145,8 @@ no partitioning:
 ---
 routing_path required:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: the message was changed in 8.2.0
 
   - do:
       catch: /\[index.mode=time_series\] requires a non-empty \[index.routing_path\]/
@@ -201,8 +201,8 @@ routing required:
 ---
 empty routing_path:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: the message was changed in 8.2.0
 
   - do:
       catch: /\[index.mode=time_series\] requires a non-empty \[index.routing_path\]/
@@ -528,8 +528,8 @@ check end_time boundary with data_nano:
 ---
 check time_series default time bound value:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.2.0
+      version: " - 8.1.99"
+      reason: behavior was changed in 8.2.0
   - do:
       indices.create:
         index: test_index

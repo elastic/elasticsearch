@@ -13,31 +13,30 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
- * This class tracks the intermediate responses that can be used to construct the aggregated response. It also gives the possibility to
- * discard the intermediate results when asked, a use case for this call is when the corresponding task is cancelled.
+ * This class tracks the intermediate responses that will be used to create aggregated cluster response to a request. It also gives the
+ * possibility to discard the intermediate results when asked, for example when the initial request is cancelled, in order to release the
+ * resources.
  */
 public class NodeResponseTracker {
 
-    private final int expectedResponses;
-    private final AtomicInteger counter = new AtomicInteger();
+    private final AtomicInteger receivedResponsesCounter = new AtomicInteger();
     private final AtomicReferenceArray<Boolean> receivedResponseFromNode;
     private volatile AtomicReferenceArray<Object> responses;
     private volatile Exception causeOfDiscarding;
 
     public NodeResponseTracker(int size) {
-        this.expectedResponses = size;
         this.responses = new AtomicReferenceArray<>(size);
         this.receivedResponseFromNode = new AtomicReferenceArray<>(size);
     }
 
     public NodeResponseTracker(Collection<Object> array) {
         this.responses = new AtomicReferenceArray<>(array.toArray());
-        this.expectedResponses = responses.length();
         this.receivedResponseFromNode = new AtomicReferenceArray<>(responses.length());
     }
 
     /**
-     * This method discards the results collected to free up the resources.
+     * This method discards the results collected so far to free up the resources.
+     * @param cause the discarding, this will be communicated if they try to access the discarded results
      */
     public void discardIntermediateResponses(Exception cause) {
         if (responses != null) {
@@ -47,7 +46,7 @@ public class NodeResponseTracker {
     }
 
     public boolean allNodesResponded() {
-        return expectedResponses == counter.get();
+        return receivedResponseFromNode.length() == receivedResponsesCounter.get();
     }
 
     public boolean responsesDiscarded() {
@@ -66,7 +65,7 @@ public class NodeResponseTracker {
         AtomicReferenceArray<Object> responses = this.responses;
         boolean firstEncounter = receivedResponseFromNode.compareAndSet(nodeIndex, null, true);
         if (firstEncounter) {
-            counter.incrementAndGet();
+            receivedResponsesCounter.incrementAndGet();
         }
         if (responsesDiscarded() || firstEncounter == false) {
             return false;
@@ -76,6 +75,11 @@ public class NodeResponseTracker {
         return true;
     }
 
+    /**
+     * Returns the tracked response or null if the response hasn't been received yet for a specific index that represents a node of the
+     * cluster.
+     * @throws DiscardedResponsesException if the responses have been discarded
+     */
     public Object getResponse(int nodeIndex) throws DiscardedResponsesException {
         AtomicReferenceArray<Object> responses = this.responses;
         if (responsesDiscarded()) {
@@ -84,11 +88,15 @@ public class NodeResponseTracker {
         return responses.get(nodeIndex);
     }
 
+    /**
+     * The count of the expected responses
+     * @throws DiscardedResponsesException if the responses have been discarded
+     */
     public int size() throws DiscardedResponsesException {
         if (responsesDiscarded()) {
             throw new DiscardedResponsesException(causeOfDiscarding);
         }
-        return expectedResponses;
+        return receivedResponseFromNode.length();
     }
 
     /**

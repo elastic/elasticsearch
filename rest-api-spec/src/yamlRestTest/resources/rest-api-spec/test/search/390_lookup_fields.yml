@@ -27,8 +27,8 @@ setup:
 ---
 "Retrieve lookup fields":
   - skip:
-      version: " - 8.0.99"
-      reason: "Lookup fields are introduced in 8.1"
+      version: " - 8.1.99"
+      reason: "Lookup fields are introduced in 8.2"
   - do:
       search:
         index: logs

@@ -257,19 +257,26 @@ public class Archives {
             send "%s\\r"
             expect eof
             """.formatted(keystorePassword);
-        String expectScript = """
-            expect - <<EXPECT
-            set timeout 30
-            spawn -ignore HUP %s
-            %s
+        String checkStartupScript = daemonize ? "" : """
             expect {
               "uncaught exception" { send_user "\\nStartup failed due to uncaught exception\\n"; exit 1 }
               timeout { send_user "\\nTimed out waiting for startup to succeed\\n"; exit 1 }
               eof { send_user "\\nFailed to determine if startup succeeded\\n"; exit 1 }
               -re "o\\.e\\.n\\.Node.*] started"
             }
+            """;
+        String expectScript = """
+            expect - <<EXPECT
+            set timeout 30
+            spawn -ignore HUP %s
+            %s
+            %s
             EXPECT
-            """.formatted(String.join(" ", command).formatted(ARCHIVE_OWNER, bin.elasticsearch, pidFile), keystoreScript);
+            """.formatted(
+            String.join(" ", command).formatted(ARCHIVE_OWNER, bin.elasticsearch, pidFile),
+            keystoreScript,
+            checkStartupScript
+        );
         sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
         return sh.runIgnoreExitCode(expectScript);
     }

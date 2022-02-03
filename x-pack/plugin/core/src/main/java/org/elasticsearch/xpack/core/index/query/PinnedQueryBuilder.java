@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
@@ -189,4 +190,8 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
             && boost == other.boost;
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_4_0;
+    }
 }

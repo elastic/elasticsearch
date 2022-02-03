@@ -457,7 +457,9 @@ setup:
               range:
                 field: date
                 ranges:
-                  { from: 2021-05-01T00:00:00Z, to: 2021-05-05T00:00:00Z }
+                 -
+                   from: 2021-05-01T00:00:00Z
+                   to: 2021-05-05T00:00:00Z
 
   - match: { hits.total.value: 5 }
   - length: { aggregations.date_range.buckets: 1 }

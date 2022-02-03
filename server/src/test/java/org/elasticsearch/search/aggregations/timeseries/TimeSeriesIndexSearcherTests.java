@@ -91,6 +91,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
             BytesRef currentTSID = null;
             long currentTimestamp = 0;
+            long total = 0;
 
             @Override
             public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
@@ -106,10 +107,13 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
                         long latestTimestamp = timestamp.longValue();
                         if (currentTSID != null) {
                             assertTrue(latestTSID.compareTo(currentTSID) >= 0);
-                            assertTrue(latestTimestamp >= currentTimestamp);
+                            if (latestTSID.equals(currentTSID)) {
+                                assertTrue(latestTimestamp >= currentTimestamp);
+                            }
                         }
                         currentTimestamp = latestTimestamp;
                         currentTSID = latestTSID;
+                        total++;
                     }
                 };
             }
@@ -121,7 +125,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
             @Override
             public void postCollection() throws IOException {
-
+                assertEquals(2500, total);
             }
 
             @Override
@@ -131,6 +135,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         };
 
         indexSearcher.search(new MatchAllDocsQuery(), collector);
+        collector.postCollection();
 
         reader.close();
         dir.close();

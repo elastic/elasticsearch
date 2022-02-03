@@ -69,6 +69,10 @@ public class TimeSeriesIndexSearcher {
             }
         };
 
+        // The priority queue is filled for each TSID in order. When a walker moves
+        // to the next TSID it is removed from the queue. Once the queue is empty,
+        // we refill it with walkers positioned on the next TSID. Within the queue
+        // walkers are ordered by timestamp.
         while (populateQueue(leafWalkers, queue)) {
             do {
                 LeafWalker walker = queue.top();
@@ -82,6 +86,7 @@ public class TimeSeriesIndexSearcher {
         }
     }
 
+    // Re-populate the queue with walkers on the same TSID.
     private boolean populateQueue(List<LeafWalker> leafWalkers, PriorityQueue<LeafWalker> queue) throws IOException {
         BytesRef currentTsid = null;
         assert queue.size() == 0;
@@ -89,6 +94,8 @@ public class TimeSeriesIndexSearcher {
         while (it.hasNext()) {
             LeafWalker leafWalker = it.next();
             if (leafWalker.docId == DocIdSetIterator.NO_MORE_DOCS) {
+                // If a walker is exhausted then we can remove it from consideration
+                // entirely
                 it.remove();
                 continue;
             }
@@ -98,6 +105,9 @@ public class TimeSeriesIndexSearcher {
             }
             int comp = tsid.compareTo(currentTsid);
             if (comp < 0) {
+                // We've found a walker on a lower TSID, so we remove all walkers
+                // collected so far from the queue and reset our comparison TSID
+                // to be the lower value
                 queue.clear();
                 queue.add(leafWalker);
                 currentTsid = tsid;
@@ -106,7 +116,18 @@ public class TimeSeriesIndexSearcher {
                 queue.add(leafWalker);
             }
         }
+        assert queueAllHaveTsid(queue, currentTsid);
+        // If all walkers are exhausted then nothing will have been added to the queue
+        // and we're done
         return queue.size() > 0;
+    }
+
+    private boolean queueAllHaveTsid(PriorityQueue<LeafWalker> queue, BytesRef tsid) throws IOException {
+        for (LeafWalker leafWalker : queue) {
+            BytesRef walkerId = leafWalker.tsids.lookupOrd(leafWalker.tsids.ordValue());
+            assert walkerId.equals(tsid) : tsid.utf8ToString() + " != " + walkerId.utf8ToString();
+        }
+        return true;
     }
 
     private static class LeafWalker {
@@ -114,8 +135,8 @@ public class TimeSeriesIndexSearcher {
         private final Bits liveDocs;
         private final DocIdSetIterator iterator;
         private final SortedDocValues tsids;
-        private final SortedNumericDocValues timestamps;
-        int docId;
+        private final SortedNumericDocValues timestamps;    // TODO can we have this just a NumericDocValues?
+        int docId = -1;
         int tsidOrd;
         long timestamp;
 
@@ -129,6 +150,8 @@ public class TimeSeriesIndexSearcher {
         }
 
         void collectCurrent() throws IOException {
+            assert tsids.docID() == docId;
+            assert timestamps.docID() == docId;
             collector.collect(docId);
         }
 
@@ -139,15 +162,20 @@ public class TimeSeriesIndexSearcher {
             do {
                 docId = iterator.nextDoc();
             } while (docId != DocIdSetIterator.NO_MORE_DOCS && isInvalidDoc(docId));
+            if (docId != DocIdSetIterator.NO_MORE_DOCS) {
+                timestamp = timestamps.nextValue();
+            }
             return docId;
         }
 
+        // invalid if the doc is deleted or if it doesn't have a tsid or timestamp entry
         private boolean isInvalidDoc(int docId) throws IOException {
-            return (liveDocs == null || liveDocs.get(docId) == false)
+            return (liveDocs != null && liveDocs.get(docId) == false)
                 || tsids.advanceExact(docId) == false
                 || timestamps.advanceExact(docId) == false;
         }
 
+        // true if the TSID ord has changed since the last time we checked
         boolean shouldPop() throws IOException {
             if (tsidOrd == -1) {
                 tsidOrd = tsids.ordValue();

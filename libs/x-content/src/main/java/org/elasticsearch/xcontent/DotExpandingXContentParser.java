@@ -19,11 +19,12 @@ import java.util.Deque;
  */
 public class DotExpandingXContentParser extends FilterXContentParser {
 
-    private static class WrappingParser extends DelegatingXContentParser {
+    private static class WrappingParser extends FilterXContentParser {
 
         final Deque<XContentParser> parsers = new ArrayDeque<>();
 
         WrappingParser(XContentParser in) throws IOException {
+            super(null);
             parsers.push(in);
             if (in.currentToken() == Token.FIELD_NAME) {
                 expandDots();

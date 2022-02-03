@@ -13,16 +13,16 @@ import org.elasticsearch.test.ESTestCase;
 public class NodeResponseTrackerTests extends ESTestCase {
 
     public void testAllResponsesReceived() throws Exception {
-        int size = randomIntBetween(1, 10);
-        NodeResponseTracker intermediateNodeResponses = new NodeResponseTracker(size);
-        for (int i = 0; i < size; i++) {
+        int nodes = randomIntBetween(1, 10);
+        NodeResponseTracker intermediateNodeResponses = new NodeResponseTracker(nodes);
+        for (int i = 0; i < nodes; i++) {
             assertTrue(intermediateNodeResponses.maybeAddResponse(i, randomBoolean() ? i : new Exception("from node " + i)));
         }
 
         assertTrue(intermediateNodeResponses.allNodesResponded());
         assertFalse(intermediateNodeResponses.responsesDiscarded());
-        assertEquals(size, intermediateNodeResponses.size());
-        for (int i = 0; i < size; i++) {
+        assertEquals(nodes, intermediateNodeResponses.expectedResponseCount());
+        for (int i = 0; i < nodes; i++) {
             assertNotNull(intermediateNodeResponses.getResponse(i));
             if (intermediateNodeResponses.getResponse(i)instanceof Integer nodeResponse) {
                 assertEquals(i, nodeResponse.intValue());
@@ -31,10 +31,10 @@ public class NodeResponseTrackerTests extends ESTestCase {
     }
 
     public void testDiscardingResults() {
-        int size = randomIntBetween(1, 10);
-        int cancelAt = randomIntBetween(0, Math.max(0, size - 2));
-        NodeResponseTracker intermediateNodeResponses = new NodeResponseTracker(size);
-        for (int i = 0; i < size; i++) {
+        int nodes = randomIntBetween(1, 10);
+        int cancelAt = randomIntBetween(0, Math.max(0, nodes - 2));
+        NodeResponseTracker intermediateNodeResponses = new NodeResponseTracker(nodes);
+        for (int i = 0; i < nodes; i++) {
             if (i == cancelAt) {
                 intermediateNodeResponses.discardIntermediateResponses(new Exception("simulated"));
             }
@@ -48,7 +48,7 @@ public class NodeResponseTrackerTests extends ESTestCase {
 
         assertTrue(intermediateNodeResponses.responsesDiscarded());
         assertTrue(intermediateNodeResponses.allNodesResponded());
-        expectThrows(NodeResponseTracker.DiscardedResponsesException.class, intermediateNodeResponses::size);
+        assertEquals(nodes, intermediateNodeResponses.expectedResponseCount());
         expectThrows(NodeResponseTracker.DiscardedResponsesException.class, () -> intermediateNodeResponses.getResponse(0));
     }
 

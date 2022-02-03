@@ -127,7 +127,7 @@ public abstract class TransportBroadcastByNodeAction<
         int successfulShards = 0;
         List<ShardOperationResult> broadcastByNodeResponses = new ArrayList<>();
         List<DefaultShardOperationFailedException> exceptions = new ArrayList<>();
-        for (int i = 0; i < nodeResponseTracker.size(); i++) {
+        for (int i = 0; i < nodeResponseTracker.expectedResponseCount(); i++) {
             Object response = nodeResponseTracker.getResponse(i);
             if (response instanceof FailedNodeException exception) {
                 totalShards += nodes.get(exception.nodeId()).size();

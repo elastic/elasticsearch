@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class NodeResponseTracker {
 
-    private final AtomicInteger receivedResponsesCounter = new AtomicInteger();
+    private final AtomicInteger counter = new AtomicInteger();
     private final AtomicReferenceArray<Boolean> receivedResponseFromNode;
     private volatile AtomicReferenceArray<Object> responses;
     private volatile Exception causeOfDiscarding;
@@ -46,7 +46,7 @@ public class NodeResponseTracker {
     }
 
     public boolean allNodesResponded() {
-        return receivedResponseFromNode.length() == receivedResponsesCounter.get();
+        return counter.get() == expectedResponseCount();
     }
 
     public boolean responsesDiscarded() {
@@ -65,7 +65,7 @@ public class NodeResponseTracker {
         AtomicReferenceArray<Object> responses = this.responses;
         boolean firstEncounter = receivedResponseFromNode.compareAndSet(nodeIndex, null, true);
         if (firstEncounter) {
-            receivedResponsesCounter.incrementAndGet();
+            counter.incrementAndGet();
         }
         if (responsesDiscarded() || firstEncounter == false) {
             return false;
@@ -88,14 +88,7 @@ public class NodeResponseTracker {
         return responses.get(nodeIndex);
     }
 
-    /**
-     * The count of the expected responses
-     * @throws DiscardedResponsesException if the responses have been discarded
-     */
-    public int size() throws DiscardedResponsesException {
-        if (responsesDiscarded()) {
-            throw new DiscardedResponsesException(causeOfDiscarding);
-        }
+    public int expectedResponseCount() {
         return receivedResponseFromNode.length();
     }
 

@@ -144,7 +144,7 @@ public abstract class TransportNodesAction<
         final List<NodeResponse> responses = new ArrayList<>();
         final List<FailedNodeException> failures = new ArrayList<>();
 
-        for (int i = 0; i < nodeResponseTracker.size(); ++i) {
+        for (int i = 0; i < nodeResponseTracker.expectedResponseCount(); ++i) {
             Object response = nodeResponseTracker.getResponse(i);
             if (nodeResponseTracker.getResponse(i)instanceof FailedNodeException failedNodeException) {
                 failures.add(failedNodeException);

@@ -12,7 +12,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder;
-import org.elasticsearch.xpack.vectors.query.BinaryDenseVectorScriptDocValues.BinaryDenseVectorSupplier;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -29,10 +28,10 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
 
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
             BinaryDocValues docValues = wrap(vectors, indexVersion);
-            BinaryDenseVectorSupplier supplier = new BinaryDenseVectorSupplier(docValues);
-            DenseVectorScriptDocValues scriptDocValues = new BinaryDenseVectorScriptDocValues(supplier, indexVersion, dims);
+            BinaryDenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", indexVersion, dims);
+            DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
             for (int i = 0; i < vectors.length; i++) {
-                supplier.setNextDocId(i);
+                field.setNextDocId(i);
                 assertArrayEquals(vectors[i], scriptDocValues.getVectorValue(), 0.0001f);
                 assertEquals(expectedMagnitudes[i], scriptDocValues.getMagnitude(), 0.0001f);
             }
@@ -43,10 +42,10 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         int dims = 3;
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         BinaryDocValues docValues = wrap(vectors, Version.CURRENT);
-        BinaryDenseVectorSupplier supplier = new BinaryDenseVectorSupplier(docValues);
-        DenseVectorScriptDocValues scriptDocValues = new BinaryDenseVectorScriptDocValues(supplier, Version.CURRENT, dims);
+        BinaryDenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", Version.CURRENT, dims);
+        DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
 
-        supplier.setNextDocId(3);
+        field.setNextDocId(3);
         Exception e = expectThrows(IllegalArgumentException.class, scriptDocValues::getVectorValue);
         assertEquals("A document doesn't have a value for a vector field!", e.getMessage());
 
@@ -58,12 +57,17 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         int dims = 3;
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         BinaryDocValues docValues = wrap(vectors, Version.CURRENT);
-        BinaryDenseVectorSupplier supplier = new BinaryDenseVectorSupplier(docValues);
-        DenseVectorScriptDocValues scriptDocValues = new BinaryDenseVectorScriptDocValues(supplier, Version.CURRENT, dims);
+        BinaryDenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", Version.CURRENT, dims);
+        DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
 
-        supplier.setNextDocId(0);
+        field.setNextDocId(0);
         Exception e = expectThrows(UnsupportedOperationException.class, () -> scriptDocValues.get(0));
-        assertThat(e.getMessage(), containsString("accessing a vector field's value through 'get' or 'value' is not supported!"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "accessing a vector field's value through 'get' or 'value' is not supported, use 'vectorValue' or 'magnitude' instead."
+            )
+        );
     }
 
     public void testSimilarityFunctions() throws IOException {
@@ -73,10 +77,10 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
 
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
             BinaryDocValues docValues = wrap(new float[][] { docVector }, indexVersion);
-            BinaryDenseVectorSupplier supplier = new BinaryDenseVectorSupplier(docValues);
-            DenseVectorScriptDocValues scriptDocValues = new BinaryDenseVectorScriptDocValues(supplier, Version.CURRENT, dims);
+            BinaryDenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", indexVersion, dims);
+            DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
 
-            supplier.setNextDocId(0);
+            field.setNextDocId(0);
 
             assertEquals(
                 "dotProduct result is not equal to the expected value!",

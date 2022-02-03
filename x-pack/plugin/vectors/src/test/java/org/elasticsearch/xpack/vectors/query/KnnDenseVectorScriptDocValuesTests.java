@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.vectors.query;
 import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.vectors.query.KnnDenseVectorScriptDocValues.KnnDenseVectorSupplier;
 
 import java.io.IOException;
 
@@ -23,10 +22,10 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         float[] expectedMagnitudes = { 1.7320f, 2.4495f, 3.3166f };
 
-        KnnDenseVectorSupplier supplier = new KnnDenseVectorSupplier(wrap(vectors));
-        DenseVectorScriptDocValues scriptDocValues = new KnnDenseVectorScriptDocValues(supplier, dims);
+        DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(wrap(vectors), "test", dims);
+        DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
         for (int i = 0; i < vectors.length; i++) {
-            supplier.setNextDocId(i);
+            field.setNextDocId(i);
             assertArrayEquals(vectors[i], scriptDocValues.getVectorValue(), 0.0001f);
             assertEquals(expectedMagnitudes[i], scriptDocValues.getMagnitude(), 0.0001f);
         }
@@ -35,10 +34,10 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
     public void testMissingValues() throws IOException {
         int dims = 3;
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
-        KnnDenseVectorSupplier supplier = new KnnDenseVectorSupplier(wrap(vectors));
-        DenseVectorScriptDocValues scriptDocValues = new KnnDenseVectorScriptDocValues(supplier, dims);
+        DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(wrap(vectors), "test", dims);
+        DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
 
-        supplier.setNextDocId(3);
+        field.setNextDocId(3);
         Exception e = expectThrows(IllegalArgumentException.class, () -> scriptDocValues.getVectorValue());
         assertEquals("A document doesn't have a value for a vector field!", e.getMessage());
 
@@ -49,12 +48,17 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
     public void testGetFunctionIsNotAccessible() throws IOException {
         int dims = 3;
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
-        KnnDenseVectorSupplier supplier = new KnnDenseVectorSupplier(wrap(vectors));
-        DenseVectorScriptDocValues scriptDocValues = new KnnDenseVectorScriptDocValues(supplier, dims);
+        DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(wrap(vectors), "test", dims);
+        DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
 
-        supplier.setNextDocId(0);
+        field.setNextDocId(0);
         Exception e = expectThrows(UnsupportedOperationException.class, () -> scriptDocValues.get(0));
-        assertThat(e.getMessage(), containsString("accessing a vector field's value through 'get' or 'value' is not supported!"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "accessing a vector field's value through 'get' or 'value' is not supported, use 'vectorValue' or 'magnitude' instead."
+            )
+        );
     }
 
     public void testSimilarityFunctions() throws IOException {
@@ -62,9 +66,9 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
         float[] docVector = new float[] { 230.0f, 300.33f, -34.8988f, 15.555f, -200.0f };
         float[] queryVector = new float[] { 0.5f, 111.3f, -13.0f, 14.8f, -156.0f };
 
-        KnnDenseVectorSupplier supplier = new KnnDenseVectorSupplier(wrap(new float[][] { docVector }));
-        DenseVectorScriptDocValues scriptDocValues = new KnnDenseVectorScriptDocValues(supplier, dims);
-        supplier.setNextDocId(0);
+        DenseVectorDocValuesField field = new KnnDenseVectorDocValuesField(wrap(new float[][] { docVector }), "test", dims);
+        DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
+        field.setNextDocId(0);
 
         assertEquals("dotProduct result is not equal to the expected value!", 65425.624, scriptDocValues.dotProduct(queryVector), 0.001);
         assertEquals("l1norm result is not equal to the expected value!", 485.184, scriptDocValues.l1Norm(queryVector), 0.001);

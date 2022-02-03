@@ -8,7 +8,6 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -718,40 +716,15 @@ public class SearchModuleTests extends ESTestCase {
         }
     }
 
-    static class CompatQueryBuilder extends AbstractQueryBuilder<CompatQueryBuilder> {
+    static class CompatQueryBuilder extends DummyQueryBuilder {
         public static final String NAME = "compat_name";
         public static final ParseField NAME_OLD = new ParseField(NAME).forRestApiVersion(
             RestApiVersion.equalTo(RestApiVersion.minimumSupported())
         );
 
-        public static CompatQueryBuilder fromXContent(XContentParser parser) throws IOException {
-            return null;
-        }
-
         @Override
         public String getWriteableName() {
             return NAME;
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {}
-
-        @Override
-        protected void doXContent(XContentBuilder builder, Params params) throws IOException {}
-
-        @Override
-        protected Query doToQuery(SearchExecutionContext context) throws IOException {
-            return null;
-        }
-
-        @Override
-        protected boolean doEquals(CompatQueryBuilder other) {
-            return false;
-        }
-
-        @Override
-        protected int doHashCode() {
-            return 0;
         }
     }
 

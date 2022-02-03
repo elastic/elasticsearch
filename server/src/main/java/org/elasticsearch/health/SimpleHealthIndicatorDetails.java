@@ -8,22 +8,22 @@
 
 package org.elasticsearch.health;
 
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.Objects;
 
-public record HealthIndicatorResult(String name, String component, HealthStatus status, String summary, HealthIndicatorDetails details)
-    implements
-        ToXContentObject {
+public class SimpleHealthIndicatorDetails implements HealthIndicatorDetails {
+
+    private final Map<String, Object> details;
+
+    public SimpleHealthIndicatorDetails(Map<String, Object> details) {
+        this.details = Objects.requireNonNull(details);
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("status", status);
-        builder.field("summary", summary);
-        builder.field("details", details, params);
-        // TODO 83303: Add detail / documentation
-        return builder.endObject();
+        return builder.map(details);
     }
 }

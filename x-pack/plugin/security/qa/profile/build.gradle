@@ -19,6 +19,8 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
 
+  systemProperty 'es.user_profile_feature_flag_enabled', 'true'
+
   user username: "test_admin", password: 'x-pack-test-password'
   user username: "rac_user", password: 'x-pack-test-password', role: "rac_role"
 }

@@ -10,5 +10,4 @@ package org.elasticsearch.readiness;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class ReadinessServiceTests extends ESTestCase {
-}
+public class ReadinessServiceTests extends ESTestCase {}

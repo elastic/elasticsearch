@@ -12,8 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.settings.Setting;
@@ -23,8 +21,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.http.HttpServerTransport;
 
 import java.io.IOException;
 import java.net.StandardProtocolFamily;
@@ -63,10 +60,10 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     private volatile boolean ready = false;
     private final boolean enabled;
 
-    private final TransportService transportService;
+    private final HttpServerTransport httpTransport;
 
-    public ReadinessService(Environment environment, TransportService transportService) {
-        this.transportService = transportService;
+    public ReadinessService(Environment environment, HttpServerTransport httpTransport) {
+        this.httpTransport = httpTransport;
         this.serverChannel = null;
         this.environment = environment;
         this.enabled = ENABLED_SETTING.get(environment.settings());
@@ -179,7 +176,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     void sendStatus(SocketChannel channel) {
         try {
-            BoundTransportAddress boundAddress = transportService.boundAddress();
+            BoundTransportAddress boundAddress = httpTransport.boundAddress();
             StringBuilder sb = new StringBuilder(Boolean.toString(ready));
 
             if (boundAddress != null && boundAddress.publishAddress() != null) {

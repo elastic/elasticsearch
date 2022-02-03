@@ -39,7 +39,7 @@ REST API compatibility is implemented per request via the Accept and/or Content-
 
 For example:
 
-[source]
+[source, text]
 ------------------------------------------------------------
 Accept: "application/vnd.elasticsearch+json;compatible-with=7"
 Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
@@ -47,7 +47,7 @@ Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
 
 The Accept header is always required and the Content-Type header is only required when a body is sent with the request.
 The following values are valid when communicating with a 7.x or 8.x {es} server:
-[source]
+[source, text]
 ------------------------------------------------------------
 "application/vnd.elasticsearch+json;compatible-with=7"
 "application/vnd.elasticsearch+yaml;compatible-with=7"

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.node;
+package org.elasticsearch.readiness;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -42,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
+    private static final String READINESS_SERVICE_THREADPOOL_NAME = "readiness-service";
     private static final String READINESS_WORKER_THREADPOOL_NAME = "readiness-worker";
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
     private static final int RESPONSE_TIMEOUT_MILLIS = 1_000;
@@ -54,7 +56,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     private final Environment environment;
     private final ExecutorService workerExecutor;
-    private final ThreadPool threadPool;
+    private final ExecutorService executor;
 
     private ServerSocketChannel serverChannel;
 
@@ -63,13 +65,21 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     private final TransportService transportService;
 
-    ReadinessService(Environment environment, ThreadPool threadPool, TransportService transportService) {
-        this.threadPool = threadPool;
+    public ReadinessService(Environment environment, TransportService transportService) {
         this.transportService = transportService;
         this.serverChannel = null;
         this.environment = environment;
         this.enabled = ENABLED_SETTING.get(environment.settings());
         if (enabled) {
+            this.executor = EsExecutors.newFixed(
+                READINESS_SERVICE_THREADPOOL_NAME,
+                1,
+                1000,
+                EsExecutors.daemonThreadFactory("elasticsearch[readiness-service]"),
+                new ThreadContext(environment.settings()),
+                false
+            );
+
             this.workerExecutor = EsExecutors.newScaling(
                 READINESS_WORKER_THREADPOOL_NAME,
                 0,
@@ -83,6 +93,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         } else {
             logger.info("readiness service disabled");
             this.workerExecutor = null;
+            this.executor = null;
         }
     }
 
@@ -120,7 +131,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
         this.serverChannel = setupUnixDomainSocket();
 
-        threadPool.generic().submit(wrapReadinessService(() -> {
+        executor.execute(wrapReadinessService(() -> {
             while (serverChannel.isOpen()) {
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                     try (SocketChannel channel = serverChannel.accept()) {
@@ -200,7 +211,6 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         if (enabled == false) {
             return;
         }
-        ClusterStateHealth health = new ClusterStateHealth(event.state());
-        this.ready = health.getStatus() != ClusterHealthStatus.RED;
+        this.ready = event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false;
     }
 }

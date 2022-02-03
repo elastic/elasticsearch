@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.xcontent.XContentBuilder;
-
-import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -39,18 +36,5 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), cursor);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("cursor", cursor);
-        builder.field("mode", mode().toString());
-        if (clientId() != null) {
-            builder.field("client_id", clientId());
-        }
-        if (version() != null) {
-            builder.field("version", version().toString());
-        }
-        return builder;
     }
 }

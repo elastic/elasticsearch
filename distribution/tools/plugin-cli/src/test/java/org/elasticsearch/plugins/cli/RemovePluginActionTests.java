@@ -28,7 +28,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -36,26 +35,13 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class RemovePluginActionTests extends ESTestCase {
 
     private Path home;
     private Environment env;
-
-    static class MockRemovePluginCommand extends RemovePluginCommand {
-        final Environment env;
-
-        private MockRemovePluginCommand(final Environment env) {
-            this.env = env;
-        }
-
-        @Override
-        protected Environment createEnv(Map<String, String> settings) throws UserException {
-            return env;
-        }
-    }
 
     @Override
     @Before
@@ -121,7 +107,7 @@ public class RemovePluginActionTests extends ESTestCase {
 
     public void testMissing() throws Exception {
         UserException e = expectThrows(UserException.class, () -> removePlugin("dne", home, randomBoolean()));
-        assertTrue(e.getMessage(), e.getMessage().contains("plugin [dne] not found"));
+        assertThat(e.getMessage(), containsString("plugin [dne] not found"));
         assertRemoveCleaned(env);
     }
 
@@ -182,7 +168,7 @@ public class RemovePluginActionTests extends ESTestCase {
         createPlugin("fake");
         Files.createFile(env.binFile().resolve("fake"));
         UserException e = expectThrows(UserException.class, () -> removePlugin("fake", home, randomBoolean()));
-        assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
+        assertThat(e.getMessage(), containsString("not a directory"));
         assertTrue(Files.exists(env.pluginsFile().resolve("fake"))); // did not remove
         assertTrue(Files.exists(env.binFile().resolve("fake")));
         assertRemoveCleaned(env);
@@ -224,7 +210,7 @@ public class RemovePluginActionTests extends ESTestCase {
 
     public void testPurgeNothingExists() throws Exception {
         final UserException e = expectThrows(UserException.class, () -> removePlugin("fake", home, true));
-        assertThat(e, hasToString(containsString("plugin [fake] not found")));
+        assertThat(e.getMessage(), containsString("plugin [fake] not found"));
     }
 
     public void testPurgeOnlyMarkerFileExists() throws Exception {
@@ -276,7 +262,7 @@ public class RemovePluginActionTests extends ESTestCase {
 
         e = expectThrows(UserException.class, () -> removePlugin(emptyList(), home, randomBoolean()));
         assertEquals(ExitCodes.USAGE, e.exitCode);
-        assertEquals("At least one plugin ID is required", e.getMessage());
+        assertThat(e.getMessage(), equalTo("At least one plugin ID is required"));
     }
 
     public void testRemoveWhenRemovingMarker() throws Exception {
@@ -284,6 +270,47 @@ public class RemovePluginActionTests extends ESTestCase {
         Files.createFile(env.pluginsFile().resolve("fake").resolve("plugin.jar"));
         Files.createFile(env.pluginsFile().resolve(".removing-fake"));
         removePlugin("fake", home, randomBoolean());
+    }
+
+    /**
+     * Check that if a plugin exists that has since been migrated to a module, then it is still possible
+     * to remove that plugin.
+     */
+    public void testRemoveMigratedPluginsWhenInstalled() throws Exception {
+        for (String id : List.of("repository-azure", "repository-gcs", "repository-s3")) {
+            createPlugin(id);
+            Files.createFile(env.pluginsFile().resolve(id).resolve("plugin.jar"));
+            final MockTerminal terminal = removePlugin(id, home, randomBoolean());
+
+            assertThat(Files.exists(env.pluginsFile().resolve(id)), is(false));
+            // This message shouldn't be printed if plugin was actually installed.
+            assertThat(terminal.getErrorOutput(), not(containsString("plugin [" + id + "] is no longer a plugin")));
+        }
+    }
+
+    /**
+     * Check that if we attempt to remove a plugin that has been migrated to a module, and that plugin is
+     * not actually installed, then we print an appropriate message and exit with a success code.
+     */
+    public void testRemoveMigratedPluginsWhenNotInstalled() throws Exception {
+        for (String id : List.of("repository-azure", "repository-gcs", "repository-s3")) {
+            final MockTerminal terminal = removePlugin(id, home, randomBoolean());
+            assertThat(terminal.getErrorOutput(), containsString("plugin [" + id + "] is no longer a plugin"));
+        }
+    }
+
+    /**
+     * Check that when removing (1) a regular, installed plugin and (2) an uninstalled plugin that has been migrated
+     * to a module, then the overall removal succeeds, and a message is printed about the migrated pluging.
+     */
+    public void testRemoveRegularInstalledPluginAndMigratedUninstalledPlugin() throws Exception {
+        createPlugin("fake");
+        Files.createFile(env.pluginsFile().resolve("fake").resolve("plugin.jar"));
+
+        final MockTerminal terminal = removePlugin(List.of("fake", "repository-s3"), home, randomBoolean());
+
+        assertThat(Files.exists(env.pluginsFile().resolve("fake")), is(false));
+        assertThat(terminal.getErrorOutput(), containsString("plugin [repository-s3] is no longer a plugin"));
     }
 
     private String expectedConfigDirPreservedMessage(final Path configDir) {

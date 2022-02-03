@@ -119,16 +119,15 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testLookbackOnlyDataStream() throws Exception {
-        String mapping = "{\n"
-            + "      \"properties\": {\n"
-            + "        \"time\": {\n"
-            + "          \"type\": \"date\"\n"
-            + "        },"
-            + "        \"@timestamp\": {\n"
-            + "          \"type\": \"date\"\n"
-            + "        }"
-            + "      }\n"
-            + "    }";
+        String mapping = """
+            {
+                  "properties": {
+                    "time": {
+                      "type": "date"
+                    },        "@timestamp": {
+                      "type": "date"
+                    }      }
+                }""";
         createDataStreamAndTemplate("datafeed_data_stream", mapping);
         long numDocs = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();

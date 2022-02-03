@@ -187,7 +187,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
         String opaqueId = randomAlphaOfLength(10);
         logger.trace("Starting async search");
-        EqlSearchResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
+        EqlSearchResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId))
             .execute(EqlSearchAction.INSTANCE, request)
             .get();
         assertThat(response.isRunning(), is(true));
@@ -243,7 +243,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
         String opaqueId = randomAlphaOfLength(10);
         logger.trace("Starting async search");
-        EqlSearchResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
+        EqlSearchResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId))
             .execute(EqlSearchAction.INSTANCE, request)
             .get();
         assertThat(response.isRunning(), is(true));

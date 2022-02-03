@@ -64,18 +64,11 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
     }
 
     public static IndexFieldCapabilities randomFieldCaps(String fieldName) {
-        Map<String, String> meta;
-        switch (randomInt(2)) {
-            case 0:
-                meta = Collections.emptyMap();
-                break;
-            case 1:
-                meta = Map.of("key", "value");
-                break;
-            default:
-                meta = Map.of("key1", "value1", "key2", "value2");
-                break;
-        }
+        Map<String, String> meta = switch (randomInt(2)) {
+            case 0 -> Collections.emptyMap();
+            case 1 -> Map.of("key", "value");
+            default -> Map.of("key1", "value1", "key2", "value2");
+        };
 
         return new IndexFieldCapabilities(
             fieldName,
@@ -96,24 +89,24 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         int mutation = response.get().isEmpty() ? 0 : randomIntBetween(0, 2);
 
         switch (mutation) {
-            case 0:
+            case 0 -> {
                 String toAdd = randomAlphaOfLength(10);
                 mutatedResponses.put(
                     toAdd,
                     Collections.singletonMap(randomAlphaOfLength(10), FieldCapabilitiesTests.randomFieldCaps(toAdd))
                 );
-                break;
-            case 1:
+            }
+            case 1 -> {
                 String toRemove = randomFrom(mutatedResponses.keySet());
                 mutatedResponses.remove(toRemove);
-                break;
-            case 2:
+            }
+            case 2 -> {
                 String toReplace = randomFrom(mutatedResponses.keySet());
                 mutatedResponses.put(
                     toReplace,
                     Collections.singletonMap(randomAlphaOfLength(10), FieldCapabilitiesTests.randomFieldCaps(toReplace))
                 );
-                break;
+            }
         }
         return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyList());
     }

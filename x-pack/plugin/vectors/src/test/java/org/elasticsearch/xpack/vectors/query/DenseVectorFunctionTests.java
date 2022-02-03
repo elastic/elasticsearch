@@ -11,6 +11,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.elasticsearch.Version;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.vectors.query.BinaryDenseVectorScriptDocValues.BinaryDenseVectorSupplier;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.CosineSimilarity;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.DotProduct;
 import org.elasticsearch.xpack.vectors.query.ScoreScriptUtils.L1Norm;
@@ -36,7 +37,11 @@ public class DenseVectorFunctionTests extends ESTestCase {
 
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
             BinaryDocValues docValues = BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, indexVersion);
-            DenseVectorScriptDocValues scriptDocValues = new BinaryDenseVectorScriptDocValues(docValues, indexVersion, dims);
+            DenseVectorScriptDocValues scriptDocValues = new BinaryDenseVectorScriptDocValues(
+                new BinaryDenseVectorSupplier(docValues),
+                indexVersion,
+                dims
+            );
 
             ScoreScript scoreScript = mock(ScoreScript.class);
             when(scoreScript.getDoc()).thenReturn(Collections.singletonMap(field, scriptDocValues));

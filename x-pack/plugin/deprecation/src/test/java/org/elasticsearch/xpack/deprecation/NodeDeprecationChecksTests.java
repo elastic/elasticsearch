@@ -498,6 +498,41 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
     }
 
+    public void testImplicitScriptContextCacheSetting() {
+        List<String> contexts = List.of("update", "filter");
+        Settings settings = Settings.builder()
+            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(contexts.get(0)).getKey(), "123/5m")
+            .put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(contexts.get(1)).getKey(), "2453")
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+
+        assertThat(
+            issues,
+            hasItem(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "Implicitly using the script context cache is deprecated, remove settings "
+                        + "[script.context.filter.cache_max_size, script.context.update.max_compilations_rate] "
+                        + "to use the script general cache.",
+                    "https://ela.st/es-deprecation-7-script-context-cache",
+                    "Remove the context-specific cache settings and set [script.max_compilations_rate] to configure the rate limit for "
+                        + "the general cache. If no limit is set, the rate defaults to 150 compilations per five minutes: 150/5m. "
+                        + "Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    false,
+                    null
+                )
+            )
+        );
+
+        assertWarnings(
+            "[script.context.update.max_compilations_rate] setting was deprecated in Elasticsearch and will be"
+                + " removed in a future release! See the breaking changes documentation for the next major version.",
+            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future"
+                + " release! See the breaking changes documentation for the next major version."
+        );
+    }
+
     public void testScriptContextCacheSizeSetting() {
         List<String> contexts = List.of("filter", "update");
         Settings settings = Settings.builder()

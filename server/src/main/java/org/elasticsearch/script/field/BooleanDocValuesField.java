@@ -17,7 +17,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class BooleanDocValuesField implements DocValuesField<Boolean> {
+public class BooleanDocValuesField implements DocValuesField<Boolean>, ScriptDocValues.Supplier<Boolean> {
 
     private final SortedNumericDocValues input;
     private final String name;
@@ -25,6 +25,8 @@ public class BooleanDocValuesField implements DocValuesField<Boolean> {
     private boolean[] values = new boolean[0];
     private int count;
 
+    // used for backwards compatibility for old-style "doc" access
+    // as a delegate to this field class
     private ScriptDocValues.Booleans booleans = null;
 
     public BooleanDocValuesField(SortedNumericDocValues input, String name) {
@@ -32,11 +34,6 @@ public class BooleanDocValuesField implements DocValuesField<Boolean> {
         this.name = name;
     }
 
-    /**
-     * Set the current document ID.
-     *
-     * @param docId
-     */
     @Override
     public void setNextDocId(int docId) throws IOException {
         if (input.advanceExact(docId)) {
@@ -58,13 +55,8 @@ public class BooleanDocValuesField implements DocValuesField<Boolean> {
         }
     }
 
-    /**
-     * Returns a {@code ScriptDocValues} of the appropriate type for this field.
-     * This is used to support backwards compatibility for accessing field values
-     * through the {@code doc} variable.
-     */
     @Override
-    public ScriptDocValues<?> getScriptDocValues() {
+    public ScriptDocValues<Boolean> getScriptDocValues() {
         if (booleans == null) {
             booleans = new ScriptDocValues.Booleans(this);
         }
@@ -72,35 +64,40 @@ public class BooleanDocValuesField implements DocValuesField<Boolean> {
         return booleans;
     }
 
-    /**
-     * Returns the name of this field.
-     */
+    // this method is required to support the Boolean return values
+    // for the old-style "doc" access in ScriptDocValues
+    @Override
+    public Boolean getInternal(int index) {
+        return values[index];
+    }
+
     @Override
     public String getName() {
         return name;
     }
 
-    /**
-     * Returns {@code true} if this field has no values, otherwise {@code false}.
-     */
     @Override
     public boolean isEmpty() {
         return count == 0;
     }
 
-    /**
-     * Returns the number of values this field has.
-     */
     @Override
     public int size() {
         return count;
     }
 
-    /**
-     * Returns an iterator over elements of type {@code T}.
-     *
-     * @return an Iterator.
-     */
+    public boolean get(boolean defaultValue) {
+        return get(0, defaultValue);
+    }
+
+    public boolean get(int index, boolean defaultValue) {
+        if (isEmpty() || index < 0 || index >= count) {
+            return defaultValue;
+        }
+
+        return values[index];
+    }
+
     @Override
     public Iterator<Boolean> iterator() {
         return new Iterator<Boolean>() {
@@ -119,22 +116,5 @@ public class BooleanDocValuesField implements DocValuesField<Boolean> {
                 return values[index++];
             }
         };
-    }
-
-    public boolean get(boolean defaultValue) {
-        return get(0, defaultValue);
-    }
-
-    public boolean get(int index, boolean defaultValue) {
-        if (isEmpty() || index < 0 || index >= count) {
-            return defaultValue;
-        }
-
-        return values[index];
-    }
-
-    // this method is required to support the old-style "doc" access in ScriptDocValues
-    public boolean getInternal(int index) {
-        return values[index];
     }
 }

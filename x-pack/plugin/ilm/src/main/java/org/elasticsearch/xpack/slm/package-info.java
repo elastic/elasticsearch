@@ -34,7 +34,7 @@
  */
 package org.elasticsearch.xpack.slm;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;

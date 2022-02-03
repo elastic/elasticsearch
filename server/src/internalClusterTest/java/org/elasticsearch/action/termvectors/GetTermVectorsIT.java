@@ -260,32 +260,26 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         boolean storeOffsets = false;
         boolean storeTermVectors = false;
         switch (config) {
-            case 0: {
+            case 0 -> {
                 // do nothing
-                break;
             }
-            case 1: {
+            case 1 -> {
                 storeTermVectors = true;
-                break;
             }
-            case 2: {
+            case 2 -> {
                 storeTermVectors = true;
                 storePositions = true;
-                break;
             }
-            case 3: {
+            case 3 -> {
                 storeTermVectors = true;
                 storeOffsets = true;
-                break;
             }
-            case 4: {
+            case 4 -> {
                 storeTermVectors = true;
                 storePositions = true;
                 storeOffsets = true;
-                break;
             }
-            default:
-                throw new IllegalArgumentException("Unsupported option: " + config);
+            default -> throw new IllegalArgumentException("Unsupported option: " + config);
         }
         ft.setStoreTermVectors(storeTermVectors);
         ft.setStoreTermVectorOffsets(storeOffsets);

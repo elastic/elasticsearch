@@ -8,8 +8,8 @@
 
 package org.elasticsearch.cli.keystore;
 
-import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 
 /**
  * A cli tool for managing secrets in the elasticsearch keystore.

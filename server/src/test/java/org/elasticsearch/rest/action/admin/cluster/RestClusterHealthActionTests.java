@@ -8,7 +8,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -52,8 +51,6 @@ public class RestClusterHealthActionTests extends ESTestCase {
         params.put("wait_for_active_shards", String.valueOf(waitForActiveShards));
         params.put("wait_for_nodes", waitForNodes);
         params.put("wait_for_events", waitForEvents.name());
-        boolean requestTimeout200 = randomBoolean();
-        params.put("return_200_for_cluster_health_timeout", String.valueOf(requestTimeout200));
 
         FakeRestRequest restRequest = buildRestRequest(params);
         ClusterHealthRequest clusterHealthRequest = RestClusterHealthAction.fromRequest(restRequest);
@@ -68,15 +65,7 @@ public class RestClusterHealthActionTests extends ESTestCase {
         assertThat(clusterHealthRequest.waitForActiveShards(), equalTo(ActiveShardCount.parseString(String.valueOf(waitForActiveShards))));
         assertThat(clusterHealthRequest.waitForNodes(), equalTo(waitForNodes));
         assertThat(clusterHealthRequest.waitForEvents(), equalTo(waitForEvents));
-        assertThat(clusterHealthRequest.doesReturn200ForClusterHealthTimeout(), equalTo(requestTimeout200));
 
-        assertWarnings(
-            true,
-            new DeprecationWarning(
-                Level.WARN,
-                "the [return_200_for_cluster_health_timeout] parameter is deprecated and will be removed in a future release."
-            )
-        );
     }
 
     private FakeRestRequest buildRestRequest(Map<String, String> params) {

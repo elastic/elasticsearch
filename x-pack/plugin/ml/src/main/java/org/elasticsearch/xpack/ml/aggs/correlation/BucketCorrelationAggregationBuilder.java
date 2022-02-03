@@ -138,15 +138,15 @@ public class BucketCorrelationAggregationBuilder extends BucketMetricsPipelineAg
         AggregationBuilder multiBucketAggWithoutKey = null;
         for (AggregationPath.PathElement pathElement : pathElements) {
             Optional<AggregationBuilder> aggBuilder = currentAggs.stream()
-                .filter(builder -> builder.getName().equals(pathElement.name))
+                .filter(builder -> builder.getName().equals(pathElement.name()))
                 .findAny();
             if (aggBuilder.isEmpty()) {
                 // We reached the end of the path
-                if ("_count".equals(pathElement.name) || "_key".equals(pathElement.name)) {
+                if ("_count".equals(pathElement.name()) || "_key".equals(pathElement.name())) {
                     break;
                 }
                 context.addBucketPathValidationError(
-                    "aggregation [" + pathElement.name + "] does not exist for aggregation [" + name + "]: " + bucketsPaths[0]
+                    "aggregation [" + pathElement.name() + "] does not exist for aggregation [" + name + "]: " + bucketsPaths[0]
                 );
                 return;
             }

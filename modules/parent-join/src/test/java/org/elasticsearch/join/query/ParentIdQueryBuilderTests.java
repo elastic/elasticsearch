@@ -108,15 +108,15 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     }
 
     public void testFromJson() throws IOException {
-        String query = "{\n"
-            + "  \"parent_id\" : {\n"
-            + "    \"type\" : \"child\",\n"
-            + "    \"id\" : \"123\",\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"boost\" : 3.0,\n"
-            + "    \"_name\" : \"name\""
-            + "  }\n"
-            + "}";
+        String query = """
+            {
+              "parent_id" : {
+                "type" : "child",
+                "id" : "123",
+                "ignore_unmapped" : false,
+                "boost" : 3.0,
+                "_name" : "name"  }
+            }""";
         ParentIdQueryBuilder queryBuilder = (ParentIdQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
         assertThat(queryBuilder.getType(), Matchers.equalTo("child"));

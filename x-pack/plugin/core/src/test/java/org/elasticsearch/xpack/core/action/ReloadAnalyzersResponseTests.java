@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
@@ -48,19 +49,28 @@ public class ReloadAnalyzersResponseTests extends AbstractBroadcastResponseTestC
     }
 
     @Override
-    public void testToXContent() {
+    public void testToXContent() throws IOException {
         Map<String, ReloadDetails> reloadedIndicesNodes = Collections.singletonMap(
             "index",
             new ReloadDetails("index", Collections.singleton("nodeId"), Collections.singleton("my_analyzer"))
         );
         ReloadAnalyzersResponse response = new ReloadAnalyzersResponse(10, 5, 5, null, reloadedIndicesNodes);
         String output = Strings.toString(response);
-        assertEquals(
-            "{\"_shards\":{\"total\":10,\"successful\":5,\"failed\":5},"
-                + "\"reload_details\":[{\"index\":\"index\",\"reloaded_analyzers\":[\"my_analyzer\"],\"reloaded_node_ids\":[\"nodeId\"]}]"
-                + "}",
-            output
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "_shards": {
+                "total": 10,
+                "successful": 5,
+                "failed": 5
+              },
+              "reload_details": [
+                {
+                  "index": "index",
+                  "reloaded_analyzers": [ "my_analyzer" ],
+                  "reloaded_node_ids": [ "nodeId" ]
+                }
+              ]
+            }"""), output);
     }
 
     public void testSerialization() throws IOException {

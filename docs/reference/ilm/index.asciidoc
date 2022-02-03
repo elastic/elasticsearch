@@ -20,8 +20,8 @@ default policies are configured automatically.
 image:images/ilm/index-lifecycle-policies.png[]
 
 [TIP]
-To automatically back up your indices and manage snapshots,
-use <<getting-started-snapshot-lifecycle-management,snapshot lifecycle policies>>.
+To automatically back up your indices and manage snapshots, use
+<<automate-snapshots-slm,snapshot lifecycle policies>>.
 
 * <<overview-index-lifecycle-management>>
 * <<ilm-concepts>>

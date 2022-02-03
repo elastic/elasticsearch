@@ -8,9 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -24,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -104,8 +102,8 @@ public class ClusterChangedEvent {
             return Collections.emptyList();
         }
         List<String> created = null;
-        for (ObjectCursor<String> cursor : state.metadata().indices().keys()) {
-            String index = cursor.value;
+        for (Map.Entry<String, IndexMetadata> cursor : state.metadata().indices().entrySet()) {
+            String index = cursor.getKey();
             if (previousState.metadata().hasIndex(index) == false) {
                 if (created == null) {
                     created = new ArrayList<>();
@@ -148,17 +146,17 @@ public class ClusterChangedEvent {
         ImmutableOpenMap<String, Metadata.Custom> currentCustoms = state.metadata().customs();
         ImmutableOpenMap<String, Metadata.Custom> previousCustoms = previousState.metadata().customs();
         if (currentCustoms.equals(previousCustoms) == false) {
-            for (ObjectObjectCursor<String, Metadata.Custom> currentCustomMetadata : currentCustoms) {
+            for (Map.Entry<String, Metadata.Custom> currentCustomMetadata : currentCustoms.entrySet()) {
                 // new custom md added or existing custom md changed
-                if (previousCustoms.containsKey(currentCustomMetadata.key) == false
-                    || currentCustomMetadata.value.equals(previousCustoms.get(currentCustomMetadata.key)) == false) {
-                    result.add(currentCustomMetadata.key);
+                if (previousCustoms.containsKey(currentCustomMetadata.getKey()) == false
+                    || currentCustomMetadata.getValue().equals(previousCustoms.get(currentCustomMetadata.getKey())) == false) {
+                    result.add(currentCustomMetadata.getKey());
                 }
             }
             // existing custom md deleted
-            for (ObjectObjectCursor<String, Metadata.Custom> previousCustomMetadata : previousCustoms) {
-                if (currentCustoms.containsKey(previousCustomMetadata.key) == false) {
-                    result.add(previousCustomMetadata.key);
+            for (Map.Entry<String, Metadata.Custom> previousCustomMetadata : previousCustoms.entrySet()) {
+                if (currentCustoms.containsKey(previousCustomMetadata.getKey()) == false) {
+                    result.add(previousCustomMetadata.getKey());
                 }
             }
         }

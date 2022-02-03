@@ -27,7 +27,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -632,7 +632,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         IndexMetadata target = clusterStateResponse.getState().getMetadata().index("target");
         client().admin().indices().prepareForceMerge("target").setMaxNumSegments(1).setFlush(false).get();
         IndicesSegmentResponse targetSegStats = client().admin().indices().prepareSegments("target").get();
-        ShardSegments segmentsStats = targetSegStats.getIndices().get("target").getShards().get(0).getShards()[0];
+        ShardSegments segmentsStats = targetSegStats.getIndices().get("target").getShards().get(0).shards()[0];
         assertTrue(segmentsStats.getNumberOfCommitted() > 0);
         assertNotEquals(segmentsStats.getSegments(), segmentsStats.getNumberOfCommitted());
 
@@ -648,7 +648,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         }
         assertBusy(() -> {
             IndicesSegmentResponse targetStats = client().admin().indices().prepareSegments("target").get();
-            ShardSegments targetShardSegments = targetStats.getIndices().get("target").getShards().get(0).getShards()[0];
+            ShardSegments targetShardSegments = targetStats.getIndices().get("target").getShards().get(0).shards()[0];
             Map<Integer, IndexShardSegments> source = sourceStats.getIndices().get("source").getShards();
             int numSourceSegments = 0;
             for (IndexShardSegments s : source.values()) {

@@ -53,6 +53,27 @@ credentials are used instead.
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
+[[ml-put-datafeed-query-params]]
+== {api-query-parms-title}
+
+`allow_no_indices`::
+(Optional, Boolean) If `true`, wildcard indices expressions that resolve into no
+concrete indices are ignored. This includes the `_all` string or when no indices
+are specified. Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
++
+deprecated:[7.16.0]
+
+`ignore_unavailable`::
+(Optional, Boolean) If `true`, unavailable indices (missing or closed) are
+ignored. Defaults to `false`.
+
+
 [role="child_attributes"]
 [[ml-put-datafeed-request-body]]
 == {api-request-body-title}

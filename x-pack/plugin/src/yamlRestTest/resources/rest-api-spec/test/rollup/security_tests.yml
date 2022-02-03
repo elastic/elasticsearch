@@ -126,6 +126,7 @@ teardown:
 
   # this is a hacky way to sleep for 5s, since we will never have 10 nodes
   - do:
+      catch: request_timeout
       cluster.health:
         wait_for_nodes: 10
         timeout: "5s"
@@ -285,6 +286,7 @@ teardown:
 
   # this is a hacky way to sleep for 5s, since we will never have 10 nodes
   - do:
+      catch: request_timeout
       cluster.health:
         wait_for_nodes: 10
         timeout: "5s"

@@ -84,10 +84,14 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             task.setReleaseHighlightsFile(projectDirectory.file("docs/reference/release-notes/highlights.asciidoc"));
 
             task.setBreakingChangesTemplate(projectDirectory.file(RESOURCES + "templates/breaking-changes.asciidoc"));
-            task.setBreakingChangesFile(
+            task.setBreakingChangesIndexFile(
                 projectDirectory.file(
                     String.format("docs/reference/migration/migrate_%d_%d.asciidoc", version.getMajor(), version.getMinor())
                 )
+            );
+            task.setBreakingChangesAreaTemplate(projectDirectory.file(RESOURCES + "templates/breaking-changes-area.asciidoc"));
+            task.setBreakingChangesDirectory(
+                projectDirectory.dir(String.format("docs/reference/migration/migrate_%d_%d", version.getMajor(), version.getMinor()))
             );
 
             task.dependsOn(validateChangelogsTask);

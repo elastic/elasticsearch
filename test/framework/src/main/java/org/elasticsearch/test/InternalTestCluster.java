@@ -28,7 +28,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
@@ -70,6 +70,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -428,6 +429,7 @@ public final class InternalTestCluster extends TestCluster {
             Integer.MAX_VALUE,
             0,
             TimeUnit.SECONDS,
+            true,
             EsExecutors.daemonThreadFactory("test_" + clusterName),
             new ThreadContext(Settings.EMPTY)
         );
@@ -522,6 +524,10 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
+        // RST all closing connections in tests (by setting SO_LINGER to 0) so we don't leave too many connections in TIME_WAIT state and
+        // run out of ports.
+        builder.put(TransportSettings.RST_ON_CLOSE.getKey(), true);
+
         // randomize tcp settings
         if (random.nextBoolean()) {
             builder.put(TransportSettings.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
@@ -579,6 +585,14 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(TransportReplicationAction.REPLICATION_INITIAL_RETRY_BACKOFF_BOUND.getKey(), timeValueMillis(initialMillisBound));
             int retryTimeoutSeconds = RandomNumbers.randomIntBetween(random, 0, 60);
             builder.put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), timeValueSeconds(retryTimeoutSeconds));
+        }
+        if (random.nextInt(10) == 0) {
+            builder.put(
+                PersistedClusterStateService.DOCUMENT_PAGE_SIZE.getKey(),
+                new ByteSizeValue(
+                    RandomNumbers.randomIntBetween(random, rarely(random) ? 10 : 100, randomFrom(random, 1000, 10000, 100000, 1000000))
+                )
+            );
         }
 
         return builder.build();
@@ -901,7 +915,7 @@ public final class InternalTestCluster extends TestCluster {
             this.name = name;
             this.originalNodeSettings = originalNodeSettings;
             this.nodeAndClientId = nodeAndClientId;
-            markNodeDataDirsAsNotEligibleForWipe(node);
+            markNodeDataDirsAsNotEligibleForWipe();
         }
 
         Node node() {
@@ -1018,7 +1032,7 @@ public final class InternalTestCluster extends TestCluster {
                 }
             });
             closed.set(false);
-            markNodeDataDirsAsNotEligibleForWipe(node);
+            markNodeDataDirsAsNotEligibleForWipe();
         }
 
         @Override
@@ -1028,7 +1042,7 @@ public final class InternalTestCluster extends TestCluster {
                 resetClient();
             } finally {
                 closed.set(true);
-                markNodeDataDirsAsPendingForWipe(node);
+                markNodeDataDirsAsPendingForWipe();
                 node.close();
                 try {
                     if (node.awaitClose(10, TimeUnit.SECONDS) == false) {
@@ -1040,17 +1054,17 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
-        private void markNodeDataDirsAsPendingForWipe(Node node) {
+        private void markNodeDataDirsAsPendingForWipe() {
             assert Thread.holdsLock(InternalTestCluster.this);
-            NodeEnvironment nodeEnv = node.getNodeEnvironment();
+            NodeEnvironment nodeEnv = this.node.getNodeEnvironment();
             if (nodeEnv.hasNodeFile()) {
                 dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataPaths()));
             }
         }
 
-        private void markNodeDataDirsAsNotEligibleForWipe(Node node) {
+        private void markNodeDataDirsAsNotEligibleForWipe() {
             assert Thread.holdsLock(InternalTestCluster.this);
-            NodeEnvironment nodeEnv = node.getNodeEnvironment();
+            NodeEnvironment nodeEnv = this.node.getNodeEnvironment();
             if (nodeEnv.hasNodeFile()) {
                 dataDirToClean.removeAll(Arrays.asList(nodeEnv.nodeDataPaths()));
             }
@@ -1067,8 +1081,7 @@ public final class InternalTestCluster extends TestCluster {
         // clear all rules for mock transport services
         for (NodeAndClient nodeAndClient : nodes.values()) {
             TransportService transportService = nodeAndClient.node.injector().getInstance(TransportService.class);
-            if (transportService instanceof MockTransportService) {
-                final MockTransportService mockTransportService = (MockTransportService) transportService;
+            if (transportService instanceof final MockTransportService mockTransportService) {
                 mockTransportService.clearAllRules();
             }
         }
@@ -1984,14 +1997,14 @@ public final class InternalTestCluster extends TestCluster {
         if (clusterService().state().routingTable().hasIndex(index)) {
             List<ShardRouting> allShards = clusterService().state().routingTable().allShards(index);
             DiscoveryNodes discoveryNodes = clusterService().state().getNodes();
-            Set<String> nodes = new HashSet<>();
+            Set<String> nodeNames = new HashSet<>();
             for (ShardRouting shardRouting : allShards) {
                 if (shardRouting.assignedToNode()) {
                     DiscoveryNode discoveryNode = discoveryNodes.get(shardRouting.currentNodeId());
-                    nodes.add(discoveryNode.getName());
+                    nodeNames.add(discoveryNode.getName());
                 }
             }
-            return nodes;
+            return nodeNames;
         }
         return Collections.emptySet();
     }
@@ -2088,7 +2101,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized List<String> startNodes(Settings... extraSettings) {
         final int newMasterCount = Math.toIntExact(Stream.of(extraSettings).filter(DiscoveryNode::isMasterNode).count());
-        final List<NodeAndClient> nodes = new ArrayList<>();
+        final List<NodeAndClient> nodeList = new ArrayList<>();
         final int prevMasterCount = getMasterNodesCount();
         int autoBootstrapMasterNodeIndex = autoManageMasterNodes
             && prevMasterCount == 0
@@ -2127,15 +2140,15 @@ public final class InternalTestCluster extends TestCluster {
                 firstNodeId + i,
                 builder.put(nodeSettings).build(),
                 false,
-                () -> rebuildUnicastHostFiles(nodes)
+                () -> rebuildUnicastHostFiles(nodeList)
             );
-            nodes.add(nodeAndClient);
+            nodeList.add(nodeAndClient);
         }
-        startAndPublishNodesAndClients(nodes);
+        startAndPublishNodesAndClients(nodeList);
         if (autoManageMasterNodes) {
             validateClusterFormed();
         }
-        return nodes.stream().map(NodeAndClient::getName).collect(Collectors.toList());
+        return nodeList.stream().map(NodeAndClient::getName).collect(Collectors.toList());
     }
 
     public List<String> startMasterOnlyNodes(int numNodes) {
@@ -2456,7 +2469,7 @@ public final class InternalTestCluster extends TestCluster {
                 try {
                     env.shardLock(id, "InternalTestCluster assert after test", TimeUnit.SECONDS.toMillis(5)).close();
                 } catch (ShardLockObtainFailedException ex) {
-                    fail("Shard " + id + " is still locked after 5 sec waiting");
+                    throw new AssertionError("Shard " + id + " is still locked after 5 sec waiting", ex);
                 }
             }
         }

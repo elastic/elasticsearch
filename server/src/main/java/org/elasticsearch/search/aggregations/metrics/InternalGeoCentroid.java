@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -102,7 +103,7 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
     }
 
     @Override
-    public InternalGeoCentroid reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalGeoCentroid reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         double lonSum = Double.NaN;
         double latSum = Double.NaN;
         long totalCount = 0;
@@ -134,18 +135,13 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
             return this;
         } else if (path.size() == 1) {
             String coordinate = path.get(0);
-            switch (coordinate) {
-                case "value":
-                    return centroid;
-                case "lat":
-                    return centroid.lat();
-                case "lon":
-                    return centroid.lon();
-                case "count":
-                    return count;
-                default:
-                    throw new IllegalArgumentException("Found unknown path element [" + coordinate + "] in [" + getName() + "]");
-            }
+            return switch (coordinate) {
+                case "value" -> centroid;
+                case "lat" -> centroid.lat();
+                case "lon" -> centroid.lon();
+                case "count" -> count;
+                default -> throw new IllegalArgumentException("Found unknown path element [" + coordinate + "] in [" + getName() + "]");
+            };
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }

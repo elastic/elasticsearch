@@ -235,7 +235,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         FileStatus[] files;
         try {
             files = store.execute(
-                fileContext -> fileContext.util().listStatus(path, path -> prefix == null || path.getName().startsWith(prefix))
+                fileContext -> fileContext.util().listStatus(path, eachPath -> prefix == null || eachPath.getName().startsWith(prefix))
             );
         } catch (FileNotFoundException e) {
             files = new FileStatus[0];

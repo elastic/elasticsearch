@@ -55,6 +55,7 @@ See also <<ml-df-analytics-apis>>.
 
 * <<ml-delete-snapshot,Delete model snapshot>>
 * <<ml-get-snapshot,Get model snapshot info>>
+* <<ml-get-job-model-snapshot-upgrade-stats,Get model snapshot upgrade statistics>>
 * <<ml-revert-snapshot,Revert model snapshot>>
 * <<ml-update-snapshot,Update model snapshot>>
 * <<ml-upgrade-job-model-snapshot,Upgrade model snapshot>>

@@ -209,16 +209,16 @@ public class ContextGeneratorCommon {
             }
         }
 
-        private <T> Set<T> getCommon(List<PainlessContextInfo> contexts, Function<PainlessContextInfo, List<T>> getter) {
+        private <T> Set<T> getCommon(List<PainlessContextInfo> painlessContexts, Function<PainlessContextInfo, List<T>> getter) {
             Map<T, Integer> infoCounts = new HashMap<>();
-            for (PainlessContextInfo contextInfo : contexts) {
+            for (PainlessContextInfo contextInfo : painlessContexts) {
                 for (T info : getter.apply(contextInfo)) {
                     infoCounts.merge(info, 1, Integer::sum);
                 }
             }
             return infoCounts.entrySet()
                 .stream()
-                .filter(e -> e.getValue() == contexts.size())
+                .filter(e -> e.getValue() == painlessContexts.size())
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
         }

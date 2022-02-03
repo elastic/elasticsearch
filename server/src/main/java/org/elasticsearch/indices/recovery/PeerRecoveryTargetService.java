@@ -44,6 +44,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.StoreRecovery;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -169,7 +170,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
-        final Releasable snapshotFileDownloadsPermit = recoverySettings.tryAcquireSnapshotDownloadPermits();
+        final Releasable snapshotFileDownloadsPermit = tryAcquireSnapshotDownloadPermits();
         // create a new recovery status, and process...
         final long recoveryId = onGoingRecoveries.startRecovery(
             indexShard,
@@ -226,6 +227,17 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
+                    if (indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
+                        // for searchable snapshots, peer recovery is treated similarly to recovery from snapshot
+                        indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
+                        final Store store = indexShard.store();
+                        store.incRef();
+                        try {
+                            StoreRecovery.bootstrap(indexShard, store);
+                        } finally {
+                            store.decRef();
+                        }
+                    }
                     final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
@@ -256,6 +268,11 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             requestToSend,
             new RecoveryResponseHandler(startRequest, timer)
         );
+    }
+
+    // Visible for testing
+    public Releasable tryAcquireSnapshotDownloadPermits() {
+        return recoverySettings.tryAcquireSnapshotDownloadPermits();
     }
 
     /**

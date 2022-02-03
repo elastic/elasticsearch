@@ -102,26 +102,17 @@ public class GeoWKTParser {
                 throw new ElasticsearchParseException("Expected geometry type [{}] but found [{}]", shapeType, type);
             }
         }
-        switch (type) {
-            case POINT:
-                return parsePoint(stream, ignoreZValue, coerce);
-            case MULTIPOINT:
-                return parseMultiPoint(stream, ignoreZValue, coerce);
-            case LINESTRING:
-                return parseLine(stream, ignoreZValue, coerce);
-            case MULTILINESTRING:
-                return parseMultiLine(stream, ignoreZValue, coerce);
-            case POLYGON:
-                return parsePolygon(stream, ignoreZValue, coerce);
-            case MULTIPOLYGON:
-                return parseMultiPolygon(stream, ignoreZValue, coerce);
-            case ENVELOPE:
-                return parseBBox(stream);
-            case GEOMETRYCOLLECTION:
-                return parseGeometryCollection(stream, ignoreZValue, coerce);
-            default:
-                throw new IllegalArgumentException("Unknown geometry type: " + type);
-        }
+        return switch (type) {
+            case POINT -> parsePoint(stream, ignoreZValue, coerce);
+            case MULTIPOINT -> parseMultiPoint(stream, ignoreZValue, coerce);
+            case LINESTRING -> parseLine(stream, ignoreZValue, coerce);
+            case MULTILINESTRING -> parseMultiLine(stream, ignoreZValue, coerce);
+            case POLYGON -> parsePolygon(stream, ignoreZValue, coerce);
+            case MULTIPOLYGON -> parseMultiPolygon(stream, ignoreZValue, coerce);
+            case ENVELOPE -> parseBBox(stream);
+            case GEOMETRYCOLLECTION -> parseGeometryCollection(stream, ignoreZValue, coerce);
+            default -> throw new IllegalArgumentException("Unknown geometry type: " + type);
+        };
     }
 
     private static EnvelopeBuilder parseBBox(StreamTokenizer stream) throws IOException, ElasticsearchParseException {
@@ -317,17 +308,13 @@ public class GeoWKTParser {
     }
 
     private static String tokenString(StreamTokenizer stream) {
-        switch (stream.ttype) {
-            case StreamTokenizer.TT_WORD:
-                return stream.sval;
-            case StreamTokenizer.TT_EOF:
-                return EOF;
-            case StreamTokenizer.TT_EOL:
-                return EOL;
-            case StreamTokenizer.TT_NUMBER:
-                return NUMBER;
-        }
-        return "'" + (char) stream.ttype + "'";
+        return switch (stream.ttype) {
+            case StreamTokenizer.TT_WORD -> stream.sval;
+            case StreamTokenizer.TT_EOF -> EOF;
+            case StreamTokenizer.TT_EOL -> EOL;
+            case StreamTokenizer.TT_NUMBER -> NUMBER;
+            default -> "'" + (char) stream.ttype + "'";
+        };
     }
 
     private static boolean isNumberNext(StreamTokenizer stream) throws IOException {

@@ -140,25 +140,37 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
 
         // TODO - need to check with mapping that this is indeed a text field....
 
-        IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null : includeExclude.convertToStringFilter(DocValueFormat.RAW);
+        final IncludeExclude.StringFilter incExcFilter = includeExclude == null
+            ? null
+            : includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
-        SignificanceLookup lookup = new SignificanceLookup(context, fieldType, DocValueFormat.RAW, backgroundFilter);
-        return new MapStringTermsAggregator(
-            name,
-            factories,
-            createCollectorSource(),
-            a -> a.new SignificantTermsResults(lookup, significanceHeuristic, cardinality),
-            null,
-            DocValueFormat.RAW,
-            bucketCountThresholds,
-            incExcFilter,
-            context,
-            parent,
-            SubAggCollectionMode.BREADTH_FIRST,
-            false,
-            cardinality,
-            metadata
-        );
+        final SignificanceLookup lookup = new SignificanceLookup(context, fieldType, DocValueFormat.RAW, backgroundFilter);
+        final CollectorSource collectorSource = createCollectorSource();
+        boolean success = false;
+        try {
+            final MapStringTermsAggregator mapStringTermsAggregator = new MapStringTermsAggregator(
+                name,
+                factories,
+                collectorSource,
+                a -> a.new SignificantTermsResults(lookup, significanceHeuristic, cardinality),
+                null,
+                DocValueFormat.RAW,
+                bucketCountThresholds,
+                incExcFilter,
+                context,
+                parent,
+                SubAggCollectionMode.BREADTH_FIRST,
+                false,
+                cardinality,
+                metadata
+            );
+            success = true;
+            return mapStringTermsAggregator;
+        } finally {
+            if (success == false) {
+                Releasables.close(collectorSource);
+            }
+        }
     }
 
     /**

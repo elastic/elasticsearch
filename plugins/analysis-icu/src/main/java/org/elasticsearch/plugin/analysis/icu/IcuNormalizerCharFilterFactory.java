@@ -36,12 +36,12 @@ public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory im
         if ("compose".equals(mode) == false && "decompose".equals(mode) == false) {
             mode = "compose";
         }
-        Normalizer2 normalizer = Normalizer2.getInstance(
+        Normalizer2 normalizerInstance = Normalizer2.getInstance(
             null,
             method,
             "compose".equals(mode) ? Normalizer2.Mode.COMPOSE : Normalizer2.Mode.DECOMPOSE
         );
-        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(indexSettings, normalizer, settings);
+        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(indexSettings, normalizerInstance, settings);
     }
 
     @Override

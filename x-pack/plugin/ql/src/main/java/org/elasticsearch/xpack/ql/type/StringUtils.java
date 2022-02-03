@@ -69,17 +69,15 @@ final class StringUtils {
         if (value instanceof OffsetTime) {
             return ((OffsetTime) value).format(ISO_TIME_WITH_NANOS);
         }
-        if (value instanceof Timestamp) {
-            Timestamp ts = (Timestamp) value;
+        if (value instanceof Timestamp ts) {
             return ts.toInstant().toString();
         }
 
         // handle intervals
         // YEAR/MONTH/YEAR TO MONTH -> YEAR TO MONTH
-        if (value instanceof Period) {
+        if (value instanceof Period p) {
             // +yyy-mm - 7 chars
             StringBuilder sb = new StringBuilder(7);
-            Period p = (Period) value;
             if (p.isNegative()) {
                 sb.append("-");
                 p = p.negated();
@@ -93,10 +91,9 @@ final class StringUtils {
         }
 
         // DAY/HOUR/MINUTE/SECOND (and variations) -> DAY_TO_SECOND
-        if (value instanceof Duration) {
+        if (value instanceof Duration d) {
             // +ddd hh:mm:ss.mmmmmmmmm - 23 chars
             StringBuilder sb = new StringBuilder(23);
-            Duration d = (Duration) value;
             if (d.isNegative()) {
                 sb.append("-");
                 d = d.negated();

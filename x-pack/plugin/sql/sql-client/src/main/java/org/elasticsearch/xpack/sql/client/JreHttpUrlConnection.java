@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.client;
 
+import org.elasticsearch.xpack.sql.proto.core.CheckedBiFunction;
+import org.elasticsearch.xpack.sql.proto.core.CheckedConsumer;
+
 import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
@@ -37,7 +40,7 @@ import javax.sql.rowset.serial.SerialException;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.client.UriUtils.appendSegmentToPath;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_QUERY_REST_ENDPOINT;
 
 /**
  * Low-level http client using the built-in {@link HttpURLConnection}.

@@ -19,7 +19,7 @@ The password and certificate and keys are output to your terminal. For example:
 Authentication and authorization are enabled.
 TLS for the transport and HTTP layers is enabled and configured.
 
-The generated password for the elastic built-in superuser is : 0zq1L_CkDujyYiVoYlZo
+The generated password for the elastic built-in superuser is : <password>
 
 If this node should join an existing cluster, you can reconfigure this with
 '/usr/share/elasticsearch/bin/elasticsearch-reconfigure-node --enrollment-token <token-here>'

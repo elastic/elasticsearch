@@ -12,7 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -463,9 +463,9 @@ public class AnalyticsProcessManager {
             return true;
         }
 
-        private AnalyticsProcessConfig createProcessConfig(DataFrameDataExtractor dataExtractor, ExtractedFields extractedFields) {
-            DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
-            Set<String> categoricalFields = dataExtractor.getCategoricalFields(config.getAnalysis());
+        private AnalyticsProcessConfig createProcessConfig(DataFrameDataExtractor extractor, ExtractedFields extractedFields) {
+            DataFrameDataExtractor.DataSummary dataSummary = extractor.collectDataSummary();
+            Set<String> categoricalFields = extractor.getCategoricalFields(config.getAnalysis());
             int threads = Math.min(config.getMaxNumThreads(), numAllocatedProcessors);
             return new AnalyticsProcessConfig(
                 config.getId(),

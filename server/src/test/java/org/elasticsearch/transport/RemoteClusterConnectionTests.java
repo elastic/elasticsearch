@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -437,19 +438,32 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         builder.endObject();
 
         if (sniff) {
-            assertEquals(
-                "{\"test_cluster\":{\"connected\":true,\"mode\":\"sniff\",\"seeds\":[\"seed:1\",\"seed:2\"],"
-                    + "\"num_nodes_connected\":2,\"max_connections_per_cluster\":3,\"initial_connect_timeout\":\"30m\","
-                    + "\"skip_unavailable\":true}}",
-                Strings.toString(builder)
-            );
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "test_cluster": {
+                    "connected": true,
+                    "mode": "sniff",
+                    "seeds": [ "seed:1", "seed:2" ],
+                    "num_nodes_connected": 2,
+                    "max_connections_per_cluster": 3,
+                    "initial_connect_timeout": "30m",
+                    "skip_unavailable": true
+                  }
+                }"""), Strings.toString(builder));
         } else {
-            assertEquals(
-                "{\"test_cluster\":{\"connected\":true,\"mode\":\"proxy\",\"proxy_address\":\"seed:1\","
-                    + "\"server_name\":\"the_server_name\",\"num_proxy_sockets_connected\":16,\"max_proxy_socket_connections\":18,"
-                    + "\"initial_connect_timeout\":\"30m\",\"skip_unavailable\":true}}",
-                Strings.toString(builder)
-            );
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "test_cluster": {
+                    "connected": true,
+                    "mode": "proxy",
+                    "proxy_address": "seed:1",
+                    "server_name": "the_server_name",
+                    "num_proxy_sockets_connected": 16,
+                    "max_proxy_socket_connections": 18,
+                    "initial_connect_timeout": "30m",
+                    "skip_unavailable": true
+                  }
+                }"""), Strings.toString(builder));
         }
     }
 

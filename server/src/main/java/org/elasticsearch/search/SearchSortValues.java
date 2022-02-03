@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
 
 public class SearchSortValues implements ToXContentFragment, Writeable {
@@ -45,7 +46,8 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
         this.formattedSortValues = new Object[rawSortValues.length];
         for (int i = 0; i < rawSortValues.length; ++i) {
             final Object v = sortValueFormats[i].formatSortValue(rawSortValues[i]);
-            assert v == null || v instanceof String || v instanceof Number || v instanceof Boolean : v + " was not formatted";
+            assert v == null || v instanceof String || v instanceof Number || v instanceof Boolean || v instanceof Map
+                : v + " was not formatted";
             formattedSortValues[i] = v;
         }
     }

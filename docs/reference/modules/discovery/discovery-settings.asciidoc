@@ -89,7 +89,7 @@ the request to have failed. Defaults to `3s`.
 (<<static-cluster-setting,Static>>)
 Sets how long a node will attempt to discover its peers before it starts to log
 verbose messages describing why the connection attempts are failing. Defaults
-to `5m`.
+to `3m`.
 
 `discovery.seed_resolver.max_concurrent_resolvers`::
 (<<static-cluster-setting,Static>>)

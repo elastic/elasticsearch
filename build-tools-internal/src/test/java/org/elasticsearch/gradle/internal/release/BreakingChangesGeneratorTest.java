@@ -16,8 +16,8 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Objects;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
 
 public class BreakingChangesGeneratorTest {
 
@@ -25,17 +25,46 @@ public class BreakingChangesGeneratorTest {
      * Check that the breaking changes can be correctly generated.
      */
     @Test
-    public void generateFile_rendersCorrectMarkup() throws Exception {
+    public void generateIndexFile_rendersCorrectMarkup() throws Exception {
         // given:
         final String template = getResource("/templates/breaking-changes.asciidoc");
         final String expectedOutput = getResource(
-            "/org/elasticsearch/gradle/internal/release/BreakingChangesGeneratorTest.generateFile.asciidoc"
+            "/org/elasticsearch/gradle/internal/release/BreakingChangesGeneratorTest.generateIndexFile.asciidoc"
         );
 
         final List<ChangelogEntry> entries = getEntries();
 
         // when:
-        final String actualOutput = BreakingChangesGenerator.generateFile(QualifiedVersion.of("8.4.0-SNAPSHOT"), template, entries);
+        final String actualOutput = BreakingChangesGenerator.generateIndexFile(QualifiedVersion.of("8.4.0-SNAPSHOT"), template, entries);
+
+        // then:
+        assertThat(actualOutput, equalTo(expectedOutput));
+    }
+
+    /**
+     * Check that the breaking changes for a specific area can be correctly generated.
+     */
+    @Test
+    public void generateAreaFile_rendersCorrectMarkup() throws Exception {
+        // given:
+        final String template = getResource("/templates/breaking-changes-area.asciidoc");
+        final String expectedOutput = getResource(
+            "/org/elasticsearch/gradle/internal/release/BreakingChangesGeneratorTest.generateAreaFile.asciidoc"
+        );
+        final String breakingArea = "Cluster and node setting";
+
+        final List<ChangelogEntry.Breaking> entries = getEntries().stream()
+            .map(ChangelogEntry::getBreaking)
+            .filter(each -> each.getArea().equals(breakingArea))
+            .toList();
+
+        // when:
+        final String actualOutput = BreakingChangesGenerator.generateBreakingAreaFile(
+            QualifiedVersion.of("8.4.0-SNAPSHOT"),
+            template,
+            breakingArea,
+            entries
+        );
 
         // then:
         assertThat(actualOutput, equalTo(expectedOutput));
@@ -58,7 +87,7 @@ public class BreakingChangesGeneratorTest {
 
         breaking2.setNotable(true);
         breaking2.setTitle("Breaking change number 2");
-        breaking2.setArea("Cluster");
+        breaking2.setArea("Cluster and node setting");
         breaking2.setDetails("Breaking change details 2");
         breaking2.setImpact("Breaking change impact description 2");
 
@@ -72,7 +101,18 @@ public class BreakingChangesGeneratorTest {
         breaking3.setDetails("Breaking change details 3");
         breaking3.setImpact("Breaking change impact description 3");
 
-        return List.of(entry1, entry2, entry3);
+        ChangelogEntry entry4 = new ChangelogEntry();
+        ChangelogEntry.Breaking breaking4 = new ChangelogEntry.Breaking();
+        entry4.setBreaking(breaking4);
+
+        breaking4.setNotable(true);
+        breaking4.setTitle("Breaking change number 4");
+        breaking4.setArea("Cluster and node setting");
+        breaking4.setDetails("Breaking change details 4");
+        breaking4.setImpact("Breaking change impact description 4");
+        breaking4.setEssSettingChange(true);
+
+        return List.of(entry1, entry2, entry3, entry4);
     }
 
     private String getResource(String name) throws Exception {

@@ -68,7 +68,7 @@ public abstract class PeerFinder {
     // the master before we start to emit more verbose logs.
     public static final Setting<TimeValue> VERBOSITY_INCREASE_TIMEOUT_SETTING = Setting.timeSetting(
         "discovery.find_peers_warning_timeout",
-        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueMinutes(3),
         TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope
     );
@@ -413,7 +413,7 @@ public abstract class PeerFinder {
                     if (verboseFailureLogging) {
                         if (logger.isDebugEnabled()) {
                             // log message at level WARN, but since DEBUG logging is enabled we include the full stack trace
-                            logger.warn(new ParameterizedMessage("{} connection failed", Peer.this), e);
+                            logger.warn(new ParameterizedMessage("{} discovery result", Peer.this), e);
                         } else {
                             final StringBuilder messageBuilder = new StringBuilder();
                             Throwable cause = e;
@@ -424,10 +424,10 @@ public abstract class PeerFinder {
                             final String message = messageBuilder.length() < 1024
                                 ? messageBuilder.toString()
                                 : (messageBuilder.substring(0, 1023) + "...");
-                            logger.warn("{} connection failed{}", Peer.this, message);
+                            logger.warn("{} discovery result{}", Peer.this, message);
                         }
                     } else {
-                        logger.debug(new ParameterizedMessage("{} connection failed", Peer.this), e);
+                        logger.debug(new ParameterizedMessage("{} discovery result", Peer.this), e);
                     }
                     synchronized (mutex) {
                         assert probeConnectionResult.get() == null

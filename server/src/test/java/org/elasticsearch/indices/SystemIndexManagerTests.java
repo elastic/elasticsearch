@@ -11,7 +11,7 @@ package org.elasticsearch.indices;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -334,10 +334,10 @@ public class SystemIndexManagerTests extends ESTestCase {
         );
 
         final Settings.Builder settingsBuilder = Settings.builder();
-        if (descriptor.getSettings() != null) {
-            settingsBuilder.put(descriptor.getSettings());
-        } else {
+        if (SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {
             settingsBuilder.put(getSettings());
+        } else {
+            settingsBuilder.put(descriptor.getSettings());
         }
         settingsBuilder.put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), format);
         indexMetadata.settings(settingsBuilder.build());

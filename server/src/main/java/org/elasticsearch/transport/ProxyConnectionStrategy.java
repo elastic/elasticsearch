@@ -287,9 +287,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         } else {
             int openConnections = connectionManager.size();
             if (openConnections == 0) {
-                finished.onFailure(
-                    new IllegalStateException("Unable to open any proxy connections to remote cluster [" + clusterAlias + "]")
-                );
+                finished.onFailure(new NoSeedNodeLeftException(strategyType(), clusterAlias));
             } else {
                 logger.debug(
                     "unable to open maximum number of connections [remote cluster: {}, opened: {}, maximum: {}]",

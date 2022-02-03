@@ -43,8 +43,8 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryColle
      * Read from a stream.
      */
     public GeometryCollectionBuilder(StreamInput in) throws IOException {
-        int shapes = in.readVInt();
-        for (int i = 0; i < shapes; i++) {
+        int shapesValue = in.readVInt();
+        for (int i = 0; i < shapesValue; i++) {
             shape(in.readNamedWriteable(ShapeBuilder.class));
         }
     }
@@ -159,15 +159,14 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryColle
 
     @Override
     public Shape buildS4J() {
-
-        List<Shape> shapes = new ArrayList<>(this.shapes.size());
+        List<Shape> shapesList = new ArrayList<>(this.shapes.size());
 
         for (ShapeBuilder<?, ?, ?> shape : this.shapes) {
-            shapes.add(shape.buildS4J());
+            shapesList.add(shape.buildS4J());
         }
 
-        if (shapes.size() == 1) return shapes.get(0);
-        else return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
+        if (shapesList.size() == 1) return shapesList.get(0);
+        else return new XShapeCollection<>(shapesList, SPATIAL_CONTEXT);
         // note: ShapeCollection is probably faster than a Multi* geom.
     }
 
@@ -176,13 +175,13 @@ public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryColle
         if (this.shapes.isEmpty()) {
             return GeometryCollection.EMPTY;
         }
-        List<Geometry> shapes = new ArrayList<>(this.shapes.size());
+        List<Geometry> shapesList = new ArrayList<>(this.shapes.size());
 
         for (ShapeBuilder<?, ?, ?> shape : this.shapes) {
-            shapes.add(shape.buildGeometry());
+            shapesList.add(shape.buildGeometry());
         }
 
-        return new GeometryCollection<>(shapes);
+        return new GeometryCollection<>(shapesList);
     }
 
     @Override

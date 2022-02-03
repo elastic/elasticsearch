@@ -20,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -29,6 +30,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.IndexSettings.TIME_SERIES_END_TIME;
+import static org.elasticsearch.index.IndexSettings.TIME_SERIES_START_TIME;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.StringContains.containsString;
@@ -677,5 +680,57 @@ public class IndexSettingsTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
         assertThat(indexSettings.hasCustomDataPath(), is(true));
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { IndexMetadata.INDEX_DATA_PATH_SETTING });
+    }
+
+    public void testNoTimeRange() {
+        final Settings originalSettings = Settings.builder().build();
+        IndexSettings indexSettings = new IndexSettings(newIndexMeta("test", originalSettings), Settings.EMPTY);
+        assertNull(indexSettings.getTimestampBounds());
+    }
+
+    public void testUpdateTimeSeriesTimeRange() {
+        long endTime = System.currentTimeMillis();
+        long startTime = endTime - TimeUnit.DAYS.toMillis(1);
+        final Settings originalSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .put(TIME_SERIES_START_TIME.getKey(), startTime)
+            .put(TIME_SERIES_END_TIME.getKey(), endTime)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(newIndexMeta("test", originalSettings), Settings.EMPTY);
+        assertEquals(startTime, indexSettings.getTimestampBounds().startTime());
+        assertEquals(endTime, indexSettings.getTimestampBounds().endTime());
+
+        Settings endTimeBackwards = Settings.builder()
+            .put(originalSettings)
+            .put(TIME_SERIES_END_TIME.getKey(), endTime - randomLongBetween(1, 1000))
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> indexSettings.updateIndexMetadata(newIndexMeta("test", endTimeBackwards))
+        );
+        assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than current value"));
+
+        long newEndTime = endTime + randomLongBetween(1, 1000);
+        Settings endTimeForwards = Settings.builder().put(originalSettings).put(TIME_SERIES_END_TIME.getKey(), newEndTime).build();
+        indexSettings.updateIndexMetadata(newIndexMeta("test", endTimeForwards));
+
+        assertEquals(startTime, indexSettings.getTimestampBounds().startTime());
+        assertEquals(newEndTime, indexSettings.getTimestampBounds().endTime());
+    }
+
+    public void testTimeSeriesTimeBoundary() {
+        long startTime = System.currentTimeMillis();
+        long endTime = startTime - randomLongBetween(1, 1000);
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+            .put(TIME_SERIES_START_TIME.getKey(), startTime)
+            .put(TIME_SERIES_END_TIME.getKey(), endTime)
+            .build();
+        IndexMetadata metadata = newIndexMeta("test", settings);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than index.time_series.start_time"));
     }
 }

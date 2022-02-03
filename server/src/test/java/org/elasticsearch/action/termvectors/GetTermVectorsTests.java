@@ -191,12 +191,12 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
             for (int k = 0; k < docsAndPositions.freq(); k++) {
                 docsAndPositions.nextPosition();
                 if (docsAndPositions.getPayload() != null) {
-                    String infoString = "\nterm: "
-                        + term
-                        + " has payload \n"
-                        + docsAndPositions.getPayload().toString()
-                        + "\n but should have payload \n"
-                        + curPayloads.get(k).toString();
+                    String infoString = """
+
+                        term: %s has payload\s
+                        %s
+                         but should have payload\s
+                        %s""".formatted(term, docsAndPositions.getPayload().toString(), curPayloads.get(k).toString());
                     assertThat(infoString, docsAndPositions.getPayload(), equalTo(curPayloads.get(k)));
                 } else {
                     String infoString = "\nterm: " + term + " has no payload but should have payload \n" + curPayloads.get(k).toString();
@@ -219,24 +219,12 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
             resultString = resultString + token;
             BytesRef payload = payloads.get(token).get(payloadCounter.get(token));
             if (payload.length > 0) {
-                resultString = resultString + delimiter;
-                switch (encoding) {
-                    case 0: {
-                        resultString = resultString + Float.toString(PayloadHelper.decodeFloat(payload.bytes, payload.offset));
-                        break;
-                    }
-                    case 1: {
-                        resultString = resultString + Integer.toString(PayloadHelper.decodeInt(payload.bytes, payload.offset));
-                        break;
-                    }
-                    case 2: {
-                        resultString = resultString + payload.utf8ToString();
-                        break;
-                    }
-                    default: {
-                        throw new ElasticsearchException("unsupported encoding type");
-                    }
-                }
+                resultString = resultString + delimiter + switch (encoding) {
+                    case 0 -> Float.toString(PayloadHelper.decodeFloat(payload.bytes, payload.offset));
+                    case 1 -> Integer.toString(PayloadHelper.decodeInt(payload.bytes, payload.offset));
+                    case 2 -> payload.utf8ToString();
+                    default -> throw new ElasticsearchException("unsupported encoding type");
+                };
             }
             resultString = resultString + " ";
         }
@@ -278,16 +266,14 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
             boolean createPayload = randomBoolean();
             if (createPayload) {
                 switch (encoding) {
-                    case 0: {
+                    case 0 -> {
                         float theFloat = randomFloat();
                         payloads.get(token).add(new BytesRef(PayloadHelper.encodeFloat(theFloat)));
-                        break;
                     }
-                    case 1: {
+                    case 1 -> {
                         payloads.get(token).add(new BytesRef(PayloadHelper.encodeInt(randomInt())));
-                        break;
                     }
-                    case 2: {
+                    case 2 -> {
                         String payload = randomUnicodeOfLengthBetween(50, 100);
                         for (int c = 0; c < payload.length(); c++) {
                             if (Character.isWhitespace(payload.charAt(c))) {
@@ -295,9 +281,8 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
                             }
                         }
                         payloads.get(token).add(new BytesRef(payload));
-                        break;
                     }
-                    default: {
+                    default -> {
                         throw new ElasticsearchException("unsupported encoding type");
                     }
                 }

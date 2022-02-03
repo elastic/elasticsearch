@@ -1,0 +1,74 @@
+[discrete]
+[[breaking_80_index_setting_changes]]
+==== Index setting changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+[[index-max-adjacency-matrix-filters-removed]]
+.The `index.max_adjacency_matrix_filters` index setting has been removed.
+[%collapsible]
+====
+*Details* +
+The `index.max_adjacency_matrix_filters` index setting has been removed.
+Previously, you could use this setting to configure the maximum number of
+filters for the
+{ref}/search-aggregations-bucket-adjacency-matrix-aggregation.html[adjacency
+matrix aggregation]. The `indices.query.bool.max_clause_count` index setting now
+determines the maximum number of filters for the aggregation.
+
+*Impact* +
+Discontinue use of the `index.max_adjacency_matrix_filters` index setting.
+
+Requests that include the index setting will return an error. If you upgrade a
+cluster with a 7.x index that already contains the setting, {es} will
+{ref}/archived-settings.html#archived-index-settings[archive the setting].
+
+Remove the index setting from index and component templates. Attempts to use a
+template that contains the setting will fail and return an error. This includes
+automated operations, such the {ilm-init} rollover action.
+====
+
+.The `index.force_memory_term_dictionary` setting has been removed.
+[%collapsible]
+====
+*Details* +
+The `index.force_memory_term_dictionary` setting was introduced in 7.0 as a
+temporary measure to allow users to opt-out of the optimization that leaves the
+term dictionary on disk when appropriate. This optimization is now mandatory
+and the setting is removed.
+
+*Impact* +
+Discontinue use of the `index.force_memory_term_dictionary` index setting.
+Requests that include this setting will return an error.
+====
+
+.The `index.soft_deletes.enabled` setting has been removed.
+[%collapsible]
+====
+*Details* +
+Creating indices with soft deletes disabled was deprecated in 7.6 and
+is no longer supported in 8.0. The `index.soft_deletes.enabled` setting
+can no longer be set to `false`.
+
+*Impact* +
+Discontinue use of the `index.soft_deletes.enabled` index setting. Requests that
+set `index.soft_deletes.enabled` to `false` will return an error.
+====
+
+.The `index.translog.retention.age` and `index.translog.retention.size` settings have been removed.
+[%collapsible]
+====
+*Details* +
+Translog retention settings `index.translog.retention.age` and
+`index.translog.retention.size` were effectively ignored in 7.4, deprecated in
+7.7, and removed in 8.0 in favor of
+{ref}/index-modules-history-retention.html[soft deletes].
+
+*Impact* +
+Discontinue use of the `index.translog.retention.age` and
+`index.translog.retention.size` index settings. Requests that
+include these settings will return an error.
+====
+//end::notable-breaking-changes[]

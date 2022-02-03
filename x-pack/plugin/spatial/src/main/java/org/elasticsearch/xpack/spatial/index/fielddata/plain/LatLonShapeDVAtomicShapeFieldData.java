@@ -11,6 +11,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
@@ -23,8 +24,8 @@ final class LatLonShapeDVAtomicShapeFieldData extends AbstractAtomicGeoShapeShap
     private final LeafReader reader;
     private final String fieldName;
 
-    LatLonShapeDVAtomicShapeFieldData(LeafReader reader, String fieldName) {
-        super();
+    LatLonShapeDVAtomicShapeFieldData(LeafReader reader, String fieldName, ToScriptField<GeoShapeValues> toScriptField) {
+        super(toScriptField);
         this.reader = reader;
         this.fieldName = fieldName;
     }

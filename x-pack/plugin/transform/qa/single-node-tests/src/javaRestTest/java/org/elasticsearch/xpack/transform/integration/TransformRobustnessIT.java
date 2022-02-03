@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -21,37 +22,52 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TransformRobustnessIT extends TransformRestTestCase {
 
+    private static final String DANGLING_TASK_ERROR_MESSAGE =
+        "Found task for transform [simple_continuous_pivot], but no configuration for it. "
+            + "To delete this transform use DELETE with force=true.";
+
     public void testTaskRemovalAfterInternalIndexGotDeleted() throws Exception {
         String indexName = "continuous_reviews";
         createReviewsIndex(indexName);
         String transformId = "simple_continuous_pivot";
         String transformIndex = "pivot_reviews_continuous";
         final Request createTransformRequest = new Request("PUT", TransformField.REST_BASE_PATH_TRANSFORMS + transformId);
-        String config = "{"
-            + " \"source\": {\"index\":\""
-            + indexName
-            + "\"},"
-            + " \"dest\": {\"index\":\""
-            + transformIndex
-            + "\"},"
-            + " \"frequency\": \"1s\","
-            + " \"sync\": {\"time\": {\"field\": \"timestamp\", \"delay\": \"1s\"}},"
-            + " \"pivot\": {"
-            + "   \"group_by\": {"
-            + "     \"reviewer\": {"
-            + "       \"terms\": {"
-            + "         \"field\": \"user_id\""
-            + " } } },"
-            + "   \"aggregations\": {"
-            + "     \"avg_rating\": {"
-            + "       \"avg\": {"
-            + "         \"field\": \"stars\""
-            + " } } } }"
-            + "}";
+        String config = """
+            {
+              "source": {
+                "index": "%s"
+              },
+              "dest": {
+                "index": "%s"
+              },
+              "frequency": "1s",
+              "sync": {
+                "time": {
+                  "field": "timestamp",
+                  "delay": "1s"
+                }
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""".formatted(indexName, transformIndex);
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        assertEquals(1, getTransforms().size());
+        assertEquals(1, getTransforms(null).size());
         // there shouldn't be a task yet
         assertEquals(0, getNumberOfTransformTasks());
         startAndWaitForContinuousTransform(transformId, transformIndex, null);
@@ -64,12 +80,12 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_5", 3.72);
         assertNotNull(getTransformState(transformId));
 
-        assertEquals(1, getTransforms().size());
+        assertEquals(1, getTransforms(null).size());
 
         // delete the transform index
         beEvilAndDeleteTheTransformIndex();
         // transform is gone
-        assertEquals(0, getTransforms().size());
+        assertEquals(0, getTransforms(List.of(Map.of("type", "dangling_task", "reason", DANGLING_TASK_ERROR_MESSAGE))).size());
         // but the task is still there
         assertEquals(1, getNumberOfTransformTasks());
 

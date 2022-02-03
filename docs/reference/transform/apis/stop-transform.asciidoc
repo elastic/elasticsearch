@@ -27,21 +27,14 @@ Requires the `manage_transform` cluster privilege. This privilege is included
 in the `transform_admin` built-in role.
 
 
-[[stop-transform-desc]]
-== {api-description-title}
-
-You can stop multiple {transforms} in a single API request by using a
-comma-separated list of {transforms} or a wildcard expression.
-All {transforms} can be stopped by using `_all` or `*` as the
-`<transform_id>`.
-
-
 [[stop-transform-path-parms]]
 == {api-path-parms-title}
 
 `<transform_id>`::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
+Identifier for the transform. To stop multiple {transforms}, use a
+comma-separated list or a wildcard expression. To stop all {transforms}, use
+`_all` or `*` as the identifier.
 
 [[stop-transform-query-parms]]
 == {api-query-parms-title}
@@ -61,17 +54,17 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transfo
   more than `timeout` time has passed, the API throws a timeout exception. Even
   if a timeout exception is thrown, the stop request is still processing and
   eventually moves the {transform} to `STOPPED`. The timeout simply means the API
-  call itself timed out while waiting for the status change. Defaults to `30s`
-
-`wait_for_completion`::
-  (Optional, Boolean) If set to `true`, causes the API to block until the indexer 
-  state completely stops. If set to `false`, the API returns immediately and the
-  indexer will be stopped asynchronously in the background. Defaults to `false`.
+  call itself timed out while waiting for the status change. Defaults to `30s`.
 
 `wait_for_checkpoint`::
   (Optional, Boolean) If set to `true`, the transform will not completely stop
   until the current checkpoint is completed. If set to `false`, the {transform}
   stops as soon as possible. Defaults to `false`.
+
+`wait_for_completion`::
+  (Optional, Boolean) If set to `true`, causes the API to block until the indexer 
+  state completely stops. If set to `false`, the API returns immediately and the
+  indexer will be stopped asynchronously in the background. Defaults to `false`.
 
 [[stop-transform-response-codes]]
 == {api-response-codes-title}

@@ -37,7 +37,7 @@ public class AddMatch implements RestTestTransformByParentArray {
 
     @Override
     public boolean shouldApply(RestTestContext testContext) {
-        return testContext.getTestName().equals(testName);
+        return testContext.testName().equals(testName);
     }
 
     @Override

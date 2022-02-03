@@ -5,7 +5,8 @@
 ++++
 
 Triggers the review of a snapshot repository's contents and deletes any stale
-data that is not referenced by existing snapshots.
+data that is not referenced by existing snapshots. See
+<<snapshots-repository-cleanup>>.
 
 ////
 [source,console]
@@ -36,27 +37,6 @@ POST /_snapshot/my_repository/_cleanup
 
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API.
-
-[[clean-up-snapshot-repo-api-desc]]
-==== {api-description-title}
-
-Over time, snapshot repositories can accumulate stale data that is no longer
-referenced by existing snapshots.
-
-While this unreferenced data does not negatively impact the performance or
-safety of a snapshot repository, it can lead to more storage use than necessary.
-
-You can use the clean up snapshot repository API to detect and delete this
-unreferenced data.
-
-[TIP]
-====
-Most cleanup operations performed by this API are performed automatically when
-a snapshot is deleted from a repository.
-
-If you regularly delete snapshots, calling this API may only reduce your storage
-slightly or not at all.
-====
 
 [[clean-up-snapshot-repo-api-path-params]]
 ==== {api-path-parms-title}

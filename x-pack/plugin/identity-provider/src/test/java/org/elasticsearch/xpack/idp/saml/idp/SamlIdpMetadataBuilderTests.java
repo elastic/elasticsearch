@@ -45,19 +45,16 @@ public class SamlIdpMetadataBuilderTests extends IdpSamlTestCase {
         ).build();
         final Element element = new EntityDescriptorMarshaller().marshall(entityDescriptor);
         final String xml = samlFactory.toString(element, false);
-        assertThat(
-            xml,
-            equalTo(
-                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                    + "<md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://idp.org\">"
-                    + "<md:IDPSSODescriptor WantAuthnRequestsSigned=\"false\" "
-                    + "protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\">"
-                    + "<md:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\" "
-                    + "Location=\"https://idp.org/sso/redirect\"/>"
-                    + "</md:IDPSSODescriptor>"
-                    + "</md:EntityDescriptor>"
-            )
-        );
+        assertThat(xml, equalTo(normaliseXml("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <md:EntityDescriptor
+                xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://idp.org">
+                <md:IDPSSODescriptor WantAuthnRequestsSigned="false"
+                        protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+                    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                        Location="https://idp.org/sso/redirect"/>
+                </md:IDPSSODescriptor>
+            </md:EntityDescriptor>""".replaceAll("\\R", ""))));
     }
 
     public void testMetadataGenerationWithAllParameters() throws Exception {
@@ -124,51 +121,52 @@ public class SamlIdpMetadataBuilderTests extends IdpSamlTestCase {
             "MUeWfI+F8kK4NH5GkGggGqQDtes3Y+bWQ28lV7ny44TkMBARz6zH"
         );
 
-        final String expectedXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-            + "<md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"https://idp.org\">"
-            + "  <md:IDPSSODescriptor"
-            + "      WantAuthnRequestsSigned=\"true\""
-            + "      protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\">"
-            + "    <md:KeyDescriptor use=\"signing\">"
-            + "      <ds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\">"
-            + "        <ds:X509Data>"
-            + "          <ds:X509Certificate>%(signingCertificateOne)</ds:X509Certificate>"
-            + "        </ds:X509Data>"
-            + "      </ds:KeyInfo>"
-            + "    </md:KeyDescriptor>"
-            + "    <md:KeyDescriptor use=\"signing\">"
-            + "      <ds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\">"
-            + "        <ds:X509Data>"
-            + "          <ds:X509Certificate>%(signingCertificateTwo)</ds:X509Certificate>"
-            + "        </ds:X509Data>"
-            + "      </ds:KeyInfo>"
-            + "    </md:KeyDescriptor>"
-            + "    <md:SingleLogoutService"
-            + "        Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\""
-            + "        Location=\"https://idp.org/slo/post\"/>"
-            + "    <md:SingleLogoutService"
-            + "        Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\""
-            + "        Location=\"https://idp.org/slo/redirect\"/>"
-            + "    <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:persistent</md:NameIDFormat>"
-            + "    <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</md:NameIDFormat>"
-            + "    <md:SingleSignOnService"
-            + "        Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\""
-            + "        Location=\"https://idp.org/sso/post\"/>"
-            + "    <md:SingleSignOnService"
-            + "        Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\""
-            + "        Location=\"https://idp.org/sso/redirect\"/>"
-            + "  </md:IDPSSODescriptor>"
-            + "  <md:Organization>"
-            + "    <md:OrganizationName xml:lang=\"en\">Avengers</md:OrganizationName>"
-            + "    <md:OrganizationDisplayName xml:lang=\"en\">The Avengers</md:OrganizationDisplayName>"
-            + "    <md:OrganizationURL xml:lang=\"en\">https://linktotheidp.org</md:OrganizationURL>"
-            + "  </md:Organization>"
-            + "  <md:ContactPerson contactType=\"technical\">"
-            + "    <md:GivenName>Tony</md:GivenName>"
-            + "    <md:SurName>Stark</md:SurName>"
-            + "    <md:EmailAddress>tony@starkindustries.com</md:EmailAddress>"
-            + "  </md:ContactPerson>"
-            + "</md:EntityDescriptor>";
+        final String expectedXml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://idp.org">
+              <md:IDPSSODescriptor
+                  WantAuthnRequestsSigned="true"
+                  protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+                <md:KeyDescriptor use="signing">
+                  <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                    <ds:X509Data>
+                      <ds:X509Certificate>%(signingCertificateOne)</ds:X509Certificate>
+                    </ds:X509Data>
+                  </ds:KeyInfo>
+                </md:KeyDescriptor>
+                <md:KeyDescriptor use="signing">
+                  <ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#">
+                    <ds:X509Data>
+                      <ds:X509Certificate>%(signingCertificateTwo)</ds:X509Certificate>
+                    </ds:X509Data>
+                  </ds:KeyInfo>
+                </md:KeyDescriptor>
+                <md:SingleLogoutService
+                    Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                    Location="https://idp.org/slo/post"/>
+                <md:SingleLogoutService
+                    Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                    Location="https://idp.org/slo/redirect"/>
+                <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:persistent</md:NameIDFormat>
+                <md:NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</md:NameIDFormat>
+                <md:SingleSignOnService
+                    Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+                    Location="https://idp.org/sso/post"/>
+                <md:SingleSignOnService
+                    Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect"
+                    Location="https://idp.org/sso/redirect"/>
+              </md:IDPSSODescriptor>
+              <md:Organization>
+                <md:OrganizationName xml:lang="en">Avengers</md:OrganizationName>
+                <md:OrganizationDisplayName xml:lang="en">The Avengers</md:OrganizationDisplayName>
+                <md:OrganizationURL xml:lang="en">https://linktotheidp.org</md:OrganizationURL>
+              </md:Organization>
+              <md:ContactPerson contactType="technical">
+                <md:GivenName>Tony</md:GivenName>
+                <md:SurName>Stark</md:SurName>
+                <md:EmailAddress>tony@starkindustries.com</md:EmailAddress>
+              </md:ContactPerson>
+            </md:EntityDescriptor>""".replaceAll("\\R", "");
 
         final Map<String, Object> replacements = new HashMap<>();
         replacements.put("signingCertificateOne", signingCertificateOne);

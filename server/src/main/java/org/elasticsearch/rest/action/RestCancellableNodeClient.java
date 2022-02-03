@@ -13,10 +13,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
-import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.FilterClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -104,7 +104,7 @@ public class RestCancellableNodeClient extends FilterClient {
     }
 
     private void cancelTask(TaskId taskId) {
-        CancelTasksRequest req = new CancelTasksRequest().setTaskId(taskId).setReason("http channel [" + httpChannel + "] closed");
+        CancelTasksRequest req = new CancelTasksRequest().setTargetTaskId(taskId).setReason("http channel [" + httpChannel + "] closed");
         // force the origin to execute the cancellation as a system user
         new OriginSettingClient(client, TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.wrap(() -> {}));
     }

@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
 public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider {
 
@@ -64,17 +63,17 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings())) {
-            EnableAllocationDecider.Allocation enableAllocation = this.enableAllocation;
-            boolean allocateOnRollingRestart = this.allocateOnRollingRestart;
-            if (enableAllocation == EnableAllocationDecider.Allocation.PRIMARIES) {
-                if (allocateOnRollingRestart == false) {
+        if (indexMetadata.isSearchableSnapshot()) {
+            EnableAllocationDecider.Allocation enableAllocationCopy = this.enableAllocation;
+            boolean allocateOnRollingRestartCopy = this.allocateOnRollingRestart;
+            if (enableAllocationCopy == EnableAllocationDecider.Allocation.PRIMARIES) {
+                if (allocateOnRollingRestartCopy == false) {
                     return allocation.decision(
                         Decision.NO,
                         NAME,
                         "no allocations of searchable snapshots allowed during rolling restart due to [%s=%s] and [%s=false]",
                         EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(),
-                        enableAllocation,
+                        enableAllocationCopy,
                         SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART.getKey()
                     );
                 } else {

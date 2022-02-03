@@ -38,11 +38,18 @@ final class TransportHandshaker {
     private final Version version;
     private final ThreadPool threadPool;
     private final HandshakeRequestSender handshakeRequestSender;
+    private final boolean ignoreDeserializationErrors;
 
-    TransportHandshaker(Version version, ThreadPool threadPool, HandshakeRequestSender handshakeRequestSender) {
+    TransportHandshaker(
+        Version version,
+        ThreadPool threadPool,
+        HandshakeRequestSender handshakeRequestSender,
+        boolean ignoreDeserializationErrors
+    ) {
         this.version = version;
         this.threadPool = threadPool;
         this.handshakeRequestSender = handshakeRequestSender;
+        this.ignoreDeserializationErrors = ignoreDeserializationErrors;
     }
 
     void sendHandshake(long requestId, DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
@@ -77,11 +84,16 @@ final class TransportHandshaker {
     }
 
     void handleHandshake(TransportChannel channel, long requestId, StreamInput stream) throws IOException {
-        // Must read the handshake request to exhaust the stream
-        HandshakeRequest handshakeRequest = new HandshakeRequest(stream);
+        try {
+            // Must read the handshake request to exhaust the stream
+            new HandshakeRequest(stream);
+        } catch (Exception e) {
+            assert ignoreDeserializationErrors : e;
+            throw e;
+        }
         final int nextByte = stream.read();
         if (nextByte != -1) {
-            throw new IllegalStateException(
+            final IllegalStateException exception = new IllegalStateException(
                 "Handshake request not fully read for requestId ["
                     + requestId
                     + "], action ["
@@ -90,6 +102,8 @@ final class TransportHandshaker {
                     + stream.available()
                     + "]; resetting"
             );
+            assert ignoreDeserializationErrors : exception;
+            throw exception;
         }
         channel.sendResponse(new HandshakeResponse(this.version));
     }

@@ -6,6 +6,12 @@
 # Side Public License, v 1.
 #
 
+class org.elasticsearch.script.field.IPAddress {
+    (String)
+    boolean isV4()
+    boolean isV6()
+}
+
 class org.elasticsearch.painless.api.CIDR {
     (String)
     boolean contains(String)

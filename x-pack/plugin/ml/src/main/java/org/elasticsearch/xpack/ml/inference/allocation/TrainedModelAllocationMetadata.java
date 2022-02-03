@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.ml.inference.allocation;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -187,7 +187,7 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
         private final Diff<Map<String, TrainedModelAllocation>> modelRoutingEntries;
 
         static Diff<TrainedModelAllocation> readFrom(final StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(TrainedModelAllocation::new, in);
+            return SimpleDiffable.readDiffFrom(TrainedModelAllocation::new, in);
         }
 
         public TrainedModeAllocationDiff(TrainedModelAllocationMetadata before, TrainedModelAllocationMetadata after) {
@@ -217,6 +217,11 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
         @Override
         public String getWriteableName() {
             return NAME;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_8_0_0;
         }
 
         @Override

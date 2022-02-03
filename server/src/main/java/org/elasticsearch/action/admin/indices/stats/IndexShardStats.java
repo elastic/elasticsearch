@@ -8,13 +8,13 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Iterator;
 
 public class IndexShardStats implements Iterable<ShardStats>, Writeable {
@@ -47,7 +47,7 @@ public class IndexShardStats implements Iterable<ShardStats>, Writeable {
 
     @Override
     public Iterator<ShardStats> iterator() {
-        return Arrays.stream(shards).iterator();
+        return Iterators.forArray(shards);
     }
 
     private CommonStats total = null;

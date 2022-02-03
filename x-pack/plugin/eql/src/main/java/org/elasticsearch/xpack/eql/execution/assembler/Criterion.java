@@ -97,8 +97,8 @@ public class Criterion<Q extends QueryRequest> {
         if (implicitTbreaker instanceof Number == false) {
             throw new EqlIllegalArgumentException("Expected _shard_doc/implicit tiebreaker as long but got [{}]", implicitTbreaker);
         }
-        long implicitTiebreaker = ((Number) implicitTbreaker).longValue();
-        return new Ordinal((Timestamp) ts, tbreaker, implicitTiebreaker);
+        long timebreakerValue = ((Number) implicitTbreaker).longValue();
+        return new Ordinal((Timestamp) ts, tbreaker, timebreakerValue);
     }
 
     @Override

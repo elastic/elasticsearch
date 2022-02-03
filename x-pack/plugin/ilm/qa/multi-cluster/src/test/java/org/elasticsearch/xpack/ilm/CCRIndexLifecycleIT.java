@@ -201,22 +201,32 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
             // Set up an auto-follow pattern
             Request createAutoFollowRequest = new Request("PUT", "/_ccr/auto_follow/my_auto_follow_pattern");
-            createAutoFollowRequest.setJsonEntity(
-                "{\"leader_index_patterns\": [\"mymetrics-*\"], "
-                    + "\"remote_cluster\": \"leader_cluster\", \"read_poll_timeout\": \"1000ms\"}"
-            );
+            createAutoFollowRequest.setJsonEntity("""
+                {
+                  "leader_index_patterns": [ "mymetrics-*" ],
+                  "remote_cluster": "leader_cluster",
+                  "read_poll_timeout": "1000ms"
+                }""");
             assertOK(client().performRequest(createAutoFollowRequest));
 
             try (RestClient leaderClient = buildLeaderClient()) {
                 // Create an index on the leader using the template set up above
                 Request createIndexRequest = new Request("PUT", "/" + indexName);
-                createIndexRequest.setJsonEntity(
-                    "{"
-                        + "\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}, "
-                        + "\"aliases\": {\""
-                        + alias
-                        + "\":  {\"is_write_index\":  true}} }"
-                );
+                createIndexRequest.setJsonEntity("""
+                    {
+                      "mappings": {
+                        "properties": {
+                          "field": {
+                            "type": "keyword"
+                          }
+                        }
+                      },
+                      "aliases": {
+                        "%s": {
+                          "is_write_index": true
+                        }
+                      }
+                    }""".formatted(alias));
                 assertOK(leaderClient.performRequest(createIndexRequest));
                 // Check that the new index is created
                 Request checkIndexRequest = new Request("GET", "/_cluster/health/" + indexName);

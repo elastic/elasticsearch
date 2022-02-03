@@ -41,6 +41,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Methods to wrap polygons at the dateline and building shapes from the data held by the
  * builder.
  */
+@SuppressWarnings("HiddenField")
 public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.geometry.Geometry, PolygonBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.POLYGON;
@@ -82,8 +83,8 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.elasticsearch.
     public PolygonBuilder(StreamInput in) throws IOException {
         shell = new LineStringBuilder(in);
         orientation = Orientation.readFrom(in);
-        int holes = in.readVInt();
-        for (int i = 0; i < holes; i++) {
+        int holesValue = in.readVInt();
+        for (int i = 0; i < holesValue; i++) {
             hole(new LineStringBuilder(in));
         }
     }

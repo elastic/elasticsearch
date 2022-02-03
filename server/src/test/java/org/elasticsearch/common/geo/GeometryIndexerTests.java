@@ -193,6 +193,11 @@ public class GeometryIndexerTests extends ESTestCase {
             expected("POLYGON ((20 10, -20 10, -20 0, 20 0, 20 10)))"),
             actual(polygon(randomBoolean() ? null : randomBoolean(), 20, 0, 20, 10, -20, 10, -20, 0, 20, 0), randomBoolean())
         );
+
+        assertEquals(
+            expected("POLYGON ((180 29, 180 38, 180 56, 180 53, 178 47, 177 23, 180 29))"),
+            actual("POLYGON ((180 38,  180.0 56, 180.0 53, 178 47, 177 23, 180 29, 180 36, 180 37, 180 38))", randomBoolean())
+        );
     }
 
     public void testInvalidSelfCrossingPolygon() {

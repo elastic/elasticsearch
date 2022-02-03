@@ -309,4 +309,14 @@ public class LambdaTests extends ScriptTestCase {
             exec("def b = new StringBuilder(); List l = [1, 2]; l.stream().map(i -> b.setLength(i)).collect(Collectors.toList())")
         );
     }
+
+    public void testUnaryOperator() {
+        assertEquals("doremi", exec("List lst = ['abc', '123']; lst.replaceAll(f -> f.replace('abc', 'doremi')); lst.get(0);"));
+        assertEquals("doremi", exec("def lst = ['abc', '123']; lst.replaceAll(f -> f.replace('abc', 'doremi')); lst.get(0);"));
+    }
+
+    public void testBinaryOperator() {
+        assertEquals(1, exec("def list = new ArrayList(); list.add(1); list.add(2); list.stream().reduce((i1, i2) -> i1).orElse(0)"));
+        assertEquals(1, exec("List list = new ArrayList(); list.add(1); list.add(2); list.stream().reduce((i1, i2) -> i1).orElse(0)"));
+    }
 }

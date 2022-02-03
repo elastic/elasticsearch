@@ -51,6 +51,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -443,7 +444,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         if (indexedDocumentVersion != null) {
             getRequest.version(indexedDocumentVersion);
         }
-        SetOnce<BytesReference> documentSupplier = new SetOnce<>();
+        SetOnce<BytesReference> docSupplier = new SetOnce<>();
         queryRewriteContext.registerAsyncAction((client, listener) -> {
             client.get(getRequest, ActionListener.wrap(getResponse -> {
                 if (getResponse.isExists() == false) {
@@ -458,12 +459,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                         "indexed document [" + indexedDocumentIndex + "/" + indexedDocumentId + "] source disabled"
                     );
                 }
-                documentSupplier.set(getResponse.getSourceAsBytesRef());
+                docSupplier.set(getResponse.getSourceAsBytesRef());
                 listener.onResponse(null);
             }, listener::onFailure));
         });
 
-        PercolateQueryBuilder rewritten = new PercolateQueryBuilder(field, documentSupplier::get);
+        PercolateQueryBuilder rewritten = new PercolateQueryBuilder(field, docSupplier::get);
         if (name != null) {
             rewritten.setName(name);
         }
@@ -517,9 +518,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         final IndexSearcher docSearcher;
         final boolean excludeNestedDocuments;
         if (docs.size() > 1 || docs.get(0).docs().size() > 1) {
-            assert docs.size() != 1 || context.hasNested();
+            assert docs.size() != 1 || context.nestedLookup() != NestedLookup.EMPTY;
             docSearcher = createMultiDocumentSearcher(analyzer, docs);
-            excludeNestedDocuments = context.hasNested()
+            excludeNestedDocuments = context.nestedLookup() != NestedLookup.EMPTY
                 && docs.stream().map(ParsedDocument::docs).mapToInt(List::size).anyMatch(size -> size > 1);
         } else {
             MemoryIndex memoryIndex = MemoryIndex.fromDocument(docs.get(0).rootDoc(), analyzer, true, false);
@@ -529,13 +530,13 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
 
         PercolatorFieldMapper.PercolatorFieldType pft = (PercolatorFieldMapper.PercolatorFieldType) fieldType;
-        String name = this.name != null ? this.name : pft.name();
+        String queryName = this.name != null ? this.name : pft.name();
         SearchExecutionContext percolateShardContext = wrap(context);
         PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);
         ;
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext);
 
-        return pft.percolateQuery(name, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
+        return pft.percolateQuery(queryName, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
     }
 
     public String getField() {
@@ -649,5 +650,10 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 return (IFD) builder.build(cache, circuitBreaker);
             }
         };
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

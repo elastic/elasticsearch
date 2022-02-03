@@ -118,9 +118,15 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
             .put(LifecycleSettings.LIFECYCLE_NAME, "policy_1")
             .build();
         Request createIndexRequest = new Request("PUT", "/" + indexName);
-        createIndexRequest.setJsonEntity(
-            "{\n \"settings\": " + Strings.toString(settings) + ", \"aliases\" : { \"alias\": { \"is_write_index\": true } } }"
-        );
+        createIndexRequest.setJsonEntity("""
+            {
+              "settings": %s,
+              "aliases": {
+                "alias": {
+                  "is_write_index": true
+                }
+              }
+            }""".formatted(Strings.toString(settings)));
         client().performRequest(createIndexRequest);
         // wait for the shards to initialize
         ensureGreen(indexName);

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
@@ -17,9 +16,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Nullable;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 public class DiscoveryNodeFilters {
 
@@ -35,22 +34,22 @@ public class DiscoveryNodeFilters {
      * "_ip", "_host_ip", and "_publish_ip" and ensuring each of their comma separated values
      * that has no wildcards is a valid IP address.
      */
-    public static final BiConsumer<String, String> IP_VALIDATOR = (propertyKey, rawValue) -> {
-        if (rawValue != null) {
+    public static void validateIpValue(String propertyKey, List<String> values) {
+        if (values != null) {
             if (propertyKey.endsWith("._ip") || propertyKey.endsWith("._host_ip") || propertyKey.endsWith("_publish_ip")) {
-                for (String value : Strings.tokenizeToStringArray(rawValue, ",")) {
+                for (String value : values) {
                     if (Regex.isSimpleMatchPattern(value) == false && InetAddresses.isInetAddress(value) == false) {
                         throw new IllegalArgumentException("invalid IP address [" + value + "] for [" + propertyKey + "]");
                     }
                 }
             }
         }
-    };
+    }
 
-    public static DiscoveryNodeFilters buildFromKeyValue(OpType opType, Map<String, String> filters) {
+    public static DiscoveryNodeFilters buildFromKeyValues(OpType opType, Map<String, List<String>> filters) {
         Map<String, String[]> bFilters = new HashMap<>();
-        for (Map.Entry<String, String> entry : filters.entrySet()) {
-            String[] values = Strings.tokenizeToStringArray(entry.getValue(), ",");
+        for (var entry : filters.entrySet()) {
+            String[] values = entry.getValue().toArray(String[]::new);
             if (values.length > 0 && entry.getKey() != null) {
                 bFilters.put(entry.getKey(), values);
             }

@@ -60,6 +60,7 @@ public class CartesianPoint implements ToXContentFragment {
         }
     }
 
+    @SuppressWarnings("HiddenField")
     public CartesianPoint resetFromCoordinates(String value, final boolean ignoreZValue) {
         String[] vals = value.split(",");
         if (vals.length > 3 || vals.length < 2) {

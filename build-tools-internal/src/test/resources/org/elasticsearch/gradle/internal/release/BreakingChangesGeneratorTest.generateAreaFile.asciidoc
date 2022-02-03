@@ -1,0 +1,33 @@
+[discrete]
+[[breaking_84_cluster_node_setting]]
+==== Cluster and node setting
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+TIP: {ess-setting-change}
+
+// tag::notable-breaking-changes[]
+[[breaking_change_number_2]]
+. Breaking change number 2
+[%collapsible]
+====
+*Details* +
+Breaking change details 2
+
+*Impact* +
+Breaking change impact description 2
+====
+
+[[breaking_change_number_4]]
+. Breaking change number 4 {ess-icon}
+[%collapsible]
+====
+*Details* +
+Breaking change details 4
+
+*Impact* +
+Breaking change impact description 4
+====
+// end::notable-breaking-changes[]
+

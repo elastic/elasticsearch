@@ -13,7 +13,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public record HealthIndicator(String name, String component, HealthStatus status, String summary, ToXContentObject details)
+public record HealthIndicatorResult(String name, String component, HealthStatus status, String summary, ToXContentObject details)
     implements
         ToXContentObject {
 

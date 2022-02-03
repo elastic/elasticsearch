@@ -48,17 +48,17 @@ public class GetHealthActionIT extends ESIntegTestCase {
 
         assertEquals(2, response.getComponents().size());
 
-        for (HealthComponent component : response.getComponents()) {
+        for (HealthComponentResult component : response.getComponents()) {
             assertEquals(HealthStatus.GREEN, component.status());
         }
 
-        HealthComponent controller = response.getComponents()
+        HealthComponentResult controller = response.getComponents()
             .stream()
             .filter(c -> c.name().equals("cluster_coordination"))
             .findAny()
             .orElseThrow();
         assertEquals(1, controller.indicators().size());
-        HealthIndicator nodeDoesNotHaveMaster = controller.indicators().get(ClusterCoordination.INSTANCE_HAS_MASTER_NAME);
+        HealthIndicatorResult nodeDoesNotHaveMaster = controller.indicators().get(ClusterCoordination.INSTANCE_HAS_MASTER_NAME);
         assertEquals(ClusterCoordination.INSTANCE_HAS_MASTER_NAME, nodeDoesNotHaveMaster.name());
         assertEquals(HealthStatus.GREEN, nodeDoesNotHaveMaster.status());
         assertEquals(ClusterCoordination.INSTANCE_HAS_MASTER_GREEN_SUMMARY, nodeDoesNotHaveMaster.summary());
@@ -83,13 +83,13 @@ public class GetHealthActionIT extends ESIntegTestCase {
                 GetHealthAction.Response response = client().execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
                 assertEquals(HealthStatus.RED, response.getStatus());
                 assertEquals(2, response.getComponents().size());
-                HealthComponent controller = response.getComponents()
+                HealthComponentResult controller = response.getComponents()
                     .stream()
                     .filter(c -> c.name().equals("cluster_coordination"))
                     .findAny()
                     .orElseThrow();
                 assertEquals(1, controller.indicators().size());
-                HealthIndicator instanceHasMaster = controller.indicators().get(ClusterCoordination.INSTANCE_HAS_MASTER_NAME);
+                HealthIndicatorResult instanceHasMaster = controller.indicators().get(ClusterCoordination.INSTANCE_HAS_MASTER_NAME);
                 assertEquals(ClusterCoordination.INSTANCE_HAS_MASTER_NAME, instanceHasMaster.name());
                 assertEquals(HealthStatus.RED, instanceHasMaster.status());
                 assertEquals(ClusterCoordination.INSTANCE_HAS_MASTER_RED_SUMMARY, instanceHasMaster.summary());

@@ -22,28 +22,30 @@ import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
 
-public record HealthComponent(String name, HealthStatus status, Map<String, HealthIndicator> indicators) implements ToXContentObject {
+public record HealthComponentResult(String name, HealthStatus status, Map<String, HealthIndicatorResult> indicators)
+    implements
+        ToXContentObject {
 
-    public static Collection<HealthComponent> createComponentsFromIndicators(Collection<HealthIndicator> indicators) {
+    public static Collection<HealthComponentResult> createComponentsFromIndicators(Collection<HealthIndicatorResult> indicators) {
         return indicators.stream()
             .collect(
                 groupingBy(
-                    HealthIndicator::component,
+                    HealthIndicatorResult::component,
                     TreeMap::new,
-                    collectingAndThen(toList(), HealthComponent::createComponentFromIndicators)
+                    collectingAndThen(toList(), HealthComponentResult::createComponentFromIndicators)
                 )
             )
             .values();
     }
 
-    private static HealthComponent createComponentFromIndicators(List<HealthIndicator> indicators) {
+    private static HealthComponentResult createComponentFromIndicators(List<HealthIndicatorResult> indicators) {
         assert indicators.size() > 0 : "Component should not be non empty";
-        assert indicators.stream().map(HealthIndicator::component).distinct().count() == 1L
+        assert indicators.stream().map(HealthIndicatorResult::component).distinct().count() == 1L
             : "Should not mix indicators from different components";
-        return new HealthComponent(
+        return new HealthComponentResult(
             indicators.get(0).component(),
-            HealthStatus.merge(indicators.stream().map(HealthIndicator::status)),
-            indicators.stream().collect(Collectors.toMap(HealthIndicator::name, i -> i))
+            HealthStatus.merge(indicators.stream().map(HealthIndicatorResult::status)),
+            indicators.stream().collect(Collectors.toMap(HealthIndicatorResult::name, i -> i))
         );
     }
 
@@ -52,7 +54,7 @@ public record HealthComponent(String name, HealthStatus status, Map<String, Heal
         builder.startObject();
         builder.field("status", status);
         builder.startObject("indicators");
-        for (Map.Entry<String, HealthIndicator> indicator : indicators.entrySet()) {
+        for (Map.Entry<String, HealthIndicatorResult> indicator : indicators.entrySet()) {
             builder.field(indicator.getKey());
             indicator.getValue().toXContent(builder, params);
         }

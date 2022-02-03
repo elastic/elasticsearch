@@ -45,16 +45,16 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         private final ClusterName clusterName;
         private final HealthStatus status;
-        private final List<HealthComponent> components;
+        private final List<HealthComponentResult> components;
 
         public Response(StreamInput in) {
             throw new AssertionError("GetHealthAction should not be sent over the wire.");
         }
 
-        public Response(final ClusterName clusterName, final List<HealthComponent> components) {
+        public Response(final ClusterName clusterName, final List<HealthComponentResult> components) {
             this.clusterName = clusterName;
             this.components = components;
-            this.status = HealthStatus.merge(components.stream().map(HealthComponent::status));
+            this.status = HealthStatus.merge(components.stream().map(HealthComponentResult::status));
         }
 
         public ClusterName getClusterName() {
@@ -65,7 +65,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             return status;
         }
 
-        public List<HealthComponent> getComponents() {
+        public List<HealthComponentResult> getComponents() {
             return components;
         }
 
@@ -81,7 +81,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             builder.field("cluster_name", clusterName.value());
             builder.array("impacts");
             builder.startObject("components");
-            for (HealthComponent component : components) {
+            for (HealthComponentResult component : components) {
                 builder.field(component.name());
                 component.toXContent(builder, params);
             }
@@ -115,11 +115,11 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             final ClusterState clusterState = clusterService.state();
-            final HealthComponent controller = ClusterCoordination.createClusterCoordinationComponent(
+            final HealthComponentResult controller = ClusterCoordination.createClusterCoordinationComponent(
                 clusterService.localNode(),
                 clusterState
             );
-            final HealthComponent snapshots = new HealthComponent("snapshots", HealthStatus.GREEN, Collections.emptyMap());
+            final HealthComponentResult snapshots = new HealthComponentResult("snapshots", HealthStatus.GREEN, Collections.emptyMap());
             final ClusterName clusterName = clusterService.getClusterName();
             listener.onResponse(new Response(clusterName, Arrays.asList(controller, snapshots)));
         }

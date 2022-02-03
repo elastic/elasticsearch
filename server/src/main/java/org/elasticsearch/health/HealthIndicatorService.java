@@ -13,5 +13,5 @@ package org.elasticsearch.health;
  */
 public interface HealthIndicatorService {
 
-    HealthIndicator calculate();
+    HealthIndicatorResult calculate();
 }

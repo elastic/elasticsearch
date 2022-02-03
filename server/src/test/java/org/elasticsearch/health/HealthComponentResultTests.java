@@ -10,7 +10,7 @@ package org.elasticsearch.health;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class HealthComponentTests extends ESTestCase {
+public class HealthComponentResultTests extends ESTestCase {
 
     public void testGroupIndicators() {
 

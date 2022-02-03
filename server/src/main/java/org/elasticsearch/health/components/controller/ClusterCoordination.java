@@ -11,8 +11,8 @@ package org.elasticsearch.health.components.controller;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.health.HealthComponent;
-import org.elasticsearch.health.HealthIndicator;
+import org.elasticsearch.health.HealthComponentResult;
+import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 
 import java.util.Collections;
@@ -27,7 +27,7 @@ public final class ClusterCoordination {
 
     private ClusterCoordination() {}
 
-    public static HealthComponent createClusterCoordinationComponent(
+    public static HealthComponentResult createClusterCoordinationComponent(
         final DiscoveryNode coordinatingNode,
         final ClusterState clusterState
     ) {
@@ -36,7 +36,7 @@ public final class ClusterCoordination {
 
         HealthStatus instanceHasMasterStatus = masterNode == null ? HealthStatus.RED : HealthStatus.GREEN;
         String instanceHasMasterSummary = masterNode == null ? INSTANCE_HAS_MASTER_RED_SUMMARY : INSTANCE_HAS_MASTER_GREEN_SUMMARY;
-        HealthIndicator instanceHasMaster = new HealthIndicator(
+        HealthIndicatorResult instanceHasMaster = new HealthIndicatorResult(
             INSTANCE_HAS_MASTER_NAME,
             NAME,
             instanceHasMasterStatus,
@@ -62,6 +62,6 @@ public final class ClusterCoordination {
 
         // Only a single indicator currently so it determines the status
         final HealthStatus status = instanceHasMaster.status();
-        return new HealthComponent(NAME, status, Collections.singletonMap(INSTANCE_HAS_MASTER_NAME, instanceHasMaster));
+        return new HealthComponentResult(NAME, status, Collections.singletonMap(INSTANCE_HAS_MASTER_NAME, instanceHasMaster));
     }
 }

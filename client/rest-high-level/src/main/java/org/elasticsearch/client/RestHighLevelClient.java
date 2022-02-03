@@ -287,7 +287,6 @@ public class RestHighLevelClient implements Closeable {
     private final MigrationClient migrationClient = new MigrationClient(this);
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
-    private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
     private final RollupClient rollupClient = new RollupClient(this);
     private final CcrClient ccrClient = new CcrClient(this);
     private final TransformClient transformClient = new TransformClient(this);

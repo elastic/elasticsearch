@@ -1,5 +1,5 @@
 pr: 83448
-summary: Safelist content type block
+summary: Do not allow safelisted media types on Content-Type
 area: Infra/REST API
 type: bug
 issues: []

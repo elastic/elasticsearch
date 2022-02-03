@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Arithmetics;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Arithmetics.NumericArithmetic;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryArithmeticOperation;
-import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalArithmetics;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;

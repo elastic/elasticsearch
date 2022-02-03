@@ -68,7 +68,7 @@ public class Sum extends InternalNumericMetricsAggregation.SingleValue {
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalSum(name, samplingContext.inverseScale(sum), format, getMetadata());
+        return new Sum(name, samplingContext.inverseScale(sum), format, getMetadata());
     }
 
     @Override

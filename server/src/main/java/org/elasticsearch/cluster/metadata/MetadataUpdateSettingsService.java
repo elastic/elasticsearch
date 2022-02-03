@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -72,23 +71,13 @@ public class MetadataUpdateSettingsService {
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
         this.threadPool = threadPool;
-        this.executor = (currentState, tasks) -> {
-            ClusterTasksResult.Builder<AckedClusterStateUpdateTask> builder = ClusterTasksResult.builder();
-            ClusterState state = currentState;
-            for (AckedClusterStateUpdateTask task : tasks) {
-                try {
-                    state = task.execute(state);
-                    builder.success(task);
-                } catch (Exception e) {
-                    builder.failure(task, e);
-                }
-            }
-            if (state != currentState) {
+        this.executor = ClusterStateTaskExecutor.simpleBatched((originalState, updatedState) -> {
+            if (updatedState != originalState) {
                 // reroute in case things change that require it (like number of replicas)
-                state = allocationService.reroute(state, "settings update");
+                updatedState = allocationService.reroute(updatedState, "settings update");
             }
-            return builder.build(state);
-        };
+            return updatedState;
+        });
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {

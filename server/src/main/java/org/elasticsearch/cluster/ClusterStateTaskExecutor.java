@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     /**
@@ -151,18 +152,25 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     }
 
     static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> simpleBatched() {
-        return (currentState, tasks) -> {
+        return simpleBatched((originalState, updatedState) -> updatedState);
+    }
+
+    static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> simpleBatched(
+        BiFunction<ClusterState, ClusterState, ClusterState> clusterStateCallback
+    ) {
+        return (originalState, tasks) -> {
             ClusterTasksResult.Builder<T> builder = ClusterTasksResult.builder();
-            ClusterState state = currentState;
+            ClusterState updatedState = originalState;
             for (T task : tasks) {
                 try {
-                    state = task.execute(state);
+                    updatedState = task.execute(updatedState);
                     builder.success(task);
                 } catch (Exception e) {
                     builder.failure(task, e);
                 }
             }
-            return builder.build(state);
+            updatedState = clusterStateCallback.apply(originalState, updatedState);
+            return builder.build(updatedState);
         };
     }
 }

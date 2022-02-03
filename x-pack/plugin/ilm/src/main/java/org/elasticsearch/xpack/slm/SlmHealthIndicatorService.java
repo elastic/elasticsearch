@@ -55,12 +55,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
 
     private static HealthIndicatorDetails createDetails(SnapshotLifecycleMetadata metadata) {
         return new SimpleHealthIndicatorDetails(
-            Map.of(
-                "slm-status",
-                metadata.getOperationMode().toString(),
-                "policies",
-                Integer.toString(metadata.getSnapshotConfigurations().size())
-            )
+            Map.of("slm-status", metadata.getOperationMode(), "policies", metadata.getSnapshotConfigurations().size())
         );
     }
 }

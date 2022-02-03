@@ -55,7 +55,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     private static HealthIndicatorDetails createDetails(IndexLifecycleMetadata metadata) {
         return new SimpleHealthIndicatorDetails(
-            Map.of("ilm-status", metadata.getOperationMode().toString(), "policies", Integer.toString(metadata.getPolicies().size()))
+            Map.of("ilm-status", metadata.getOperationMode(), "policies", metadata.getPolicies().size())
         );
     }
 }

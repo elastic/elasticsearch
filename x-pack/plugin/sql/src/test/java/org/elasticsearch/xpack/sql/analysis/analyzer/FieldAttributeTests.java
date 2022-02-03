@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.stats.Metrics;
-import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 
 import java.util.Collections;
 import java.util.List;
@@ -48,6 +47,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -70,7 +70,7 @@ public class FieldAttributeTests extends ESTestCase {
         functionRegistry = new SqlFunctionRegistry();
         verifier = new Verifier(new Metrics());
 
-        Map<String, EsField> mapping = SqlTypesTests.loadMapping("mapping-multi-field-variation.json");
+        Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json");
 
         EsIndex test = new EsIndex("test", mapping);
         getIndexResult = IndexResolution.valid(test);
@@ -324,7 +324,7 @@ public class FieldAttributeTests extends ESTestCase {
             analyzer = new Analyzer(
                 sqlConfig,
                 functionRegistry,
-                loadCompatibleMapping("mapping-numeric.json", preUnsignedLong),
+                loadCompatibleIndexResolution("mapping-numeric.json", preUnsignedLong),
                 new Verifier(new Metrics())
             );
             VerificationException ex = expectThrows(VerificationException.class, () -> plan(sql));
@@ -334,7 +334,7 @@ public class FieldAttributeTests extends ESTestCase {
                 analyzer = new Analyzer(
                     SqlTestUtils.randomConfiguration(SqlVersion.fromId(v.id)),
                     functionRegistry,
-                    loadCompatibleMapping("mapping-numeric.json", v),
+                    loadCompatibleIndexResolution("mapping-numeric.json", v),
                     verifier
                 );
                 LogicalPlan plan = plan(sql);
@@ -355,7 +355,7 @@ public class FieldAttributeTests extends ESTestCase {
         analyzer = new Analyzer(
             sqlConfig,
             functionRegistry,
-            loadCompatibleMapping("mapping-numeric.json", preUnsignedLong),
+            loadCompatibleIndexResolution("mapping-numeric.json", preUnsignedLong),
             new Verifier(new Metrics())
         );
 
@@ -389,7 +389,7 @@ public class FieldAttributeTests extends ESTestCase {
         analyzer = new Analyzer(
             SqlTestUtils.randomConfiguration(SqlVersion.fromId(preUnsignedLong.id)),
             functionRegistry,
-            compatibleMapping(props, preUnsignedLong),
+            compatibleIndexResolution(props, preUnsignedLong),
             new Verifier(new Metrics())
         );
         VerificationException ex = expectThrows(VerificationException.class, () -> plan(sql));
@@ -400,7 +400,7 @@ public class FieldAttributeTests extends ESTestCase {
             analyzer = new Analyzer(
                 SqlTestUtils.randomConfiguration(SqlVersion.fromId(v.id)),
                 functionRegistry,
-                compatibleMapping(props, v),
+                compatibleIndexResolution(props, v),
                 verifier
             );
             LogicalPlan plan = plan(sql);
@@ -425,7 +425,7 @@ public class FieldAttributeTests extends ESTestCase {
             analyzer = new Analyzer(
                 config,
                 functionRegistry,
-                loadCompatibleMapping("mapping-numeric.json", Version.fromId(version.id)),
+                loadCompatibleIndexResolution("mapping-numeric.json", Version.fromId(version.id)),
                 new Verifier(new Metrics())
             );
 
@@ -440,7 +440,7 @@ public class FieldAttributeTests extends ESTestCase {
     }
 
     public void testFunctionOverNonExistingFieldAsArgumentAndSameAlias() throws Exception {
-        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, loadMapping("mapping-basic.json"), verifier);
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, loadIndexResolution("mapping-basic.json"), verifier);
 
         VerificationException ex = expectThrows(
             VerificationException.class,
@@ -450,7 +450,7 @@ public class FieldAttributeTests extends ESTestCase {
     }
 
     public void testFunctionWithExpressionOverNonExistingFieldAsArgumentAndSameAlias() throws Exception {
-        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, loadMapping("mapping-basic.json"), verifier);
+        analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, loadIndexResolution("mapping-basic.json"), verifier);
 
         VerificationException ex = expectThrows(
             VerificationException.class,
@@ -470,17 +470,17 @@ public class FieldAttributeTests extends ESTestCase {
         assertTrue(((Project) plan).projections().isEmpty());
     }
 
-    private static IndexResolution loadMapping(String mappingName) {
+    private static IndexResolution loadIndexResolution(String mappingName) {
         Map<String, EsField> mapping = TypesTests.loadMapping(mappingName);
         EsIndex index = new EsIndex("test", mapping);
         return IndexResolution.valid(index);
     }
 
-    private static IndexResolution loadCompatibleMapping(String mappingName, Version version) {
-        return IndexCompatibility.compatible(loadMapping(mappingName), version);
+    private static IndexResolution loadCompatibleIndexResolution(String mappingName, Version version) {
+        return IndexCompatibility.compatible(loadIndexResolution(mappingName), version);
     }
 
-    private static IndexResolution compatibleMapping(String properties, Version version) {
+    private static IndexResolution compatibleIndexResolution(String properties, Version version) {
         Map<String, EsField> mapping = Types.fromEs(
             DefaultDataTypeRegistry.INSTANCE,
             XContentHelper.convertToMap(JsonXContent.jsonXContent, properties, randomBoolean())

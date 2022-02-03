@@ -6,13 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
+package org.elasticsearch.health;
 
-import org.elasticsearch.health.HealthIndicatorService;
-
-import java.util.List;
-
-public interface HealthIndicatorPlugin {
-
-    List<HealthIndicatorService> getHealthIndicatorServices();
+public class ServerHealthComponents {
+    public static final String DATA = "data";
+    public static final String SNAPSHOT = "snapshot";
 }

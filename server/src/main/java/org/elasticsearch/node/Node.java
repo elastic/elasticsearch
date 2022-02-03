@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -94,7 +95,6 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
-import org.elasticsearch.health.HealthService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
@@ -135,7 +135,6 @@ import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
-import org.elasticsearch.plugins.HealthIndicatorPlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -220,6 +219,11 @@ public class Node implements Closeable {
     public static final Setting<Boolean> WRITE_PORTS_FILE_SETTING = Setting.boolSetting("node.portsfile", false, Property.NodeScope);
 
     public static final Setting<String> NODE_NAME_SETTING = Setting.simpleString("node.name", Property.NodeScope);
+    public static final Setting<String> NODE_EXTERNAL_ID_SETTING = Setting.simpleString(
+        "node.external_id",
+        NODE_NAME_SETTING,
+        Property.NodeScope
+    );
     public static final Setting.AffixSetting<String> NODE_ATTRIBUTES = Setting.prefixKeySetting(
         "node.attr.",
         (key) -> new Setting<>(key, "", (value) -> {
@@ -730,7 +734,7 @@ public class Node implements Closeable {
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
-                Stream.of(Task.X_OPAQUE_ID_HTTP_HEADER, Task.TRACE_ID, Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER)
+                Task.HEADERS_TO_COPY.stream()
             ).collect(Collectors.toSet());
             final TransportService transportService = newTransportService(
                 settings,
@@ -887,13 +891,8 @@ public class Node implements Closeable {
             clusterService.addListener(pluginShutdownService);
 
             final RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
-
-            final HealthService healthService = new HealthService(
-                pluginsService.filterPlugins(HealthIndicatorPlugin.class)
-                    .stream()
-                    .map(HealthIndicatorPlugin::getHealthIndicatorServices)
-                    .flatMap(List::stream)
-                    .collect(toList())
+            final DesiredNodesSettingsValidator desiredNodesSettingsValidator = new DesiredNodesSettingsValidator(
+                clusterService.getClusterSettings()
             );
 
             modules.add(b -> {
@@ -975,7 +974,7 @@ public class Node implements Closeable {
                 b.bind(PluginShutdownService.class).toInstance(pluginShutdownService);
                 b.bind(ExecutorSelector.class).toInstance(executorSelector);
                 b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
-                b.bind(HealthService.class).toInstance(healthService);
+                b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
             });
             injector = modules.createInjector();
 

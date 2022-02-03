@@ -89,12 +89,10 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         assertEquals(Integer.valueOf(2), result.get(2));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83433")
     public void testNullsOrderWithMissingOrderSupportQueryingNewNode() throws IOException {
         testNullsOrderWithMissingOrderSupport(newNodesClient);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83433")
     public void testNullsOrderWithMissingOrderSupportQueryingOldNode() throws IOException {
         testNullsOrderWithMissingOrderSupport(oldNodesClient);
     }
@@ -124,7 +122,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         indexDocs.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : Arrays.asList("{\"int\":1,\"kw\":\"foo\"}", "{\"int\":2,\"kw\":\"bar\"}", "{\"kw\":\"bar\"}")) {
-            bulk.append("{\"index\":{}\n").append(doc).append("\n");
+            bulk.append("{\"index\":{}}\n").append(doc).append("\n");
         }
         indexDocs.setJsonEntity(bulk.toString());
         client().performRequest(indexDocs);

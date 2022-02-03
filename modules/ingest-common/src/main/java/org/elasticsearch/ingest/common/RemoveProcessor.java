@@ -27,32 +27,59 @@ public final class RemoveProcessor extends AbstractProcessor {
 
     public static final String TYPE = "remove";
 
-    private final List<TemplateScript.Factory> fields;
+    private final List<TemplateScript.Factory> fieldsToRemove;
+    private final List<TemplateScript.Factory> fieldsToKeep;
     private final boolean ignoreMissing;
 
-    RemoveProcessor(String tag, String description, List<TemplateScript.Factory> fields, boolean ignoreMissing) {
+    RemoveProcessor(
+        String tag,
+        String description,
+        List<TemplateScript.Factory> fieldsToRemove,
+        List<TemplateScript.Factory> fieldsToKeep,
+        boolean ignoreMissing
+    ) {
         super(tag, description);
-        this.fields = new ArrayList<>(fields);
+        this.fieldsToRemove = new ArrayList<>(fieldsToRemove);
+        this.fieldsToKeep = new ArrayList<>(fieldsToKeep);
         this.ignoreMissing = ignoreMissing;
     }
 
-    public List<TemplateScript.Factory> getFields() {
-        return fields;
+    RemoveProcessor(String tag, String description, List<TemplateScript.Factory> fieldsToRemove, boolean ignoreMissing) {
+        super(tag, description);
+        this.fieldsToRemove = new ArrayList<>(fieldsToRemove);
+        this.fieldsToKeep = new ArrayList<>();
+        this.ignoreMissing = ignoreMissing;
     }
 
     @Override
     public IngestDocument execute(IngestDocument document) {
+        if (fieldsToKeep.isEmpty() == false) {
+            IngestDocument.getAllFields(document.getSourceAndMetadata())
+                .stream()
+                .filter(documentField -> documentField.startsWith("_") == false)
+                .filter(documentField -> shouldKeep(documentField, fieldsToKeep, document) == false)
+                .forEach(documentField -> removeWhenPresent(document, documentField));
+        }
+
         if (ignoreMissing) {
-            fields.forEach(field -> {
-                String path = document.renderTemplate(field);
-                if (document.hasField(path)) {
-                    document.removeField(path);
-                }
-            });
+            fieldsToRemove.forEach(field -> removeWhenPresent(document, document.renderTemplate(field)));
         } else {
-            fields.forEach(document::removeField);
+            fieldsToRemove.forEach(document::removeField);
         }
         return document;
+    }
+
+    private void removeWhenPresent(IngestDocument document, String documentField) {
+        if (document.hasField(documentField)) {
+            document.removeField(documentField);
+        }
+    }
+
+    static boolean shouldKeep(String documentField, List<TemplateScript.Factory> fieldsToKeep, IngestDocument document) {
+        return fieldsToKeep.stream().anyMatch(fieldToKeep -> {
+            String path = document.renderTemplate(fieldToKeep);
+            return documentField.equals(path) || path.startsWith(documentField + ".") || documentField.startsWith(path + ".");
+        });
     }
 
     @Override
@@ -75,8 +102,39 @@ public final class RemoveProcessor extends AbstractProcessor {
             String description,
             Map<String, Object> config
         ) throws Exception {
+            final List<TemplateScript.Factory> compiledTemplatesToRemove = getTemplates(processorTag, config, "field");
+            final List<TemplateScript.Factory> compiledTemplatesToKeep = getTemplates(processorTag, config, "keep");
+
+            if (compiledTemplatesToRemove.isEmpty() && compiledTemplatesToKeep.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "missing field [processors.remove.keep] or [processors.remove.field]. Please specify one of them."
+                );
+            }
+
+            if (compiledTemplatesToRemove.isEmpty() == false && compiledTemplatesToKeep.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "Too many fields specified. Please specify either [processors.remove.keep] or [processors.remove.field]."
+                );
+            }
+
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
+            return new RemoveProcessor(processorTag, description, compiledTemplatesToRemove, compiledTemplatesToKeep, ignoreMissing);
+        }
+
+        private List<TemplateScript.Factory> getTemplates(String processorTag, Map<String, Object> config, String propertyName) {
+            return getFields(processorTag, config, propertyName).stream()
+                .map(f -> ConfigurationUtils.compileTemplate(TYPE, processorTag, propertyName, f, scriptService))
+                .collect(Collectors.toList());
+        }
+
+        private List<String> getFields(String processorTag, Map<String, Object> config, String propertyName) {
             final List<String> fields = new ArrayList<>();
-            final Object field = ConfigurationUtils.readObject(TYPE, processorTag, config, "field");
+
+            if (config.containsKey(propertyName) == false) {
+                return fields;
+            }
+
+            final Object field = ConfigurationUtils.readObject(TYPE, processorTag, config, propertyName);
             if (field instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<String> stringList = (List<String>) field;
@@ -85,11 +143,16 @@ public final class RemoveProcessor extends AbstractProcessor {
                 fields.add((String) field);
             }
 
-            final List<TemplateScript.Factory> compiledTemplates = fields.stream()
-                .map(f -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", f, scriptService))
-                .collect(Collectors.toList());
-            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            return new RemoveProcessor(processorTag, description, compiledTemplates, ignoreMissing);
+            return fields;
         }
     }
+
+    public List<TemplateScript.Factory> getFieldsToRemove() {
+        return fieldsToRemove;
+    }
+
+    public List<TemplateScript.Factory> getFieldsToKeep() {
+        return fieldsToKeep;
+    }
+
 }

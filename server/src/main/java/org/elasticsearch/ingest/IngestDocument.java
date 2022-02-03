@@ -11,6 +11,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.LazyMap;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -783,6 +784,25 @@ public final class IngestDocument {
             } else {
                 throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
             }
+    }
+
+    public static Set<String> getAllFields(Map<String, Object> input) {
+        return getAllFields(input, "");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Set<String> getAllFields(Map<String, Object> input, String prefix) {
+        Set<String> allFields = Sets.newHashSet();
+
+        input.forEach((k, v) -> {
+            allFields.add(prefix + k);
+
+            if (v instanceof Map) {
+                allFields.addAll(getAllFields((Map) v, prefix + k + "."));
+            }
+        });
+
+        return allFields;
     }
 
     /**

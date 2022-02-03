@@ -14,10 +14,10 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
@@ -25,6 +25,7 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.mapper.MappedFieldType.TermsEnumResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.termsenum.action.MultiShardTermsEnum;
 import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
@@ -75,24 +76,27 @@ public class MultiShardTermsEnumTests extends ESTestCase {
                 a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
                 CompiledAutomaton automaton = new CompiledAutomaton(a);
 
-                ArrayList<TermsEnum> termsEnums = new ArrayList<>();
+                ArrayList<TermsEnumResult> termsEnums = new ArrayList<>();
                 for (DirectoryReader reader : readers) {
                     Terms terms = MultiTerms.getTerms(reader, fieldName);
-                    TermsEnum te = automaton.getTermsEnum(terms);
+                    TermsEnumResult te = new TermsEnumResult(automaton.getTermsEnum(terms), BytesRef::utf8ToString);
                     if (randomBoolean()) {
                         // Simulate fields like constant-keyword which use a SimpleTermCountEnum to present results
                         // rather than the raw TermsEnum from Lucene.
                         ArrayList<String> termCounts = new ArrayList<>();
-                        while (te.next() != null) {
-                            termCounts.add(te.term().utf8ToString());
+                        while (te.termsEnum().next() != null) {
+                            termCounts.add(te.termsEnum().term().utf8ToString());
                         }
-                        SimpleTermCountEnum simpleEnum = new SimpleTermCountEnum(termCounts.toArray(new String[0]));
+                        TermsEnumResult simpleEnum = new TermsEnumResult(
+                            new SimpleTermCountEnum(termCounts.toArray(new String[0])),
+                            BytesRef::utf8ToString
+                        );
                         termsEnums.add(simpleEnum);
                     } else {
                         termsEnums.add(te);
                     }
                 }
-                MultiShardTermsEnum mte = new MultiShardTermsEnum(termsEnums.toArray(new TermsEnum[0]));
+                MultiShardTermsEnum mte = new MultiShardTermsEnum(termsEnums.toArray(new TermsEnumResult[0]));
                 Set<String> expecteds = new HashSet<>();
 
                 for (String term : globalTermCounts) {
@@ -102,7 +106,7 @@ public class MultiShardTermsEnumTests extends ESTestCase {
                 }
 
                 while (mte.next() != null) {
-                    String teString = mte.term().utf8ToString();
+                    String teString = mte.decodedTerm();
                     assertTrue(expecteds.contains(teString));
                     expecteds.remove(teString);
                 }

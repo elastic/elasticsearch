@@ -17,7 +17,6 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -529,8 +528,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
-            throws IOException {
+        public TermsEnumResult getTerms(
+            boolean caseInsensitive,
+            String string,
+            SearchExecutionContext queryShardContext,
+            String searchAfter
+        ) throws IOException {
             IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
 
             Terms terms = null;
@@ -556,29 +559,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (searchAfter != null) {
                     result = new SearchAfterTermsEnum(result, searchBytes);
                 }
-                return result;
+                return new TermsEnumResult(result, BytesRef::utf8ToString);
             }
-            return terms.intersect(automaton, searchBytes);
-        }
-
-        // Initialises with a seek to a given term but excludes that term
-        // from any results. The problem it addresses is that termsEnum.seekCeil()
-        // would work but either leaves us positioned on the seek term (if it exists) or the
-        // term after (if the seek term doesn't exist). That complicates any subsequent
-        // iteration logic so this class simplifies the pagination use case.
-        static final class SearchAfterTermsEnum extends FilteredTermsEnum {
-            private final BytesRef afterRef;
-
-            SearchAfterTermsEnum(TermsEnum tenum, BytesRef termText) {
-                super(tenum);
-                afterRef = termText;
-                setInitialSeekTerm(termText);
-            }
-
-            @Override
-            protected AcceptStatus accept(BytesRef term) {
-                return term.equals(afterRef) ? AcceptStatus.NO : AcceptStatus.YES;
-            }
+            return new TermsEnumResult(terms.intersect(automaton, searchBytes), BytesRef::utf8ToString);
         }
 
         /**
@@ -898,6 +881,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         /**
          * @return true if field has been marked as a dimension field
          */
+        @Override
         public boolean isDimension() {
             return isDimension;
         }

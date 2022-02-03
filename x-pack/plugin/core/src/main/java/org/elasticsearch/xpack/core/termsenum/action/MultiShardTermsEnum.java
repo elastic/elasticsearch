@@ -17,11 +17,12 @@
  */
 package org.elasticsearch.xpack.core.termsenum.action;
 
-import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.index.mapper.MappedFieldType.TermsEnumResult;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 /**
  * Merges terms and stats from multiple TermEnum classes
@@ -38,23 +39,24 @@ public final class MultiShardTermsEnum {
 
     private int numTop;
     private BytesRef current;
+    private Function<BytesRef, String> termsDecoder;
 
     /** Sole constructor.
      * @param enums TermsEnums from shards which we should merge
      * @throws IOException Errors accessing data
      **/
-    public MultiShardTermsEnum(TermsEnum[] enums) throws IOException {
+    public MultiShardTermsEnum(TermsEnumResult[] enums) throws IOException {
         queue = new TermMergeQueue(enums.length);
         top = new TermsEnumWithCurrent[enums.length];
         numTop = 0;
         queue.clear();
         for (int i = 0; i < enums.length; i++) {
-            final TermsEnum termsEnum = enums[i];
-            final BytesRef term = termsEnum.next();
+            final TermsEnumResult termsEnumResult = enums[i];
+            final BytesRef term = termsEnumResult.termsEnum().next();
             if (term != null) {
                 final TermsEnumWithCurrent entry = new TermsEnumWithCurrent();
                 entry.current = term;
-                entry.terms = termsEnum;
+                entry.enumContext = termsEnumResult;
                 queue.add(entry);
             } else {
                 // field has no terms
@@ -62,21 +64,22 @@ public final class MultiShardTermsEnum {
         }
     }
 
-    public BytesRef term() {
-        return current;
+    public String decodedTerm() {
+        return this.termsDecoder.apply(current);
     }
 
     private void pullTop() {
         assert numTop == 0;
         numTop = queue.fillTop(top);
         current = top[0].current;
+        termsDecoder = top[0].enumContext.termsDecoder();
     }
 
     private void pushTop() throws IOException {
         // call next() on each top, and reorder queue
         for (int i = 0; i < numTop; i++) {
             TermsEnumWithCurrent termsEnum = queue.top();
-            termsEnum.current = termsEnum.terms.next();
+            termsEnum.current = termsEnum.enumContext.termsEnum().next();
             if (termsEnum.current == null) {
                 queue.pop();
             } else {
@@ -96,21 +99,20 @@ public final class MultiShardTermsEnum {
         } else {
             current = null;
         }
-
         return current;
     }
 
     public long docFreq() throws IOException {
         long sum = 0;
         for (int i = 0; i < numTop; i++) {
-            sum += top[i].terms.docFreq();
+            sum += top[i].enumContext.termsEnum().docFreq();
         }
         return sum;
     }
 
     static final class TermsEnumWithCurrent {
-        TermsEnum terms;
-        public BytesRef current;
+        TermsEnumResult enumContext;
+        private BytesRef current;
     }
 
     private static final class TermMergeQueue extends PriorityQueue<TermsEnumWithCurrent> {

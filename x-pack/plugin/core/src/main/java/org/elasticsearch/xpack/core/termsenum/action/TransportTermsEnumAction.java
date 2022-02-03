@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.termsenum.action;
 
-import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -39,6 +37,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.TermsEnumResult;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
@@ -329,7 +328,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         long timeout_millis = request.timeout();
         long scheduledEnd = request.nodeStartedTimeMillis() + timeout_millis;
 
-        ArrayList<TermsEnum> shardTermsEnums = new ArrayList<>();
+        ArrayList<TermsEnumResult> shardTermsEnums = new ArrayList<>();
         ArrayList<Closeable> openedResources = new ArrayList<>();
         try {
             for (ShardId shardId : request.shardIds()) {
@@ -352,7 +351,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 );
                 final MappedFieldType mappedFieldType = indexShard.mapperService().fieldType(request.field());
                 if (mappedFieldType != null) {
-                    TermsEnum terms = mappedFieldType.getTerms(
+                    TermsEnumResult terms = mappedFieldType.getTerms(
                         request.caseInsensitive(),
                         request.string() == null ? "" : request.string(),
                         queryShardContext,
@@ -367,7 +366,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 // No term enums available
                 return new NodeTermsEnumResponse(request.nodeId(), termsList, error, true);
             }
-            MultiShardTermsEnum te = new MultiShardTermsEnum(shardTermsEnums.toArray(new TermsEnum[0]));
+            MultiShardTermsEnum te = new MultiShardTermsEnum(shardTermsEnums.toArray(new TermsEnumResult[0]));
 
             int shard_size = request.size();
             // All the above prep might take a while - do a timer check now before we continue further.
@@ -387,8 +386,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     }
                     termCount = 0;
                 }
-                BytesRef bytes = te.term();
-                termsList.add(bytes.utf8ToString());
+                termsList.add(te.decodedTerm());
                 if (termsList.size() >= shard_size) {
                     break;
                 }

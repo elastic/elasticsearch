@@ -585,10 +585,12 @@ public abstract class MappedFieldType {
      * @return null or an enumeration of matching terms and their doc frequencies
      * @throws IOException Errors accessing data
      */
-    public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+    public TermsEnumResult getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
         throws IOException {
         return null;
     }
+
+    public record TermsEnumResult(TermsEnum termsEnum, Function<BytesRef, String> termsDecoder) {};
 
     /**
      * Validate that this field can be the target of {@link IndexMetadata#INDEX_ROUTING_PATH}.

@@ -151,24 +151,31 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             return value == null ? (lookup, doc, ignoredValues) -> List.of() : (lookup, doc, ignoredValues) -> List.of(value);
         }
 
+        private static final TermsEnumResult EMPTY_RESULT = new TermsEnumResult(TermsEnum.EMPTY, BytesRef::utf8ToString);
+
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter) {
+        public TermsEnumResult getTerms(
+            boolean caseInsensitive,
+            String string,
+            SearchExecutionContext queryShardContext,
+            String searchAfter
+        ) {
             if (value == null) {
-                return TermsEnum.EMPTY;
+                return EMPTY_RESULT;
             }
             boolean matches = caseInsensitive
                 ? value.toLowerCase(Locale.ROOT).startsWith(string.toLowerCase(Locale.ROOT))
                 : value.startsWith(string);
             if (matches == false) {
-                return TermsEnum.EMPTY;
+                return EMPTY_RESULT;
             }
             if (searchAfter != null) {
                 if (searchAfter.compareTo(value) >= 0) {
                     // The constant value is before the searchAfter value so must be ignored
-                    return TermsEnum.EMPTY;
+                    return EMPTY_RESULT;
                 }
             }
-            return new SimpleTermCountEnum(value);
+            return new TermsEnumResult(new SimpleTermCountEnum(value), BytesRef::utf8ToString);
         }
 
         @Override

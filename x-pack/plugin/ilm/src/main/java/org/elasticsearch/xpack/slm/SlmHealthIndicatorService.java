@@ -8,10 +8,14 @@
 package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+
+import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -28,14 +32,35 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
+    public String name() {
+        return NAME;
+    }
+
+    @Override
+    public String component() {
+        return SNAPSHOT;
+    }
+
+    @Override
     public HealthIndicatorResult calculate() {
         var slmMetadata = clusterService.state().metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
-            return new HealthIndicatorResult(NAME, SNAPSHOT, GREEN, "No policies configured", null);
+            return createIndicator(GREEN, "No policies configured", createDetails(slmMetadata));
         } else if (slmMetadata.getOperationMode() != OperationMode.RUNNING) {
-            return new HealthIndicatorResult(NAME, SNAPSHOT, YELLOW, "Slm is not running", null);
+            return createIndicator(YELLOW, "Slm is not running", createDetails(slmMetadata));
         } else {
-            return new HealthIndicatorResult(NAME, SNAPSHOT, GREEN, "Slm is running", null);
+            return createIndicator(GREEN, "Slm is running", createDetails(slmMetadata));
         }
+    }
+
+    private static HealthIndicatorDetails createDetails(SnapshotLifecycleMetadata metadata) {
+        return new SimpleHealthIndicatorDetails(
+            Map.of(
+                "slm-status",
+                metadata.getOperationMode().toString(),
+                "policies",
+                Integer.toString(metadata.getSnapshotConfigurations().size())
+            )
+        );
     }
 }

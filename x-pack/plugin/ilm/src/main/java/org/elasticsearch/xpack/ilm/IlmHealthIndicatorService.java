@@ -8,10 +8,14 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+
+import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -28,14 +32,30 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
+    public String name() {
+        return NAME;
+    }
+
+    @Override
+    public String component() {
+        return DATA;
+    }
+
+    @Override
     public HealthIndicatorResult calculate() {
         var ilmMetadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
-            return new HealthIndicatorResult(NAME, DATA, GREEN, "No policies configured", null);
+            return createIndicator(GREEN, "No policies configured", createDetails(ilmMetadata));
         } else if (ilmMetadata.getOperationMode() != OperationMode.RUNNING) {
-            return new HealthIndicatorResult(NAME, DATA, YELLOW, "Ilm is not running", null);
+            return createIndicator(YELLOW, "Ilm is not running", createDetails(ilmMetadata));
         } else {
-            return new HealthIndicatorResult(NAME, DATA, GREEN, "Ilm is running", null);
+            return createIndicator(GREEN, "Ilm is running", createDetails(ilmMetadata));
         }
+    }
+
+    private static HealthIndicatorDetails createDetails(IndexLifecycleMetadata metadata) {
+        return new SimpleHealthIndicatorDetails(
+            Map.of("ilm-status", metadata.getOperationMode().toString(), "policies", Integer.toString(metadata.getPolicies().size()))
+        );
     }
 }

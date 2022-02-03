@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
@@ -36,28 +37,74 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var clusterState = createClusterStateWith(new SnapshotLifecycleMetadata(createSlmPolicy(), RUNNING, null));
         var service = createSlmHealthIndicatorService(clusterState);
 
-        assertThat(service.calculate(), equalTo(new HealthIndicatorResult(NAME, SNAPSHOT, GREEN, "Slm is running", null)));
+        assertThat(
+            service.calculate(),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    SNAPSHOT,
+                    GREEN,
+                    "Slm is running",
+                    new SimpleHealthIndicatorDetails(Map.of("slm-status", RUNNING.toString(), "policies", "1"))
+                )
+            )
+        );
     }
 
     public void testIsYellowWhenNotRunningAndPoliciesConfigured() {
-        var clusterState = createClusterStateWith(new SnapshotLifecycleMetadata(createSlmPolicy(), randomFrom(STOPPED, STOPPING), null));
+        var status = randomFrom(STOPPED, STOPPING);
+        var clusterState = createClusterStateWith(new SnapshotLifecycleMetadata(createSlmPolicy(), status, null));
         var service = createSlmHealthIndicatorService(clusterState);
 
-        assertThat(service.calculate(), equalTo(new HealthIndicatorResult(NAME, SNAPSHOT, YELLOW, "Slm is not running", null)));
+        assertThat(
+            service.calculate(),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    SNAPSHOT,
+                    YELLOW,
+                    "Slm is not running",
+                    new SimpleHealthIndicatorDetails(Map.of("slm-status", status.toString(), "policies", "1"))
+                )
+            )
+        );
     }
 
     public void testIsGreenWhenNotRunningAndNoPolicies() {
-        var clusterState = createClusterStateWith(new SnapshotLifecycleMetadata(Map.of(), randomFrom(STOPPED, STOPPING), null));
+        var status = randomFrom(STOPPED, STOPPING);
+        var clusterState = createClusterStateWith(new SnapshotLifecycleMetadata(Map.of(), status, null));
         var service = createSlmHealthIndicatorService(clusterState);
 
-        assertThat(service.calculate(), equalTo(new HealthIndicatorResult(NAME, SNAPSHOT, GREEN, "No policies configured", null)));
+        assertThat(
+            service.calculate(),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    SNAPSHOT,
+                    GREEN,
+                    "No policies configured",
+                    new SimpleHealthIndicatorDetails(Map.of("slm-status", status.toString(), "policies", "0"))
+                )
+            )
+        );
     }
 
     public void testIsGreenWhenNoMetadata() {
         var clusterState = createClusterStateWith(null);
         var service = createSlmHealthIndicatorService(clusterState);
 
-        assertThat(service.calculate(), equalTo(new HealthIndicatorResult(NAME, SNAPSHOT, GREEN, "No policies configured", null)));
+        assertThat(
+            service.calculate(),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    SNAPSHOT,
+                    GREEN,
+                    "No policies configured",
+                    new SimpleHealthIndicatorDetails(Map.of("slm-status", RUNNING.toString(), "policies", "0"))
+                )
+            )
+        );
     }
 
     private static ClusterState createClusterStateWith(SnapshotLifecycleMetadata metadata) {

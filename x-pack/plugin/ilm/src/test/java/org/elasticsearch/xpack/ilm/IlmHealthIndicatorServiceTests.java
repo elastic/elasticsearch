@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -36,28 +37,74 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
         var clusterState = createClusterStateWith(new IndexLifecycleMetadata(createIlmPolicy(), RUNNING));
         var service = createIlmHealthIndicatorService(clusterState);
 
-        assertThat(service.calculate(), equalTo(new HealthIndicatorResult(NAME, DATA, GREEN, "Ilm is running", null)));
+        assertThat(
+            service.calculate(),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    DATA,
+                    GREEN,
+                    "Ilm is running",
+                    new SimpleHealthIndicatorDetails(Map.of("ilm-status", RUNNING.toString(), "policies", "1"))
+                )
+            )
+        );
     }
 
     public void testIsYellowWhenNotRunningAndPoliciesConfigured() {
-        var clusterState = createClusterStateWith(new IndexLifecycleMetadata(createIlmPolicy(), randomFrom(STOPPED, STOPPING)));
+        var status = randomFrom(STOPPED, STOPPING);
+        var clusterState = createClusterStateWith(new IndexLifecycleMetadata(createIlmPolicy(), status));
         var service = createIlmHealthIndicatorService(clusterState);
 
-        assertThat(service.calculate(), equalTo(new HealthIndicatorResult(NAME, DATA, YELLOW, "Ilm is not running", null)));
+        assertThat(
+            service.calculate(),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    DATA,
+                    YELLOW,
+                    "Ilm is not running",
+                    new SimpleHealthIndicatorDetails(Map.of("ilm-status", status.toString(), "policies", "1"))
+                )
+            )
+        );
     }
 
     public void testIsGreenWhenNotRunningAndNoPolicies() {
-        var clusterState = createClusterStateWith(new IndexLifecycleMetadata(Map.of(), randomFrom(STOPPED, STOPPING)));
+        var status = randomFrom(STOPPED, STOPPING);
+        var clusterState = createClusterStateWith(new IndexLifecycleMetadata(Map.of(), status));
         var service = createIlmHealthIndicatorService(clusterState);
 
-        assertThat(service.calculate(), equalTo(new HealthIndicatorResult(NAME, DATA, GREEN, "No policies configured", null)));
+        assertThat(
+            service.calculate(),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    DATA,
+                    GREEN,
+                    "No policies configured",
+                    new SimpleHealthIndicatorDetails(Map.of("ilm-status", status.toString(), "policies", "0"))
+                )
+            )
+        );
     }
 
     public void testIsGreenWhenNoMetadata() {
         var clusterState = createClusterStateWith(null);
         var service = createIlmHealthIndicatorService(clusterState);
 
-        assertThat(service.calculate(), equalTo(new HealthIndicatorResult(NAME, DATA, GREEN, "No policies configured", null)));
+        assertThat(
+            service.calculate(),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    DATA,
+                    GREEN,
+                    "No policies configured",
+                    new SimpleHealthIndicatorDetails(Map.of("ilm-status", RUNNING.toString(), "policies", "0"))
+                )
+            )
+        );
     }
 
     private static ClusterState createClusterStateWith(IndexLifecycleMetadata metadata) {

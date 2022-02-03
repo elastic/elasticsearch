@@ -26,4 +26,21 @@ public class SimpleHealthIndicatorDetails implements HealthIndicatorDetails {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.map(details);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        SimpleHealthIndicatorDetails that = (SimpleHealthIndicatorDetails) o;
+        return details.equals(that.details);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(details);
+    }
 }

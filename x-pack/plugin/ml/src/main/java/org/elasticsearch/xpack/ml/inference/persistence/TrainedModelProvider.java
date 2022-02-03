@@ -1061,9 +1061,9 @@ public class TrainedModelProvider {
             cacheMiss == null ? 0L : Double.valueOf(cacheMiss.value()).longValue(),
             modelId,
             null,
-            timeStamp == null || (Numbers.isValidDouble(timeStamp.getValue()) == false)
+            timeStamp == null || (Numbers.isValidDouble(timeStamp.value()) == false)
                 ? Instant.now()
-                : Instant.ofEpochMilli(Double.valueOf(timeStamp.getValue()).longValue())
+                : Instant.ofEpochMilli(Double.valueOf(timeStamp.value()).longValue())
         );
     }
 

@@ -29,9 +29,9 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -597,7 +597,7 @@ public class RollupResponseTranslator {
         // render differently for the rolled up and non-rolled up results. At the moment
         // the formatter is not exposed on the internal agg objects but I think this is
         // something we can discuss exposing
-        if (metric instanceof InternalMax || metric instanceof InternalMin) {
+        if (metric instanceof Max || metric instanceof InternalMin) {
             return metric;
         } else if (metric instanceof Sum) {
             // If count is anything other than -1, this sum is actually an avg

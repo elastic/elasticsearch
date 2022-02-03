@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 
 import java.io.IOException;
@@ -76,9 +76,9 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 assertEquals(REVERSE_AGG_NAME, reverseNested.getName());
                 assertEquals(0, reverseNested.getDocCount());
 
-                InternalMax max = (InternalMax) ((InternalAggregation) reverseNested).getProperty(MAX_AGG_NAME);
+                Max max = (Max) ((InternalAggregation) reverseNested).getProperty(MAX_AGG_NAME);
                 assertEquals(MAX_AGG_NAME, max.getName());
-                assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), Double.MIN_VALUE);
+                assertEquals(Double.NEGATIVE_INFINITY, max.value(), Double.MIN_VALUE);
             }
         }
     }
@@ -132,9 +132,9 @@ public class ReverseNestedAggregatorTests extends AggregatorTestCase {
                 assertEquals(REVERSE_AGG_NAME, reverseNested.getName());
                 assertEquals(expectedParentDocs, reverseNested.getDocCount());
 
-                InternalMax max = (InternalMax) ((InternalAggregation) reverseNested).getProperty(MAX_AGG_NAME);
+                Max max = (Max) ((InternalAggregation) reverseNested).getProperty(MAX_AGG_NAME);
                 assertEquals(MAX_AGG_NAME, max.getName());
-                assertEquals(expectedMaxValue, max.getValue(), Double.MIN_VALUE);
+                assertEquals(expectedMaxValue, max.value(), Double.MIN_VALUE);
             }
         }
     }

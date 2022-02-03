@@ -81,6 +81,7 @@
             "TLS",
             "Task Management",
             "Transform",
+            "TSDB",
             "Watcher"
           ]
         },

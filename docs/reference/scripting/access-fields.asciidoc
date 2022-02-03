@@ -40,7 +40,7 @@ multiple values, providing access to the underlying value through the
 The `field` API returns the default value that you specify, regardless of
 whether the field exists or has any values for the current document.
 This means that the `field` API can handle missing values without requiring 
-additional logic. For a reference (`Object`) type such as `keyword`, the default 
+additional logic. For a reference type such as `keyword`, the default 
 value can be `null`. For a primitive type such as `boolean` or `long`, the
 default value must be a matching primitive type, such as `false` or `1`. 
 

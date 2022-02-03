@@ -489,17 +489,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for
-     * accessing the Elastic Index Lifecycle APIs.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management-api.html"> X-Pack APIs
-     * on elastic.co</a> for more information.
-     */
-    public IndexLifecycleClient indexLifecycle() {
-        return ilmClient;
-    }
-
-    /**
      * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Elastic Index Async Search APIs.
      * <p>
      * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/async-search.html"> X-Pack APIs on elastic.co</a>

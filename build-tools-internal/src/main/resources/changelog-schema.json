@@ -39,6 +39,7 @@
             "Features",
             "Geo",
             "Graph",
+            "Health",
             "Highlighting",
             "ILM+SLM",
             "IdentityProvider",
@@ -80,6 +81,7 @@
             "TLS",
             "Task Management",
             "Transform",
+            "TSDB",
             "Watcher"
           ]
         },

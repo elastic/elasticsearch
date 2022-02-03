@@ -16,8 +16,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
-import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -81,25 +79,10 @@ public abstract class Realm implements Comparable<Realm> {
     public final int compareTo(Realm other) {
         int result = Integer.compare(order(), other.order());
         if (result == 0) {
-            // no two user-defined realms can have the same order parameter, but internal realms, which are implicitly enabled, can
-            // order by realm type, internal realms have priority
-            result = Integer.compare(internalTypePriority(type()), internalTypePriority(other.type()));
-            if (result == 0) {
-                // If same order, compare based on the realm name
-                result = name().compareTo(other.name());
-            }
+            // If same order, compare based on the realm name
+            result = name().compareTo(other.name());
         }
         return result;
-    }
-
-    private int internalTypePriority(String realmType) {
-        // "reserved", then "file", then "native"
-        return switch (realmType) {
-            case "reserved" -> 0;
-            case FileRealmSettings.TYPE -> 10;
-            case NativeRealmSettings.TYPE -> 20;
-            default -> 100;
-        };
     }
 
     /**

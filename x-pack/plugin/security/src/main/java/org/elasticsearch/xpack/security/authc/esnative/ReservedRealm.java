@@ -98,8 +98,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
             ),
             threadPool
         );
-        // reserved realm is never under any domain
-        initDomain(null);
         this.nativeUsersStore = nativeUsersStore;
         this.realmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         this.anonymousUser = anonymousUser;

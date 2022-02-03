@@ -1,0 +1,5 @@
+pr: 83448
+summary: Safelist content type block
+area: Infra/REST API
+type: bug
+issues: []

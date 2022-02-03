@@ -71,7 +71,7 @@ public class FilterPath {
      * @param matchFieldNamesWithDots support dot in field name or not
      * @return true if the name equal a final node, otherwise return false
      */
-    boolean matches(String name, List<FilterPath> nextFilters, boolean matchFieldNamesWithDots) {
+    public boolean matches(String name, List<FilterPath> nextFilters, boolean matchFieldNamesWithDots) { // << here
         if (nextFilters == null) {
             return false;
         }

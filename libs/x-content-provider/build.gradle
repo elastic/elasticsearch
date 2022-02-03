@@ -1,0 +1,47 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+
+dependencies {
+  compileOnly project(':libs:elasticsearch-core')
+  compileOnly project(':libs:elasticsearch-x-content')
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+
+  /*
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+*/
+
+  testImplementation project(":test:framework")
+  /*testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
+  }*/
+
+}
+
+//tasks.named('forbiddenApisMain').configure {
+//  // x-content does not depend on server
+//  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
+//  replaceSignatureFiles 'jdk-signatures'
+//}
+//
+//tasks.named("dependencyLicenses").configure {
+//  mapping from: /jackson-.*/, to: 'jackson'
+//}
+//
+//tasks.named("jarHell").configure { enabled = false }
+//
+//tasks.named("compileJava").configure {
+//  options.compilerArgs.add("-Xlint:-missing-explicit-ctor")
+//}

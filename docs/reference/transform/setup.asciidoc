@@ -61,7 +61,8 @@ Within a {kib} space, for full access to {transforms}, you must have:
 * [ ] Management features visible in the {kib} space, including
 `Data View Management` and `Stack Monitoring`
 * [ ] `transform_admin` built-in role or `manage_transform` cluster privileges
-* [ ] `kibana_admin` built-in role
+* [ ] `kibana_admin` built-in role or a custom role with `all` {kib} privileges
+for the Data View Management feature
 * [ ] `monitoring_user` built-in role
 * [ ] data views for your source indices
 * [ ] `read` and `view_index_metadata` index privileges on source indices
@@ -72,8 +73,9 @@ Within a {kib} space, for read-only access to {transforms}, you must have:
 
 [%interactive]
 * [ ] `transform_user` built-in role or `monitor_transform` cluster privileges
-* [ ] `kibana_admin` built-in role
 * [ ] `monitoring_user` built-in role
+* [ ] `kibana_admin` built-in role or a custom role with `read` {kib} privileges
+for at least one feature in the space
 * [ ] data views for your source and destination indices
 * [ ] `read`, and `view_index_metadata` index privileges on source indices and
 destination indices

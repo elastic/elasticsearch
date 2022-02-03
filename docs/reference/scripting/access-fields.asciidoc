@@ -93,33 +93,35 @@ supports. For each supported type, values are listed that are returned by the
 `field` API (from the `get` and `as<Type>` methods) and the `doc` map (from the
 `getValue` and `get` methods). 
 
-NOTE: Some fields are not currently supported. For the most current list of
+NOTE: The `fields` API currently doesn't support some fields, but you can still
+access those fields through the `doc` map. For the most current list of
 supported fields, refer to {es-issue}79105[#79105].
 
-[cols="1,1,1",options="header",]
+[cols="1,1,1,1,1",options="header",]
 |========
 |Mapped field type
-|Returned type from `field` (`get`,`asType`)
-|Returned type from `doc` (`getValue`,`get`)
-  |`binary`           |`ByteBuffer`               |`BytesRef`
-  |`boolean`          |`boolean`                  |`boolean/Boolean`
-  |`keyword`          |`String`                   |`String`
-  |`long`             |`long`                     |`long`,`Long`
-  |`integer`          |`int`                      |`long`,`Long`
-  |`short`            |`short`                    |`long`,`Long`
-  |`byte`             |`byte`                     |`long`,`Long`
-  |`double`           |`double`                   |`double`,`Double`
-  |`scaled_float`     |`double`                   |`double`,`Double`
-  |`half_float`       |`float`                    |`double`,`Double`
-  |`unsigned_long`    |`long`,`BigInteger`        |`long`,`Long`
-  |`date`             |`ZonedDateTime`            |`ZonedDateTime`
-  |`date_nanos`       |`ZonedDateTime`            |`ZonedDateTime`
-  |`ip`               |`IpAddress`,`String`       |`String`
-  |`_version`         |`long`                     |`long`,`Long`
-  |`_seq_no`          |`long`                     |`long`,`Long`
-  |`version`          |`Version`,`String`         |`String`
-  |`murmur3`          |`long`                     |`long`,`Long`
-  |`constant_keyword` |`String`                   |`String`
-  |`wildcard`         |`String`                   |`String`
-  |`flattened`        |`String`                   |`String`
+2+|Returned type from `field`
+2+|Returned type from `doc`
+h|              h|`get`      h|`as<Type>`    h|`getValue` h|`get`
+ |`binary`        |`ByteBuffer` |-             |`BytesRef`  |`BytesRef`
+ |`boolean`       |`boolean`    |-             |`boolean`   |`Boolean`
+ |`keyword`       |`String`     |-             |`String`    |`String`
+ |`long`          |`long`       |-             |`long`      |`Long`
+ |`integer`       |`int`        |-             |`long`      |`Long`
+ |`short`         |`short`      |-             |`long`      |`Long`
+ |`byte`          |`byte`       |-             |`long`      |`Long`
+ |`double`        |`double`     |-             |`double`    |`Double`
+ |`scaled_float`  |`double`     |-             |`double`    |`Double`
+ |`half_float`    |`float`      |-             |`double`    |`Double`
+ |`unsigned_long` |`long`       |`BigInteger`  |`long`      |`Long`
+ |`date`          |`ZonedDateTime` |-          |`ZonedDateTime` |`ZonedDateTime`
+ |`date_nanos`    |`ZonedDateTime` |-          |`ZonedDateTime` |`ZonedDateTime`
+ |`ip`            |`IpAddress`     |`String`  |`String`    |`String`
+ |`_version`      |`long`       |-             |`long`      |`Long`
+ |`_seq_no`       |`long`       |-             |`long`      |`Long`
+ |`version`       |`Version`    |`String`      |`String`    |`String`
+ |`murmur3`       |`long`       |-             |`long`      |`Long`
+ |`constant_keyword` |`String`  |-             |`String`    |`String`
+ |`wildcard`      |`String`     |-             |`String`    |`String`
+ |`flattened`     |`String`     |-             |`String`    |`String`
 |========

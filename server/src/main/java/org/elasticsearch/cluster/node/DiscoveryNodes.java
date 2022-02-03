@@ -90,8 +90,16 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     }
 
     @Override
-    public Spliterator<DiscoveryNode> spliterator() {
-        return super.spliterator();
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DiscoveryNodes that = (DiscoveryNodes) o;
+        return Objects.equals(nodes, that.nodes);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(nodes);
     }
 
     /**

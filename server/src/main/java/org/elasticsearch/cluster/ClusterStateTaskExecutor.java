@@ -150,4 +150,19 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
         };
     }
 
+    static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> simpleBatched() {
+        return (currentState, tasks) -> {
+            ClusterTasksResult.Builder<T> builder = ClusterTasksResult.builder();
+            ClusterState state = currentState;
+            for (T task : tasks) {
+                try {
+                    state = task.execute(state);
+                    builder.success(task);
+                } catch (Exception e) {
+                    builder.failure(task, e);
+                }
+            }
+            return builder.build(state);
+        };
+    }
 }

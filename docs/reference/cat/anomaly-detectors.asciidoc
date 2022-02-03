@@ -9,7 +9,8 @@
 ====
 cat APIs are only intended for human consumption using the command line or {kib} 
 console. They are _not_ intended for use by applications. For application 
-consumption, use the <<ml-get-job-stats>>.
+consumption, use the 
+<<ml-get-job-stats,get anomaly detection job statistics API>>.
 ====
 
 Returns configuration and usage information about {anomaly-jobs}.

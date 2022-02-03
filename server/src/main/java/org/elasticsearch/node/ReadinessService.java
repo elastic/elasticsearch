@@ -17,10 +17,13 @@ import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.net.StandardProtocolFamily;
@@ -39,7 +42,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
-    private static final String READINESS_SERVICE_THREADPOOL_NAME = "readiness-service";
     private static final String READINESS_WORKER_THREADPOOL_NAME = "readiness-worker";
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
     private static final int RESPONSE_TIMEOUT_MILLIS = 1_000;
@@ -51,28 +53,23 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     );
 
     private final Environment environment;
-    private final ExecutorService executor;
     private final ExecutorService workerExecutor;
+    private final ThreadPool threadPool;
 
     private ServerSocketChannel serverChannel;
 
     private volatile boolean ready = false;
     private final boolean enabled;
 
-    ReadinessService(Environment environment) {
+    private final TransportService transportService;
+
+    ReadinessService(Environment environment, ThreadPool threadPool, TransportService transportService) {
+        this.threadPool = threadPool;
+        this.transportService = transportService;
         this.serverChannel = null;
         this.environment = environment;
         this.enabled = ENABLED_SETTING.get(environment.settings());
         if (enabled) {
-            this.executor = EsExecutors.newFixed(
-                READINESS_SERVICE_THREADPOOL_NAME,
-                1,
-                1000,
-                EsExecutors.daemonThreadFactory("elasticsearch[readiness-service]"),
-                new ThreadContext(environment.settings()),
-                false
-            );
-
             this.workerExecutor = EsExecutors.newScaling(
                 READINESS_WORKER_THREADPOOL_NAME,
                 0,
@@ -85,7 +82,6 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             );
         } else {
             logger.info("readiness service disabled");
-            this.executor = null;
             this.workerExecutor = null;
         }
     }
@@ -124,7 +120,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
         this.serverChannel = setupUnixDomainSocket();
 
-        executor.execute(wrapReadinessService(() -> {
+        threadPool.generic().submit(wrapReadinessService(() -> {
             while (serverChannel.isOpen()) {
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
                     try (SocketChannel channel = serverChannel.accept()) {
@@ -172,7 +168,14 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
 
     private void sendStatus(SocketChannel channel) {
         try {
-            Channels.writeToChannel(Boolean.toString(ready).getBytes(StandardCharsets.UTF_8), channel);
+            BoundTransportAddress boundAddress = transportService.boundAddress();
+            StringBuilder sb = new StringBuilder(Boolean.toString(ready));
+
+            if (boundAddress != null && boundAddress.publishAddress() != null) {
+                sb.append(',').append(boundAddress.publishAddress().getPort());
+            }
+
+            Channels.writeToChannel(sb.toString().getBytes(StandardCharsets.UTF_8), channel);
         } catch (IOException e) {
             logger.warn("encountered I/O exception while responding to readiness client", e);
         }

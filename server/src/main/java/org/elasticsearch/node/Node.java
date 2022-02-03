@@ -458,9 +458,6 @@ public class Node implements Closeable {
             clusterService.addStateApplier(scriptService);
             resourcesToClose.add(clusterService);
 
-            final ReadinessService readinessService = new ReadinessService(environment);
-            clusterService.addListener(readinessService);
-
             final Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
             if (consistentSettings.isEmpty() == false) {
                 clusterService.addLocalNodeMasterListener(
@@ -749,6 +746,8 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings(),
                 taskHeaders
             );
+            final ReadinessService readinessService = new ReadinessService(environment, threadPool, transportService);
+            clusterService.addListener(readinessService);
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService = new SearchTransportService(

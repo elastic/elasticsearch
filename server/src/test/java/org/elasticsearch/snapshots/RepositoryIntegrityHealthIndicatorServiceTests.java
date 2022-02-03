@@ -15,13 +15,18 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
-import static org.elasticsearch.health.ServerHealthComponents.DATA;
+import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
 import static org.elasticsearch.repositories.RepositoryData.CORRUPTED_REPO_GEN;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.NAME;
@@ -32,33 +37,56 @@ import static org.mockito.Mockito.when;
 public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testIsGreenWhenAllRepositoriesAreNotCorrupted() {
-        var clusterState = createClusterStateWith(
-            new RepositoriesMetadata(randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false)))
-        );
+        var repos = randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false));
+        var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
-        assertThat(service.calculate(), equalTo(new HealthIndicatorResult(NAME, DATA, GREEN, "", null)));
-    }
-
-    public void testIsRedWhenAtLeastOneRepoIsCorrupted() {
-        var clusterState = createClusterStateWith(
-            new RepositoriesMetadata(
-                appendToCopy(
-                    randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false)),
-                    createRepositoryMetadata("corrupted-repo", true)
+        assertThat(
+            service.calculate(),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    SNAPSHOT,
+                    GREEN,
+                    "No corrupted repositories",
+                    new SimpleHealthIndicatorDetails(Map.of("total-repositories", repos.size()))
                 )
             )
         );
+    }
+
+    public void testIsRedWhenAtLeastOneRepoIsCorrupted() {
+        var repos = appendToCopy(
+            randomList(1, 10, () -> createRepositoryMetadata("healthy-repo", false)),
+            createRepositoryMetadata("corrupted-repo", true)
+        );
+        var clusterState = createClusterStateWith(new RepositoriesMetadata(repos));
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
-        assertThat(service.calculate(), equalTo(new HealthIndicatorResult(NAME, DATA, RED, "Detected corrupted repository", null)));
+        assertThat(
+            service.calculate(),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    SNAPSHOT,
+                    RED,
+                    "Detected [1] corrupted repositories [corrupted-repo]",
+                    new SimpleHealthIndicatorDetails(
+                        Map.of("total-repositories", repos.size(), "corrupted-repositories", 1, "corrupted", List.of("corrupted-repo"))
+                    )
+                )
+            )
+        );
     }
 
     public void testIsGreenWhenNoMetadata() {
         var clusterState = createClusterStateWith(null);
         var service = createRepositoryCorruptionHealthIndicatorService(clusterState);
 
-        assertThat(service.calculate(), equalTo(new HealthIndicatorResult(NAME, DATA, GREEN, "No repositories configured", null)));
+        assertThat(
+            service.calculate(),
+            equalTo(new HealthIndicatorResult(NAME, SNAPSHOT, GREEN, "No repositories configured", HealthIndicatorDetails.EMPTY))
+        );
     }
 
     private static ClusterState createClusterStateWith(RepositoriesMetadata metadata) {

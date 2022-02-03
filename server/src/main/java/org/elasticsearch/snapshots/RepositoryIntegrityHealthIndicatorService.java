@@ -11,13 +11,19 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.repositories.RepositoryData;
 
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.common.Strings.collectionToDelimitedStringWithLimit;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
-import static org.elasticsearch.health.ServerHealthComponents.DATA;
+import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
 
 public class RepositoryIntegrityHealthIndicatorService implements HealthIndicatorService {
 
@@ -30,11 +36,21 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     }
 
     @Override
+    public String name() {
+        return NAME;
+    }
+
+    @Override
+    public String component() {
+        return SNAPSHOT;
+    }
+
+    @Override
     public HealthIndicatorResult calculate() {
         var snapshotMetadata = clusterService.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
 
         if (snapshotMetadata.repositories().isEmpty()) {
-            return new HealthIndicatorResult(NAME, DATA, GREEN, "No repositories configured", null);
+            return createIndicator(GREEN, "No repositories configured", HealthIndicatorDetails.EMPTY);
         }
 
         var corrupted = snapshotMetadata.repositories()
@@ -43,17 +59,36 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
             .map(RepositoryMetadata::name)
             .toList();
 
+        var totalRepositories = snapshotMetadata.repositories().size();
+        var corruptedRepositories = corrupted.size();
+
         if (corrupted.isEmpty()) {
-            return new HealthIndicatorResult(NAME, DATA, GREEN, "", null);
+            return createIndicator(
+                GREEN,
+                "No corrupted repositories",
+                new SimpleHealthIndicatorDetails(Map.of("total-repositories", totalRepositories))
+            );
         }
 
-        // TODO 83303 add details with count and truncated list
-        return new HealthIndicatorResult(
-            NAME,
-            DATA,
+        return createIndicator(
             RED,
-            "Detected corrupted " + (corrupted.size() == 1 ? "repository" : "repositories"),
-            null
+            createCorruptedRepositorySummary(corrupted),
+            new SimpleHealthIndicatorDetails(
+                Map.of(
+                    "total-repositories",
+                    totalRepositories,
+                    "corrupted-repositories",
+                    corruptedRepositories,
+                    "corrupted",
+                    corrupted.stream().limit(10).toList()
+                )
+            )
         );
+    }
+
+    private static String createCorruptedRepositorySummary(List<String> corrupted) {
+        var message = new StringBuilder().append("Detected [").append(corrupted.size()).append("] corrupted repositories ");
+        collectionToDelimitedStringWithLimit(corrupted, ",", "[", "]", 1024, message);
+        return message.toString();
     }
 }

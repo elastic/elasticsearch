@@ -286,7 +286,6 @@ public class RestHighLevelClient implements Closeable {
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
     private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
-    private final RollupClient rollupClient = new RollupClient(this);
     private final TransformClient transformClient = new TransformClient(this);
     private final EqlClient eqlClient = new EqlClient(this);
     private final SearchableSnapshotsClient searchableSnapshotsClient = new SearchableSnapshotsClient(this);
@@ -396,18 +395,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public final SnapshotClient snapshot() {
         return snapshotClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Rollup APIs that
-     * are shipped with the default distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/rollup-apis.html">
-     * Watcher APIs on elastic.co</a> for more information.
-     */
-    public RollupClient rollup() {
-        return rollupClient;
     }
 
     /**

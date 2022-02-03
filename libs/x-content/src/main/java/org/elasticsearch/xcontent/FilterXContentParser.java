@@ -22,7 +22,7 @@ import java.util.function.Supplier;
  */
 public abstract class FilterXContentParser implements XContentParser {
 
-    protected final XContentParser in;
+    private final XContentParser in;
 
     protected FilterXContentParser(XContentParser in) {
         this.in = in;

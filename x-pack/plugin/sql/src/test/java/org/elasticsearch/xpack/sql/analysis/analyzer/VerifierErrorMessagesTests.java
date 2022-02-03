@@ -1457,6 +1457,20 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         );
     }
 
+    public void testMinOnUnsignedLongGroupByHavingUnsupported() {
+        assertEquals(
+            "1:62: HAVING filter is unsupported for function [MIN(unsigned_long)]",
+            error("SELECT MIN(unsigned_long) min FROM test GROUP BY text HAVING min > 10")
+        );
+    }
+
+    public void testMaxOnUnsignedLongGroupByHavingUnsupported() {
+        assertEquals(
+            "1:62: HAVING filter is unsupported for function [MAX(unsigned_long)]",
+            error("SELECT MAX(unsigned_long) max FROM test GROUP BY text HAVING max > 10")
+        );
+    }
+
     public void testProjectAliasInFilter() {
         accept("SELECT int AS i FROM test WHERE i > 10");
     }

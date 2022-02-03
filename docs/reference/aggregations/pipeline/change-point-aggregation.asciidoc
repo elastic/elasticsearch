@@ -89,11 +89,10 @@ The found change point type and its related values. Possible types:
       }
     }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The bucket key that is the change point.
 <2> The number of documents in that bucket.
 <3> Aggregated values in the bucket.
 <4> Type of change found.
 <5> The `p_value` indicates how extreme the change is, the lower indicates greater change.
 <6> The specific bucket where the change occurs (indexing starts at `0`).
-
-// NOTCONSOLE

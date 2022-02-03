@@ -146,7 +146,7 @@ setup:
           }
 
 ---
-"Test change_point with bad buckets_path ":
+"Test change_point with bad buckets_path":
 
   - do:
       catch: /No aggregation found for path \[foo\]/

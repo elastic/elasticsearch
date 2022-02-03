@@ -470,4 +470,4 @@ WARNING: Running multiple versions of {es} in the same cluster beyond the
 duration of an upgrade is not supported.
 
 For more information about upgrades, see 
-{stack-ref}/upgrading_elasticsearch.html[Upgrading {es}].
+{stack-ref}/upgrading-elasticsearch.html[Upgrading {es}].

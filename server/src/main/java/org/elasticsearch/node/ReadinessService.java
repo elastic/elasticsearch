@@ -86,11 +86,11 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    private Path getSocketPath() {
+    Path getSocketPath() {
         return environment.logsFile().resolve("readiness.socket");
     }
 
-    private ServerSocketChannel setupUnixDomainSocket() {
+    ServerSocketChannel setupUnixDomainSocket() {
         Path socketPath = getSocketPath();
 
         try {
@@ -166,7 +166,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
         }
     }
 
-    private void sendStatus(SocketChannel channel) {
+    void sendStatus(SocketChannel channel) {
         try {
             BoundTransportAddress boundAddress = transportService.boundAddress();
             StringBuilder sb = new StringBuilder(Boolean.toString(ready));

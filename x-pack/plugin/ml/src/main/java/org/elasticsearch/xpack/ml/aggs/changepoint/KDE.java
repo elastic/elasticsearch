@@ -35,10 +35,9 @@ final class KDE {
             Randomness.shuffle(indices);
             indices.stream().limit(Math.min(adjStep / 2, 4)).forEach(trainingIndex::add);
         }
-        int testStep = (trainingIndex.size() + 19) / 20;
+        int testStep = ((orderedValues.length - trainingIndex.size()) + 19) / 20;
         int[] testIndices = IntStream.range(0, orderedValues.length)
-            .filter(i -> trainingIndex.contains(i) == false)
-            .filter(i -> i % testStep == 0)
+            .filter(i -> trainingIndex.contains(i) == false && i % testStep == 0)
             .toArray();
         double[] xTrain = trainingIndex.stream().mapToDouble(i -> orderedValues[i]).toArray();
         double maxLogLikeliHood = -Double.MAX_VALUE;
@@ -84,7 +83,7 @@ final class KDE {
         int excluded = (int) (0.025 * ((double) values.length) + 0.5);
         List<Double> orderedValues = new ArrayList<>(values.length - excluded);
         for (int i = 0; i < values.length; i++) {
-            if ((i >= minIndex - excluded && i <= maxIndex + excluded) || (i >= maxIndex - excluded && i <= maxIndex + excluded)) {
+            if ((i >= minIndex - excluded && i <= minIndex + excluded) || (i >= maxIndex - excluded && i <= maxIndex + excluded)) {
                 continue;
             }
             orderedValues.add(values[i]);

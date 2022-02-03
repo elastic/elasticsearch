@@ -235,7 +235,9 @@ public class CancellationTests extends ESTestCase {
         assertTrue(countDownLatch.await(5, TimeUnit.SECONDS));
         // Final verification to ensure no more interaction
         verify(client).fieldCaps(any(), any());
-        verify(client, times(3)).execute(any(), any(), any());
+        verify(client, times(1)).execute(eq(OpenPointInTimeAction.INSTANCE), any(), any());
+        verify(client, times(1)).execute(eq(SearchAction.INSTANCE), any(), any());
+        verify(client, times(1)).execute(eq(ClosePointInTimeAction.INSTANCE), any(), any());
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client);

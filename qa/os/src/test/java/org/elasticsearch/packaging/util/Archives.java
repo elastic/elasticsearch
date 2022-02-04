@@ -238,7 +238,7 @@ public class Archives {
         String keystorePassword,
         List<String> parameters,
         boolean daemonize
-    ) throws Exception {
+    ) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         final Installation.Executables bin = installation.executables();
 
@@ -252,25 +252,33 @@ public class Archives {
         if (parameters != null && parameters.isEmpty() == false) {
             command.addAll(parameters);
         }
-        String script = String.format(
-            Locale.ROOT,
-            "expect -c \"$(cat<<EXPECT\n"
-                + "spawn -ignore HUP "
-                + String.join(" ", command)
-                + "\n"
-                + "expect \"Elasticsearch keystore password:\"\n"
-                + "send \"%s\\r\"\n"
-                + "expect eof\n"
-                + "EXPECT\n"
-                + ")\"",
-            ARCHIVE_OWNER,
-            bin.elasticsearch,
-            pidFile,
-            keystorePassword
+        String keystoreScript = keystorePassword == null ? "" : """
+            expect "Elasticsearch keystore password:"
+            send "%s\\r"
+            expect eof
+            """.formatted(keystorePassword);
+        String checkStartupScript = daemonize ? "" : """
+            expect {
+              "uncaught exception" { send_user "\\nStartup failed due to uncaught exception\\n"; exit 1 }
+              timeout { send_user "\\nTimed out waiting for startup to succeed\\n"; exit 1 }
+              eof { send_user "\\nFailed to determine if startup succeeded\\n"; exit 1 }
+              -re "o\\.e\\.n\\.Node.*] started"
+            }
+            """;
+        String expectScript = """
+            expect - <<EXPECT
+            set timeout 30
+            spawn -ignore HUP %s
+            %s
+            %s
+            EXPECT
+            """.formatted(
+            String.join(" ", command).formatted(ARCHIVE_OWNER, bin.elasticsearch, pidFile),
+            keystoreScript,
+            checkStartupScript
         );
-
         sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
-        return sh.runIgnoreExitCode(script);
+        return sh.runIgnoreExitCode(expectScript);
     }
 
     public static Shell.Result runElasticsearchStartCommand(

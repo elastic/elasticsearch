@@ -1,0 +1,5 @@
+pr: 83213
+summary: "Fix: reduce float and half-float values to their stored precision"
+area: Aggregations
+type: bug
+issues: []

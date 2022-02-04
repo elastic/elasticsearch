@@ -145,7 +145,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
 
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
-        logger.info("Add another node and perform rerouting, nothing will happen since primary not started");
+        logger.info("Add another node and perform rerouting, relocate shards to new node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 

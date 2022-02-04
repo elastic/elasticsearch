@@ -581,8 +581,7 @@ public class Setting<T> implements ToXContentObject {
             final String key = getKey();
             List<String> skipTheseDeprecations = settings.getAsList("deprecation.skip_deprecated_settings");
             if (Regex.simpleMatch(skipTheseDeprecations, key) == false) {
-                String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                    + "See the breaking changes documentation for the next major version.";
+                String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
                 if (this.isDeprecatedWarningOnly()) {
                     Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
                 } else {

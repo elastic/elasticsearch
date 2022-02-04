@@ -464,8 +464,8 @@ Use the {ref}/indices-templates-v1.html[create or update index template API]'s
 return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>
-the `template` parameter mapped to `index_patterns`.
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
+the `template` parameter is mapped to `index_patterns`.
 
 ====
 

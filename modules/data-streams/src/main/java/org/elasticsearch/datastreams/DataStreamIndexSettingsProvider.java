@@ -31,7 +31,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         String dataStreamName,
         IndexMode templateIndexMode,
         Metadata metadata,
-        long resolvedAt,
+        Instant resolvedAt,
         Settings allSettings
     ) {
         if (dataStreamName != null) {
@@ -51,8 +51,8 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                     final Instant start;
                     final Instant end;
                     if (dataStream == null) {
-                        start = Instant.ofEpochMilli(resolvedAt).minusMillis(lookAheadTime.getMillis());
-                        end = Instant.ofEpochMilli(resolvedAt).plusMillis(lookAheadTime.getMillis());
+                        start = resolvedAt.minusMillis(lookAheadTime.getMillis());
+                        end = resolvedAt.plusMillis(lookAheadTime.getMillis());
                     } else {
                         IndexMetadata currentLatestBackingIndex = metadata.index(dataStream.getWriteIndex());
                         if (currentLatestBackingIndex.getSettings().hasValue(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
@@ -66,11 +66,10 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                             );
                         }
                         start = IndexSettings.TIME_SERIES_END_TIME.get(currentLatestBackingIndex.getSettings());
-                        Instant resolvedAtInstant = Instant.ofEpochMilli(resolvedAt);
-                        if (start.isAfter(resolvedAtInstant)) {
+                        if (start.isAfter(resolvedAt)) {
                             end = start.plusMillis(lookAheadTime.getMillis());
                         } else {
-                            end = resolvedAtInstant.plusMillis(lookAheadTime.getMillis());
+                            end = resolvedAt.plusMillis(lookAheadTime.getMillis());
                         }
                     }
                     assert start.isBefore(end) : "data stream backing index's start time is not before end time";

@@ -1,0 +1,58 @@
+[[install-elasticsearch]]
+== Installing Elasticsearch
+
+[discrete]
+=== Hosted Elasticsearch
+
+{ess-leadin}
+
+[discrete]
+=== Installing Elasticsearch Yourself
+
+Elasticsearch is provided in the following package formats:
+
+[horizontal]
+Linux and MacOS `tar.gz` archives::
+
+The `tar.gz` archives are available for installation on any Linux distribution and MacOS.
++
+<<targz>>
+
+Windows `.zip` archive::
+
+The `zip` archive is suitable for installation on Windows.
++
+<<zip-windows>>
+
+`deb`::
+
+The `deb` package is suitable for Debian, Ubuntu, and other Debian-based
+systems. Debian packages may be downloaded from the Elasticsearch website or
+from our Debian repository.
++
+<<deb>>
+
+`rpm`::
+
+The `rpm` package is suitable for installation on Red Hat, Centos, SLES,
+OpenSuSE and other RPM-based systems. RPMs may be downloaded from the
+Elasticsearch website or from our RPM repository.
++
+<<rpm>>
+
+`docker`::
+
+Images are available for running Elasticsearch as Docker containers. They may be
+downloaded from the Elastic Docker Registry.
++
+{ref}/docker.html[Install {es} with Docker]
+
+include::install/targz.asciidoc[]
+
+include::install/zip-windows.asciidoc[]
+
+include::install/deb.asciidoc[]
+
+include::install/rpm.asciidoc[]
+
+include::install/docker.asciidoc[]

@@ -89,11 +89,6 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         return nodes.size();
     }
 
-    @Override
-    public Spliterator<DiscoveryNode> spliterator() {
-        return super.spliterator();
-    }
-
     /**
      * Returns {@code true} if the local node is the elected master node.
      */

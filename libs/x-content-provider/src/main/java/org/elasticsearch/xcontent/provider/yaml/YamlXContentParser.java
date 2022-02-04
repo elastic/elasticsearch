@@ -6,13 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.internal.yaml;
+package org.elasticsearch.xcontent.provider.yaml;
 
 import com.fasterxml.jackson.core.JsonParser;
 
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.internal.json.JsonXContentParser;
+import org.elasticsearch.xcontent.provider.json.JsonXContentParser;
 
 public class YamlXContentParser extends JsonXContentParser {
 

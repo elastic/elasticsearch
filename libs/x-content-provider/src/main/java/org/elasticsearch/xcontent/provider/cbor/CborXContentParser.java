@@ -6,27 +6,27 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.internal.smile;
+package org.elasticsearch.xcontent.provider.cbor;
 
 import com.fasterxml.jackson.core.JsonParser;
 
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.internal.json.JsonXContentParser;
+import org.elasticsearch.xcontent.provider.json.JsonXContentParser;
 
-public class SmileXContentParser extends JsonXContentParser {
+public class CborXContentParser extends JsonXContentParser {
 
-    public SmileXContentParser(XContentParserConfiguration config, JsonParser parser) {
+    public CborXContentParser(XContentParserConfiguration config, JsonParser parser) {
         super(config, parser);
     }
 
     @Override
     public XContentType contentType() {
-        return XContentType.SMILE;
+        return XContentType.CBOR;
     }
 
     @Override
     public void allowDuplicateKeys(boolean allowDuplicateKeys) {
-        throw new UnsupportedOperationException("Allowing duplicate keys after the parser has been created is not possible for Smile");
+        throw new UnsupportedOperationException("Allowing duplicate keys after the parser has been created is not possible for CBOR");
     }
 }

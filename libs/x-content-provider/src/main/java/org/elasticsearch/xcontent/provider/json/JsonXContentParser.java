@@ -6,13 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.internal.json;
+package org.elasticsearch.xcontent.provider.json;
 
 import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.JsonToken;
-
 import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
@@ -22,7 +22,7 @@ import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.internal.XContentParserConfigurationImpl;
+import org.elasticsearch.xcontent.provider.XContentParserConfigurationImpl;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
@@ -47,6 +47,11 @@ public class JsonXContentParser extends AbstractXContentParser {
         parser.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, allowDuplicateKeys == false);
     }
 
+    private static final XContentParseException newXContentParseException(JsonProcessingException e) {
+        JsonLocation loc = e.getLocation();
+        throw new XContentParseException(new XContentLocation(loc.getLineNr(), loc.getColumnNr()), e.getMessage(), e);
+    }
+
     @Override
     public Token nextToken() throws IOException {
         try {
@@ -54,8 +59,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         } catch (JsonEOFException e) {
             throw new XContentEOFException(e);
         } catch (JsonParseException e) {
-            JsonLocation loc = e.getLocation();
-            throw new XContentParseException(new XContentLocation(loc.getLineNr(), loc.getColumnNr()), e.getMessage(), e);
+            throw newXContentParseException(e);
         }
     }
 
@@ -81,7 +85,11 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     protected boolean doBooleanValue() throws IOException {
-        return parser.getBooleanValue();
+        try {
+            return parser.getBooleanValue();
+        } catch (JsonParseException e) {
+            throw newXContentParseException(e);
+        }
     }
 
     @Override
@@ -158,8 +166,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return parser.getNumberValue();
         } catch (InputCoercionException e) {
-            JsonLocation loc = e.getLocation();
-            throw new XContentParseException(new XContentLocation(loc.getLineNr(), loc.getColumnNr()), e.getMessage(), e);
+            throw newXContentParseException(e);
         }
     }
 

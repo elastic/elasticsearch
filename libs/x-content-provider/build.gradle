@@ -16,6 +16,7 @@ dependencies {
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
 
   /*
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
@@ -23,25 +24,27 @@ dependencies {
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 */
 
-  testImplementation project(":test:framework")
-  /*testImplementation(project(":test:framework")) {
+  testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
-  }*/
+  }
 
 }
 
-//tasks.named('forbiddenApisMain').configure {
-//  // x-content does not depend on server
-//  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
-//  replaceSignatureFiles 'jdk-signatures'
-//}
-//
-//tasks.named("dependencyLicenses").configure {
-//  mapping from: /jackson-.*/, to: 'jackson'
-//}
-//
-//tasks.named("jarHell").configure { enabled = false }
-//
-//tasks.named("compileJava").configure {
-//  options.compilerArgs.add("-Xlint:-missing-explicit-ctor")
-//}
+tasks.named('forbiddenApisMain').configure {
+  // x-content does not depend on server
+  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+}
+
+tasks.named("jarHell").configure { enabled = false }
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    'com.fasterxml.jackson.databind.ObjectMapper',
+    'com.fasterxml.jackson.databind.cfg.MapperBuilder'
+  )
+}

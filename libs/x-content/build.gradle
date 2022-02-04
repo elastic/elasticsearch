@@ -18,13 +18,14 @@ dependencies {
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 */
 
-  testImplementation project(":test:framework")
-/*
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
   }
-*/
+}
 
+// TODO: replace with a relative path, or something much better
+tasks.named("test").configure {
+  systemProperty 'es.x.content.provider', '/Users/chegar/git/es_clean/libs/x-content-provider/build/distributions/'
 }
 
 tasks.named('forbiddenApisMain').configure {

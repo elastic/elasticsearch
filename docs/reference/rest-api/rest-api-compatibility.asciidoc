@@ -3,10 +3,8 @@
 
 To help REST clients mitigate the impact of non-compatible (breaking) API changes, {es} provides a per-request, opt-in API compatibility mode.  
 
-{es} REST API's are generally stable across major versions. However, there are cases where {es} REST API's are changed in a non compatible ways (breaking) with the prior major version.
-For example, {es} 7.x supported custom mapping types in many of the URL paths, but {es} 8.0+ does not support
-custom mapping types (see <<removal-of-types>>). As a result a REST client that is still using custom types in the
-URL paths to communicating with {es} 8.0+ will error. If requested, REST API compatibility can allow that request to succeed even though mapping types are no longer supported.
+{es} REST APIs are generally stable across versions. However, some improvements require changes that are not compatible with previous versions.
+For example, {es} 7.x supported custom mapping types in many URL paths, but {es} 8.0+ does not (see <<removal-of-types>>). Specifying a custom type in a request sent to {es} 8.0+ returns an error. However, if you request REST API compatibility, {es} accepts the request even though mapping types are no longer supported.
 
 All non compatible (breaking) changes to the {es} REST API will be deprecated in the prior major version to where the non compatible (breaking) change occurs.
 For example, if a REST API is removed (or changed in some non compatible way) in 8.x it will be will be deprecated in 7.x and will emit deprecation logs anytime that API is invoked.

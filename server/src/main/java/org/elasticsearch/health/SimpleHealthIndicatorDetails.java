@@ -14,12 +14,10 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class SimpleHealthIndicatorDetails implements HealthIndicatorDetails {
+public record SimpleHealthIndicatorDetails(Map<String, Object> details) implements HealthIndicatorDetails {
 
-    private final Map<String, Object> details;
-
-    public SimpleHealthIndicatorDetails(Map<String, Object> details) {
-        this.details = Objects.requireNonNull(details);
+    public SimpleHealthIndicatorDetails {
+        Objects.requireNonNull(details);
     }
 
     @Override

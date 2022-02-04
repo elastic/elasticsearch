@@ -153,6 +153,7 @@ public final class CsvTestUtils {
             case "ts" -> "timestamp";
             case "bt" -> "byte";
             case "sh" -> "short";
+            case "ul" -> "bigdecimal"; // CSV JDBC driver lacks biginteger support
             default -> type;
         };
     }

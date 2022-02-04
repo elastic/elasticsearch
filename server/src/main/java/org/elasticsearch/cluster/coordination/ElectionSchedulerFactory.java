@@ -206,7 +206,7 @@ public class ElectionSchedulerFactory {
             };
 
             logger.debug("scheduling {}", runnable);
-            threadPool.scheduleUnlessShuttingDown(TimeValue.timeValueMillis(delayMillis), Names.GENERIC, runnable);
+            threadPool.scheduleUnlessShuttingDown(TimeValue.timeValueMillis(delayMillis), Names.COORDINATION, runnable);
         }
 
         @Override

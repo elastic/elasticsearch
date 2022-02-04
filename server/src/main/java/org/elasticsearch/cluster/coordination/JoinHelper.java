@@ -131,7 +131,7 @@ public class JoinHelper {
 
         transportService.registerRequestHandler(
             JOIN_ACTION_NAME,
-            ThreadPool.Names.GENERIC,
+            Names.COORDINATION,
             false,
             false,
             JoinRequest::new,
@@ -143,7 +143,7 @@ public class JoinHelper {
 
         transportService.registerRequestHandler(
             START_JOIN_ACTION_NAME,
-            Names.GENERIC,
+            Names.COORDINATION,
             false,
             false,
             StartJoinRequest::new,
@@ -166,7 +166,7 @@ public class JoinHelper {
         final List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
         transportService.registerRequestHandler(
             JOIN_VALIDATE_ACTION_NAME,
-            ThreadPool.Names.GENERIC,
+            ThreadPool.Names.COORDINATION,
             ValidateJoinRequest::new,
             (request, channel, task) -> {
                 final ClusterState localState = currentStateSupplier.get();

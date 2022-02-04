@@ -145,7 +145,7 @@ public abstract class Realm implements Comparable<Realm> {
         listener.onResponse(stats);
     }
 
-    public void initDomain(@Nullable RealmDomain domain) {
+    public void initRealmRef(@Nullable RealmDomain domain) {
         final String nodeName = Node.NODE_NAME_SETTING.get(config.settings());
         this.realmRef.set(new RealmRef(config.name(), config.type(), nodeName, domain));
     }

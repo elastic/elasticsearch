@@ -89,7 +89,7 @@ public class Realms implements Iterable<Realm> {
         final Map<String, String> domainForRealmMap = RealmSettings.computeRealmNameToDomainNameAssociation(settings);
         final List<RealmConfig> realmConfigs = buildRealmConfigs();
         final List<Realm> initialRealms = initRealms(realmConfigs);
-        configureDomains(initialRealms, realmConfigs, domainForRealmMap);
+        configureRealmRef(initialRealms, realmConfigs, domainForRealmMap);
         this.allConfiguredRealms = initialRealms;
         this.allConfiguredRealms.forEach(r -> r.initialize(this.allConfiguredRealms, licenseState));
         assert this.allConfiguredRealms.get(0) == reservedRealm : "the first realm must be reserved realm";
@@ -98,7 +98,7 @@ public class Realms implements Iterable<Realm> {
         licenseState.addListener(this::recomputeActiveRealms);
     }
 
-    static void configureDomains(Collection<Realm> realms, Collection<RealmConfig> realmConfigs, Map<String, String> domainForRealm) {
+    static void configureRealmRef(Collection<Realm> realms, Collection<RealmConfig> realmConfigs, Map<String, String> domainForRealm) {
         for (Realm realm : realms) {
             String domainName = domainForRealm.get(realm.name());
             if (domainName != null) {
@@ -108,9 +108,9 @@ public class Realms implements Iterable<Realm> {
                         domainIdentifiers.add(realmConfig.identifier());
                     }
                 }
-                realm.initDomain(new RealmDomain(domainName, domainIdentifiers));
+                realm.initRealmRef(new RealmDomain(domainName, domainIdentifiers));
             } else {
-                realm.initDomain(null);
+                realm.initRealmRef(null);
             }
         }
     }

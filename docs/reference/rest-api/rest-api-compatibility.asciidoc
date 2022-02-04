@@ -29,7 +29,7 @@ This level of compatibility may not work for all workflows and use cases. For ex
 When you submit requests using REST API compatibility and {es} resolves the incompatibility, a message is written to the deprecation log with the category "compatible_api". Review the deprecation log to identify any gaps in usage and fully supported features.
 
 
-Review the release notes for REST API changes for additional details.  TODO: link to https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_rest_api_changes
+For information about specific breaking changes and the impact of requesting compatibility mode, see <<breaking_80_rest_api_changes, REST API changes>> in the migration guide.
 
 [discrete]
 [[request-rest-api-compatibility]]

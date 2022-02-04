@@ -16,11 +16,13 @@ plusLongMax
 SELECT 9223372036854775808 + ROUND(RAND(DAY(CURRENT_TIMESTAMP())) * 10000) AS x;
 minus
 SELECT 18446744073709551615 - ROUND(RAND(DAY(CURRENT_TIMESTAMP())) * 10000) AS x;
-divide
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/83516
+divide-Ignore
 SELECT 18446744073709551615 / ROUND(RAND(DAY(CURRENT_TIMESTAMP())) * 10000) AS x;
 multiply
 SELECT 18446744073709551615 * 1 AS x;
-mod
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/83516
+mod-Ignore
 SELECT 18446744073709551615 % ROUND(RAND(DAY(CURRENT_TIMESTAMP())) * 10000) AS x;
 
 abs

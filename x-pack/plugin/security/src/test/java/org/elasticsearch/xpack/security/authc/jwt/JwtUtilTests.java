@@ -37,7 +37,7 @@ public class JwtUtilTests extends JwtTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(JwtUtilTests.class);
 
-    public void testValidateJwtIssuedAtTime() throws Exception {
+    public void testValidateJwtTimeClaims() throws Exception {
         final int skewSeconds = 1;
         final Instant instant = Instant.now();
         final Date now = Date.from(instant);

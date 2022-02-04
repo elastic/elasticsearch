@@ -311,8 +311,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.ensureInitialized();
             if (authenticationToken instanceof JwtAuthenticationToken jwtAuthenticationToken) {
                 final String tokenPrincipal = jwtAuthenticationToken.principal();
-                final SignedJWT signedJwt = jwtAuthenticationToken.getSignedJwt();
-                final JWSAlgorithm jwsAlgorithm = signedJwt.getHeader().getAlgorithm();
                 LOGGER.trace("Realm [{}] received JwtAuthenticationToken for tokenPrincipal [{}].", super.name(), tokenPrincipal);
 
                 final SecureString endUserSignedJwt = jwtAuthenticationToken.getEndUserSignedJwt();
@@ -358,6 +356,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     return;
                 }
 
+                final SignedJWT signedJwt = jwtAuthenticationToken.getSignedJwt();
+                final JWSAlgorithm jwsAlgorithm = signedJwt.getHeader().getAlgorithm();
                 try {
                     JwtValidateUtil.validate(
                         signedJwt,
@@ -375,6 +375,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     listener.onResponse(AuthenticationResult.unsuccessful(msg, e));
                     return;
                 }
+
+                // Stop using tokenPrincipal. We trust the JWT after the above check, so compute the actual principal from the claims now.
 
                 // Extract claims for UserRoleMapper.UserData and User constructors.
                 final JWTClaimsSet jwtClaimsSet = jwtAuthenticationToken.getJwtClaimsSet();

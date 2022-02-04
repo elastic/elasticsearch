@@ -19,6 +19,9 @@ setup:
 
 ---
 "Create a snapshot":
+  - - skip:
+        version: "7.0.0 - 7.17.1"
+        reason: "Pause BWC tests until #83290 is backported"
 
   - do:
       snapshot.create:

@@ -514,8 +514,8 @@ Discontinue use of the `types` query parameter. Requests that include the
 parameter will return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>
-the `types` query parameter is ignored returning the stats for the entire index.
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
+the `types` query parameter is ignored and stats are returned for the entire index.
 ====
 
 .The `user_agent` ingest processor's `ecs` parameter has no effect.

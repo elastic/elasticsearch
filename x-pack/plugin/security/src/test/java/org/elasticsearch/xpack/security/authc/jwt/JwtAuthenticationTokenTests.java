@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
-import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.jwk.JWK;
 
@@ -18,12 +17,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressWarnings({ "checkstyle:MissingJavadocType", "checkstyle:MissingJavadocMethod" })
 public class JwtAuthenticationTokenTests extends JwtTestCase {
 
     public void testJwtAuthenticationTokenParse() throws Exception {
         final String signatureAlgorithm = randomFrom(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS);
-        final JWK jwk = JwtTestCase.randomJwk(JWSAlgorithm.parse(signatureAlgorithm));
-        final JWSSigner jwsSigner = JwtUtil.createJwsSigner(jwk);
+        final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm);
+        final JWSSigner jwsSigner = JwtValidateUtil.createJwsSigner(jwk);
         final String serializedJWTOriginal = JwtTestCase.randomValidSignedJWT(jwsSigner, signatureAlgorithm).serialize();
 
         final SecureString jwt = new SecureString(serializedJWTOriginal.toCharArray());

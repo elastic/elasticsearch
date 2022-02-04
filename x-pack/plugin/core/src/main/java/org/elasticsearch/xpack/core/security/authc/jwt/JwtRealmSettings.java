@@ -49,9 +49,6 @@ public class JwtRealmSettings {
     ).flatMap(Collection::stream).toList();
 
     // Header names
-    public static final String HEADER_END_USER_AUTHORIZATION = "Authorization";
-    public static final String HEADER_CLIENT_AUTHORIZATION = "X-Client-Authorization";
-    public static final String HEADER_END_USER_AUTHORIZATION_SCHEME = "Bearer";
     public static final String CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET = "SharedSecret";
     public static final String CLIENT_AUTHORIZATION_TYPE_NONE = "None";
     public static final List<String> CLIENT_AUTHORIZATION_TYPES = List.of(
@@ -76,8 +73,8 @@ public class JwtRealmSettings {
     private static final int MIN_HTTP_MAX_CONNECTIONS = 0;
     private static final int DEFAULT_HTTP_MAX_ENDPOINT_CONNECTIONS = 200;
     private static final int MIN_HTTP_MAX_ENDPOINT_CONNECTIONS = 0;
-    public static final String DEFAULT_HTTP_PROXY_SCHEME = "https";
-    public static final int DEFAULT_HTTP_PROXY_PORT = 443;
+    public static final String DEFAULT_HTTP_PROXY_SCHEME = "http";
+    public static final int DEFAULT_HTTP_PROXY_PORT = 80;
     public static final int MIN_HTTP_PROXY_PORT = 1;
     public static final int MAX_HTTP_PROXY_PORT = 65535;
 
@@ -272,8 +269,8 @@ public class JwtRealmSettings {
         RealmSettings.realmSettingPrefix(TYPE),
         "http.proxy.scheme",
         key -> Setting.simpleString(key, DEFAULT_HTTP_PROXY_SCHEME, value -> {
-            if (value.equals("https") == false) {
-                throw new IllegalArgumentException("Invalid value [" + value + "] for [" + key + "]. Only `https` is allowed.");
+            if (value.equals("http") == false && value.equals("https") == false) {
+                throw new IllegalArgumentException("Invalid value [" + value + "] for [" + key + "]. Only `http` or `https` is allowed.");
             }
         }, Setting.Property.NodeScope)
     );
@@ -285,7 +282,7 @@ public class JwtRealmSettings {
     public static final Setting.AffixSetting<String> HTTP_PROXY_HOST = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "http.proxy.host",
-        key -> Setting.simpleString(key, new Setting.Validator<String>() {
+        key -> Setting.simpleString(key, new Setting.Validator<>() {
             @Override
             public void validate(final String value) {
                 // There is no point in validating the hostname in itself without the scheme and port

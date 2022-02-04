@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
@@ -26,8 +25,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -53,13 +50,15 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+@SuppressWarnings({ "checkstyle:MissingJavadocType", "checkstyle:MissingJavadocMethod" })
 public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private static final Logger LOGGER = LogManager.getLogger(JwtRealm.class);
 
-    final ThreadPool threadPool;
-    final SSLService sslService;
+    public static final String HEADER_END_USER_AUTHORIZATION = "Authorization";
+    public static final String HEADER_CLIENT_AUTHORIZATION = "X-Client-Authorization";
+    public static final String HEADER_END_USER_AUTHORIZATION_SCHEME = "Bearer";
+
     final UserRoleMapper userRoleMapper;
-    final ResourceWatcherService resourceWatcherService;
 
     // JWT issuer settings
     final String allowedIssuer;
@@ -75,9 +74,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     // JWT client settings
     final String clientAuthorizationType;
     final SecureString clientAuthorizationSharedSecret;
-    // JWT cache settings
-    final TimeValue cacheTtl;
-    final Integer cacheMaxUsers;
     // Standard HTTP settings for outgoing connections to get JWT issuer jwkset_path
     final TimeValue httpConnectTimeout;
     final TimeValue httpConnectionReadTimeout;
@@ -109,24 +105,12 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final AtomicLong counterCacheGetOkNoWarning = new AtomicLong(0);
     final AtomicLong counterCacheAdd = new AtomicLong(0);
 
-    // Only JwtRealmTest.addJwtRealm() uses these package private members, to generate test JWTs from these test JWKs and Users.
-    List<JWK> testIssuerJwks = null;
-    Map<String, User> testIssuerUsers = null;
-
-    public JwtRealm(
-        final RealmConfig realmConfig,
-        final ThreadPool threadPool,
-        final SSLService sslService,
-        final UserRoleMapper userRoleMapper,
-        final ResourceWatcherService resourceWatcherService
-    ) throws SettingsException {
+    public JwtRealm(final RealmConfig realmConfig, final SSLService sslService, final UserRoleMapper userRoleMapper)
+        throws SettingsException {
         super(realmConfig);
 
         // constructor saves parameters
-        this.threadPool = threadPool;
-        this.sslService = sslService;
         this.userRoleMapper = userRoleMapper;
-        this.resourceWatcherService = resourceWatcherService;
 
         // JWT issuer settings
         this.allowedIssuer = realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER);
@@ -148,8 +132,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.clientAuthorizationSharedSecret = realmConfig.getSetting(JwtRealmSettings.CLIENT_AUTHORIZATION_SHARED_SECRET);
 
         // JWT cache settings
-        this.cacheTtl = realmConfig.getSetting(JwtRealmSettings.CACHE_TTL);
-        this.cacheMaxUsers = realmConfig.getSetting(JwtRealmSettings.CACHE_MAX_USERS);
+        final TimeValue cacheTtl = realmConfig.getSetting(JwtRealmSettings.CACHE_TTL);
+        final Integer cacheMaxUsers = realmConfig.getSetting(JwtRealmSettings.CACHE_MAX_USERS);
         final String cacheHashAlgo = realmConfig.getSetting(JwtRealmSettings.CACHE_HASH_ALGO);
 
         // Standard HTTP settings for outgoing connections to get JWT issuer jwkset_path
@@ -166,11 +150,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
         // constructor derives these members
         this.hasher = Hasher.resolve(cacheHashAlgo);
-        if (this.cacheTtl.getNanos() > 0) {
-            this.cache = CacheBuilder.<String, CacheResult>builder()
-                .setExpireAfterWrite(this.cacheTtl)
-                .setMaximumWeight(this.cacheMaxUsers)
-                .build();
+        if (cacheTtl.getNanos() > 0) {
+            this.cache = CacheBuilder.<String, CacheResult>builder().setExpireAfterWrite(cacheTtl).setMaximumWeight(cacheMaxUsers).build();
         } else {
             this.cache = null;
         }
@@ -203,7 +184,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
 
         // Validate JWKSet contents. Throw SettingsException there was a problem.
-        final Tuple<JWKSet, JWKSet> jwkSets = JwtUtil.validateJwkSets(
+        final Tuple<JWKSet, JWKSet> jwkSets = JwkValidateUtil.validateAndLoadJwkSetsSettings(
             RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS),
             this.allowedSignatureAlgorithms,
             RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.JWKSET_HMAC_CONTENTS),
@@ -215,12 +196,18 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.jwkSetPkc = jwkSets.v2();
     }
 
-    public void ensureInitialized() {
+    void ensureInitialized() {
         if (this.delegatedAuthorizationSupport == null) {
             throw new IllegalStateException("Realm has not been initialized");
         }
     }
 
+    /**
+     * If X-pack licensing allows it, initialize delegated authorization support.
+     * JWT realm will use the list of all realms to link to its named authorization realms.
+     * @param allRealms List of all realms containing authorization realms for this JWT realm.
+     * @param xpackLicenseState X-pack license state.
+     */
     @Override
     public void initialize(final Iterable<Realm> allRealms, final XPackLicenseState xpackLicenseState) {
         LOGGER.trace("Initializing realm [" + super.name() + "]");
@@ -231,6 +218,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.delegatedAuthorizationSupport = new DelegatedAuthorizationSupport(allRealms, super.config, xpackLicenseState);
     }
 
+    /**
+     * Clean up cache (if enabled).
+     * Clean up HTTPS client cache (if enabled).
+     */
     @Override
     public void close() {
         LOGGER.trace("Closing realm [" + super.name() + "]");
@@ -279,10 +270,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         JwtAuthenticationToken jwtAuthenticationToken = null;
         try {
             this.ensureInitialized();
-            final SecureString authorizationParameterValue = JwtUtil.getHeaderSchemeParameters(
+            final SecureString authorizationParameterValue = JwtUtil.getHeaderValue(
                 threadContext,
-                JwtRealmSettings.HEADER_END_USER_AUTHORIZATION,
-                JwtRealmSettings.HEADER_END_USER_AUTHORIZATION_SCHEME,
+                JwtRealm.HEADER_END_USER_AUTHORIZATION,
+                JwtRealm.HEADER_END_USER_AUTHORIZATION_SCHEME,
                 false
             );
             if (authorizationParameterValue == null) {
@@ -290,9 +281,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             }
 
             // Get all other possible parameters. A different JWT realm may do the actual authentication.
-            final SecureString clientAuthorizationSharedSecretValue = JwtUtil.getHeaderSchemeParameters(
+            final SecureString clientAuthorizationSharedSecretValue = JwtUtil.getHeaderValue(
                 threadContext,
-                JwtRealmSettings.HEADER_CLIENT_AUTHORIZATION,
+                JwtRealm.HEADER_CLIENT_AUTHORIZATION,
                 JwtRealmSettings.CLIENT_AUTHORIZATION_TYPE_SHARED_SECRET,
                 true
             );
@@ -368,7 +359,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 }
 
                 try {
-                    JwtUtil.validateSignedJwt(
+                    JwtValidateUtil.validate(
                         signedJwt,
                         JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(jwsAlgorithm.getName())
                             ? this.jwkSetHmac

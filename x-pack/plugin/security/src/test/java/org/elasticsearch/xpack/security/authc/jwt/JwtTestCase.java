@@ -14,6 +14,7 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.jwk.Curve;
 import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.JWK;
+import com.nimbusds.jose.jwk.KeyOperation;
 import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.OctetSequenceKey;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -58,6 +59,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -71,6 +73,7 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 
+@SuppressWarnings({ "checkstyle:MissingJavadocType", "checkstyle:MissingJavadocMethod" })
 public abstract class JwtTestCase extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(JwtTestCase.class);
@@ -218,7 +221,7 @@ public abstract class JwtTestCase extends ESTestCase {
         final String realmType,
         final String realmName,
         final Settings realmSettings,
-        final Integer realmOrder
+        final int realmOrder
     ) {
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier(realmType, realmName);
         final Settings settings = Settings.builder()
@@ -228,28 +231,6 @@ public abstract class JwtTestCase extends ESTestCase {
             .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), realmOrder)
             .build();
         return new RealmConfig(realmIdentifier, settings, this.env, this.threadContext);
-    }
-
-    protected static void writeJwkSetToFile(Path file) throws IOException {
-        Files.write(file, Collections.singletonList("""
-            {
-              "keys": [
-                {
-                  "kty": "RSA",
-                  "d": "lT2V49RNsu0eTroQDqFCiHY-CkPWdKfKAf66sJrWPNpSX8URa6pTCruFQMsb9ZSqQ8eIvqys9I9rq6Wpaxn1aGRahVzxp7nsBPZYwSY09L\
-            RzhvAxJwWdwtF-ogrV5-p99W9mhEa0khot3myzzfWNnGzcf1IudqvkqE9zrlUJg-kvA3icbs6HgaZVAevb_mx-bgbtJdnUxyPGwXLyQ7g6hlntQR_vpzTnK\
-            7XFU6fvkrojh7UPJkanKAH0gf3qPrB-Y2gQML7RSlKo-ZfJNHa83G4NRLHKuWTI6dSKJlqmS9zWGmyC3dx5kGjgqD6YgwtWlip8q-U839zxtz25yeslsQ",
-                  "e": "AQAB",
-                  "use": "sig",
-                  "kid": "testkey",
-                  "alg": "RS256",
-                  "n": "lXBe4UngWJiUfbqbeOvwbH04kYLCpeH4k0o3ngScZDo6ydc_gBDEVwPLQpi8D930aIzr3XHP3RCj0hnpxUun7MNMhWxJZVOd1eg5uuO-nP\
-            Ihkqr9iGKV5srJk0Dvw0wBaGZuXMBheY2ViNaKTR9EEtjNwU2d2-I5U3YlrnFR6nj-Pn_hWaiCbb_pSFM4w9QpoLDmuwMRanHY_YK7Td2WMICSGP\
-            3IRGmbecRZCqgkWVZk396EMoMLNxi8WcErYknyY9r-QeJMruRkr27kgx78L7KZ9uBmu9oKXRQl15ZDYe7Bnt9E5wSdOCV9R9h5VRVUur-_129XkD\
-            eAX-6re63_Mw"
-                }
-              ]
-            }"""));
     }
 
     protected Answer<Class<Void>> getAnswer(AtomicReference<UserRoleMapper.UserData> userData) {
@@ -280,82 +261,59 @@ public abstract class JwtTestCase extends ESTestCase {
         return roleMapper;
     }
 
-    public static Collection<String> random(final int min, final Collection<String> original) {
-        if ((original == null) || (min < 0) || (min > original.size())) {
-            throw new IllegalArgumentException("Invalid min=" + min + ", original=" + original);
+    public static Map<String, List<JWK>> randomJwks(final List<String> signatureAlgorithms) throws JOSEException {
+        final Map<String, List<JWK>> algAndJwks = new HashMap<>();
+        for (final String signatureAlgorithm : signatureAlgorithms) {
+            final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm);
+            final List<JWK> previouslyAddedJwks = algAndJwks.get(signatureAlgorithm);
+            if (previouslyAddedJwks == null) {
+                final ArrayList<JWK> jwks = new ArrayList<>();
+                jwks.add(jwk);
+                algAndJwks.put(signatureAlgorithm, jwks);
+            } else {
+                previouslyAddedJwks.add(jwk);
+            }
         }
-        return random(min, original.size(), original);
+        return algAndJwks;
     }
 
-    /**
-     * Return collection of random count and elements from the original collection of strings.
-     * @param min Minimum elements to retain.
-     * @param max Maximum elements to retain.
-     * @param original Original list of strings.
-     * @return Random count of random elements from the original list.
-     */
-    public static Collection<String> random(final int min, final int max, final Collection<String> original) {
-        if ((original == null) || (min < 0) || (min > original.size()) || (max < 0) || (max > original.size()) || (min > max)) {
-            throw new IllegalArgumentException("Invalid min=" + min + ", max=" + max + ", original=" + original);
-        }
-        final List<String> elements = new ArrayList<>(original); // use list for stable order after shuffle
-        Collections.shuffle(elements, random()); // randomize list contents
-
-        final int minSelected = (min > 0) ? min : 0;
-        final int maxSelected = (max < elements.size()) ? max : elements.size();
-        final int retainCount = randomIntBetween(minSelected, maxSelected);
-        final int removeCount = elements.size() - retainCount;
-
-        for (int removed = 0; removed < removeCount; removed++) {
-            elements.remove(elements.size() - 1); // remove last skips System.arraycopy()
-        }
-        return elements;
-    }
-
-    public static List<JWK> toRandomJwks(final List<JWSAlgorithm> jwsAlgorithms) throws JOSEException {
-        final List<JWK> jwkList = new ArrayList<>(jwsAlgorithms.size());
-        for (final JWSAlgorithm jwsAlgorithm : jwsAlgorithms) {
-            jwkList.add(JwtTestCase.randomJwk(jwsAlgorithm));
-        }
-        return jwkList;
-    }
-
-    public static JWK randomJwk(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
-        if (JWSAlgorithm.Family.HMAC_SHA.contains(jwsAlgorithm)) {
+    public static JWK randomJwk(final String signatureAlgorithm) throws JOSEException {
+        final JWSAlgorithm jwsAlgorithm = JWSAlgorithm.parse(signatureAlgorithm);
+        if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(signatureAlgorithm)) {
             return JwtTestCase.randomJwkHmac(jwsAlgorithm);
-        } else if (JWSAlgorithm.Family.RSA.contains(jwsAlgorithm)) {
+        } else if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA.contains(signatureAlgorithm)) {
             return JwtTestCase.randomJwkRsa(jwsAlgorithm);
-        } else if (JwtUtil.EC_NON_FIPS.contains(jwsAlgorithm)) {
+        } else if (JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_EC.contains(signatureAlgorithm)) {
             return JwtTestCase.randomJwkEc(jwsAlgorithm);
         }
         throw new JOSEException(
             "Unsupported signature algorithm ["
-                + jwsAlgorithm
+                + signatureAlgorithm
                 + "]. Supported signature algorithms are "
                 + JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS
                 + "."
         );
     }
 
+    public static OctetSequenceKey randomJwkHmac(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
+        final int minHmacLengthBytes = MACSigner.getMinRequiredSecretLength(jwsAlgorithm) / 8;
+        final int hmacLengthBits = scaledRandomIntBetween(minHmacLengthBytes, minHmacLengthBytes * 2) * 8;
+        final OctetSequenceKeyGenerator jwkGenerator = new OctetSequenceKeyGenerator(hmacLengthBits);
+        JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm); // options: kid, alg, use, ops
+        return jwkGenerator.generate();
+    }
+
     public static RSAKey randomJwkRsa(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
         final int rsaLengthBits = rarely() ? 3072 : 2048;
         final RSAKeyGenerator jwkGenerator = new RSAKeyGenerator(rsaLengthBits, false);
-        JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm);
+        JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm); // options: kid, alg, use, ops
         return jwkGenerator.generate();
     }
 
     public static ECKey randomJwkEc(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
         final Curve ecCurve = randomFrom(Curve.forJWSAlgorithm(jwsAlgorithm));
         final ECKeyGenerator jwkGenerator = new ECKeyGenerator(ecCurve);
-        JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm);
-        return jwkGenerator.generate();
-    }
-
-    public static OctetSequenceKey randomJwkHmac(final JWSAlgorithm jwsAlgorithm) throws JOSEException {
-        final int minHmacLengthBytes = MACSigner.getMinRequiredSecretLength(jwsAlgorithm) / 8;
-        final int hmacLengthBits = scaledRandomIntBetween(minHmacLengthBytes, minHmacLengthBytes * 2) * 8;
-        final OctetSequenceKeyGenerator jwkGenerator = new OctetSequenceKeyGenerator(hmacLengthBits);
-        JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm);
+        JwtTestCase.randomSettingsForJwkGenerator(jwkGenerator, jwsAlgorithm); // options: kid, alg, use, ops
         return jwkGenerator.generate();
     }
 
@@ -371,6 +329,9 @@ public abstract class JwtTestCase extends ESTestCase {
         }
         if (randomBoolean()) {
             jwkGenerator.keyUse(KeyUse.SIGNATURE);
+        }
+        if (randomBoolean()) {
+            jwkGenerator.keyOperations(Set.of(KeyOperation.SIGN, KeyOperation.VERIFY));
         }
         return jwkGenerator;
     }
@@ -392,7 +353,7 @@ public abstract class JwtTestCase extends ESTestCase {
             groups,
             Map.of("metadata", randomAlphaOfLength(10))
         );
-        return JwtUtil.signSignedJwt(jwsSigner, headerAndBody.v1(), headerAndBody.v2());
+        return JwtValidateUtil.signSignedJwt(jwsSigner, headerAndBody.v1(), headerAndBody.v2());
     }
 
     public static Tuple<JWSHeader, JWTClaimsSet> randomValidJwsHeaderAndJwtClaimsSet(
@@ -482,5 +443,9 @@ public abstract class JwtTestCase extends ESTestCase {
             );
         }
         return testUsers;
+    }
+
+    public static <T> List<T> randomOf(int size, Collection<T> collection) {
+        return IntStream.range(0, size).mapToObj(i -> randomFrom(collection)).toList();
     }
 }

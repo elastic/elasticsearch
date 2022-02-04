@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,40 +32,62 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressWarnings({ "checkstyle:MissingJavadocType", "checkstyle:MissingJavadocMethod" })
 public class JwtUtilTests extends JwtTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(JwtUtilTests.class);
 
     public void testValidateJwtIssuedAtTime() throws Exception {
-        final Instant now = Instant.now();
+        final int skewSeconds = 1;
+        final Instant instant = Instant.now();
+        final Date now = Date.from(instant);
+        final Date before = Date.from(instant.minusSeconds(skewSeconds));
+        final Date after = Date.from(instant.plusSeconds(skewSeconds));
 
-        // auth_time optional
-        JwtUtil.validateJwtAuthTime(0, Date.from(now), null);
-        expectThrows(Exception.class, () -> JwtUtil.validateJwtAuthTime(0, Date.from(now.minusSeconds(1)), Date.from(now)));
-        JwtUtil.validateJwtAuthTime(0, Date.from(now), Date.from(now));
-        JwtUtil.validateJwtAuthTime(1, Date.from(now), Date.from(now.minusSeconds(1)));
+        // auth_time parameter checks
+        JwtValidateUtil.validateAuthTime((Date) null, now, 0);
+        expectThrows(Exception.class, () -> JwtValidateUtil.validateAuthTime(before, null, 0));
+        expectThrows(Exception.class, () -> JwtValidateUtil.validateAuthTime(before, now, -1));
+        // iat parameter checks
+        expectThrows(Exception.class, () -> JwtValidateUtil.validateIssuedAtTime((Date) null, now, 0));
+        expectThrows(Exception.class, () -> JwtValidateUtil.validateIssuedAtTime(before, null, 0));
+        expectThrows(Exception.class, () -> JwtValidateUtil.validateIssuedAtTime(before, now, -1));
+        // nbf parameter checks
+        JwtValidateUtil.validateNotBeforeTime((Date) null, now, 0);
+        expectThrows(Exception.class, () -> JwtValidateUtil.validateNotBeforeTime(before, null, 0));
+        expectThrows(Exception.class, () -> JwtValidateUtil.validateNotBeforeTime(before, now, -1));
+        // exp parameter checks
+        expectThrows(Exception.class, () -> JwtValidateUtil.validateExpiredTime((Date) null, now, 0));
+        expectThrows(Exception.class, () -> JwtValidateUtil.validateExpiredTime(after, null, 0));
+        expectThrows(Exception.class, () -> JwtValidateUtil.validateExpiredTime(after, now, -1));
 
-        // iat required
-        expectThrows(Exception.class, () -> JwtUtil.validateJwtIssuedAtTime(0, Date.from(now), null));
-        expectThrows(Exception.class, () -> JwtUtil.validateJwtIssuedAtTime(0, Date.from(now.minusSeconds(1)), Date.from(now)));
-        JwtUtil.validateJwtIssuedAtTime(0, Date.from(now), Date.from(now));
-        JwtUtil.validateJwtIssuedAtTime(1, Date.from(now), Date.from(now.minusSeconds(1)));
-
-        // nbf optional
-        JwtUtil.validateJwtNotBeforeTime(0, Date.from(now), null);
-        expectThrows(Exception.class, () -> JwtUtil.validateJwtNotBeforeTime(0, Date.from(now.minusSeconds(1)), Date.from(now)));
-        JwtUtil.validateJwtNotBeforeTime(0, Date.from(now), Date.from(now));
-        JwtUtil.validateJwtNotBeforeTime(1, Date.from(now), Date.from(now.minusSeconds(1)));
-
-        // exp required
-        expectThrows(Exception.class, () -> JwtUtil.validateJwtExpiredTime(0, Date.from(now), null));
-        JwtUtil.validateJwtExpiredTime(0, Date.from(now.minusSeconds(1)), Date.from(now));
-        expectThrows(Exception.class, () -> JwtUtil.validateJwtExpiredTime(0, Date.from(now), Date.from(now)));
-        JwtUtil.validateJwtExpiredTime(1, Date.from(now.minusSeconds(1)), Date.from(now));
+        // validate auth_time
+        JwtValidateUtil.validateAuthTime(before, now, 0);
+        JwtValidateUtil.validateAuthTime(now, now, 0);
+        JwtValidateUtil.validateAuthTime(after, now, skewSeconds);
+        expectThrows(Exception.class, () -> JwtValidateUtil.validateAuthTime(after, now, 0));
+        // validate iat
+        JwtValidateUtil.validateIssuedAtTime(before, now, 0);
+        JwtValidateUtil.validateIssuedAtTime(now, now, 0);
+        JwtValidateUtil.validateIssuedAtTime(after, now, skewSeconds);
+        expectThrows(Exception.class, () -> JwtValidateUtil.validateIssuedAtTime(after, now, 0));
+        // validate nbf
+        JwtValidateUtil.validateNotBeforeTime(before, now, 0);
+        JwtValidateUtil.validateNotBeforeTime(now, now, 0);
+        JwtValidateUtil.validateNotBeforeTime(after, now, skewSeconds);
+        expectThrows(Exception.class, () -> JwtValidateUtil.validateNotBeforeTime(after, now, 0));
+        // validate exp
+        expectThrows(Exception.class, () -> JwtValidateUtil.validateExpiredTime(before, now, 0));
+        expectThrows(Exception.class, () -> JwtValidateUtil.validateExpiredTime(now, now, 0));
+        JwtValidateUtil.validateExpiredTime(now, now, skewSeconds);
+        JwtValidateUtil.validateExpiredTime(after, now, 0);
     }
 
-    public void testCheckIfJavaDisabledES256K() throws Exception {
-        final Exception exception = expectThrows(JOSEException.class, () -> this.helpTestSignatureAlgorithm(JWSAlgorithm.ES256K));
+    /**
+     * Demonstrate that this fails in SunEC and BC-FIPS, so JWT realm should not attempt to add support for it.
+     */
+    public void testES256KFails() {
+        final Exception exception = expectThrows(JOSEException.class, () -> this.helpTestSignatureAlgorithm(JWSAlgorithm.ES256K.getName()));
         String expected = "Unsupported signature algorithm ["
             + JWSAlgorithm.ES256K
             + "]. Supported signature algorithms are "
@@ -75,20 +98,20 @@ public class JwtUtilTests extends JwtTestCase {
 
     // All JWSAlgorithm values in Family.HMAC_SHA, Family.RSA, and Family.EC (except ES256K, handled separately)
     public void testSignedJwtGenerateSignVerify() throws Exception {
-        for (final JWSAlgorithm signatureAlgorithm : JwtUtil.SUPPORTED_JWS_ALGORITHMS) {
+        for (final String signatureAlgorithm : JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS) {
             assertThat(this.helpTestSignatureAlgorithm(signatureAlgorithm), is(true));
         }
     }
 
-    private boolean helpTestSignatureAlgorithm(final JWSAlgorithm signatureAlgorithm) throws Exception {
+    private boolean helpTestSignatureAlgorithm(final String signatureAlgorithm) throws Exception {
         LOGGER.info("Testing signature algorithm " + signatureAlgorithm);
         // randomSecretOrSecretKeyOrKeyPair() randomizes which JwtUtil methods to call, so it indirectly covers most JwtUtil code
         final JWK jwk = JwtUtilTests.randomJwk(signatureAlgorithm);
-        final JWSSigner jwsSigner = JwtUtil.createJwsSigner(jwk);
-        final JWSVerifier jwkVerifier = JwtUtil.createJwsVerifier(jwk);
-        final String serializedJWTOriginal = JwtUtilTests.randomValidSignedJWT(jwsSigner, signatureAlgorithm.toString()).serialize();
+        final JWSSigner jwsSigner = JwtValidateUtil.createJwsSigner(jwk);
+        final JWSVerifier jwkVerifier = JwtValidateUtil.createJwsVerifier(jwk);
+        final String serializedJWTOriginal = JwtUtilTests.randomValidSignedJWT(jwsSigner, signatureAlgorithm).serialize();
         final SignedJWT parsedSignedJWT = SignedJWT.parse(serializedJWTOriginal);
-        return JwtUtil.verifySignedJWT(jwkVerifier, parsedSignedJWT);
+        return JwtValidateUtil.verifySignedJWT(jwkVerifier, parsedSignedJWT);
     }
 
     public void testClientAuthorizationTypeValidation() {
@@ -163,39 +186,39 @@ public class JwtUtilTests extends JwtTestCase {
     }
 
     public void testValidateJwkSets() throws Exception {
-        final List<String> algorithmsHmac = randomSubsetOf(randomIntBetween(1, 3), JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC);
-        final List<JWK> jwksHmac = JwtTestCase.toRandomJwks(JwtUtil.toJwsAlgorithms(algorithmsHmac));
-        final JWKSet jwkSetHmac = new JWKSet(jwksHmac);
+        final List<String> algsHmac = randomOf(randomIntBetween(1, 3), JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC);
+        final Map<String, List<JWK>> jwksHmac = JwtTestCase.randomJwks(algsHmac);
+        final JWKSet jwkSetHmac = new JWKSet(jwksHmac.values().stream().flatMap(List::stream).toList());
         final String contentsHmac = JwtUtil.serializeJwkSet(jwkSetHmac, false);
 
-        final List<String> algorithmsPkc = randomSubsetOf(randomIntBetween(1, 3), JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC);
-        final List<JWK> jwksPkc = JwtTestCase.toRandomJwks(JwtUtil.toJwsAlgorithms(algorithmsPkc));
-        final JWKSet jwkSetPkc = new JWKSet(jwksPkc);
+        final List<String> algsPkc = randomOf(randomIntBetween(1, 3), JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC);
+        final Map<String, List<JWK>> jwksPkc = JwtTestCase.randomJwks(algsPkc);
+        final JWKSet jwkSetPkc = new JWKSet(jwksPkc.values().stream().flatMap(List::stream).toList());
         final String contentsPkc = JwtUtil.serializeJwkSet(jwkSetPkc, true);
 
-        final List<String> algorithmsBoth = new ArrayList<>(algorithmsHmac);
-        algorithmsBoth.addAll(algorithmsPkc);
+        final List<String> algorithmsBoth = new ArrayList<>(algsHmac);
+        algorithmsBoth.addAll(algsPkc);
 
         // If HMAC JWKSet and algorithms are present, verify they are accepted
-        JwtUtil.validateJwkSets(
+        JwkValidateUtil.validateAndLoadJwkSetsSettings(
             JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS.getKey(),
-            algorithmsHmac,
+            algsHmac,
             JwtRealmSettings.JWKSET_HMAC_CONTENTS.getKey(),
             contentsHmac,
             JwtRealmSettings.JWKSET_PKC_PATH.getKey(),
             null
         );
         // If RSA/EC JWKSet and algorithms are present, verify they are accepted
-        JwtUtil.validateJwkSets(
+        JwkValidateUtil.validateAndLoadJwkSetsSettings(
             JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS.getKey(),
-            algorithmsPkc,
+            algsPkc,
             JwtRealmSettings.JWKSET_HMAC_CONTENTS.getKey(),
             null,
             JwtRealmSettings.JWKSET_PKC_PATH.getKey(),
             contentsPkc
         );
         // If both valid credentials present and both algorithms present, verify they are accepted
-        JwtUtil.validateJwkSets(
+        JwkValidateUtil.validateAndLoadJwkSetsSettings(
             JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS.getKey(),
             algorithmsBoth,
             JwtRealmSettings.JWKSET_HMAC_CONTENTS.getKey(),
@@ -248,8 +271,8 @@ public class JwtUtilTests extends JwtTestCase {
     public void testComputeBitLengthRsa() throws Exception {
         for (int i = 0; i < 5; i++) {
             for (final String signatureAlgorithmRsa : JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA) {
-                final JWK jwk = JwtTestCase.randomJwk(JWSAlgorithm.parse(signatureAlgorithmRsa));
-                final int minLength = JwtUtil.computeBitLengthRsa(jwk.toRSAKey().toPublicKey());
+                final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithmRsa);
+                final int minLength = JwkValidateUtil.computeBitLengthRsa(jwk.toRSAKey().toPublicKey());
                 assertThat(minLength, is(anyOf(equalTo(2048), equalTo(3072))));
             }
         }

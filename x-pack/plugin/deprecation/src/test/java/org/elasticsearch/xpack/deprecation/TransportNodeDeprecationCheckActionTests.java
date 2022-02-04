@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.List;
 import org.elasticsearch.core.Set;
@@ -32,7 +31,6 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.junit.Assert;
 import org.mockito.Mockito;
 
-import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
@@ -136,31 +134,14 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         );
     }
 
-    public void testNodeOperationWatermark() {
+    public void testCheckDiskLowWatermark() {
         Settings nodeSettings = Settings.EMPTY;
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put("cluster.routing.allocation.disk.watermark.low", "10%");
         Settings settingsWithLowWatermark = settingsBuilder.build();
         Settings dynamicSettings = settingsWithLowWatermark;
-        ThreadPool threadPool = null;
-        final XPackLicenseState licenseState = null;
-        Metadata metadata = Metadata.builder().transientSettings(dynamicSettings).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-        ClusterService clusterService = Mockito.mock(ClusterService.class);
-        Mockito.when(clusterService.state()).thenReturn(clusterState);
-        final java.util.Set<Setting<?>> settingsSet = new HashSet<>();
-        settingsSet.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingsSet.add(DeprecationChecks.SKIP_DEPRECATIONS_SETTING);
-        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, settingsSet);
-        Mockito.when((clusterService.getClusterSettings())).thenReturn(clusterSettings);
-        DiscoveryNode node = Mockito.mock(DiscoveryNode.class);
+        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         String nodeId = "123";
-        Mockito.when(node.getId()).thenReturn(nodeId);
-        TransportService transportService = Mockito.mock(TransportService.class);
-        Mockito.when(transportService.getLocalNode()).thenReturn(node);
-        PluginsService pluginsService = Mockito.mock(PluginsService.class);
-        ActionFilters actionFilters = Mockito.mock(ActionFilters.class);
-        ClusterInfoService clusterInfoService = Mockito.mock(ClusterInfoService.class);
         ImmutableOpenMap.Builder<String, DiskUsage> mostAvailableSpaceUsageBuilder = ImmutableOpenMap.builder();
         long totalBytesOnMachine = 100;
         long totalBytesFree = 70;
@@ -173,56 +154,37 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of()
         );
-        Mockito.when(clusterInfoService.getClusterInfo()).thenReturn(clusterInfo);
-        TransportNodeDeprecationCheckAction transportNodeDeprecationCheckAction = new TransportNodeDeprecationCheckAction(
+        DeprecationIssue issue = TransportNodeDeprecationCheckAction.checkDiskLowWatermark(
             nodeSettings,
-            threadPool,
-            licenseState,
-            clusterService,
-            transportService,
-            pluginsService,
-            actionFilters,
-            clusterInfoService
+            dynamicSettings,
+            clusterInfo,
+            clusterSettings,
+            nodeId
         );
-        NodesDeprecationCheckAction.NodeRequest nodeRequest = null;
-        java.util.List<
-            DeprecationChecks.NodeDeprecationCheck<
-                Settings,
-                PluginsAndModules,
-                ClusterState,
-                XPackLicenseState,
-                DeprecationIssue>> nodeSettingsChecks = List.of();
-        NodesDeprecationCheckAction.NodeResponse response = transportNodeDeprecationCheckAction.nodeOperation(
-            nodeRequest,
-            nodeSettingsChecks
-        );
-        java.util.List<DeprecationIssue> issues = response.getDeprecationIssues();
-        assertEquals(1, issues.size());
-        assertEquals("Disk usage exceeds low watermark", issues.get(0).getMessage());
+        assertNotNull(issue);
+        assertEquals("Disk usage exceeds low watermark", issue.getMessage());
 
         // Making sure there's no warning when we clear out the cluster settings:
         dynamicSettings = Settings.EMPTY;
-        metadata = Metadata.builder().transientSettings(dynamicSettings).build();
-        clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-        Mockito.when(clusterService.state()).thenReturn(clusterState);
-        response = transportNodeDeprecationCheckAction.nodeOperation(nodeRequest, nodeSettingsChecks);
-        assertEquals(0, response.getDeprecationIssues().size());
+        issue = TransportNodeDeprecationCheckAction.checkDiskLowWatermark(
+            nodeSettings,
+            dynamicSettings,
+            clusterInfo,
+            clusterSettings,
+            nodeId
+        );
+        assertNull(issue);
 
         // And make sure there is a warning when the setting is in the node settings but not the cluster settings:
         nodeSettings = settingsWithLowWatermark;
-        transportNodeDeprecationCheckAction = new TransportNodeDeprecationCheckAction(
+        issue = TransportNodeDeprecationCheckAction.checkDiskLowWatermark(
             nodeSettings,
-            threadPool,
-            licenseState,
-            clusterService,
-            transportService,
-            pluginsService,
-            actionFilters,
-            clusterInfoService
+            dynamicSettings,
+            clusterInfo,
+            clusterSettings,
+            nodeId
         );
-        response = transportNodeDeprecationCheckAction.nodeOperation(nodeRequest, nodeSettingsChecks);
-        issues = response.getDeprecationIssues();
-        assertEquals(1, issues.size());
-        assertEquals("Disk usage exceeds low watermark", issues.get(0).getMessage());
+        assertNotNull(issue);
+        assertEquals("Disk usage exceeds low watermark", issue.getMessage());
     }
 }

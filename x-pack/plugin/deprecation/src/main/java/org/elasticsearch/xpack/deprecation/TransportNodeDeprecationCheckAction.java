@@ -11,6 +11,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.PluginsService;
@@ -132,44 +134,57 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
             nodeSettingsChecks,
             (c) -> c.apply(filteredNodeSettings, pluginsService.info(), filteredClusterState, licenseState)
         );
-        addDiskUsageWarnings(issues, filteredNodeSettings, filteredClusterState.metadata().settings());
+        DeprecationIssue watermarkIssue = checkDiskLowWatermark(
+            filteredNodeSettings,
+            filteredClusterState.metadata().settings(),
+            clusterInfoService.getClusterInfo(),
+            clusterService.getClusterSettings(),
+            transportService.getLocalNode().getId()
+        );
+        if (watermarkIssue != null) {
+            issues.add(watermarkIssue);
+        }
         return new NodesDeprecationCheckAction.NodeResponse(transportService.getLocalNode(), issues);
     }
 
-    private void addDiskUsageWarnings(List<DeprecationIssue> issues, Settings nodeSettings, Settings clusterSettings) {
-        DiskUsage usage = clusterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(transportService.getLocalNode().getId());
+    static DeprecationIssue checkDiskLowWatermark(
+        Settings nodeSettings,
+        Settings dynamicSettings,
+        ClusterInfo clusterInfo,
+        ClusterSettings clusterSettings,
+        String nodeId
+    ) {
+        DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(nodeId);
         if (usage != null) {
             long freeBytes = usage.getFreeBytes();
             double freeDiskPercentage = usage.getFreeDiskAsPercentage();
-            final boolean emitWarning;
-            if (exceedsLowWatermark(nodeSettings, freeBytes, freeDiskPercentage)
-                || exceedsLowWatermark(clusterSettings, freeBytes, freeDiskPercentage)) {
-                emitWarning = true;
-            } else {
-                emitWarning = false;
-            }
-            if (emitWarning) {
-                issues.add(
-                    new DeprecationIssue(
-                        DeprecationIssue.Level.CRITICAL,
-                        "Disk usage exceeds low watermark",
-                        "https://ela.st/es-deprecation-7-disk-watermark-exceeded",
-                        String.format(
-                            Locale.ROOT,
-                            "Disk usage exceeds low watermark, which will prevent reindexing indices during upgrade. Get disk usage on "
-                                + "all nodes below the value specified in %s",
-                            CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
-                        ),
-                        false,
-                        null
-                    )
+            if (exceedsLowWatermark(nodeSettings, clusterSettings, freeBytes, freeDiskPercentage)
+                || exceedsLowWatermark(dynamicSettings, clusterSettings, freeBytes, freeDiskPercentage)) {
+                return new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "Disk usage exceeds low watermark",
+                    "https://ela.st/es-deprecation-7-disk-watermark-exceeded",
+                    String.format(
+                        Locale.ROOT,
+                        "Disk usage exceeds low watermark, which will prevent reindexing indices during upgrade. Get disk usage on "
+                            + "all nodes below the value specified in %s",
+                        CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
+                    ),
+                    false,
+                    null
                 );
             }
         }
+        return null;
     }
 
-    private boolean exceedsLowWatermark(Settings settingsToCheck, long freeBytes, double freeDiskPercentage) {
-        DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(settingsToCheck, clusterService.getClusterSettings());
+    private static boolean exceedsLowWatermark(
+        Settings settingsToCheck,
+        ClusterSettings clusterSettings,
+        long freeBytes,
+        double freeDiskPercentage
+    ) {
+        DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(settingsToCheck, clusterSettings);
         if (freeBytes < diskThresholdSettings.getFreeBytesThresholdLow().getBytes()
             || freeDiskPercentage < diskThresholdSettings.getFreeDiskThresholdLow()) {
             return true;

@@ -168,11 +168,9 @@ Update your application to use typeless REST API endpoints. Requests to
 endpoints that contain a mapping type will return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>
-any requests that include the custom mapping types, the custom mapping type will
-be ignored. URLs will be rerouted to the corresponding URL without the a mapping type.
-Custom mapping types in request bodies will be ignored, type related HTTP
-parameters will be ignored and responses, where warranted, will include `_type` : `_doc`.
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>, if a request includes a custom mapping type it is ignored. The request is rerouted to the corresponding typeless URL.
+Custom mapping types in request bodies and type related HTTP
+parameters are ignored, and responses, where warranted, include `_type` : `_doc`.
 
 ====
 

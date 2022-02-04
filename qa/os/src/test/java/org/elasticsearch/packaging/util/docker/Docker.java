@@ -687,7 +687,6 @@ public class Docker {
         return sh.run("docker logs " + containerId);
     }
 
-
     /**
      * Restarts the current docker container.
      */

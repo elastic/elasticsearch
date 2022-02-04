@@ -147,7 +147,6 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             enrollmentTokenHolder.set(tokenValue);
         }, 30, TimeUnit.SECONDS);
 
-
         return enrollmentTokenHolder.get();
     }
 

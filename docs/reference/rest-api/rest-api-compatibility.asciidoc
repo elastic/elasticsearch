@@ -72,7 +72,7 @@ valid when communicating with a 7.x or 8.x {es} server:
 "application/vnd.elasticsearch+smile;compatible-with=7"
 "application/vnd.elasticsearch+cbor;compatible-with=7"
 ------------------------------------------------------------
-The [link:/guide](https://www.elastic.co/guide/en/elasticsearch/client/index.html)[officially supported {es} clients]
+The https://www.elastic.co/guide/en/elasticsearch/client/index.html[officially supported {es} clients]
 can enable REST API compatibility for all requests.
 
 To enable REST API compatibility for all requests received

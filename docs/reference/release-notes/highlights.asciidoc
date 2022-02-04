@@ -25,14 +25,17 @@ Other versions:
 
 
 [discrete]
-[[doc_values_only_search_supported_on_numeric_date_keyword_ip_boolean_types]]
-=== Doc-values-only search is now supported on numeric, date, keyword, ip, and boolean types
-Doc-value-only fields allow users to trade slower query performance for
-an increased indexing rate and storage space efficiency. This is
-achieved by disabling inverted structures such as the inverted index or
-points, and using the columnar storage format of doc values to run
-queries instead, while still providing the same usual great performance
-for aggregating and sorting data. {es} {version} supports term and
-range queries on `numeric`, `date`, `keyword`, `ip`, and `boolean`
-doc-value-only field types.
+[[doc_values_only_search_on_numeric_date_keyword_ip_boolean_fields]]
+=== Doc-values-only search on numeric, `date`, `keyword`, `ip`, and `boolean` fields
+You can now run `term` and `range` queries on numeric, `date`, `date_nanos`,
+`keyword`, `ip`, and `boolean` fields that only store doc values.
+
+In exchange for slower queries, doc-value-only fields offer:
+
+* Increased indexing rates
+* Better storage efficiency
+* Great performance for aggregating and sorting data
+
+For more information about doc values, refer to the
+{ref}/doc-values.html[`doc_values` mapping parameter documentation].
 

@@ -217,7 +217,7 @@ Search::
 * Allow doc-values only search on number types {es-pull}82409[#82409] (issues: {es-issue}81210[#81210], {es-issue}52728[#52728])
 * Rewrite `match` and `match_phrase` queries to `term` queries on `keyword` fields {es-pull}82612[#82612] (issue: {es-issue}82515[#82515])
 * Short cut if reader has point values {es-pull}80268[#80268]
-* Support combining `_shards` preference param with <custom-string> {es-pull}80024[#80024] (issue: {es-issue}80021[#80021])
+* Support combining `_shards` preference param with `<custom-string>` {es-pull}80024[#80024] (issue: {es-issue}80021[#80021])
 
 Security::
 * Activate user profile API {es-pull}82400[#82400]

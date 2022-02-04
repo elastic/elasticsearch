@@ -493,7 +493,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             String warningMessage = String.format(
                 Locale.ROOT,
                 "[%s] setting was deprecated in Elasticsearch and will be "
-                    + "removed in a future release! See the breaking changes documentation for the next major version.",
+                    + "removed in a future release! See the deprecation changes documentation for the next major version.",
                 setting.getKey()
             );
             return new DeprecationWarning(

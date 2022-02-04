@@ -1,10 +1,143 @@
 [role="xpack"]
 [[security-api-get-user-profile]]
 === Get user profile API
+
+beta::[]
+
 ++++
 <titleabbrev>Get user profile</titleabbrev>
 ++++
 
 Retrieves user profile for the given unique ID
 
-coming::[8.1.0]
+
+[[security-api-get-user-profile-request]]
+==== {api-request-title}
+
+`GET /_security/profile/<uid>`
+
+[[security-api-get-user-profile-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_user_profile` cluster privilege.
+
+
+[[security-api-get-user-profile-desc]]
+==== {api-description-title}
+
+For more information about the native realm, see
+<<realms>> and <<native-realm>>.
+
+[[security-api-get-user-profile-path-params]]
+==== {api-path-parms-title}
+
+`uid`::
+(Required, string) An unique identifier for the user profile.
+
+[[security-api-get-user-profile-query-params]]
+==== {api-query-parms-title}
+
+`data`::
+(Optional, string) Comma-separated list of filters for the `data` field of
+the profile document. By default, it filters out everything for the `data`
+field. To return all content, use `data=*`. To return a subset of the data,
+use `data=app1` to retrieve the content nested under the key of `app1`.
+
+[[security-api-get-user-profile-response-body]]
+==== {api-response-body-title}
+
+A successful call returns the JSON representation of the user profile
+and its internal versioning numbers.
+
+[[security-api-get-user-profile-response-codes]]
+==== {api-response-codes-title}
+
+If the user profile is not found for the given `uid`, the request 404s.
+
+[[security-api-get-user-profile-example]]
+==== {api-examples-title}
+
+To retrieve a user profile, submit a GET request to the `/_security/profile/<uid>`
+endpoint. Assuming a profile document exist with uid `u_kd2JMqwUQwSCCOxMv7M1vw`,
+it can be retrieved with the following:
+
+[source,console]
+--------------------------------------------------
+GET /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw
+--------------------------------------------------
+// TEST[skip:uid is random and no way to ensure this uid exists]
+
+[source,js]
+--------------------------------------------------
+{
+  "u_kd2JMqwUQwSCCOxMv7M1vw": {
+    "uid": "u_kd2JMqwUQwSCCOxMv7M1vw",
+    "enabled": true,
+    "last_synchronized": 1642650651037,
+    "user": {
+      "username": "jacknich",
+      "roles": [
+        "admin", "other_role1"
+      ],
+      "realm_name": "native1",
+      "full_name": "Jack Nicholson",
+      "email": "jacknich@example.com",
+      "active": true
+    },
+    "access": {},
+    "data": {}, <1>
+    "_doc": {
+      "_primary_term": 1,
+      "_seq_no": 0
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+// Besides the uid being random, the response cannot be compared against due to
+// the last_synchronized and _doc fields being unpredictable.
+
+<1> No data is returned by default
+
+The `data` field is trimmed by default to avoid deserializing a potential large
+payload. The following request retrieves a subset of data along with the profile:
+
+[source,console]
+--------------------------------------------------
+GET /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw?data=app1.key1
+--------------------------------------------------
+// TEST[skip:uid is random and no way to ensure this uid exists]
+
+[source,js]
+--------------------------------------------------
+{
+  "u_kd2JMqwUQwSCCOxMv7M1vw": {
+    "uid": "u_kd2JMqwUQwSCCOxMv7M1vw",
+    "enabled": true,
+    "last_synchronized": 1642650651037,
+    "user": {
+      "username": "jacknich",
+      "roles": [
+        "admin", "other_role1"
+      ],
+      "realm_name": "native1",
+      "full_name": "Jack Nicholson",
+      "email": "jacknich@example.com",
+      "active": true
+    },
+    "access": {},
+    "data": {
+      "app1": {
+        "key1": "value1"
+      }
+    },
+    "_doc": {
+      "_primary_term": 1,
+      "_seq_no": 0
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+

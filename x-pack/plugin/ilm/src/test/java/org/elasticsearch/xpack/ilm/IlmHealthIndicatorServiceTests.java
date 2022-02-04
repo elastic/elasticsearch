@@ -44,7 +44,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     DATA,
                     GREEN,
-                    "Ilm is running",
+                    "ILM is running",
                     new SimpleHealthIndicatorDetails(Map.of("ilm-status", RUNNING, "policies", 1))
                 )
             )
@@ -63,7 +63,7 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     DATA,
                     YELLOW,
-                    "Ilm is not running",
+                    "ILM is not running",
                     new SimpleHealthIndicatorDetails(Map.of("ilm-status", status, "policies", 1))
                 )
             )

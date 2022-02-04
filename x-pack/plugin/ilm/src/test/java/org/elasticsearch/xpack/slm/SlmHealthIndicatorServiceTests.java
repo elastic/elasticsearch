@@ -44,7 +44,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    "Slm is running",
+                    "SLM is running",
                     new SimpleHealthIndicatorDetails(Map.of("slm-status", RUNNING, "policies", 1))
                 )
             )
@@ -63,7 +63,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     YELLOW,
-                    "Slm is not running",
+                    "SLM is not running",
                     new SimpleHealthIndicatorDetails(Map.of("slm-status", status, "policies", 1))
                 )
             )

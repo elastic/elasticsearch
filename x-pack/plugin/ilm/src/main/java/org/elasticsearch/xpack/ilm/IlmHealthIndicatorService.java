@@ -47,9 +47,9 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(GREEN, "No policies configured", createDetails(ilmMetadata));
         } else if (ilmMetadata.getOperationMode() != OperationMode.RUNNING) {
-            return createIndicator(YELLOW, "Ilm is not running", createDetails(ilmMetadata));
+            return createIndicator(YELLOW, "ILM is not running", createDetails(ilmMetadata));
         } else {
-            return createIndicator(GREEN, "Ilm is running", createDetails(ilmMetadata));
+            return createIndicator(GREEN, "ILM is running", createDetails(ilmMetadata));
         }
     }
 

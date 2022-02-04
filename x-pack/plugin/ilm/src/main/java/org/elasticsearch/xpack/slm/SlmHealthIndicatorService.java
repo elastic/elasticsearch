@@ -47,9 +47,9 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
             return createIndicator(GREEN, "No policies configured", createDetails(slmMetadata));
         } else if (slmMetadata.getOperationMode() != OperationMode.RUNNING) {
-            return createIndicator(YELLOW, "Slm is not running", createDetails(slmMetadata));
+            return createIndicator(YELLOW, "SLM is not running", createDetails(slmMetadata));
         } else {
-            return createIndicator(GREEN, "Slm is running", createDetails(slmMetadata));
+            return createIndicator(GREEN, "SLM is running", createDetails(slmMetadata));
         }
     }
 

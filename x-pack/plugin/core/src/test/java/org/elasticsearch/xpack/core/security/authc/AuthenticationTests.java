@@ -272,9 +272,6 @@ public class AuthenticationTests extends ESTestCase {
         }
         // service account run-as
         test = randomServiceAccountAuthentication();
-        if (randomBoolean()) {
-            test = test.token();
-        }
         assertThat(test.isAssignedToDomain(), is(false));
         assertThat(test.getDomain(), nullValue());
         if (randomBoolean()) {

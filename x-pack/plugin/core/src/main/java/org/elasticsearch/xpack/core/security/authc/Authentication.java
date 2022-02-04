@@ -187,6 +187,7 @@ public class Authentication implements ToXContentObject {
      * authenticating using the token credential.
      */
     public Authentication token() {
+        assert false == isServiceAccount();
         final Authentication newTokenAuthentication = new Authentication(
             getUser(),
             getAuthenticatedBy(),

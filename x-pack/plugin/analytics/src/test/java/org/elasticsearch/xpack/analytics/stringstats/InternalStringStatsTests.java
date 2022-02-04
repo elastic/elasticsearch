@@ -83,7 +83,7 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
     protected void assertSampled(InternalStringStats sampled, InternalStringStats reduced, SamplingContext samplingContext) {
         assertThat(sampled.getAvgLength(), equalTo(reduced.getAvgLength()));
         assertThat(sampled.getEntropy(), equalTo(reduced.getEntropy()));
-        assertThat(sampled.getCount(), equalTo(samplingContext.inverseScale(reduced.getAvgLength())));
+        assertThat(sampled.getCount(), equalTo(samplingContext.inverseScale(reduced.getCount())));
         assertThat(sampled.getMaxLength(), equalTo(reduced.getMaxLength()));
         assertThat(sampled.getMinLength(), equalTo(reduced.getMinLength()));
         assertThat(sampled.getDistribution(), equalTo(reduced.getDistribution()));

@@ -18,28 +18,6 @@
                $/
 
 ---
-"Empty cluster":
-
-  - do:
-      cat.allocation: {}
-
-  - match:
-      $body: |
-            /^
-              ( 0                      \s+
-                0b                     \s+
-                \d+(\.\d+)?[kmgt]?b    \s+
-                (\d+(\.\d+)?[kmgt]b    \s+)?  #no value from client nodes
-                (\d+(\.\d+)?[kmgt]b    \s+)?  #no value from client nodes
-                (\d+                   \s+)?  #no value from client nodes
-                [-\w.]+                \s+
-                \d+(\.\d+){3}          \s+
-                [-\w.]+
-                \n
-              )+
-            $/
-
----
 "One index":
 
   - do:

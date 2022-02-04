@@ -14,13 +14,17 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
 
-public record HealthComponentResult(String name, HealthStatus status, List<HealthIndicatorResult> indicators) implements ToXContentObject {
+public record HealthComponentResult(String name, HealthStatus status, Map<String, HealthIndicatorResult> indicators)
+    implements
+        ToXContentObject {
 
     public static Collection<HealthComponentResult> createComponentsFromIndicators(Collection<HealthIndicatorResult> indicators) {
         return indicators.stream()
@@ -41,7 +45,7 @@ public record HealthComponentResult(String name, HealthStatus status, List<Healt
         return new HealthComponentResult(
             indicators.get(0).component(),
             HealthStatus.merge(indicators.stream().map(HealthIndicatorResult::status)),
-            indicators
+            indicators.stream().collect(Collectors.toMap(HealthIndicatorResult::name, i -> i))
         );
     }
 
@@ -50,8 +54,9 @@ public record HealthComponentResult(String name, HealthStatus status, List<Healt
         builder.startObject();
         builder.field("status", status);
         builder.startObject("indicators");
-        for (HealthIndicatorResult indicator : indicators) {
-            builder.field(indicator.name(), indicator, params);
+        for (Map.Entry<String, HealthIndicatorResult> indicator : indicators.entrySet()) {
+            builder.field(indicator.getKey());
+            indicator.getValue().toXContent(builder, params);
         }
         builder.endObject();
         return builder.endObject();

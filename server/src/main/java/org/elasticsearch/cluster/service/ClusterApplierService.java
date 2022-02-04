@@ -223,7 +223,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         private final ClusterStateListener delegate;
         private final Supplier<ThreadContext.StoredContext> supplier;
 
-        public SafeClusterStateListener(ClusterStateListener delegate, Supplier<ThreadContext.StoredContext> supplier) {
+        SafeClusterStateListener(ClusterStateListener delegate, Supplier<ThreadContext.StoredContext> supplier) {
             this.delegate = delegate;
             this.supplier = supplier;
         }

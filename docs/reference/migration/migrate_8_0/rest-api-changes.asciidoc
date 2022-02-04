@@ -481,8 +481,8 @@ Use the {ref}/indices-flush.html[flush API]. Requests to the
 `/<index>/flush/synced` or `/flush/synced` endpoints will return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>
-the request to synced flush will be routed to the equivalent non-synced flush URL.
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
+the request to synced flush is routed to the equivalent non-synced flush URL.
 ====
 
 .The default for the `?wait_for_active_shards` parameter on the close index API has changed.

@@ -24,7 +24,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.ServiceLoader;
 import java.util.Set;
@@ -72,14 +71,11 @@ public final class ProviderLocator {
             PrivilegedExceptionAction<URL[]> pa = () -> gatherUrls(libPath);
             URL[] urls = AccessController.doPrivileged(pa);
             URLClassLoader loader = URLClassLoader.newInstance(urls, XContentProvider.class.getClassLoader());
-            System.out.println("URLS: " + Arrays.stream(urls).toList());
             ServiceLoader<XContentProvider> sl = ServiceLoader.load(XContentProvider.class, loader);
             return sl.findFirst().orElseThrow(() -> new RuntimeException("cannot locate x-content provider in:" + libPath));
         } catch (PrivilegedActionException e) {
             throw new UncheckedIOException((IOException) e.getException());
-        }// catch (IOException e) {
-        // throw new UncheckedIOException(e);
-        // }
+        }
     }
 
     private static URL[] gatherUrls(Path dir) throws IOException {

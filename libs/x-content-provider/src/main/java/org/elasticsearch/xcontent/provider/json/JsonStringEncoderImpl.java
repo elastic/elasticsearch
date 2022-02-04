@@ -14,7 +14,7 @@ public final class JsonStringEncoderImpl extends JsonStringEncoder {
 
     private final com.fasterxml.jackson.core.io.JsonStringEncoder delegate;
 
-    private final static JsonStringEncoderImpl INSTANCE = new JsonStringEncoderImpl();
+    private static final JsonStringEncoderImpl INSTANCE = new JsonStringEncoderImpl();
 
     public static JsonStringEncoderImpl getInstance() {
         return INSTANCE;

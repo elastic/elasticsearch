@@ -18,16 +18,9 @@ dependencies {
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
 
-  /*
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
-*/
-
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
   }
-
 }
 
 tasks.named('forbiddenApisMain').configure {

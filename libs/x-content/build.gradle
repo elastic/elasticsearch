@@ -12,12 +12,6 @@ apply plugin: 'elasticsearch.publish'
 dependencies {
   api project(':libs:elasticsearch-core')
 
-/*
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
-*/
-
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
   }

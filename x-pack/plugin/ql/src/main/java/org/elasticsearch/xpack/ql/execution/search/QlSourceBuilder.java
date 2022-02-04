@@ -22,7 +22,6 @@ import java.util.Set;
  * the resulting ES document as a field.
  */
 public class QlSourceBuilder {
-    public static final Version SWITCH_TO_FIELDS_API_VERSION = Version.V_7_10_0;
     public static final Version INTRODUCING_MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION = Version.V_7_16_0;
     // The LinkedHashMaps preserve the order of the fields in the response
     private final Set<FieldAndFormat> fetchFields = new LinkedHashSet<>();

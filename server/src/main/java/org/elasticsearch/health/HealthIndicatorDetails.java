@@ -8,12 +8,12 @@
 
 package org.elasticsearch.health;
 
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public interface HealthIndicatorDetails extends ToXContentFragment {
+public interface HealthIndicatorDetails extends ToXContentObject {
 
     HealthIndicatorDetails EMPTY = new HealthIndicatorDetails() {
         @Override

@@ -159,20 +159,20 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         return Strings.toString(json);
     }
 
-    public void testScrollCursorFromOldNodeFailsOnNewNode() throws IOException {
-        assertScrollCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, Version.CURRENT, newNodesClient);
+    public void testCursorFromOldNodeFailsOnNewNode() throws IOException {
+        assertCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, Version.CURRENT, newNodesClient);
     }
 
-    public void testScrollCursorFromNewNodeFailsOnOldNode() throws IOException {
-        assertScrollCursorNotCompatibleAcrossVersions(Version.CURRENT, newNodesClient, bwcVersion, oldNodesClient);
+    public void testCursorFromNewNodeFailsOnOldNode() throws IOException {
+        assertCursorNotCompatibleAcrossVersions(Version.CURRENT, newNodesClient, bwcVersion, oldNodesClient);
     }
 
-    private void assertScrollCursorNotCompatibleAcrossVersions(Version version1, RestClient client1, Version version2, RestClient client2)
+    private void assertCursorNotCompatibleAcrossVersions(Version version1, RestClient client1, Version version2, RestClient client2)
         throws IOException {
         indexDocs();
 
         Request req = new Request("POST", "_sql");
-        // GROUP BY queries always return a scroll cursor
+        // GROUP BY queries always return a cursor
         req.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test GROUP BY 1", bwcVersion));
         Map<String, Object> json = performRequestAndReadBodyAsJson(client1, req);
         String cursor = (String) json.get("cursor");

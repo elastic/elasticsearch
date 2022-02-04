@@ -15,7 +15,7 @@ import java.util.BitSet;
 import java.util.List;
 
 /**
- * Initial results from a scroll search. Distinct from the following pages
+ * Initial results from a search hit search. Distinct from the following pages
  * because it has a {@link Schema} available. See {@link SearchHitRowSet}
  * for the next pages.
  */

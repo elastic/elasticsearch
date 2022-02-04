@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,6 +44,13 @@ public class SearchHitCursor implements Cursor {
     private final int limit;
     private final boolean includeFrozen;
 
+    /**
+     * @param nextQuery a serialized {@link SearchSourceBuilder} representing the query to fetch the next page. The query is serialized
+     *                  because cursors have to be (de)serialized on the transport layer in {@code TextFormat.PLAIN_TEXT.format} which does
+     *                  not have all the required {@link NamedWriteable}`s available that is required to deserialize
+     *                  {@link SearchSourceBuilder}. As a workaround the deserialization of {@code nextQuery} is deferred until the query is
+     *                  needed.
+     */
     SearchHitCursor(byte[] nextQuery, List<HitExtractor> exts, BitSet mask, int remainingLimit, boolean includeFrozen) {
         this.nextQuery = nextQuery;
         this.extractors = exts;

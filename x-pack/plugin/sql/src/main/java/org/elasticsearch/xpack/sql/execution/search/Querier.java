@@ -573,7 +573,7 @@ public class Querier {
     }
 
     /**
-     * Dedicated listener for column retrieval/non-grouped queries (scrolls).
+     * Dedicated listener for column retrieval/non-grouped queries (search hits).
      */
     static class SearchHitActionListener extends BaseActionListener {
         private final QueryContainer query;
@@ -652,7 +652,7 @@ public class Querier {
 
     /**
      * Base listener class providing clean-up and exception handling.
-     * Handles both scroll queries (scan/scroll) and regular/composite-aggs queries.
+     * Handles both search hits and composite-aggs queries.
      */
     abstract static class BaseActionListener extends ActionListener.Delegating<SearchResponse, Page> {
 

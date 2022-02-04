@@ -1,6 +1,6 @@
 [role="xpack"]
 [[security-api-update-user-profile-data]]
-=== Activate user profile data API
+=== Update user profile data API
 
 beta::[]
 

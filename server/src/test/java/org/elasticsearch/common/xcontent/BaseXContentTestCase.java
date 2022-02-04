@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentGenerationException;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -1156,12 +1157,12 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     private static void expectValueException(ThrowingRunnable runnable) {
-        XContentParseException e = expectThrows(XContentParseException.class, runnable);  // Is this the right ex??
+        XContentGenerationException e = expectThrows(XContentGenerationException.class, runnable);
         assertThat(e.getMessage(), containsString("expecting a value"));
     }
 
     private static void expectFieldException(ThrowingRunnable runnable) {
-        XContentParseException e = expectThrows(XContentParseException.class, runnable);
+        XContentGenerationException e = expectThrows(XContentGenerationException.class, runnable);
         assertThat(e.getMessage(), containsString("expecting field name"));
     }
 
@@ -1171,12 +1172,12 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     private static void expectObjectException(ThrowingRunnable runnable) {
-        XContentParseException e = expectThrows(XContentParseException.class, runnable);
+        XContentGenerationException e = expectThrows(XContentGenerationException.class, runnable);
         assertThat(e.getMessage(), containsString("Current context not Object"));
     }
 
     private static void expectArrayException(ThrowingRunnable runnable) {
-        XContentParseException e = expectThrows(XContentParseException.class, runnable);
+        XContentGenerationException e = expectThrows(XContentGenerationException.class, runnable);
         assertThat(e.getMessage(), containsString("Current context not Array"));
     }
 

@@ -30,6 +30,7 @@ dependencies {
   api project(":libs:elasticsearch-geo")
   api project(":libs:elasticsearch-lz4")
 
+  implementation project(':libs:elasticsearch-x-content-provider')
   implementation project(':libs:elasticsearch-plugin-classloader')
 
   // lucene
@@ -127,10 +128,15 @@ tasks.named("processResources").configure {
     dependsOn generateModulesList, generatePluginsList
 }
 
+tasks.named("test").configure {
+  systemProperty 'es.x.content.provider', '/Users/chegar/git/es_clean/libs/x-content-provider/build/distributions/'
+}
+
 if (BuildParams.isSnapshotBuild() == false) {
     tasks.named("test").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
         systemProperty 'es.random_sampler_feature_flag_registered', 'true'
+        systemProperty 'es.x.content.provider', '/Users/chegar/git/es_clean/libs/x-content-provider/build/distributions/'
     }
     tasks.named("internalClusterTest").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
@@ -145,6 +151,13 @@ tasks.named("thirdPartyAudit").configure {
 
             // from log4j
             'com.conversantmedia.util.concurrent.SpinPolicy',
+            'com.fasterxml.jackson.core.JsonGenerator',
+            'com.fasterxml.jackson.core.JsonParser',
+            'com.fasterxml.jackson.core.JsonParser$Feature',
+            'com.fasterxml.jackson.core.JsonToken',
+            'com.fasterxml.jackson.core.PrettyPrinter',
+            'com.fasterxml.jackson.core.type.TypeReference',
+            'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
             'com.fasterxml.jackson.databind.SerializationFeature',
             'com.fasterxml.jackson.annotation.JsonInclude$Include',
             'com.fasterxml.jackson.databind.DeserializationContext',

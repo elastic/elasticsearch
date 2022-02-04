@@ -1089,7 +1089,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         XContentBuilder builder = builder().startObject().field("key", 1).field("key", 2).endObject();
         try (XContentParser xParser = createParser(builder)) {
             XContentParseException pex = expectThrows(XContentParseException.class, () -> xParser.map());
-            assertThat(pex.getMessage(), startsWith("Duplicate field 'key'"));
+            assertThat(pex.getMessage(), containsString("Duplicate field 'key'"));
         }
     }
 

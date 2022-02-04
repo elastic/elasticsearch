@@ -17,13 +17,10 @@ dependencies {
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 */
-
-  testImplementation project(":test:framework")
-/*
+  
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
   }
-*/
 
 }
 

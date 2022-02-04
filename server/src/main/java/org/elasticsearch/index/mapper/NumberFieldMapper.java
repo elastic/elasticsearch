@@ -1436,7 +1436,7 @@ public class NumberFieldMapper extends FieldMapper {
         Number value;
         try {
             value = value(context.parser(), type, nullValue, coerce());
-        } catch (IllegalArgumentException  e) {
+        } catch (IllegalArgumentException e) {
             if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
                 context.addIgnoredField(mappedFieldType.name());
                 return;

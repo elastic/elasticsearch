@@ -17,6 +17,11 @@ grant codeBase "${codebase.elasticsearch-secure-sm}" {
   permission java.security.AllPermission;
 };
 
+grant codeBase "${codebase.elasticsearch-x-content}" {
+  // For now, reduce to minimal permissions
+  permission java.security.AllPermission;
+};
+
 //// Elasticsearch core:
 //// These are only allowed inside the server jar, not in plugins
 grant codeBase "${codebase.elasticsearch}" {

@@ -16,6 +16,7 @@ dependencies {
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
   implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
 
   /*
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"

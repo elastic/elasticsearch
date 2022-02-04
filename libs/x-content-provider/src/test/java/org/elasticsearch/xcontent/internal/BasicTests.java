@@ -9,7 +9,6 @@
 package org.elasticsearch.xcontent.internal;
 
 import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
-
 import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 
 import org.elasticsearch.common.bytes.BytesArray;

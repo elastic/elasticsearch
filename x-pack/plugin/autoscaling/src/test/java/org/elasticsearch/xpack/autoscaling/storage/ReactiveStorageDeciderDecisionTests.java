@@ -521,9 +521,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         private TestAutoscalingDeciderContext(ClusterState state, Set<DiscoveryNodeRole> roles, AutoscalingCapacity currentCapacity) {
             this.state = state;
             this.currentCapacity = currentCapacity;
-            this.nodes = StreamSupport.stream(state.nodes().spliterator(), false)
-                .filter(n -> roles.stream().anyMatch(n.getRoles()::contains))
-                .collect(Collectors.toSet());
+            this.nodes = state.nodes().stream().filter(n -> roles.stream().anyMatch(n.getRoles()::contains)).collect(Collectors.toSet());
             this.roles = roles;
             this.info = createClusterInfo(state);
         }
@@ -567,7 +565,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     private static ClusterInfo createClusterInfo(ClusterState state) {
         // we make a simple setup to detect the right decisions are made. The unmovable calculation is tested in more detail elsewhere.
         // the diskusage is set such that the disk threshold decider never rejects an allocation.
-        Map<String, DiskUsage> diskUsages = StreamSupport.stream(state.nodes().spliterator(), false)
+        Map<String, DiskUsage> diskUsages = state.nodes()
+            .stream()
             .collect(Collectors.toMap(DiscoveryNode::getId, node -> new DiskUsage(node.getId(), null, "the_path", 1000, 1000)));
         ImmutableOpenMap<String, DiskUsage> immutableDiskUsages = ImmutableOpenMap.<String, DiskUsage>builder().putAll(diskUsages).build();
 

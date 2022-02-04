@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Comparator;
 
 /**
  * A utility class for fields that need to support autocomplete via
@@ -25,16 +24,16 @@ import java.util.Comparator;
  */
 public class SimpleTermCountEnum extends TermsEnum {
     int index = -1;
-    TermCount[] sortedTerms;
-    TermCount current = null;
+    String[] sortedTerms;
+    String current = null;
 
-    public SimpleTermCountEnum(TermCount[] terms) {
+    public SimpleTermCountEnum(String[] terms) {
         sortedTerms = Arrays.copyOf(terms, terms.length);
-        Arrays.sort(sortedTerms, Comparator.comparing(TermCount::getTerm));
+        Arrays.sort(sortedTerms);
     }
 
-    public SimpleTermCountEnum(TermCount termCount) {
-        sortedTerms = new TermCount[1];
+    public SimpleTermCountEnum(String termCount) {
+        sortedTerms = new String[1];
         sortedTerms[0] = termCount;
     }
 
@@ -43,7 +42,7 @@ public class SimpleTermCountEnum extends TermsEnum {
         if (current == null) {
             return null;
         }
-        return new BytesRef(current.getTerm());
+        return new BytesRef(current);
     }
 
     @Override
@@ -59,10 +58,7 @@ public class SimpleTermCountEnum extends TermsEnum {
 
     @Override
     public int docFreq() throws IOException {
-        if (current == null) {
-            return 0;
-        }
-        return (int) current.getDocCount();
+        throw new UnsupportedOperationException();
     }
 
     // =============== All other TermsEnum methods not supported =================

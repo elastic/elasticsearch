@@ -18,6 +18,7 @@ s|SQL precision
 | <<number, `short`>>                      | short           | SMALLINT    | 5
 | <<number, `integer`>>                    | integer         | INTEGER     | 10
 | <<number, `long`>>                       | long            | BIGINT      | 19
+| <<number, `unsigned_long`>>              | experimental:[] unsigned_long   | BIGINT      | 20
 | <<number, `double`>>                     | double          | DOUBLE      | 15
 | <<number, `float`>>                      | float           | REAL        | 7
 | <<number, `half_float`>>                 | half_float      | FLOAT       | 3

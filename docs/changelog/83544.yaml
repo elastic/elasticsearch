@@ -1,0 +1,7 @@
+pr: 83544
+summary: Adding a critical warning for low watermark exceeded to the deprecation info
+  API
+area: Other
+type: feature
+issues:
+ - 82807

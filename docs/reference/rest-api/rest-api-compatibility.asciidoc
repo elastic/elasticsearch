@@ -1,7 +1,7 @@
 [[rest-api-compatibility]]
 == REST API compatibility
 
-REST API compatibility in a per-request opt-in feature that can help REST clients mitigate non compatible (breaking) changes to the REST API.
+To help REST clients mitigate the impact of non-compatible (breaking) API changes, {es} provides a per-request, opt-in API compatibility mode.  
 
 {es} REST API's are generally stable across major versions. However, there are cases where {es} REST API's are changed in a non compatible ways (breaking) with the prior major version.
 For example, {es} 7.x supported custom mapping types in many of the URL paths, but {es} 8.0+ does not support

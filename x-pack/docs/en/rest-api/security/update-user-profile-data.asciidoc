@@ -57,20 +57,19 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 The following parameters can be specified in the body of a POST request:
 
 `access`::
-(Required<<not-always-required,*>>, object)
+(Required*, object)
 Arbitrary searchable data that you want to associate with the user profile.
 It supports nested data structure. Within the `access` object, top level
 keys cannot begin with `_` or contain `.`.
 
 `data`::
-(Required<<not-always-required,*>>, object)
+(Required*, object)
 Arbitrary non-searchable data that you want to associate with the user profile.
 It supports nested data structure. Within the `data` object, top level
 keys cannot begin with `_` or contain `.`.
 The `data` object is not searchable, but can be retrieved with <<security-api-get-user-profile>>.
 
 --
-[[not-always-required]]
 *Indicates that the setting is required in some, but not all situations.
 --
 

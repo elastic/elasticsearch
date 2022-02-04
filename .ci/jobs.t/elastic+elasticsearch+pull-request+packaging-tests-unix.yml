@@ -32,6 +32,7 @@
           type: label-expression
           name: os
           values:
+            - centos-7-packaging
             - debian-9-packaging
             - debian-10-packaging
             - debian-11-packaging

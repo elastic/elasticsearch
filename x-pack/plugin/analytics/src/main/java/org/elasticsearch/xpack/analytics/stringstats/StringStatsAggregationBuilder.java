@@ -63,11 +63,6 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    public boolean supportsSampling() {
-        return true;
-    }
-
-    @Override
     protected ValuesSourceType defaultValueSourceType() {
         return CoreValuesSourceType.KEYWORD;
     }

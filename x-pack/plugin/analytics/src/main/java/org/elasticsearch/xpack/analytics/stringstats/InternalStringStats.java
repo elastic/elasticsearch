@@ -12,7 +12,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
-import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -219,21 +218,6 @@ public class InternalStringStats extends InternalAggregation {
         }
 
         return new InternalStringStats(name, count, totalLength, minLength, maxLength, occurs, showDistribution, format, getMetadata());
-    }
-
-    @Override
-    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalStringStats(
-            name,
-            samplingContext.inverseScale(count),
-            totalLength,
-            minLength,
-            maxLength,
-            charOccurrences,
-            showDistribution,
-            format,
-            getMetadata()
-        );
     }
 
     @Override

@@ -10,11 +10,13 @@ When an API is targeted for removal or is going to be changed in a non-compatibl
 This enables you to review the deprecation logs  and take the appropriate actions before upgrading. However, in some cases it is difficult to
 identify all places where deprecated APIs are being used. This is where REST API compatibility can help.
 
-When requested, REST API compatibility instructs the {es} server to attempt to honor the REST API of the prior major version.
-For most API's REST API compatibility has no effect. Requests for compatibility only impacts APIs that have non compatible (breaking) changes from the prior major version.
-For example, custom mapping types were supported in URL paths for 7.x, but are not supported in 8.x. When compatibility is requested {es} will internally and automatically redirect any URL that
-includes the custom mapping type to it's non-typed equivalent URL. In this case, requesting compatibility effectively ignores the custom mapping type of the requested URL.
-Additionally, for requests that would have warranted a response that in 7.x that included a type field REST API compatibility will inject a _type field with a hard coded value of _doc as part of the response.
+When you request REST API compatibility, {es} attempts to honor the previous REST API version.
+{es} attempts to apply the most compatible URL, request body, response body, and HTTP parameters. 
+
+For compatible APIs, this has no effect--it only impacts calls to APIs that have breaking changes from the previous version.
+An error can still be returned in compatibility mode if {es} cannot automatically resolve the incompatibilities,
+
+IMPORTANT: REST API compatibility does not guarantee the same behavior as the prior version. It instructs {es} to automatically resolve any incompatibilities so the request can be processed instead of returning an error. 
 
 
 It is important to note that REST API compatibility does not result in the same behavior as the prior version. Rather REST API compatibility is a best effort by the {es} service to find the best way to automatically resolve any incompatibility introduced in the REST API.

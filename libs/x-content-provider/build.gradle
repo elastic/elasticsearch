@@ -24,10 +24,9 @@ dependencies {
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
 */
 
-  testImplementation project(":test:framework")
-  /*testImplementation(project(":test:framework")) {
+  testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
-  }*/
+  }
 
 }
 
@@ -49,4 +48,3 @@ tasks.named("thirdPartyAudit").configure {
     'com.fasterxml.jackson.databind.cfg.MapperBuilder'
   )
 }
-

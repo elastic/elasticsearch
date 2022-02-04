@@ -7,8 +7,9 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -29,7 +30,7 @@ import java.util.Set;
  */
 public abstract class AggregationBuilder
     implements
-        NamedWriteable,
+        VersionedNamedWriteable,
         ToXContentFragment,
         BaseAggregationBuilder,
         Rewriteable<AggregationBuilder> {
@@ -188,6 +189,11 @@ public abstract class AggregationBuilder
     @Override
     public String toString() {
         return Strings.toString(this);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 
     /**

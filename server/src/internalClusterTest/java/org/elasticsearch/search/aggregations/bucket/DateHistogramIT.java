@@ -475,7 +475,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(1L));
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
-        assertThat(sum.getValue(), equalTo(1.0));
+        assertThat(sum.value(), equalTo(1.0));
         assertThat((ZonedDateTime) propertiesKeys[0], equalTo(key));
         assertThat((long) propertiesDocCounts[0], equalTo(1L));
         assertThat((double) propertiesCounts[0], equalTo(1.0));
@@ -488,7 +488,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(2L));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
-        assertThat(sum.getValue(), equalTo(5.0));
+        assertThat(sum.value(), equalTo(5.0));
         assertThat((ZonedDateTime) propertiesKeys[1], equalTo(key));
         assertThat((long) propertiesDocCounts[1], equalTo(2L));
         assertThat((double) propertiesCounts[1], equalTo(5.0));
@@ -501,7 +501,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(3L));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
-        assertThat(sum.getValue(), equalTo(15.0));
+        assertThat(sum.value(), equalTo(15.0));
         assertThat((ZonedDateTime) propertiesKeys[2], equalTo(key));
         assertThat((long) propertiesDocCounts[2], equalTo(3L));
         assertThat((double) propertiesCounts[2], equalTo(15.0));
@@ -1767,7 +1767,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             assertThat(avg.getValue(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("avg_l")));
             Sum sum = bucket.getAggregations().get("sum_d");
             assertThat(sum, notNullValue());
-            assertThat(sum.getValue(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("sum_d")));
+            assertThat(sum.value(), equalTo(expectedMultiSortBuckets.get(expectedKeys[i]).get("sum_d")));
             i++;
         }
     }

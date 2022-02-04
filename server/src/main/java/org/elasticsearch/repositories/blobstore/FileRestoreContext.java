@@ -31,7 +31,6 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * This context will execute a file restore of the lucene files. It is primarily designed to be used to
@@ -69,7 +68,7 @@ public abstract class FileRestoreContext {
         store.incRef();
         try {
             final List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover = new ArrayList<>();
-            if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
+            if (store.indexSettings().getIndexMetadata().isSearchableSnapshot()) {
                 for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : snapshotFiles.indexFiles()) {
                     assert store.directory().fileLength(fileInfo.physicalName()) == fileInfo.length();
                     recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), true);

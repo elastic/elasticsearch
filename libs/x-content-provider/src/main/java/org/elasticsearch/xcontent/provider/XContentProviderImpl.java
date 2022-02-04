@@ -78,7 +78,7 @@ public class XContentProviderImpl implements XContentProvider {
         return new FormatProvider<>() {
             @Override
             public XContentBuilder getContentBuilder() throws IOException {
-                return SmileXContentImpl.getContentBuilder();
+                return YamlXContentImpl.getContentBuilder();
             }
 
             @Override

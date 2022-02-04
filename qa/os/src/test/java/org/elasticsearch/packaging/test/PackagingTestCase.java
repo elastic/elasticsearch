@@ -63,11 +63,9 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -629,22 +627,21 @@ public abstract class PackagingTestCase extends Assert {
      * @param es the {@link Installation} to check
      */
     public void verifySecurityAutoConfigured(Installation es) throws Exception {
-        Optional<String> autoConfigDirName = getAutoConfigDirName(es);
-        assertThat(autoConfigDirName.isPresent(), Matchers.is(true));
+        final String autoConfigDirName = "certs";
         final Settings settings;
         if (es.distribution.isArchive()) {
             // We chown the installation on Windows to Administrators so that we can auto-configure it.
             String owner = Platforms.WINDOWS ? "BUILTIN\\Administrators" : "elasticsearch";
-            assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, owner, owner, p750));
+            assertThat(es.config(autoConfigDirName), FileMatcher.file(Directory, owner, owner, p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
-                .forEach(file -> assertThat(es.config(autoConfigDirName.get()).resolve(file), FileMatcher.file(File, owner, owner, p660)));
+                .forEach(file -> assertThat(es.config(autoConfigDirName).resolve(file), FileMatcher.file(File, owner, owner, p660)));
             settings = Settings.builder().loadFromPath(es.config("elasticsearch.yml")).build();
         } else if (es.distribution.isDocker()) {
-            assertThat(es.config(autoConfigDirName.get()), DockerFileMatcher.file(Directory, "elasticsearch", "root", p750));
+            assertThat(es.config(autoConfigDirName), DockerFileMatcher.file(Directory, "elasticsearch", "root", p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
                 .forEach(
                     file -> assertThat(
-                        es.config(autoConfigDirName.get()).resolve(file),
+                        es.config(autoConfigDirName).resolve(file),
                         DockerFileMatcher.file(File, "elasticsearch", "root", p660)
                     )
                 );
@@ -655,13 +652,10 @@ public abstract class PackagingTestCase extends Assert {
             rm(localTempDir);
         } else {
             assert es.distribution.isPackage();
-            assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, "root", "elasticsearch", p750));
+            assertThat(es.config(autoConfigDirName), FileMatcher.file(Directory, "root", "elasticsearch", p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
                 .forEach(
-                    file -> assertThat(
-                        es.config(autoConfigDirName.get()).resolve(file),
-                        FileMatcher.file(File, "root", "elasticsearch", p660)
-                    )
+                    file -> assertThat(es.config(autoConfigDirName).resolve(file), FileMatcher.file(File, "root", "elasticsearch", p660))
                 );
             assertThat(
                 sh.run(es.executables().keystoreTool + " list").stdout(),
@@ -687,7 +681,7 @@ public abstract class PackagingTestCase extends Assert {
      * @param es the {@link Installation} to check
      */
     public static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
-        assertThat(getAutoConfigDirName(es).isPresent(), Matchers.is(false));
+        assertThat(Files.exists(es.config("certs")), Matchers.is(false));
         if (es.distribution.isPackage()) {
             if (Files.exists(es.config("elasticsearch.keystore"))) {
                 assertThat(
@@ -705,17 +699,6 @@ public abstract class PackagingTestCase extends Assert {
         if (caCert != null) {
             assertThat(caCert.toString(), Matchers.not(Matchers.containsString("certs")));
         }
-    }
-
-    public static Optional<String> getAutoConfigDirName(Installation es) {
-        final Shell.Result lsResult;
-        if (es.distribution.platform.equals(Distribution.Platform.WINDOWS)) {
-            lsResult = sh.run("Get-ChildItem -Path " + es.config + " -Name");
-        } else {
-            lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
-        }
-        assertNotNull(lsResult.stdout());
-        return Arrays.stream(lsResult.stdout().split("\n")).filter(f -> f.contains("certs")).findFirst();
     }
 
 }

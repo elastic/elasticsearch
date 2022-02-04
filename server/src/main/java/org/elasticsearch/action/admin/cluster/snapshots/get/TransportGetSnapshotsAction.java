@@ -86,7 +86,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             GetSnapshotsRequest::new,
             indexNameExpressionResolver,
             GetSnapshotsResponse::new,
-            ThreadPool.Names.SAME
+            ThreadPool.Names.MANAGEMENT // Execute this on the management pool because creating the response can become fairly expensive
+                                        // for large repositories in the verbose=false case when there are a lot of indices per snapshot.
+                                        // This is intentionally not using the snapshot_meta pool because that pool is sized rather large
+                                        // to accommodate concurrent IO and could consume excessive CPU resources through concurrent
+                                        // verbose=false requests that are CPU bound only.
         );
         this.repositoriesService = repositoriesService;
     }

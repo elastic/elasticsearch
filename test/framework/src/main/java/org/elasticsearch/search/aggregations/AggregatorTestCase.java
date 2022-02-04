@@ -37,8 +37,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
-import org.apache.lucene.search.SortedSetSelector;
-import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
@@ -607,7 +605,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             AggregationReduceContext reduceContext = new AggregationReduceContext.ForPartial(
                 context.bigArrays(),
                 getMockScriptService(),
-                () -> false
+                () -> false,
+                builder
             );
             A reduced = (A) aggs.get(0).reduce(toReduce, reduceContext);
             aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
@@ -623,9 +622,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
             context.bigArrays(),
             getMockScriptService(),
+            () -> false,
+            builder,
             reduceBucketConsumer,
-            pipelines,
-            () -> false
+            pipelines
         );
 
         @SuppressWarnings("unchecked")
@@ -664,8 +664,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
             if (timeSeries) {
                 Sort sort = new Sort(
-                    new SortedSetSortField(TimeSeriesIdFieldMapper.NAME, false, SortedSetSelector.Type.MAX),
-                    new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG)
+                    new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
+                    new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
                 );
                 config.setIndexSort(sort);
             }
@@ -767,9 +767,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
             new AggregationReduceContext.ForFinal(
                 context.bigArrays(),
                 getMockScriptService(),
+                () -> false,
+                builder,
                 context.multiBucketConsumer(),
-                builder.buildPipelineTree(),
-                () -> false
+                builder.buildPipelineTree()
             )
         );
         @SuppressWarnings("unchecked") // We'll get a cast error in the test if we're wrong here and that is ok
@@ -1321,6 +1322,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
         protected void doWriteTo(StreamOutput out) throws IOException {
             throw new UnsupportedOperationException();
 
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
         }
     }
 

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -23,6 +24,7 @@ import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
@@ -83,7 +85,9 @@ public class SysTypes extends Command {
 
     @Override
     public final void execute(SqlSession session, ActionListener<Page> listener) {
-        Stream<DataType> values = SqlDataTypes.types().stream();
+        Stream<DataType> values = SqlDataTypes.types()
+            .stream()
+            .filter(t -> isTypeSupportedInVersion(t, Version.fromId(session.configuration().version().id)));
         if (type.intValue() != 0) {
             values = values.filter(t -> type.equals(sqlType(t).getVendorTypeNumber()));
         }
@@ -106,7 +110,7 @@ public class SysTypes extends Command {
                     isString(t),
                     // everything is searchable,
                     DatabaseMetaData.typeSearchable,
-                    // only numerics are signed
+                    // only numerics (sans UNSIGNED_LONG) are signed
                     isSigned(t) == false,
                     // no fixed precision scale SQL_FALSE
                     Boolean.FALSE,

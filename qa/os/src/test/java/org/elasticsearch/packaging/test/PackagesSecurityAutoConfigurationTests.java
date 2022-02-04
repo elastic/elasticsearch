@@ -29,7 +29,6 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.security.SecureRandom;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -52,11 +51,12 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
 public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
+
+    private static final String AUTOCONFIG_DIRNAME = "certs";
 
     @BeforeClass
     public static void filterDistros() {
@@ -75,15 +75,13 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
     public void test20SecurityNotAutoConfiguredOnReInstallation() throws Exception {
         // we are testing force upgrading in the current version
         // In such a case, security remains configured from the initial installation, we don't run it again.
-        Optional<String> autoConfigDirName = getAutoConfigDirName(installation);
+        byte[] transportKeystore = Files.readAllBytes(installation.config(AUTOCONFIG_DIRNAME).resolve("transport.p12"));
         installation = Packages.forceUpgradePackage(sh, distribution);
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
         verifySecurityAutoConfigured(installation);
-        // Since we did not auto-configure the second time, the directory name should be the same
-        assertThat(autoConfigDirName.isPresent(), is(true));
-        assertThat(getAutoConfigDirName(installation).isPresent(), is(true));
-        assertThat(getAutoConfigDirName(installation).get(), equalTo(autoConfigDirName.get()));
+        // Since we did not auto-configure the second time, the keystore should be the one we generated the first time, above
+        assertThat(transportKeystore, equalTo(Files.readAllBytes(installation.config(AUTOCONFIG_DIRNAME).resolve("transport.p12"))));
     }
 
     public void test30SecurityNotAutoConfiguredWhenExistingDataDir() throws Exception {
@@ -161,9 +159,8 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
         verifySecurityAutoConfigured(installation);
         assertNotNull(installation.getElasticPassword());
 
-        Optional<String> autoConfigDirName = getAutoConfigDirName(installation);
         // Move instead of delete because Files.deleteIfExists bails on non empty dirs
-        Files.move(installation.config(autoConfigDirName.get()), installation.config("temp-autoconf-dir"));
+        Files.move(installation.config(AUTOCONFIG_DIRNAME), installation.config("temp-autoconf-dir"));
         Shell.Result result = installation.executables().nodeReconfigureTool.run("--enrollment-token a-token", "y", true);
         assertThat(result.exitCode(), equalTo(ExitCodes.USAGE)); //
     }
@@ -312,10 +309,13 @@ public class PackagesSecurityAutoConfigurationTests extends PackagingTestCase {
                 true
             );
             assertThat(result.exitCode(), CoreMatchers.equalTo(0));
-            assertThat(installation.config("certs"), FileMatcher.file(Directory, "root", "elasticsearch", p750));
+            assertThat(installation.config(AUTOCONFIG_DIRNAME), FileMatcher.file(Directory, "root", "elasticsearch", p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
                 .forEach(
-                    file -> assertThat(installation.config("certs").resolve(file), FileMatcher.file(File, "root", "elasticsearch", p660))
+                    file -> assertThat(
+                        installation.config(AUTOCONFIG_DIRNAME).resolve(file),
+                        FileMatcher.file(File, "root", "elasticsearch", p660)
+                    )
                 );
         }
     }

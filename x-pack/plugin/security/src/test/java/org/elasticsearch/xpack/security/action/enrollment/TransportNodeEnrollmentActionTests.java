@@ -150,8 +150,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
         assertThat(nodesInfoRequests, hasSize(1));
 
         assertWarnings(
-            "[keystore.password] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version."
+            "[keystore.password] setting was deprecated in Elasticsearch and will be removed in a future release."
         );
     }
 

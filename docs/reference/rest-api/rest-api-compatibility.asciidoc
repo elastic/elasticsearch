@@ -26,8 +26,8 @@ Additionally, there may be some cases where compatibility can not be automatical
 It is important to note that REST API compatibility does not result in the same behavior as the prior version. Rather REST API compatibility is a best effort by the {es} service to find the best way to automatically resolve any incompatibility introduced in the REST API.
 This level of compatibility may not work for all workflows and use cases. For example, if the custom mapping types are an integral part of a workflow then ignoring the custom type at the REST API will not help.
 
-Any time REST API compatibility is requested and is invoked due to a non compatible (breaking) change, an entry to the deprecation log with the category "compatible_api" is recorded. This can be used to help identify any gaps in usage and fully supported features.
-REST API compatibility should be a bridge help smooth out a major version upgrade, not a long term strategy. REST API compatibility is only honored across one major version (i.e. honor 7.x requests/response from 8.x).
+When you submit requests using REST API compatibility and {es} resolves the incompatibility, a message is written to the deprecation log with the category "compatible_api". Review the deprecation log to identify any gaps in usage and fully supported features.
+
 
 Review the release notes for REST API changes for additional details.  TODO: link to https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_rest_api_changes
 

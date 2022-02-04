@@ -227,8 +227,8 @@ Discontinue use of the `_term` order key. Requests that include a `_term` order
 key will return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>
-the `_term` order is ignored and `key` is used instead
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
+the `_term` order is ignored and `key` is used instead.
 ====
 
 [[remove-time-order-key]]

@@ -217,7 +217,10 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
                 AnomalyDetectorsIndex.jobResultsIndexPrefix(),
                 InferenceIndexConstants.LATEST_INDEX_NAME,
-                SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME
+                SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME,
+                ".deprecation-indexing-template",
+                ".deprecation-indexing-settings",
+                ".deprecation-indexing-mappings"
             )
         );
     }

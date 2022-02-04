@@ -12,6 +12,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.index.IndexCompatibility;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.EsField;
@@ -38,11 +39,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.isTypeSupportedInVersion;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 import static org.mockito.ArgumentMatchers.any;
@@ -53,11 +58,18 @@ import static org.mockito.Mockito.when;
 
 public class SysColumnsTests extends ESTestCase {
 
+    public static List<SqlVersion> UNSIGNED_LONG_TEST_VERSIONS = List.of(
+        SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER),
+        SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id),
+        SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER),
+        SqlVersion.fromId(Version.CURRENT.id)
+    );
+
     private static final String CLUSTER_NAME = "cluster";
     private static final Map<String, EsField> MAPPING1 = loadMapping("mapping-multi-field-with-nested.json", true);
     private static final Map<String, EsField> MAPPING2 = loadMapping("mapping-multi-field-variation.json", true);
-    private static final int FIELD_COUNT1 = 19;
-    private static final int FIELD_COUNT2 = 17;
+    private static final int FIELD_COUNT1 = 20;
+    private static final int FIELD_COUNT2 = 18;
 
     private final SqlParser parser = new SqlParser();
 
@@ -68,49 +80,53 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(FIELD_COUNT2, rows.size());
         assertEquals(24, rows.get(0).size());
 
-        List<?> row = rows.get(0);
+        int index = 0;
+        List<?> row = rows.get(index++);
         assertDriverType("bool", Types.BOOLEAN, false, 1, 1, typeClass, row);
 
-        row = rows.get(1);
+        row = rows.get(index++);
         assertDriverType("int", Types.INTEGER, true, 11, 4, typeClass, row);
 
-        row = rows.get(2);
+        row = rows.get(index++);
+        assertDriverType("unsigned_long", Types.NUMERIC, true, 20, Long.BYTES, typeClass, row);
+
+        row = rows.get(index++);
         assertDriverType("float", Types.REAL, true, 15, 4, typeClass, row);
 
-        row = rows.get(3);
+        row = rows.get(index++);
         assertDriverType("text", Types.VARCHAR, false, Integer.MAX_VALUE, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(4);
+        row = rows.get(index++);
         assertDriverType("keyword", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(5);
+        row = rows.get(index++);
         assertDriverType("date", Types.TIMESTAMP, false, 34, 8, typeClass, row);
 
-        row = rows.get(6);
+        row = rows.get(index++);
         assertDriverType("date_nanos", Types.TIMESTAMP, false, 34, 8, typeClass, row);
 
-        row = rows.get(7);
+        row = rows.get(index++);
         assertDriverType("some.dotted.field", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(8);
+        row = rows.get(index++);
         assertDriverType("some.string", Types.VARCHAR, false, Integer.MAX_VALUE, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(9);
+        row = rows.get(index++);
         assertDriverType("some.string.normalized", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(10);
+        row = rows.get(index++);
         assertDriverType("some.string.typical", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(11);
+        row = rows.get(index++);
         assertDriverType("some.ambiguous", Types.VARCHAR, false, Integer.MAX_VALUE, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(12);
+        row = rows.get(index++);
         assertDriverType("some.ambiguous.one", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(13);
+        row = rows.get(index++);
         assertDriverType("some.ambiguous.two", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(14);
+        row = rows.get(index++);
         assertDriverType("some.ambiguous.normalized", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
     }
 
@@ -126,6 +142,30 @@ public class SysColumnsTests extends ESTestCase {
         for (Mode mode : Mode.values()) {
             if (isDriver(mode) == false) {
                 sysColumnsInMode(mode);
+            }
+        }
+    }
+
+    public void testUnsignedLongFiltering() {
+        for (Mode mode : List.of(Mode.JDBC, Mode.ODBC)) {
+            for (SqlVersion version : UNSIGNED_LONG_TEST_VERSIONS) {
+                List<List<?>> rows = new ArrayList<>();
+                // mapping's mutated by IndexCompatibility.compatible, needs to stay in the loop
+                Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json", true);
+                SysColumns.fillInRows(
+                    "test",
+                    "index",
+                    IndexCompatibility.compatible(mapping, Version.fromId(version.id)),
+                    null,
+                    rows,
+                    null,
+                    mode
+                );
+                List<String> types = rows.stream().map(row -> name(row).toString()).collect(Collectors.toList());
+                assertEquals(
+                    isTypeSupportedInVersion(UNSIGNED_LONG, Version.fromId(version.id)),
+                    types.contains(UNSIGNED_LONG.toString().toLowerCase(Locale.ROOT))
+                );
             }
         }
     }

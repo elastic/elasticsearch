@@ -105,6 +105,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83488")
     public void testMultiValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
             .addAggregation(

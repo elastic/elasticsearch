@@ -786,9 +786,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         bw.newLine();
                         bw.write("# Connections are encrypted and require user authentication");
                         bw.newLine();
-                        bw.write(
-                            HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": " + hostSettingValue(NetworkUtils.getAllAddresses())
-                        );
+                        bw.write(HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": 0.0.0.0");
                         bw.newLine();
                     }
                     if (false == (localFinalEnv.settings().hasValue(TransportSettings.HOST.getKey())
@@ -806,7 +804,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                             || false == anyRemoteHostNodeAddress(transportAddresses, NetworkUtils.getAllAddresses())) {
                             bw.write("#");
                         }
-                        bw.write(TransportSettings.HOST.getKey() + ": " + hostSettingValue(NetworkUtils.getAllAddresses()));
+                        bw.write(TransportSettings.HOST.getKey() + ": 0.0.0.0");
                         bw.newLine();
                     }
                     bw.newLine();
@@ -878,14 +876,6 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             }
         }
         return false;
-    }
-
-    protected String hostSettingValue(InetAddress[] allAddresses) {
-        if (Arrays.stream(allAddresses).anyMatch(InetAddress::isSiteLocalAddress)) {
-            return "0.0.0.0";
-        } else {
-            return "_local_";
-        }
     }
 
     private Environment possiblyReconfigureNode(Environment env, Terminal terminal) throws UserException {

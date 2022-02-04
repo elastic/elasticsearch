@@ -3,4 +3,4 @@ issues:
   - 80021
 area: Search
 type: enhancement
-summary: Support combining `_shards` preference param with <custom-string>
+summary: Support combining `_shards` preference param with `<custom-string>`

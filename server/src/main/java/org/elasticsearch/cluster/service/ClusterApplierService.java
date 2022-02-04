@@ -216,7 +216,24 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
      * Add a listener for updated cluster states
      */
     public void addListener(ClusterStateListener listener) {
-        clusterStateListeners.add(listener);
+        clusterStateListeners.add(new SafeClusterStateListener(listener, threadPool.getThreadContext().newRestorableContext(true)));
+    }
+
+    private static class SafeClusterStateListener implements ClusterStateListener {
+        private final ClusterStateListener delegate;
+        private final Supplier<ThreadContext.StoredContext> supplier;
+
+        public SafeClusterStateListener(ClusterStateListener delegate, Supplier<ThreadContext.StoredContext> supplier) {
+            this.delegate = delegate;
+            this.supplier = supplier;
+        }
+
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
+            try (ThreadContext.StoredContext stored = supplier.get()) {
+                delegate.clusterChanged(event);
+            }
+        }
     }
 
     /**

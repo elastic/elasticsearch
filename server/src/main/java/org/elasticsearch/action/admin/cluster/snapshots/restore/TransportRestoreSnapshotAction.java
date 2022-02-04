@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -73,11 +72,7 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeAction<Re
     ) {
         restoreService.restoreSnapshot(request, listener.delegateFailure((delegatedListener, restoreCompletionResponse) -> {
             if (restoreCompletionResponse.getRestoreInfo() == null && request.waitForCompletion()) {
-                RestoreClusterStateListener.createAndRegisterListener(
-                    clusterService,
-                    restoreCompletionResponse,
-                    new ContextPreservingActionListener<>(threadPool.getThreadContext().newRestorableContext(true), delegatedListener)
-                );
+                RestoreClusterStateListener.createAndRegisterListener(clusterService, restoreCompletionResponse, delegatedListener);
             } else {
                 delegatedListener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.getRestoreInfo()));
             }

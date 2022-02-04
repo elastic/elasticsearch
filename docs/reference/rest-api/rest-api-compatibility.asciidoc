@@ -61,12 +61,12 @@ To enable REST API compatibility for all requests set the environment variable `
 [discrete]
 === REST API compatibility workflow
 
-The recommended workflow for upgrading to a new major and leverage REST API compatibility is as follows (from 7.x to 8.x):
+To leverage REST API compatibility during an upgrade from 7.17 to {version}:
 
-1. Upgrade any officially supported Elasticsearch clients to the latest 7.x version and enable REST API compatibility. TODO: link to https://www.elastic.co/guide/en/elasticsearch/client/index.html
-2. Use the {kibana-ref}/upgrade-assistant.html[Kibana upgrade assistant] and review all critical issues. Some critical issues may be mitigated by REST API compatibility.
-3. From the {kibana-ref}/upgrade-assistant.html[Kibana upgrade assistant] explore the deprecation logs and resolve all critical issues
-4. Upgrade Elasticsearch to 8.x
-5. Review the deprecation logs. If compatibility is invoked it will be logged to the deprecation logs with the category "compatible_api". Review the workflow associated with any invoked compatibility.
-6. Upgrade the official {es} clients to the matching 8.x version resolving any cases where compatibility needs to be manually resolved.
+1. Upgrade your https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} clients] to the latest 7.x version and enable REST API compatibility. 
+2. Use the {kibana-ref}/upgrade-assistant.html[Upgrade Assistant] to review all critical issues and explore the deprecation logs. Some critical issues might be mitigated by REST API compatibility.
+3. Resolve all critical issues before proceeding with the upgrade.
+4. Upgrade Elasticsearch to {version}.
+5. Review the deprecation logs for entries with the category `compatible_api1`. Review the workflow associated with the requests that relied on compatibility mode.
+6. Upgrade your {es} clients to 8.x and resolve compatibility issues manually where needed. 
 

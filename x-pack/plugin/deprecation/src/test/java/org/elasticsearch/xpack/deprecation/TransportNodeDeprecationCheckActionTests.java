@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -60,6 +61,8 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         PluginsService pluginsService = Mockito.mock(PluginsService.class);
         ActionFilters actionFilters = Mockito.mock(ActionFilters.class);
         ClusterInfoService clusterInfoService = Mockito.mock(ClusterInfoService.class);
+        ClusterInfo clusterInfo = ClusterInfo.EMPTY;
+        Mockito.when(clusterInfoService.getClusterInfo()).thenReturn(clusterInfo);
         TransportNodeDeprecationCheckAction transportNodeDeprecationCheckAction = new TransportNodeDeprecationCheckAction(
             nodeSettings,
             threadPool,

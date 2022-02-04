@@ -143,17 +143,11 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
         if (usage != null) {
             long freeBytes = usage.getFreeBytes();
             double freeDiskPercentage = usage.getFreeDiskAsPercentage();
-            final Map<String, Object> meta;
             final boolean emitWarning;
-            if (exceedsLowWatermark(clusterSettings, freeBytes, freeDiskPercentage)) {
-                // TODO: Do the metadata thing
-                meta = new HashMap<>();
-                emitWarning = true;
-            } else if (exceedsLowWatermark(nodeSettings, freeBytes, freeDiskPercentage)) {
-                meta = null;
+            if (exceedsLowWatermark(nodeSettings, freeBytes, freeDiskPercentage)
+                || exceedsLowWatermark(clusterSettings, freeBytes, freeDiskPercentage)) {
                 emitWarning = true;
             } else {
-                meta = null;
                 emitWarning = false;
             }
             if (emitWarning) {
@@ -169,7 +163,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
                             CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey()
                         ),
                         false,
-                        meta
+                        null
                     )
                 );
             }

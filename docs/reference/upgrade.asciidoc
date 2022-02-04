@@ -5,12 +5,12 @@
 --
 ifeval::["{release-state}"!="released"]
 [[upgrade-pre-release]]
-IMPORTANT: This documentation is for a pre-release of {es} {minor-version}.
+IMPORTANT: This documentation is for a pre-release of {es} {minor-version}. 
 Upgrades from pre-release builds are not supported and
-could result in errors or data loss.
-If you upgrade from a released version to a pre-release verion for testing,
+could result in errors or data loss. 
+If you upgrade from a released version to a pre-release verion for testing, 
 discard the contents of the cluster when you are done.
-Do not attempt to upgrade to the final release.
+Do not attempt to upgrade to the final release. 
 endif::[]
 
 {es} can usually be upgraded using a <<rolling-upgrades,Rolling upgrade>>
@@ -44,7 +44,7 @@ other functionality that may have changed.
 
 [cols="<1,3",options="header",]
 |====
-|Upgrade from
+|Upgrade from   
 |Recommended upgrade path to {version}
 
 ifeval::[ "{bare_version}" != "{minor-version}.0" ]

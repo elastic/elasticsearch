@@ -19,6 +19,7 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
@@ -93,15 +94,20 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         waitForElasticsearch(installation);
         final String node1ContainerId = Docker.getContainerId();
 
-        final String enrollmentToken = installation.executables().createEnrollmentToken.run("-s node")
-            .stdout()
-            .lines()
-            .filter(line -> line.startsWith("WARNING:") == false)
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("Failing to find any non-warning output lines"));
+        final AtomicReference<String> enrollmentToken = new AtomicReference<>();
+
+        assertBusy(() -> {
+            final String tokenValue = installation.executables().createEnrollmentToken.run("-s node")
+                .stdout()
+                .lines()
+                .filter(line -> line.startsWith("WARNING:") == false)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Failed to find any non-warning output lines"));
+            enrollmentToken.set(tokenValue);
+        }, 30, TimeUnit.SECONDS);
 
         // installation refers to second node from now on
-        installation = runAdditionalContainer(distribution(), builder().envVar("ENROLLMENT_TOKEN", enrollmentToken), 9201, 9301);
+        installation = runAdditionalContainer(distribution(), builder().envVar("ENROLLMENT_TOKEN", enrollmentToken.get()), 9201, 9301);
 
         // TODO Make our packaging test methods aware of multiple installations, see https://github.com/elastic/elasticsearch/issues/79688
         waitForElasticsearch(installation);

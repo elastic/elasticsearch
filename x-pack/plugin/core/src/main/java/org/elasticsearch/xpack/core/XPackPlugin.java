@@ -105,7 +105,6 @@ import java.util.Optional;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 @SuppressWarnings("HiddenField")
 public class XPackPlugin extends XPackClientPlugin
@@ -262,7 +261,7 @@ public class XPackPlugin extends XPackClientPlugin
      */
     public static List<DiscoveryNode> nodesNotReadyForXPackCustomMetadata(ClusterState clusterState) {
         // check that all nodes would be capable of deserializing newly added x-pack metadata
-        final List<DiscoveryNode> notReadyNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false).filter(node -> {
+        final List<DiscoveryNode> notReadyNodes = clusterState.nodes().stream().filter(node -> {
             final String xpackInstalledAttr = node.getAttributes().getOrDefault(XPACK_INSTALLED_NODE_ATTR, "false");
             return Booleans.parseBoolean(xpackInstalledAttr) == false;
         }).collect(Collectors.toList());

@@ -11,7 +11,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
-public interface AckedClusterStateTaskListener extends ClusterStateTaskListener {
+/**
+ * Interface that a cluster state update task can implement to indicate that it wishes to be notified when the update has been acked by
+ * (some subset of) the nodes in the cluster. Nodes ack a cluster state update after successfully applying the resulting state. Note that
+ * updates which do not change the cluster state are automatically reported as acked by all nodes without checking to see whether there are
+ * any nodes that have not already applied this state.
+ */
+public interface ClusterStateAckListener {
 
     /**
      * Called to determine which nodes the acknowledgement is expected from.

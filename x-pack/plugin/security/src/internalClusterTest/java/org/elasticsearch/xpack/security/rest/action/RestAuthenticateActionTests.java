@@ -37,6 +37,10 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
     @BeforeClass
     public static void maybeEnableAnonymous() {
         anonymousEnabled = randomBoolean();
+    }
+
+    @BeforeClass
+    public static void maybeSetDomain() {
         domainName = randomFrom(randomAlphaOfLengthBetween(3, 5), null);
     }
 

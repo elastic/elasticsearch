@@ -147,8 +147,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     public long ramBytesUsed() {
         long sum = SHALLOW_SIZE;
         for (BulkItemRequest item : items) {
-            long ramBytesUsed = item.ramBytesUsed();
-            sum += ramBytesUsed;
+            sum += item.ramBytesUsed();
         }
         return sum;
     }

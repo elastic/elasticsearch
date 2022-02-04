@@ -250,6 +250,7 @@ public class Constants {
         "cluster:monitor/ccr/stats",
         "cluster:monitor/eql/async/status",
         "cluster:monitor/health",
+        "cluster:monitor/health_api",
         "cluster:monitor/ingest/geoip/stats",
         "cluster:monitor/main",
         "cluster:monitor/nodes/hot_threads",

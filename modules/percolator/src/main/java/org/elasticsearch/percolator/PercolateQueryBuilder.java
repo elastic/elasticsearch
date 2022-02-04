@@ -651,4 +651,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             }
         };
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

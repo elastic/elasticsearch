@@ -9,7 +9,6 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
@@ -43,7 +42,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
@@ -57,7 +55,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private final FieldCapabilitiesFetcher fieldCapabilitiesFetcher;
-    private final Predicate<String> metadataFieldPred;
     private final boolean ccsCheckCompatibility;
 
     @Inject
@@ -75,8 +72,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.fieldCapabilitiesFetcher = new FieldCapabilitiesFetcher(indicesService);
-        final Set<String> metadataFields = indicesService.getAllMetadataFields();
-        this.metadataFieldPred = metadataFields::contains;
         transportService.registerRequestHandler(
             ACTION_NODE_NAME,
             ThreadPool.Names.SEARCH_COORDINATION,
@@ -262,10 +257,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     ) {
         for (Map.Entry<String, IndexFieldCapabilities> entry : response.get().entrySet()) {
             final String field = entry.getKey();
-            // best effort to detect metadata field coming from older nodes
-            final boolean isMetadataField = response.getOriginVersion().onOrAfter(Version.V_7_13_0)
-                ? entry.getValue().isMetadatafield()
-                : metadataFieldPred.test(field);
             final IndexFieldCapabilities fieldCap = entry.getValue();
             Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(field, f -> new HashMap<>());
             FieldCapabilities.Builder builder = typeMap.computeIfAbsent(
@@ -274,7 +265,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             );
             builder.add(
                 response.getIndexName(),
-                isMetadataField,
+                fieldCap.isMetadatafield(),
                 fieldCap.isSearchable(),
                 fieldCap.isAggregatable(),
                 fieldCap.isDimension(),

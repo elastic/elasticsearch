@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,25 +16,21 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class FieldCapabilitiesIndexResponse extends ActionResponse implements Writeable {
+public class FieldCapabilitiesIndexResponse implements Writeable {
     private final String indexName;
     private final Map<String, IndexFieldCapabilities> responseMap;
     private final boolean canMatch;
-    private final transient Version originVersion;
 
     FieldCapabilitiesIndexResponse(String indexName, Map<String, IndexFieldCapabilities> responseMap, boolean canMatch) {
         this.indexName = indexName;
         this.responseMap = responseMap;
         this.canMatch = canMatch;
-        this.originVersion = Version.CURRENT;
     }
 
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
-        super(in);
         this.indexName = in.readString();
         this.responseMap = in.readMap(StreamInput::readString, IndexFieldCapabilities::new);
         this.canMatch = in.readBoolean();
-        this.originVersion = in.getVersion();
     }
 
     /**
@@ -63,10 +57,6 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
      */
     public IndexFieldCapabilities getField(String field) {
         return responseMap.get(field);
-    }
-
-    Version getOriginVersion() {
-        return originVersion;
     }
 
     @Override

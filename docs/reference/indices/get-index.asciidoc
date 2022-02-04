@@ -46,7 +46,7 @@ Defaults to `open`.
 
 `features`::
 (Optional, string)
-Return only information about specific index features. Supports comma-
+Return information about specific index features. Supports comma-
 separated values. Valid values are `aliases`, `mappings`, and `settings`.
 Defaults to `aliases,mappings,settings`.
 

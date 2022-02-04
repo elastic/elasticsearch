@@ -43,3 +43,10 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("jarHell").configure { enabled = false }
 
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    'com.fasterxml.jackson.databind.ObjectMapper',
+    'com.fasterxml.jackson.databind.cfg.MapperBuilder'
+  )
+}
+

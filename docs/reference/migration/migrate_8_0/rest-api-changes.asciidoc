@@ -299,11 +299,9 @@ the `date_histogram` composite source will now generate an error.  Instead
 please use the more specific `fixed_interval` or `calendar_interval`
 parameters.
 
-
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>
-the `interval` parameter will be adapted to the either a fixed or calendar interval.
-
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
+the `interval` parameter is adapted to either a fixed or calendar interval.
 ====
 
 [[ngram-edgengram-filter-names-removed]]

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -390,16 +391,18 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(numShards));
         assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
         assertThat(response.getExpirationTime(), greaterThan(now));
+
+        final String searchId = response.getId();
         long expirationTime = response.getExpirationTime();
 
-        response = getAsyncSearch(response.getId());
+        response = getAsyncSearch(searchId);
         assertNotNull(response.getSearchResponse());
         assertFalse(response.isRunning());
         assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
         assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(numShards));
         assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
 
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(10));
+        response = getAsyncSearch(searchId, TimeValue.timeValueDays(10));
         assertThat(response.getExpirationTime(), greaterThan(expirationTime));
 
         assertFalse(response.isRunning());
@@ -407,10 +410,20 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(numShards));
         assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
 
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueMillis(1));
-        assertThat(response.getExpirationTime(), lessThan(expirationTime));
-        ensureTaskNotRunning(response.getId());
-        ensureTaskRemoval(response.getId());
+        try {
+            AsyncSearchResponse finalResponse = getAsyncSearch(searchId, TimeValue.timeValueMillis(1));
+            assertThat(finalResponse.getExpirationTime(), lessThan(expirationTime));
+        } catch (ExecutionException e) {
+            // The 'get async search' method first updates the expiration time, then gets the response. So the
+            // maintenance service might remove the document right after it's updated, which means the get request
+            // fails with a 'not found' error. For now we allow this behavior, since it will be very rare in practice.
+            if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) == null) {
+                throw e;
+            }
+        }
+
+        ensureTaskNotRunning(searchId);
+        ensureTaskRemoval(searchId);
     }
 
     public void testRemoveAsyncIndex() throws Exception {

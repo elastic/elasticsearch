@@ -130,7 +130,7 @@ public class FakeThreadPoolMasterService extends MasterService {
     protected void publish(ClusterStatePublicationEvent clusterStatePublicationEvent, TaskOutputs taskOutputs) {
         assert waitForPublish == false;
         waitForPublish = true;
-        final AckListener ackListener = taskOutputs.createAckListener(threadPool, clusterStatePublicationEvent.getNewState());
+        final AckListener ackListener = taskOutputs.createAckListener(clusterStatePublicationEvent.getNewState());
         final ActionListener<Void> publishListener = new ActionListener<>() {
 
             private boolean listenerCalled = false;

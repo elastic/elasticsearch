@@ -18,6 +18,7 @@ import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -437,4 +438,8 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         }
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

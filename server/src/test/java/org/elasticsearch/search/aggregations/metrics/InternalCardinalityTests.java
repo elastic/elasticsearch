@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.junit.After;
@@ -24,6 +25,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.mockito.Mockito.mock;
 
 public class InternalCardinalityTests extends InternalAggregationTestCase<InternalCardinality> {
     private static List<HyperLogLogPlusPlus> algos;
@@ -63,13 +66,13 @@ public class InternalCardinalityTests extends InternalAggregationTestCase<Intern
     }
 
     @Override
-    protected List<InternalCardinality> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalCardinality> randomResultsToReduce(String name, int size) {
         int precision = randomIntBetween(AbstractHyperLogLog.MIN_PRECISION, AbstractHyperLogLog.MAX_PRECISION);
         List<InternalCardinality> result = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             result.add(createTestInstance(name, createTestMetadata(), precision));
         }
-        return result;
+        return new BuilderAndToReduce<>(mock(AggregationBuilder.class), result);
     }
 
     @Override

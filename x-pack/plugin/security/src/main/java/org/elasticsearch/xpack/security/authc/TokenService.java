@@ -368,9 +368,6 @@ public final class TokenService {
             );
         } else {
             final Authentication tokenAuth = authentication.token().maybeRewriteForOlderVersion(tokenVersion);
-            if (authentication.isAssignedToDomain() && false == tokenAuth.isAssignedToDomain()) {
-                logger.info("Rewriting authentication [" + authentication + "] for token without domain");
-            }
             final String storedAccessToken;
             final String storedRefreshToken;
             if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {

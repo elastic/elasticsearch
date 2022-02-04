@@ -144,9 +144,6 @@ public class SecurityContext {
         final Authentication authentication = getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             setAuthentication(authentication.maybeRewriteForOlderVersion(version));
-            if (authentication.isAssignedToDomain() && false == getAuthentication().isAssignedToDomain()) {
-                logger.info("Rewriting authentication [" + authentication + "] without domain");
-            }
             existingRequestHeaders.forEach((k, v) -> {
                 if (threadContext.getHeader(k) == null) {
                     threadContext.putHeader(k, v);

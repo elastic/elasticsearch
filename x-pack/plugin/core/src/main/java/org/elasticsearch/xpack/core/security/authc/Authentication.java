@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.authc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -52,6 +54,8 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FA
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
 public class Authentication implements ToXContentObject {
+
+    private static final Logger logger = LogManager.getLogger(Authentication.class);
 
     public static final Version VERSION_API_KEY_ROLES_AS_BYTES = Version.V_7_9_0;
     public static final Version VERSION_REALM_DOMAINS = Version.V_8_1_0;
@@ -147,7 +151,7 @@ public class Authentication implements ToXContentObject {
     public Authentication maybeRewriteForOlderVersion(Version olderVersion) {
         // TODO how can this not be true
         // assert olderVersion.onOrBefore(getVersion());
-        return new Authentication(
+        Authentication newAuthentication = new Authentication(
             getUser(),
             maybeRewriteRealmRef(olderVersion, getAuthenticatedBy()),
             maybeRewriteRealmRef(olderVersion, getLookedUpBy()),
@@ -155,6 +159,10 @@ public class Authentication implements ToXContentObject {
             getAuthenticationType(),
             maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, this)
         );
+        if (isAssignedToDomain() && false == newAuthentication.isAssignedToDomain()) {
+            logger.info("Rewriting authentication [" + this + "] without domain");
+        }
+        return newAuthentication;
     }
 
     /**

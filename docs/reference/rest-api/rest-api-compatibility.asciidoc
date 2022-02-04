@@ -54,9 +54,9 @@ The following values are valid when communicating with a 7.x or 8.x {es} server:
 "application/vnd.elasticsearch+smile;compatible-with=7"
 "application/vnd.elasticsearch+cbor;compatible-with=7"
 ------------------------------------------------------------
+The [link:/guide](https://www.elastic.co/guide/en/elasticsearch/client/index.html)[officially supported {es} clients] can enable REST API compatibility for all requests. 
 
-The link:/guide[officially supported Elasticsearch clients] can enable REST API compatibility for all requests. TODO: link to https://www.elastic.co/guide/en/elasticsearch/client/index.html
-To enable REST API compatibility for all requests set the environment variable `ELASTIC_CLIENT_APIVERSIONING` to true.
+To enable REST API compatibility for all requests received by {es} set the environment variable `ELASTIC_CLIENT_APIVERSIONING` to true.
 
 [discrete]
 === REST API compatibility workflow

@@ -1,0 +1,6 @@
+pr: 78946
+issues:
+  - 70306
+area: Authentication
+type: enhancement
+summary: Return API key name in `_authentication` response

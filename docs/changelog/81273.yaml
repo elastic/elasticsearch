@@ -1,0 +1,6 @@
+pr: 81273
+issues:
+  - 64429
+area: ILM+SLM
+type: enhancement
+summary: Expose the index age in ILM explain output

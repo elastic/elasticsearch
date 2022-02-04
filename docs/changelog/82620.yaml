@@ -1,0 +1,6 @@
+pr: 82620
+issues:
+  - 82405
+area: Machine Learning
+type: enhancement
+summary: Add latest search interval to datafeed stats

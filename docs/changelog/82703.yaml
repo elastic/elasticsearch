@@ -1,0 +1,6 @@
+pr: 82703
+issues:
+  - 82560
+area: Transform
+type: enhancement
+summary: Make it possible to clear retention policy on an existing transform

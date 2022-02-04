@@ -1,0 +1,6 @@
+pr: 81427
+issues:
+  - 81024
+area: Authorization
+type: bug
+summary: Capture anonymous roles when creating API keys

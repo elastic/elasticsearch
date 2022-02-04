@@ -1,0 +1,5 @@
+pr: 80268
+issues: []
+area: Search
+type: enhancement
+summary: Short cut if reader has point values

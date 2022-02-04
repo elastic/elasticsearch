@@ -1,0 +1,5 @@
+pr: 81756
+issues: []
+area: Transform
+type: bug
+summary: Fix NPE in transform version check

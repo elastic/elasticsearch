@@ -1,0 +1,7 @@
+pr: 82746
+issues:
+  - 81933
+area: Machine Learning
+type: bug
+summary: Return `zxx` for `lang_ident_model_1` if no valid text is found for
+  language identification

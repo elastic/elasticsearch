@@ -1,0 +1,5 @@
+pr: 80064
+issues: []
+area: Stats
+type: enhancement
+summary: Optimize `getIndices` in `IndicesSegmentResponse`

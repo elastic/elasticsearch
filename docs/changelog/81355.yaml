@@ -1,0 +1,5 @@
+pr: 81355
+issues: []
+area: Security
+type: enhancement
+summary: Add new system index for user profile documents

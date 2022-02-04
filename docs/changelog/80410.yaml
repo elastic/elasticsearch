@@ -1,0 +1,17 @@
+pr: 80410
+summary: Remove last few mentions of Zen discovery
+area: Cluster Coordination
+type: deprecation
+issues: []
+deprecation:
+  title: Legacy values for the `discovery.type` setting are deprecated
+  area: Cluster and node setting
+  notable: true
+  details: |-
+    Legacy values for the `discovery.type` setting are deprecated and will be
+    forbidden in a future version.
+  impact: |-
+    Do not set `discovery.type` to any value except `single-node` or `multi-node`.
+    All other values are equivalent to the default discovery type which is
+    `multi-node`. Where possible, omit this setting so that {es} uses the default
+    discovery type.

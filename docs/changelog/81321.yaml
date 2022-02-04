@@ -1,0 +1,5 @@
+pr: 81321
+issues: []
+area: SQL
+type: enhancement
+summary: Extend Tableau connector to reconnect with catalog

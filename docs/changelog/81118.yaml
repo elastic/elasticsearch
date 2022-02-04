@@ -1,0 +1,5 @@
+pr: 81118
+issues: []
+area: Cluster Coordination
+type: enhancement
+summary: Reduce verbosity-increase timeout to 3 minutes

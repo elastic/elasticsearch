@@ -1,0 +1,6 @@
+pr: 82856
+issues:
+  - 82456
+area: Allocation
+type: bug
+summary: Reroute after cluster recovery

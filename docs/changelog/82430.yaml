@@ -1,0 +1,6 @@
+pr: 82430
+issues:
+  - 56326
+area: Mapping
+type: bug
+summary: Add support for sub-fields to `search_as_you_type` fields

@@ -1,0 +1,7 @@
+pr: 81970
+issues:
+  - 77154
+  - 81575
+area: Mapping
+type: enhancement
+summary: Optimize source filtering in `SourceFieldMapper`

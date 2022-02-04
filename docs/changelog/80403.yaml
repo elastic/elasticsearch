@@ -1,0 +1,6 @@
+pr: 80403
+issues:
+  - 41194
+area: Allocation
+type: bug
+summary: Fix `updateMinNode` condition

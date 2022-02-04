@@ -1,0 +1,6 @@
+pr: 82256
+issues:
+  - 82559
+area: Transform
+type: enhancement
+summary: Introduce `deduce_mappings` transform setting

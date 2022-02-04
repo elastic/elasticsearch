@@ -1,0 +1,5 @@
+pr: 80595
+issues: []
+area: Machine Learning
+type: enhancement
+summary: Force delete trained models

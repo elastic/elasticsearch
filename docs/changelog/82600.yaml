@@ -1,0 +1,5 @@
+pr: 82600
+issues: []
+area: Authorization
+type: bug
+summary: Extend fleet-server service account privileges

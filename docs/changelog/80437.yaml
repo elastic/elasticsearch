@@ -1,0 +1,7 @@
+pr: 80437
+issues:
+  - 79698
+area: Snapshot/Restore
+type: enhancement
+summary: Add Linux x86-64bits native method to retrieve the number of allocated
+  bytes on disk for a file

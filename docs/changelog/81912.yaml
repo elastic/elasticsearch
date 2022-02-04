@@ -1,0 +1,6 @@
+pr: 81912
+issues:
+  - 81796
+area: Transform
+type: bug
+summary: Prevent stopping of transforms due to threadpool limitation

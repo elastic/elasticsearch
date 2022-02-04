@@ -1,0 +1,6 @@
+pr: 79869
+issues:
+  - 72276
+area: Aggregations
+type: enhancement
+summary: Fail shards early when we can detect a type missmatch

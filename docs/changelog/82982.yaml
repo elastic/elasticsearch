@@ -1,0 +1,5 @@
+pr: 82982
+issues: []
+area: Machine Learning
+type: bug
+summary: Fix NLP tokenization `never_split` handling around punctuation

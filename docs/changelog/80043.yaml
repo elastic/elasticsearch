@@ -1,0 +1,6 @@
+pr: 80043
+issues:
+  - 79105
+area: Infra/Scripting
+type: enhancement
+summary: Support boolean fields in Fields API

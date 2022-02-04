@@ -1,0 +1,5 @@
+pr: 82352
+issues: []
+area: Machine Learning
+type: bug
+summary: Correctly capture min stats for `inference.ingest_processors` in ML usage

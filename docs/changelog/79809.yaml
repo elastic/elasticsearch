@@ -1,0 +1,5 @@
+pr: 79809
+issues: []
+area: Authentication
+type: enhancement
+summary: Enable `run_as` for all authentication schemes

@@ -1,0 +1,6 @@
+pr: 79078
+issues:
+  - 62899
+area: Infra/Scripting
+type: enhancement
+summary: "Time series compile and cache evict metrics"

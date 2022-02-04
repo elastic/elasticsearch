@@ -1,0 +1,7 @@
+pr: 83178
+issues:
+  - 83148
+  - 83152
+area: Infra/Core
+type: enhancement
+summary: "`FilterPathBasedFilter` support match fieldname with dot"

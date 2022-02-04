@@ -1,0 +1,6 @@
+pr: 82628
+issues:
+  - 82629
+area: Machine Learning
+type: bug
+summary: Fixes `categorize_text` parameter validation to be parse order independent

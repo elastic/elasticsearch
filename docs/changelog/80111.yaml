@@ -1,0 +1,5 @@
+pr: 80111
+issues: []
+area: Network
+type: enhancement
+summary: Serialize outbound messages on netty buffers

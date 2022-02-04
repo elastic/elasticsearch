@@ -1,0 +1,6 @@
+pr: 79828
+issues:
+  - 75768
+area: Transform
+type: feature
+summary: Add transform reset API

@@ -1,0 +1,5 @@
+pr: 80695
+issues: []
+area: TSDB
+type: bug
+summary: Fix time series timestamp meta missing

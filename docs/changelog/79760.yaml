@@ -1,0 +1,5 @@
+pr: 79760
+issues: []
+area: Infra/Scripting
+type: enhancement
+summary: Add `BinaryDocValuesField` to replace `BytesRef` `(ScriptDocValues)`

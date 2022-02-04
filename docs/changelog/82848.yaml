@@ -1,0 +1,5 @@
+pr: 82848
+issues: []
+area: Machine Learning
+type: bug
+summary: Fix `ZeroShotClassificationConfig` update mixing fields

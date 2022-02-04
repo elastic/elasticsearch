@@ -1,0 +1,5 @@
+pr: 82772
+issues: []
+area: Security
+type: enhancement
+summary: Add update user profile data API

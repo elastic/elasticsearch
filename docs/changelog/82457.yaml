@@ -1,0 +1,6 @@
+pr: 82457
+issues:
+  - 81758
+area: Snapshot/Restore
+type: bug
+summary: Distinguish "missing repository" from "missing repository plugin"

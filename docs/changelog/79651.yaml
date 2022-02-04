@@ -1,0 +1,6 @@
+pr: 79651
+issues: []
+area: Aggregations
+type: enhancement
+summary: Optimize `significant_text` aggregation to only parse the field it
+  requires from `_source`

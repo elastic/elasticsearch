@@ -1,0 +1,6 @@
+pr: 80303
+issues:
+  - 79788
+area: Stats
+type: enhancement
+summary: Add index pressure stats in cluster stats

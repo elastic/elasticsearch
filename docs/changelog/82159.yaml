@@ -1,0 +1,5 @@
+pr: 82159
+issues: []
+area: Indices APIs
+type: enhancement
+summary: Batch auto create index cluster state updates

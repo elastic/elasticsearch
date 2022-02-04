@@ -1,0 +1,6 @@
+pr: 82890
+issues:
+  - 80767
+area: Allocation
+type: enhancement
+summary: Identify other node in `SameShardAllocDec` message

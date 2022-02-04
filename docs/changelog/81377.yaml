@@ -1,0 +1,5 @@
+pr: 81377
+issues: []
+area: Machine Learning
+type: enhancement
+summary: Set default value of 30 days for model prune window

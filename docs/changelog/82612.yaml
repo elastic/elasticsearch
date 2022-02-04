@@ -1,0 +1,6 @@
+pr: 82612
+issues:
+  - 82515
+area: Search
+type: enhancement
+summary: Rewrite `match` and `match_phrase` queries to `term` queries on `keyword` fields

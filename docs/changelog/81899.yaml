@@ -1,0 +1,5 @@
+pr: 81899
+issues: []
+area: Security
+type: enhancement
+summary: Add an initial `ProfileService` for user profiles

@@ -1,0 +1,6 @@
+pr: 83542
+summary: Allow CCS `skip_unavailable` to be set per search
+area: Search
+type: enhancement
+issues:
+ - 82407

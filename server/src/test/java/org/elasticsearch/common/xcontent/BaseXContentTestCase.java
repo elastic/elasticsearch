@@ -8,10 +8,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import com.fasterxml.jackson.core.JsonGenerationException;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -921,7 +917,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
     }
 
-    protected void doTestBigInteger(JsonGenerator generator, ByteArrayOutputStream os) throws Exception {
+    protected void doTestBigInteger(XContentGenerator generator, ByteArrayOutputStream os) throws Exception {
         // Big integers cannot be handled explicitly, but if some values happen to be big ints,
         // we can still call parser.map() and get the bigint value so that eg. source filtering
         // keeps working
@@ -1091,7 +1087,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     public void testChecksForDuplicates() throws Exception {
         XContentBuilder builder = builder().startObject().field("key", 1).field("key", 2).endObject();
         try (XContentParser xParser = createParser(builder)) {
-            JsonParseException pex = expectThrows(JsonParseException.class, () -> xParser.map());
+            XContentParseException pex = expectThrows(XContentParseException.class, () -> xParser.map());
             assertThat(pex.getMessage(), startsWith("Duplicate field 'key'"));
         }
     }
@@ -1160,12 +1156,12 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     private static void expectValueException(ThrowingRunnable runnable) {
-        JsonGenerationException e = expectThrows(JsonGenerationException.class, runnable);
+        XContentParseException e = expectThrows(XContentParseException.class, runnable);  // Is this the right ex??
         assertThat(e.getMessage(), containsString("expecting a value"));
     }
 
     private static void expectFieldException(ThrowingRunnable runnable) {
-        JsonGenerationException e = expectThrows(JsonGenerationException.class, runnable);
+        XContentParseException e = expectThrows(XContentParseException.class, runnable);
         assertThat(e.getMessage(), containsString("expecting field name"));
     }
 
@@ -1175,12 +1171,12 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     private static void expectObjectException(ThrowingRunnable runnable) {
-        JsonGenerationException e = expectThrows(JsonGenerationException.class, runnable);
+        XContentParseException e = expectThrows(XContentParseException.class, runnable);
         assertThat(e.getMessage(), containsString("Current context not Object"));
     }
 
     private static void expectArrayException(ThrowingRunnable runnable) {
-        JsonGenerationException e = expectThrows(JsonGenerationException.class, runnable);
+        XContentParseException e = expectThrows(XContentParseException.class, runnable);
         assertThat(e.getMessage(), containsString("Current context not Array"));
     }
 

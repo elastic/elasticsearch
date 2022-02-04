@@ -208,6 +208,8 @@ public class RestSearchAction extends BaseRestHandler {
             );
         }
 
+        searchRequest.setCcsSkipUnavailable(request.paramAsBoolean("ccs_skip_unavailable", searchRequest.getCcsSkipUnavailable()));
+
         extraParamParser.accept(request, searchRequest);
     }
 

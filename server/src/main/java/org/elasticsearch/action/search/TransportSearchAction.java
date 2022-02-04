@@ -424,9 +424,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 } else {
                     AtomicInteger skippedClusters = new AtomicInteger(0);
                     collectSearchShards(
-                        rewritten.indicesOptions(),
-                        rewritten.preference(),
-                        rewritten.routing(),
+                        rewritten,
                         skippedClusters,
                         remoteClusterIndices,
                         remoteClusterService,
@@ -498,6 +496,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             || source.collapse().getInnerHits().isEmpty();
     }
 
+    private static boolean skipUnavailable(SearchRequest searchRequest, RemoteClusterService remoteClusterService, String clusterAlias) {
+        if (searchRequest.getCcsSkipUnavailable() != null) {
+            return searchRequest.getCcsSkipUnavailable();
+        } else {
+            return remoteClusterService.isSkipUnavailable(clusterAlias);
+        }
+    }
+
     static void ccsRemoteReduce(
         TaskId parentTaskId,
         SearchRequest searchRequest,
@@ -516,7 +522,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             // and we directly perform final reduction in the remote cluster
             Map.Entry<String, OriginalIndices> entry = remoteIndices.entrySet().iterator().next();
             String clusterAlias = entry.getKey();
-            boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
+            final boolean skipUnavailable = skipUnavailable(searchRequest, remoteClusterService, clusterAlias);
             OriginalIndices indices = entry.getValue();
             SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(
                 parentTaskId,
@@ -526,7 +532,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 timeProvider.absoluteStartMillis(),
                 true
             );
-            Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
+            Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias, skipUnavailable == false);
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
@@ -579,7 +585,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final CountDown countDown = new CountDown(totalClusters);
             for (Map.Entry<String, OriginalIndices> entry : remoteIndices.entrySet()) {
                 String clusterAlias = entry.getKey();
-                boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
+                final boolean skipUnavailable = skipUnavailable(searchRequest, remoteClusterService, clusterAlias);
                 OriginalIndices indices = entry.getValue();
                 SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(
                     parentTaskId,
@@ -599,7 +605,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     totalClusters,
                     listener
                 );
-                Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
+                Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                    threadPool,
+                    clusterAlias,
+                    skipUnavailable == false
+                );
                 remoteClusterClient.search(ccsSearchRequest, ccsListener);
             }
             if (localIndices != null) {
@@ -652,9 +662,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     static void collectSearchShards(
-        IndicesOptions indicesOptions,
-        String preference,
-        String routing,
+        SearchRequest request,
         AtomicInteger skippedClusters,
         Map<String, OriginalIndices> remoteIndicesByCluster,
         RemoteClusterService remoteClusterService,
@@ -666,13 +674,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final AtomicReference<Exception> exceptions = new AtomicReference<>();
         for (Map.Entry<String, OriginalIndices> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterAlias = entry.getKey();
-            boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
-            Client clusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
+            final boolean skipUnavailable = skipUnavailable(request, remoteClusterService, clusterAlias);
+            Client clusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias, skipUnavailable == false);
             final String[] indices = entry.getValue().indices();
-            ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices).indicesOptions(indicesOptions)
-                .local(true)
-                .preference(preference)
-                .routing(routing);
+            ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices).indicesOptions(
+                request.indicesOptions()
+            ).local(true).preference(request.preference()).routing(request.routing());
             clusterClient.admin()
                 .cluster()
                 .searchShards(

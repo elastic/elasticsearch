@@ -27,6 +27,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
@@ -53,12 +54,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.oneOf;
 
 public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
 
     @Override
     protected Collection<String> remoteClusterAlias() {
-        return List.of("cluster_a");
+        return List.of("cluster_a", "cluster_b");
     }
 
     @Override
@@ -234,6 +236,90 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 assertThat(transportService.getTaskManager().getBannedTaskIds(), Matchers.empty());
             }
         });
+    }
+
+    public void testSkipUnavailable() throws Exception {
+        // cluster_a: skip_unavailable=false
+        // cluster_b: skip_unavailable=true
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put("cluster.remote.cluster_b.skip_unavailable", true))
+        );
+        try {
+            final int localDocs = indexDocs(client(LOCAL_CLUSTER), "local_index");
+            final int clusterADocs = indexDocs(client("cluster_a"), "index_a");
+            final int clusterBDocs = indexDocs(client("cluster_b"), "index_b");
+            final String[] indices = new String[] { "local_index", "cluster_a:index_a", "cluster_b:index_b" };
+            {
+                SearchRequest request = new SearchRequest(indices).source(new SearchSourceBuilder().size(1000));
+                if (randomBoolean()) {
+                    request.setCcsMinimizeRoundtrips(randomBoolean());
+                }
+                if (randomBoolean()) {
+                    request.setCcsSkipUnavailable(randomBoolean());
+                }
+                SearchResponse resp = client().search(request).actionGet();
+                ElasticsearchAssertions.assertNoFailures(resp);
+                assertHitCount(resp, localDocs + clusterADocs + clusterBDocs);
+            }
+            final CountDownLatch allNodesStoppedLatch = new CountDownLatch(1);
+            final CountDownLatch startNodesLatch = new CountDownLatch(1);
+            try {
+                new Thread(() -> {
+                    try {
+                        cluster("cluster_b").fullRestart(new InternalTestCluster.RestartCallback() {
+                            @Override
+                            public void onAllNodesStopped() throws Exception {
+                                super.onAllNodesStopped();
+                                allNodesStoppedLatch.countDown();
+                                startNodesLatch.await();
+                            }
+                        });
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }).start();
+                allNodesStoppedLatch.await();
+                // Test with skip_unavailable=true
+                {
+                    SearchRequest request = new SearchRequest(indices).source(new SearchSourceBuilder().size(1000));
+                    if (randomBoolean()) {
+                        request.setCcsMinimizeRoundtrips(randomBoolean());
+                    }
+                    // cluster_b has skip_unavailable=true
+                    if (randomBoolean()) {
+                        request.setCcsSkipUnavailable(true);
+                    }
+                    SearchResponse resp = client().search(request).actionGet();
+                    ElasticsearchAssertions.assertNoFailures(resp);
+                    assertHitCount(resp, localDocs + clusterADocs);
+                    for (SearchHit hit : resp.getHits()) {
+                        assertThat(hit.getClusterAlias(), oneOf(null, LOCAL_CLUSTER, "cluster_a"));
+                    }
+                }
+                // Test with skip_unavailable=false
+                expectThrows(Exception.class, () -> {
+                    SearchRequest request = new SearchRequest(indices).source(new SearchSourceBuilder().size(1000));
+                    if (randomBoolean()) {
+                        request.setCcsMinimizeRoundtrips(randomBoolean());
+                    }
+                    request.setCcsSkipUnavailable(false);
+                    client().search(request).actionGet();
+                });
+            } finally {
+                startNodesLatch.countDown();
+                cluster("cluster_b").validateClusterFormed();
+            }
+        } finally {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().putNull("cluster.remote.cluster_b.skip_unavailable"))
+            );
+        }
     }
 
     @Override

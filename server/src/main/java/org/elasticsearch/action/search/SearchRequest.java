@@ -91,6 +91,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private boolean ccsMinimizeRoundtrips;
 
+    private Boolean ccsSkipUnavailable;
+
     @Nullable
     private final Version minCompatibleShardNode;
 
@@ -261,6 +263,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             waitForCheckpoints = in.readMap(StreamInput::readString, StreamInput::readLongArray);
             waitForCheckpointsTimeout = in.readTimeValue();
         }
+        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+            ccsSkipUnavailable = in.readOptionalBoolean();
+        }
     }
 
     @Override
@@ -307,6 +312,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     + waitForCheckpointsVersion
                     + "] or greater."
             );
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+            out.writeOptionalBoolean(ccsSkipUnavailable);
         }
     }
 
@@ -467,6 +475,14 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public static boolean defaultCcsMinimizeRoundtrips(SearchRequest request) {
         return request.minCompatibleShardNode == null;
+    }
+
+    public Boolean getCcsSkipUnavailable() {
+        return ccsSkipUnavailable;
+    }
+
+    public void setCcsSkipUnavailable(Boolean ccsSkipUnavailable) {
+        this.ccsSkipUnavailable = ccsSkipUnavailable;
     }
 
     /**
@@ -804,7 +820,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && Objects.equals(localClusterAlias, that.localClusterAlias)
             && absoluteStartMillis == that.absoluteStartMillis
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
-            && Objects.equals(minCompatibleShardNode, that.minCompatibleShardNode);
+            && Objects.equals(minCompatibleShardNode, that.minCompatibleShardNode)
+            && Objects.equals(ccsSkipUnavailable, that.ccsSkipUnavailable);
     }
 
     @Override
@@ -825,7 +842,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             localClusterAlias,
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
-            minCompatibleShardNode
+            minCompatibleShardNode,
+            ccsSkipUnavailable
         );
     }
 
@@ -862,6 +880,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + absoluteStartMillis
             + ", ccsMinimizeRoundtrips="
             + ccsMinimizeRoundtrips
+            + ", ccsSkipUnavailable="
+            + ccsSkipUnavailable
             + ", source="
             + source
             + '}';

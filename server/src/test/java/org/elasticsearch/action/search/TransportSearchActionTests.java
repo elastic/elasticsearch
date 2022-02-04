@@ -794,10 +794,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 final CountDownLatch latch = new CountDownLatch(1);
                 AtomicReference<Map<String, ClusterSearchShardsResponse>> response = new AtomicReference<>();
                 AtomicInteger skippedClusters = new AtomicInteger();
+                SearchRequest searchRequest = new SearchRequest().indicesOptions(IndicesOptions.lenientExpandOpen());
                 TransportSearchAction.collectSearchShards(
-                    IndicesOptions.lenientExpandOpen(),
-                    null,
-                    null,
+                    searchRequest,
                     skippedClusters,
                     remoteIndicesByCluster,
                     remoteClusterService,
@@ -820,10 +819,10 @@ public class TransportSearchActionTests extends ESTestCase {
                 final CountDownLatch latch = new CountDownLatch(1);
                 AtomicReference<Exception> failure = new AtomicReference<>();
                 AtomicInteger skippedClusters = new AtomicInteger(0);
+                SearchRequest searchRequest = new SearchRequest().indicesOptions(IndicesOptions.lenientExpandOpen())
+                    .preference("index_not_found");
                 TransportSearchAction.collectSearchShards(
-                    IndicesOptions.lenientExpandOpen(),
-                    "index_not_found",
-                    null,
+                    searchRequest,
                     skippedClusters,
                     remoteIndicesByCluster,
                     remoteClusterService,
@@ -865,10 +864,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 final CountDownLatch latch = new CountDownLatch(1);
                 AtomicInteger skippedClusters = new AtomicInteger(0);
                 AtomicReference<Exception> failure = new AtomicReference<>();
+                SearchRequest searchRequest = new SearchRequest().indicesOptions(IndicesOptions.lenientExpandOpen());
                 TransportSearchAction.collectSearchShards(
-                    IndicesOptions.lenientExpandOpen(),
-                    null,
-                    null,
+                    searchRequest,
                     skippedClusters,
                     remoteIndicesByCluster,
                     remoteClusterService,
@@ -892,10 +890,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 final CountDownLatch latch = new CountDownLatch(1);
                 AtomicInteger skippedClusters = new AtomicInteger(0);
                 AtomicReference<Map<String, ClusterSearchShardsResponse>> response = new AtomicReference<>();
+                SearchRequest searchRequest = new SearchRequest().indicesOptions(IndicesOptions.lenientExpandOpen());
                 TransportSearchAction.collectSearchShards(
-                    IndicesOptions.lenientExpandOpen(),
-                    null,
-                    null,
+                    searchRequest,
                     skippedClusters,
                     remoteIndicesByCluster,
                     remoteClusterService,
@@ -935,10 +932,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 final CountDownLatch latch = new CountDownLatch(1);
                 AtomicInteger skippedClusters = new AtomicInteger(0);
                 AtomicReference<Map<String, ClusterSearchShardsResponse>> response = new AtomicReference<>();
+                SearchRequest searchRequest = new SearchRequest().indicesOptions(IndicesOptions.lenientExpandOpen());
                 TransportSearchAction.collectSearchShards(
-                    IndicesOptions.lenientExpandOpen(),
-                    null,
-                    null,
+                    searchRequest,
                     skippedClusters,
                     remoteIndicesByCluster,
                     remoteClusterService,

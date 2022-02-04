@@ -25,8 +25,7 @@ Retrieves user profile for the given unique ID
 [[security-api-get-user-profile-desc]]
 ==== {api-description-title}
 
-For more information about the native realm, see
-<<realms>> and <<native-realm>>.
+This API returns the user profile document with `uid` matching the provided path parameter.
 
 [[security-api-get-user-profile-path-params]]
 ==== {api-path-parms-title}
@@ -47,7 +46,8 @@ use `data=app1` to retrieve the content nested under the key of `app1`.
 ==== {api-response-body-title}
 
 A successful call returns the JSON representation of the user profile
-and its internal versioning numbers.
+and its internal versioning numbers. The API returns an empty object
+if no profile document is found for the provided `uid`.
 
 [[security-api-get-user-profile-response-codes]]
 ==== {api-response-codes-title}
@@ -99,7 +99,7 @@ GET /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw
 
 <1> No data is returned by default
 
-The `data` field is trimmed by default to avoid deserializing a potential large
+Content of the `data` field is not returned by default to avoid deserializing a potential large
 payload. The following request retrieves a subset of data along with the profile:
 
 [source,console]

@@ -110,6 +110,11 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.NONE;
     }

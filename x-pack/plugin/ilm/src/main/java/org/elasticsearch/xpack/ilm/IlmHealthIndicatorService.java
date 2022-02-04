@@ -21,6 +21,14 @@ import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.health.ServerHealthComponents.DATA;
 
+/**
+ * This indicator reports health for index lifecycle management component.
+ *
+ * Indicator will report YELLOW status when ILM is not running and there are configured policies.
+ * Constant indexing could eventually use entire disk space on hot topology in such cases.
+ *
+ * ILM must be running to fix warning reported by this indicator.
+ */
 public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "ILM";

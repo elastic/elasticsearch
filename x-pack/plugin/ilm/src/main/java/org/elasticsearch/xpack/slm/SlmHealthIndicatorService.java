@@ -21,6 +21,14 @@ import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
 
+/**
+ * This indicator reports health for snapshot lifecycle management component.
+ *
+ * Indicator will report YELLOW status when SLM is not running and there are configured policies.
+ * Data might not be backed up timely in such cases.
+ *
+ * SLM must be running to fix warning reported by this indicator.
+ */
 public class SlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "SLM";

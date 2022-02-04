@@ -179,7 +179,7 @@ matrix].
 IMPORTANT: For the {ref}/eql-search-api.html[EQL search API], the local and
 remote clusters must use the same {es} version.
 
-For example, a local 8.0 cluster can search a remote 7.7, 8.0, or
+For example, a local 8.0 cluster can search a remote {prev-major-last}, 8.0, or
 8.1 cluster. However, a search from a local 8.0 cluster to a remote 7.16 or 6.8
 cluster is not supported.
 

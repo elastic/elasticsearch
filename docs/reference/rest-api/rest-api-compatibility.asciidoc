@@ -19,8 +19,7 @@ An error can still be returned in compatibility mode if {es} cannot automaticall
 IMPORTANT: REST API compatibility does not guarantee the same behavior as the prior version. It instructs {es} to automatically resolve any incompatibilities so the request can be processed instead of returning an error. 
 
 
-It is important to note that REST API compatibility does not result in the same behavior as the prior version. Rather REST API compatibility is a best effort by the {es} service to find the best way to automatically resolve any incompatibility introduced in the REST API.
-This level of compatibility may not work for all workflows and use cases. For example, if the custom mapping types are an integral part of a workflow then ignoring the custom type at the REST API will not help.
+REST API compatibility should be a bridge to smooth out the upgrade process, not a long term strategy. REST API compatibility is only honored across one major version: honor 7.x requests/responses from 8.x.
 
 When you submit requests using REST API compatibility and {es} resolves the incompatibility, a message is written to the deprecation log with the category "compatible_api". Review the deprecation log to identify any gaps in usage and fully supported features.
 

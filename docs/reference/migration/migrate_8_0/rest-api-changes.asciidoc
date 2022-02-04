@@ -545,9 +545,9 @@ Discontinue use of the `include_type_name` query parameter. Requests that
 include the parameter will return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
 the `include_type_name` query parameter is ignored and any custom mapping types
-in the request will be removed.
+in the request are removed.
 ====
 
 .Reindex from remote now re-encodes URL-encoded index names.

@@ -244,7 +244,7 @@ Discontinue use of the `_time` order key. Requests that include a `_time` order
 key will return an error.
 
 *Compatibility* +
-When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>
+When <<rest-api-compatibility>> is <<request-rest-api-compatibility,requested>>,
 the `_time` order is ignored and `_key` is used instead.
 ====
 

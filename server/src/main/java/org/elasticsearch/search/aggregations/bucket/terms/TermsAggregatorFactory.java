@@ -290,6 +290,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             // counting
             bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
+        // We should scale the shard min doc count to account for the reduction due to sampling
+        getSamplingContext().ifPresent(
+            samplingContext -> bucketCountThresholds.setShardMinDocCount(samplingContext.scale(bucketCountThresholds.getShardMinDocCount()))
+        );
         bucketCountThresholds.ensureValidity();
 
         return aggregatorSupplier.build(

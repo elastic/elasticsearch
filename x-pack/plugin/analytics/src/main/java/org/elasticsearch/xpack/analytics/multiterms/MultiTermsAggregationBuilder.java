@@ -150,6 +150,11 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
         showTermDocCountError = in.readBoolean();
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     /**
      * Sets the field to use for this aggregation.
      */

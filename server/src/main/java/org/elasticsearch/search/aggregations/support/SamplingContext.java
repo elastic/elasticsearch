@@ -8,6 +8,15 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplingQuery;
+
+import java.io.IOException;
+import java.util.Optional;
+
 /**
  * This provides information around the current sampling context for aggregations
  */
@@ -71,6 +80,24 @@ public record SamplingContext(double probability, int seed) {
             return value / probability;
         }
         return value;
+    }
+
+    public Query buildQueryWithSampler(QueryBuilder builder, AggregationContext context) throws IOException {
+        Query rewritten = context.buildQuery(builder);
+        if (isSampled() == false) {
+            return rewritten;
+        }
+        BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
+        queryBuilder.add(rewritten, BooleanClause.Occur.FILTER);
+        queryBuilder.add(new RandomSamplingQuery(probability(), seed(), context.shardRandomSeed()), BooleanClause.Occur.FILTER);
+        return queryBuilder.build();
+    }
+
+    public Optional<Query> buildSamplingQueryIfNecessary(AggregationContext context) throws IOException {
+        if (isSampled() == false) {
+            return Optional.empty();
+        }
+        return Optional.of(new RandomSamplingQuery(probability(), seed(), context.shardRandomSeed()));
     }
 
 }

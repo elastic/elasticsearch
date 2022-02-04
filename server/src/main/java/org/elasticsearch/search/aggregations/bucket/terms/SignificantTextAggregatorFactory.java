@@ -40,6 +40,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.MapStringTermsAggregat
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.profile.Timer;
 
@@ -137,6 +138,9 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             // at that early stage.
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
+        SamplingContext samplingContext = getSamplingContext().orElse(SamplingContext.NONE);
+        // We should scale the shard min doc count to account for the reduction due to sampling
+        bucketCountThresholds.setShardMinDocCount(samplingContext.scale(bucketCountThresholds.getShardMinDocCount()));
 
         // TODO - need to check with mapping that this is indeed a text field....
 
@@ -144,7 +148,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             ? null
             : includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
-        final SignificanceLookup lookup = new SignificanceLookup(context, fieldType, DocValueFormat.RAW, backgroundFilter);
+        final SignificanceLookup lookup = new SignificanceLookup(context, samplingContext, fieldType, DocValueFormat.RAW, backgroundFilter);
         final CollectorSource collectorSource = createCollectorSource();
         boolean success = false;
         try {

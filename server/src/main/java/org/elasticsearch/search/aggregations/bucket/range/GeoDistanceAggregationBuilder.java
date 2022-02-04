@@ -266,6 +266,11 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         unit = DistanceUnit.readFromStream(in);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     // for parsing
     GeoDistanceAggregationBuilder(String name) {
         this(name, null, InternalGeoDistance.FACTORY);

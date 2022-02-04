@@ -90,6 +90,11 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         return new CompositeAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     public CompositeAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         int num = in.readVInt();

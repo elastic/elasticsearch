@@ -33,6 +33,11 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
     private List<String> keys;
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         keyed = randomBoolean();

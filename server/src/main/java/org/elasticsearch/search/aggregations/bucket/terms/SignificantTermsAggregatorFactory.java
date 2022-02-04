@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.Bucket
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -254,8 +255,17 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             // at that early stage.
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
+        SamplingContext samplingContext = getSamplingContext().orElse(SamplingContext.NONE);
+        // We should scale the shard min doc count to account for the reduction due to sampling
+        bucketCountThresholds.setShardMinDocCount(samplingContext.scale(bucketCountThresholds.getShardMinDocCount()));
 
-        SignificanceLookup lookup = new SignificanceLookup(context, config.fieldContext().fieldType(), config.format(), backgroundFilter);
+        SignificanceLookup lookup = new SignificanceLookup(
+            context,
+            samplingContext,
+            config.fieldContext().fieldType(),
+            config.format(),
+            backgroundFilter
+        );
 
         return aggregatorSupplier.build(
             name,

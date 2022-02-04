@@ -227,6 +227,11 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     public String getType() {
         return NAME;
     }

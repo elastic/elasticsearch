@@ -94,7 +94,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         waitForElasticsearch(installation);
         final String node1ContainerId = Docker.getContainerId();
 
-        Docker.waitForGreenCluster(node1ContainerId);
+        Docker.waitForNodeStarted(node1ContainerId);
 
         String enrollmentToken = getEnrollmentToken();
 

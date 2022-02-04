@@ -738,22 +738,24 @@ public class Docker {
     }
 
     /**
-     * Waits for Elasticsearch to enter a {@code GREEN} state by looking at the cluster logs. This is useful
-     * if the container is not available on an external port, or authentication is in force and credentials
+     * Waits for an Elasticsearch node start by looking at the cluster logs. This is useful if the
+     * container is not available on an external port, or authentication is in force and credentials
      * are not available.
      * @param containerId the container to check
      */
-    public static void waitForGreenCluster(String containerId) throws Exception {
+    public static void waitForNodeStarted(String containerId) throws Exception {
         ObjectMapper mapper = new ObjectMapper();
+        // Some lines are not JSON, filter those out
         assertBusy(() -> assertTrue(getContainerLogs(containerId).stdout().lines().filter(line -> line.startsWith("{")).map(line -> {
             try {
                 return mapper.readTree(line);
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
-        }).anyMatch(json -> json.get("message").textValue().contains("Cluster health status changed from [YELLOW] to [GREEN]"))),
-            60,
-            TimeUnit.SECONDS
-        );
+        })
+            .anyMatch(
+                json -> json.get("message").textValue().contains("started")
+                    && json.get("log.logger").textValue().equals("org.elasticsearch.node.Node")
+            )), 60, TimeUnit.SECONDS);
     }
 }

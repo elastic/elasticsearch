@@ -12,7 +12,9 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
@@ -25,8 +27,10 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.internal.CancellableScorer;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * An IndexSearcher wrapper that executes the searches in time-series indices by traversing them by tsid and timestamp
@@ -37,14 +41,16 @@ public class TimeSeriesIndexSearcher {
     // We need to delegate to the other searcher here as opposed to extending IndexSearcher and inheriting default implementations as the
     // IndexSearcher would most of the time be a ContextIndexSearcher that has important logic related to e.g. document-level security.
     private final IndexSearcher searcher;
+    private final List<Runnable> cancellations;
 
-    public TimeSeriesIndexSearcher(IndexSearcher searcher) {
+    public TimeSeriesIndexSearcher(IndexSearcher searcher, List<Runnable> cancellations) {
         this.searcher = searcher;
+        this.cancellations = cancellations;
     }
 
     public void search(Query query, BucketCollector bucketCollector) throws IOException {
         query = searcher.rewrite(query);
-        Weight weight = searcher.createWeight(query, bucketCollector.scoreMode(), 1);
+        Weight weight = wrapWeight(searcher.createWeight(query, bucketCollector.scoreMode(), 1));
         PriorityQueue<LeafWalker> queue = new PriorityQueue<>(searcher.getIndexReader().leaves().size()) {
             @Override
             protected boolean lessThan(LeafWalker a, LeafWalker b) {
@@ -119,6 +125,45 @@ public class TimeSeriesIndexSearcher {
                 }
             } while (docId != DocIdSetIterator.NO_MORE_DOCS);
             return false;
+        }
+    }
+
+    private void checkCancelled() {
+        for (Runnable r : cancellations) {
+            r.run();
+        }
+    }
+
+    private Weight wrapWeight(Weight weight) {
+        if (cancellations.isEmpty() == false) {
+            return new Weight(weight.getQuery()) {
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean isCacheable(LeafReaderContext ctx) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Scorer scorer(LeafReaderContext context) throws IOException {
+                    Scorer scorer = weight.scorer(context);
+                    if (scorer != null) {
+                        return new CancellableScorer(scorer, () -> checkCancelled());
+                    } else {
+                        return null;
+                    }
+                }
+
+                @Override
+                public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
+                    return weight.bulkScorer(context);
+                }
+            };
+        } else {
+            return weight;
         }
     }
 }

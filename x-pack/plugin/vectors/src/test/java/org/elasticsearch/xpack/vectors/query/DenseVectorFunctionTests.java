@@ -36,12 +36,11 @@ public class DenseVectorFunctionTests extends ESTestCase {
 
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
             BinaryDocValues docValues = BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, indexVersion);
-            DenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", indexVersion, dims);
+            DenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", dims, indexVersion);
             field.setNextDocId(0);
 
             ScoreScript scoreScript = mock(ScoreScript.class);
             when(scoreScript.field("vector")).thenAnswer(mock -> field);
-            // when(scoreScript.field(fieldName)).thenReturn(field);
 
             // Test cosine similarity explicitly, as it must perform special logic on top of the doc values
             CosineSimilarity function = new CosineSimilarity(scoreScript, queryVector, fieldName);

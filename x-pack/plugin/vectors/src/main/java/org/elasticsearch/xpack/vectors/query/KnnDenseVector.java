@@ -17,7 +17,7 @@ public class KnnDenseVector implements DenseVector {
     protected final int dims;
     protected final float[] vector;
 
-    public KnnDenseVector(int dims, float[] vector) {
+    public KnnDenseVector(float[] vector, int dims) {
         this.dims = dims;
         this.vector = vector;
     }

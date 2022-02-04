@@ -63,7 +63,7 @@ final class VectorDVLeafFieldData implements LeafFieldData {
                 return new KnnDenseVectorDocValuesField(values, name, dims);
             } else {
                 BinaryDocValues values = DocValues.getBinary(reader, field);
-                return new BinaryDenseVectorDocValuesField(values, name, indexVersion, dims);
+                return new BinaryDenseVectorDocValuesField(values, name, dims, indexVersion);
             }
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values for vector field!", e);

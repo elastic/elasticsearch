@@ -21,7 +21,7 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
     protected final int dims;
     protected BytesRef value;
 
-    public BinaryDenseVectorDocValuesField(BinaryDocValues input, String name, Version indexVersion, int dims) {
+    public BinaryDenseVectorDocValuesField(BinaryDocValues input, String name, int dims, Version indexVersion) {
         super(name);
         this.input = input;
         this.indexVersion = indexVersion;
@@ -53,7 +53,7 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
             return DenseVector.EMPTY;
         }
 
-        return new BinaryDenseVector(dims, value, indexVersion);
+        return new BinaryDenseVector(value, dims, indexVersion);
     }
 
     @Override
@@ -61,7 +61,7 @@ public class BinaryDenseVectorDocValuesField extends DenseVectorDocValuesField {
         if (isEmpty()) {
             return defaultValue;
         }
-        return new BinaryDenseVector(dims, value, indexVersion);
+        return new BinaryDenseVector(value, dims, indexVersion);
     }
 
     @Override

@@ -20,7 +20,7 @@ public class BinaryDenseVector implements DenseVector {
     protected final float[] vector;
     protected final Version indexVersion;
 
-    public BinaryDenseVector(int dims, BytesRef value, Version indexVersion) {
+    public BinaryDenseVector(BytesRef value, int dims, Version indexVersion) {
         this.value = value;
         this.indexVersion = indexVersion;
         this.vector = new float[dims];

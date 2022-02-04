@@ -58,7 +58,7 @@ public interface DenseVector extends Iterable<Double> {
 
         @Override
         public boolean isEmpty() {
-            return false;
+            return true;
         }
 
         @Override

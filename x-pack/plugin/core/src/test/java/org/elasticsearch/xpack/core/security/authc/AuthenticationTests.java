@@ -185,9 +185,6 @@ public class AuthenticationTests extends ESTestCase {
         Authentication serviceAccountAuthentication = randomServiceAccountAuthentication();
         assertThat(serviceAccountAuthentication.isAssignedToDomain(), is(false));
         assertThat(serviceAccountAuthentication.getDomain(), nullValue());
-        serviceAccountAuthentication = serviceAccountAuthentication.token();
-        assertThat(serviceAccountAuthentication.isAssignedToDomain(), is(false));
-        assertThat(serviceAccountAuthentication.getDomain(), nullValue());
         Authentication internalAuthentication = randomInternalAuthentication();
         assertThat(internalAuthentication.isAssignedToDomain(), is(false));
         assertThat(internalAuthentication.getDomain(), nullValue());

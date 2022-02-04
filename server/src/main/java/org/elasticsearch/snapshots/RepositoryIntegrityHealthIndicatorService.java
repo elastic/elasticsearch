@@ -25,6 +25,14 @@ import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
 
+/**
+ * This indicator reports health for snapshot repositories.
+ *
+ * Indicator will report RED status when any of snapshot repositories is marked as corrupted.
+ * Data might not be backed up in such cases.
+ *
+ * Corrupted repository most likely need to be manually cleaned and a new snapshot needs to be created from scratch.
+ */
 public class RepositoryIntegrityHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "repository integrity";

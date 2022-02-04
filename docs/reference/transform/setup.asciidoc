@@ -73,6 +73,8 @@ destination indices
 Within a {kib} space, for read-only access to {transforms}, you must have:
 
 [%interactive]
+* [ ] Management features visible in the {kib} space, including
+`Stack Monitoring`
 * [ ] `transform_user` built-in role or `monitor_transform` cluster privileges
 * [ ] `monitoring_user` built-in role
 * [ ] `kibana_admin` built-in role or a custom role with `read` {kib} privileges
